@@ -130,6 +130,27 @@ After ingestion, data is written under `.context/`:
 - `./scripts/context.sh note <title> [text]` store tacit team knowledge as indexed notes
 - `./scripts/context.sh status` show ingest + graph status
 
+## Custom Entity Types (ontology.cypher)
+
+To add your own entity types (for example `APIContract`, `Test`, `Owner`):
+
+1. Update graph schema:
+   - Edit `.context/ontology.cypher`
+   - Add `CREATE NODE TABLE ...` and optional `CREATE REL TABLE ...` definitions.
+2. Extend ingest output:
+   - Update `scripts/ingest.mjs` to emit your entity records into:
+     - `.context/cache/entities.<type>.jsonl`
+     - `.context/db/import/<Type>.tsv`
+3. Extend graph loading:
+   - Update `mcp/src/loadGraph.ts` (and scaffold copy) to import the new TSV files into Kuzu.
+4. Expose in MCP retrieval:
+   - Update `mcp/src/graph.ts` to query/load the new entity/relation data.
+   - Update `mcp/src/search.ts` if you want the new entities included in `context.search`.
+5. Rebuild local graph:
+   - `./scripts/context.sh ingest`
+   - `./scripts/context.sh graph-load`
+   - `./scripts/context.sh status`
+
 ## v1 Scope
 
 - Entities: `File`, `Rule`, `ADR`
