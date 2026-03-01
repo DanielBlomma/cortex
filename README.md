@@ -78,7 +78,7 @@ If Codex/Claude settings were reset or changed:
 ### Troubleshooting
 
 - If `init` says command not found for `codex` or `claude`, Cortex setup still works. Only MCP auto-registration is skipped.
-- During first `bootstrap`, npm may print deprecation/audit warnings from upstream `kuzu` dependencies. This is currently a known upstream risk.
+- During first `bootstrap`, npm may print deprecation warnings from upstream `kuzu` dependencies. Current `npm audit` for `mcp/` is clean after transitive dependency overrides.
 - If `mcp/dist/server.js` is missing, run:
   - `npx github:DanielBlomma/cortex bootstrap`
 - If scaffold already exists and you want a fresh template copy:
@@ -146,4 +146,4 @@ Expand ontology with `APIContract`, `Test`, and `Owner` after baseline retrieval
 
 ## Release Status
 
-- V2 is locked (2026-03-01): see [`docs/v2-status.md`](docs/v2-status.md) for completed scope and accepted security risk notes.
+- V2 is locked (2026-03-01): see [`docs/v2-status.md`](docs/v2-status.md) for completed scope and current security status.

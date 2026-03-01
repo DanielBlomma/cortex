@@ -11,35 +11,22 @@ Date locked: 2026-03-01
 - `context.search` is unified across `File`, `Rule`, and `ADR`.
 - Baseline MCP integration tests are in place and passing.
 
-## Security Risk Acceptance (V2)
+## Security Status (Updated 2026-03-01)
 
-Current `npm audit` in `mcp/` reports high vulnerabilities in the dependency chain:
+Remediation completed in V2:
 
-- `kuzu` (direct dependency)
-- `cmake-js` (transitive via `kuzu`)
-- `tar` (transitive via `cmake-js`)
+- Added dependency overrides in `mcp/package.json` and `scaffold/mcp/package.json`:
+  - `cmake-js`: `^8.0.0`
+  - `tar`: `^7.5.9`
+- Regenerated lockfiles for both runtime and scaffold.
 
-Status at lock date (`2026-03-01`):
+Validation after remediation:
 
-- No fix available in the current upstream `kuzu` release.
-- `kuzu` is already on latest available version (`0.11.3`).
+- `npm audit` in `mcp/`: `0` vulnerabilities.
+- `npm audit` in `scaffold/mcp/`: `0` vulnerabilities.
+- MCP build and tests still pass.
 
-Accepted risk decision:
+Notes:
 
-- V2 is accepted with this known risk because the graph layer is required for current retrieval capabilities and there is no upstream patch path right now.
-
-Mitigations in place:
-
-- Repo-local usage by default (no exposed remote MCP service by default setup).
-- No automatic execution of downloaded archives in project scripts.
-- Keep dependency surface minimal outside required MCP + Kuzu stack.
-
-Operational guardrails:
-
-- Re-run `npm audit` before each release tag.
-- Re-check `kuzu` upstream for a patched dependency chain before starting V3 hardening.
-- If security posture requirements increase, isolate graph runtime (separate process/container) as first mitigation.
-
-## Remaining Work Moved Out Of V2
-
-- Vulnerability remediation is deferred to V3 (or earlier if upstream releases a fix).
+- npm may still print deprecation warnings from upstream packages (`kuzu`, `prebuild-install`), but current audit is clean.
+- Continue running `npm audit` before release tags and re-check upstream dependency health periodically.

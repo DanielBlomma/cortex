@@ -17,6 +17,10 @@
     "kuzu": "^0.11.3",
     "zod": "^3.24.1"
   },
+  "overrides": {
+    "cmake-js": "^8.0.0",
+    "tar": "^7.5.9"
+  },
   "devDependencies": {
     "@types/node": "^22.10.1",
     "ts-node": "^10.9.2",
