@@ -20,16 +20,69 @@ The project provides a practical foundation for:
 From the repo you want to enable:
 
 1. Initialize Cortex scaffold:
-   - `npx github:DanielBlomma/cortex init`
-2. Run first setup:
-   - `npx github:DanielBlomma/cortex bootstrap`
-3. Daily refresh while coding:
+   - `npx github:DanielBlomma/cortex init --bootstrap`
+   - This now auto-connects MCP to both Codex and Claude Code.
+   - Add `--no-connect` if you only want scaffold + data setup.
+2. Daily refresh while coding:
    - `npx github:DanielBlomma/cortex update`
-4. Check health:
+3. Check health:
    - `npx github:DanielBlomma/cortex status`
 
 If you already have scaffold files and want to refresh from template:
 - `npx github:DanielBlomma/cortex init --force`
+
+If you want to (re)register MCP integrations later:
+- `npx github:DanielBlomma/cortex connect`
+- `npx github:DanielBlomma/cortex connect --skip-build` to skip local TypeScript build
+
+## Installation Guide
+
+### Prerequisites
+
+- Node.js 20+ (`node -v`)
+- npm 10+ (`npm -v`)
+- git (`git --version`)
+- Optional (for MCP auto-connect): `codex` CLI and/or `claude` CLI available in `PATH`
+
+### Option A: No global install (recommended)
+
+Run directly from any repository with `npx`:
+
+1. Go to your target repo:
+   - `cd /path/to/your-repo`
+2. Install scaffold + run first setup:
+   - `npx github:DanielBlomma/cortex init --bootstrap`
+3. Daily usage:
+   - `npx github:DanielBlomma/cortex update`
+   - `npx github:DanielBlomma/cortex status`
+
+### Option B: Global install (`cortex` command)
+
+Install once on your machine:
+
+1. Install globally:
+   - `npm i -g github:DanielBlomma/cortex`
+2. Use in any repo:
+   - `cd /path/to/your-repo`
+   - `cortex init --bootstrap`
+   - `cortex update`
+   - `cortex status`
+
+### Reconnect MCP Integrations
+
+If Codex/Claude settings were reset or changed:
+
+- `npx github:DanielBlomma/cortex connect`
+- or with global install: `cortex connect`
+
+### Troubleshooting
+
+- If `init` says command not found for `codex` or `claude`, Cortex setup still works. Only MCP auto-registration is skipped.
+- During first `bootstrap`, npm may print deprecation/audit warnings from upstream `kuzu` dependencies. This is currently a known upstream risk.
+- If `mcp/dist/server.js` is missing, run:
+  - `npx github:DanielBlomma/cortex bootstrap`
+- If scaffold already exists and you want a fresh template copy:
+  - `npx github:DanielBlomma/cortex init --force`
 
 ## Project Layout
 
