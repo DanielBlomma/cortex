@@ -6,7 +6,7 @@ Date locked: 2026-03-01
 
 - MCP server uses proper MCP protocol (JSON-RPC over stdio via official SDK).
 - Incremental ingest handles changed directory paths and deleted path prefixes correctly.
-- Kuzu runtime supports reconnect/reload without server restart.
+- RyuGraph runtime supports reconnect/reload without server restart.
 - Local semantic embeddings are generated with `Xenova/all-MiniLM-L6-v2`.
 - `context.search` is unified across `File`, `Rule`, and `ADR`.
 - Baseline MCP integration tests are in place and passing.
@@ -28,5 +28,5 @@ Validation after remediation:
 
 Notes:
 
-- npm may still print deprecation warnings from upstream packages (`kuzu`, `prebuild-install`), but current audit is clean.
+- npm may still print deprecation warnings from upstream packages (`ryugraph`, `prebuild-install`), but current audit is clean.
 - Continue running `npm audit` before release tags and re-check upstream dependency health periodically.

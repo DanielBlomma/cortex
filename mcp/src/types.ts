@@ -58,7 +58,7 @@ export type ContextData = {
   rules: RuleRecord[];
   relations: RelationRecord[];
   ranking: RankingWeights;
-  source: "cache" | "kuzu";
+  source: "cache" | "ryu";
   warning?: string;
 };
 

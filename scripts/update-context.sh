@@ -12,7 +12,7 @@ if ! "$REPO_ROOT/scripts/embed.sh" --changed; then
 fi
 
 echo "[update] rebuilding graph"
-"$REPO_ROOT/scripts/load-kuzu.sh"
+"$REPO_ROOT/scripts/load-ryu.sh"
 
 echo "[update] status"
 "$REPO_ROOT/scripts/status.sh"

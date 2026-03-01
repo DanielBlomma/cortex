@@ -1,14 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import kuzu, { type Connection, type QueryResult } from "kuzu";
+import ryugraph, { type Connection, type QueryResult } from "ryugraph";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, "../..");
 const CONTEXT_DIR = path.join(REPO_ROOT, ".context");
 const CACHE_DIR = path.join(CONTEXT_DIR, "cache");
-const DB_PATH = path.join(CONTEXT_DIR, "db", "graph.kuzu");
+const DB_PATH = path.join(CONTEXT_DIR, "db", "graph.ryu");
 const ONTOLOGY_PATH = path.join(CONTEXT_DIR, "ontology.cypher");
 
 type JsonValue = string | number | boolean | null | JsonObject | JsonValue[];
@@ -234,8 +234,8 @@ async function main(): Promise<void> {
   }
   fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
-  const db = new kuzu.Database(DB_PATH);
-  const conn = new kuzu.Connection(db);
+  const db = new ryugraph.Database(DB_PATH);
+  const conn = new ryugraph.Connection(db);
 
   const ontologyStatements = parseOntologyStatements(fs.readFileSync(ONTOLOGY_PATH, "utf8"));
   await executeStatements(conn, ontologyStatements);
@@ -383,7 +383,7 @@ async function main(): Promise<void> {
   );
   console.log(`[graph-load] manifest=${summaryPath}`);
 
-  // Kuzu Node addon can crash on explicit close in some environments.
+  // RyuGraph Node addon can crash on explicit close in some environments.
   // Let process teardown handle resource cleanup.
 }
 

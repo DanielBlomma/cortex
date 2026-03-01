@@ -13,7 +13,7 @@ Commands:
   embed [--changed]                Generate semantic embeddings for indexed entities
   update                           Ingest changed files + rebuild graph
   refresh [--changed] [--verbose]  Alias for ingest
-  graph-load [--no-reset]          Build Kuzu graph DB from indexed context
+  graph-load [--no-reset]          Build RyuGraph DB from indexed context
   note <title> [text]              Save tacit knowledge note into .context/notes
   status                           Show latest ingest summary
   help                             Show this message
@@ -42,7 +42,7 @@ case "$COMMAND" in
     "$SCRIPT_DIR/refresh.sh" "$@"
     ;;
   graph-load)
-    "$SCRIPT_DIR/load-kuzu.sh" "$@"
+    "$SCRIPT_DIR/load-ryu.sh" "$@"
     ;;
   note)
     "$SCRIPT_DIR/capture-note.sh" "$@"

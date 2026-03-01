@@ -153,7 +153,7 @@ To add your own entities (for example `APIContract`, `Test`, `Owner`):
 2. Extend `scripts/ingest.mjs` to emit:
    - `.context/cache/entities.<type>.jsonl`
    - `.context/db/import/<Type>.tsv`
-3. Extend `mcp/src/loadGraph.ts` to load new TSV data into Kuzu.
+3. Extend `mcp/src/loadGraph.ts` to load new TSV data into RyuGraph.
 4. Extend `mcp/src/graph.ts` and optionally `mcp/src/search.ts` to expose/query the new types.
 5. Rebuild data:
 
@@ -193,13 +193,13 @@ cortex help
   - Cortex still works; only auto MCP registration is skipped.
 - `mcp/dist/server.js` missing
   - Run `cortex bootstrap`.
-- Kuzu DB warnings on cold start
+- RyuGraph DB warnings on cold start
   - Run `./scripts/context.sh graph-load` or full `./scripts/context.sh bootstrap`.
 
 ## Notes on Security Warnings
 
 Current `mcp/` audit is clean with dependency overrides in place.
-You may still see upstream deprecation warnings (`kuzu`, `prebuild-install`) during install.
+You may still see upstream deprecation warnings (`ryugraph`, `prebuild-install`) during install.
 
 ## Release Status
 

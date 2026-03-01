@@ -55,6 +55,6 @@ test("context.reload returns reload metadata", async () => {
     assert.notEqual(result.isError, true);
     assert.ok(result.structuredContent);
     assert.equal(typeof result.structuredContent.reloaded, "boolean");
-    assert.ok(["kuzu", "cache"].includes(String(result.structuredContent.context_source)));
+    assert.ok(["ryu", "cache"].includes(String(result.structuredContent.context_source)));
   });
 });

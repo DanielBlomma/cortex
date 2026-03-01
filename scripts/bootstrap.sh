@@ -34,7 +34,7 @@ info "pipeline: deps -> ingest -> embeddings -> graph -> status"
 mkdir -p "$MCP_DIR/.npm-cache"
 
 step "Installing MCP dependencies"
-info "note: upstream Kuzu dependencies may print deprecation/audit warnings during install"
+info "note: upstream RyuGraph dependencies may print deprecation warnings during install"
 NPM_CONFIG_CACHE="$MCP_DIR/.npm-cache" npm --prefix "$MCP_DIR" install --no-fund --no-update-notifier --loglevel=warn
 
 step "Indexing repository context"
@@ -45,8 +45,8 @@ if ! "$REPO_ROOT/scripts/embed.sh"; then
   info "warning: embedding generation failed; continuing with lexical search fallback"
 fi
 
-step "Loading Kuzu graph"
-"$REPO_ROOT/scripts/load-kuzu.sh"
+step "Loading RyuGraph"
+"$REPO_ROOT/scripts/load-ryu.sh"
 
 step "Reading context status"
 "$REPO_ROOT/scripts/status.sh"

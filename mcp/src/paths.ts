@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
 export const REPO_ROOT = path.resolve(__dirname, "../..");
 export const CONTEXT_DIR = path.join(REPO_ROOT, ".context");
 export const CACHE_DIR = path.join(CONTEXT_DIR, "cache");
-export const DB_PATH = path.join(CONTEXT_DIR, "db", "graph.kuzu");
+export const DB_PATH = path.join(CONTEXT_DIR, "db", "graph.ryu");
 
 export const PATHS = {
   config: path.join(CONTEXT_DIR, "config.yaml"),

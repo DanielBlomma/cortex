@@ -5,7 +5,7 @@ Provide high-signal, repo-local context to coding agents without bloating instru
 
 ## Pipeline
 1. Ingestion: source files -> entities + relations
-2. Storage: graph (Kuzu) + optional vector index
+2. Storage: graph (RyuGraph) + optional vector index
 3. Retrieval: semantic + graph
 4. Policy: rules filter conflicts/deprecated/source-of-truth
 5. Assembly: runtime context package for MCP tool responses

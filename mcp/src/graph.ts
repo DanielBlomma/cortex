@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import kuzu, { type Connection, type Database, type QueryResult } from "kuzu";
+import ryugraph, { type Connection, type Database, type QueryResult } from "ryugraph";
 import { DB_PATH, DEFAULT_RANKING, PATHS } from "./paths.js";
 import type {
   AdrRecord,
@@ -17,19 +17,19 @@ import type {
 export type ReloadContextResult = {
   forced: boolean;
   reloaded: boolean;
-  context_source: "kuzu" | "cache";
+  context_source: "ryu" | "cache";
   previous_graph_signature: string | null;
   current_graph_signature: string | null;
   warning?: string;
 };
 
-let kuzuDb: Database | null = null;
-let kuzuConnection: Connection | null = null;
-let kuzuInitError: string | null = null;
-let kuzuLastInitAttemptAt = 0;
-let kuzuGraphSignature: string | null = null;
+let ryuDb: Database | null = null;
+let ryuConnection: Connection | null = null;
+let ryuInitError: string | null = null;
+let ryuLastInitAttemptAt = 0;
+let ryuGraphSignature: string | null = null;
 
-const KUZU_INIT_RETRY_INTERVAL_MS = 2000;
+const RYU_INIT_RETRY_INTERVAL_MS = 2000;
 
 function readFileIfExists(filePath: string): string | null {
   if (!fs.existsSync(filePath)) {
@@ -332,19 +332,19 @@ function buildMissingDbMessage(): string {
   const bootstrapCommand = "./scripts/context.sh bootstrap";
 
   if (!fs.existsSync(dbDir)) {
-    return `Kuzu directory missing at ${dbDir}. Run ${bootstrapCommand}.`;
+    return `RyuGraph directory missing at ${dbDir}. Run ${bootstrapCommand}.`;
   }
 
-  return `Kuzu DB not found at ${DB_PATH}. Run ${loadCommand} (or ${bootstrapCommand} on cold start).`;
+  return `RyuGraph DB not found at ${DB_PATH}. Run ${loadCommand} (or ${bootstrapCommand} on cold start).`;
 }
 
-async function closeKuzuResources(): Promise<void> {
-  const currentConnection = kuzuConnection;
-  const currentDb = kuzuDb;
+async function closeRyuGraphResources(): Promise<void> {
+  const currentConnection = ryuConnection;
+  const currentDb = ryuDb;
 
-  kuzuConnection = null;
-  kuzuDb = null;
-  kuzuGraphSignature = null;
+  ryuConnection = null;
+  ryuDb = null;
+  ryuGraphSignature = null;
 
   if (currentConnection) {
     try {
@@ -363,54 +363,54 @@ async function closeKuzuResources(): Promise<void> {
   }
 }
 
-async function resetKuzuState(errorMessage: string): Promise<void> {
-  kuzuInitError = errorMessage;
-  await closeKuzuResources();
+async function resetRyuGraphState(errorMessage: string): Promise<void> {
+  ryuInitError = errorMessage;
+  await closeRyuGraphResources();
 }
 
-async function getKuzuConnection(forceReload = false): Promise<Connection | null> {
+async function getRyuGraphConnection(forceReload = false): Promise<Connection | null> {
   const diskSignature = readGraphSignature();
 
-  if (kuzuConnection) {
+  if (ryuConnection) {
     if (forceReload) {
-      await closeKuzuResources();
-      kuzuLastInitAttemptAt = 0;
-    } else if (diskSignature && kuzuGraphSignature && diskSignature === kuzuGraphSignature) {
-      return kuzuConnection;
+      await closeRyuGraphResources();
+      ryuLastInitAttemptAt = 0;
+    } else if (diskSignature && ryuGraphSignature && diskSignature === ryuGraphSignature) {
+      return ryuConnection;
     } else {
-      await resetKuzuState("Kuzu graph changed on disk; reconnecting.");
-      kuzuLastInitAttemptAt = 0;
+      await resetRyuGraphState("RyuGraph graph changed on disk; reconnecting.");
+      ryuLastInitAttemptAt = 0;
     }
   }
 
   const now = Date.now();
-  if (!forceReload && now - kuzuLastInitAttemptAt < KUZU_INIT_RETRY_INTERVAL_MS) {
+  if (!forceReload && now - ryuLastInitAttemptAt < RYU_INIT_RETRY_INTERVAL_MS) {
     return null;
   }
-  kuzuLastInitAttemptAt = now;
+  ryuLastInitAttemptAt = now;
 
   if (!diskSignature) {
-    await resetKuzuState(buildMissingDbMessage());
+    await resetRyuGraphState(buildMissingDbMessage());
     return null;
   }
 
   try {
-    const nextDb = new kuzu.Database(DB_PATH, undefined, undefined, true);
-    const nextConnection = new kuzu.Connection(nextDb);
+    const nextDb = new ryugraph.Database(DB_PATH, undefined, undefined, true);
+    const nextConnection = new ryugraph.Connection(nextDb);
     await nextDb.init();
     await nextConnection.init();
-    kuzuDb = nextDb;
-    kuzuConnection = nextConnection;
-    kuzuGraphSignature = readGraphSignature() ?? diskSignature;
-    kuzuInitError = null;
+    ryuDb = nextDb;
+    ryuConnection = nextConnection;
+    ryuGraphSignature = readGraphSignature() ?? diskSignature;
+    ryuInitError = null;
     return nextConnection;
   } catch (error) {
-    await resetKuzuState(error instanceof Error ? error.message : "Failed to initialize Kuzu");
+    await resetRyuGraphState(error instanceof Error ? error.message : "Failed to initialize RyuGraph");
     return null;
   }
 }
 
-function parseKuzuDocuments(rows: UnknownRow[], contentById: Map<string, string>): DocumentRecord[] {
+function parseRyuGraphDocuments(rows: UnknownRow[], contentById: Map<string, string>): DocumentRecord[] {
   return rows
     .map((row) => {
       const id = asStringUnknown(row.id);
@@ -438,7 +438,7 @@ function parseKuzuDocuments(rows: UnknownRow[], contentById: Map<string, string>
     .filter((value): value is DocumentRecord => value !== null);
 }
 
-function parseKuzuRules(rows: UnknownRow[]): RuleRecord[] {
+function parseRyuGraphRules(rows: UnknownRow[]): RuleRecord[] {
   return rows
     .map((row) => {
       const id = asStringUnknown(row.id);
@@ -461,7 +461,7 @@ function parseKuzuRules(rows: UnknownRow[]): RuleRecord[] {
     .filter((value): value is RuleRecord => value !== null);
 }
 
-function parseKuzuAdrs(rows: UnknownRow[]): AdrRecord[] {
+function parseRyuGraphAdrs(rows: UnknownRow[]): AdrRecord[] {
   return rows
     .map((row) => {
       const id = asStringUnknown(row.id);
@@ -483,7 +483,7 @@ function parseKuzuAdrs(rows: UnknownRow[]): AdrRecord[] {
     .filter((value): value is AdrRecord => value !== null);
 }
 
-function parseKuzuRelations(
+function parseRyuGraphRelations(
   rows: UnknownRow[],
   relation: RelationRecord["relation"],
   noteField: string
@@ -519,7 +519,7 @@ export async function loadContextData(): Promise<ContextData> {
   const entityRules = parseRuleEntities(readJsonl(PATHS.ruleEntities));
   const cachedRules = yamlRules.length > 0 ? yamlRules : entityRules;
 
-  const connection = await getKuzuConnection();
+  const connection = await getRyuGraphConnection();
   if (!connection) {
     return {
       documents: cachedDocuments,
@@ -528,7 +528,7 @@ export async function loadContextData(): Promise<ContextData> {
       relations: cachedRelations,
       ranking,
       source: "cache",
-      warning: kuzuInitError ?? "Kuzu DB is not loaded yet."
+      warning: ryuInitError ?? "RyuGraph DB is not loaded yet."
     };
   }
 
@@ -607,29 +607,29 @@ export async function loadContextData(): Promise<ContextData> {
 
     const contentById = new Map(cachedDocuments.map((doc) => [doc.id, doc.content]));
 
-    const kuzuDocuments = parseKuzuDocuments(fileRows, contentById);
-    const kuzuRules = parseKuzuRules(ruleRows);
-    const kuzuAdrs = parseKuzuAdrs(adrRows);
-    const kuzuRelations = [
-      ...parseKuzuRelations(constrainsRows, "CONSTRAINS", "note"),
-      ...parseKuzuRelations(implementsRows, "IMPLEMENTS", "note"),
-      ...parseKuzuRelations(supersedesRows, "SUPERSEDES", "note")
+    const ryuDocuments = parseRyuGraphDocuments(fileRows, contentById);
+    const ryuRules = parseRyuGraphRules(ruleRows);
+    const ryuAdrs = parseRyuGraphAdrs(adrRows);
+    const ryuRelations = [
+      ...parseRyuGraphRelations(constrainsRows, "CONSTRAINS", "note"),
+      ...parseRyuGraphRelations(implementsRows, "IMPLEMENTS", "note"),
+      ...parseRyuGraphRelations(supersedesRows, "SUPERSEDES", "note")
     ];
 
     return {
-      documents: kuzuDocuments.length > 0 ? kuzuDocuments : cachedDocuments,
-      adrs: kuzuAdrs.length > 0 ? kuzuAdrs : cachedAdrs,
-      rules: kuzuRules.length > 0 ? kuzuRules : cachedRules,
-      relations: kuzuRelations.length > 0 ? kuzuRelations : cachedRelations,
+      documents: ryuDocuments.length > 0 ? ryuDocuments : cachedDocuments,
+      adrs: ryuAdrs.length > 0 ? ryuAdrs : cachedAdrs,
+      rules: ryuRules.length > 0 ? ryuRules : cachedRules,
+      relations: ryuRelations.length > 0 ? ryuRelations : cachedRelations,
       ranking,
-      source: "kuzu"
+      source: "ryu"
     };
   } catch (error) {
     const message =
       error instanceof Error
-        ? `Kuzu query failed, using cache fallback: ${error.message}`
-        : "Kuzu query failed, using cache fallback.";
-    await resetKuzuState(message);
+        ? `RyuGraph query failed, using cache fallback: ${error.message}`
+        : "RyuGraph query failed, using cache fallback.";
+    await resetRyuGraphState(message);
     return {
       documents: cachedDocuments,
       adrs: cachedAdrs,
@@ -643,24 +643,24 @@ export async function loadContextData(): Promise<ContextData> {
 }
 
 export async function reloadContextGraph(force = true): Promise<ReloadContextResult> {
-  const previousSignature = kuzuGraphSignature;
+  const previousSignature = ryuGraphSignature;
 
-  if (force || kuzuConnection) {
-    await closeKuzuResources();
+  if (force || ryuConnection) {
+    await closeRyuGraphResources();
   }
 
-  kuzuInitError = null;
-  kuzuLastInitAttemptAt = 0;
+  ryuInitError = null;
+  ryuLastInitAttemptAt = 0;
 
-  const nextConnection = await getKuzuConnection(true);
+  const nextConnection = await getRyuGraphConnection(true);
   const currentSignature = readGraphSignature();
 
   return {
     forced: force,
     reloaded: nextConnection !== null,
-    context_source: nextConnection ? "kuzu" : "cache",
+    context_source: nextConnection ? "ryu" : "cache",
     previous_graph_signature: previousSignature,
     current_graph_signature: currentSignature,
-    warning: nextConnection ? undefined : kuzuInitError ?? buildMissingDbMessage()
+    warning: nextConnection ? undefined : ryuInitError ?? buildMissingDbMessage()
   };
 }

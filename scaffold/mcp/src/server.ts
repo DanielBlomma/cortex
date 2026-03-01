@@ -71,7 +71,7 @@ function registerTools(server: McpServer): void {
   server.registerTool(
     "context.reload",
     {
-      description: "Reload Kuzu graph connection after graph updates or maintenance.",
+      description: "Reload RyuGraph connection after graph updates or maintenance.",
       inputSchema: ReloadInput.optional()
     },
     async (input) => {
