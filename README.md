@@ -74,3 +74,7 @@ After ingestion, data is written under `.context/`:
 ## Next Step
 
 Expand ontology with `APIContract`, `Test`, and `Owner` after baseline retrieval quality is validated.
+
+## Release Status
+
+- V2 is locked (2026-03-01): see [`docs/v2-status.md`](docs/v2-status.md) for completed scope and accepted security risk notes.
