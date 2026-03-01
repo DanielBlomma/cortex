@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+
+# Local storage
+.context/db/
+.context/embeddings/
+.context/cache/
+
+# Node
+node_modules/
+*.log
+mcp/.npm-cache/
+
+# Build output
+mcp/dist/
