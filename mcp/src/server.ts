@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import kuzu, { type Connection, type Database, type QueryResult } from "kuzu";
 import { z } from "zod";
 
@@ -14,6 +16,7 @@ const DB_PATH = path.join(CONTEXT_DIR, "db", "graph.kuzu");
 const PATHS = {
   config: path.join(CONTEXT_DIR, "config.yaml"),
   rulesYaml: path.join(CONTEXT_DIR, "rules.yaml"),
+  graphManifest: path.join(CACHE_DIR, "graph-manifest.json"),
   documents: path.join(CACHE_DIR, "documents.jsonl"),
   adrEntities: path.join(CACHE_DIR, "entities.adr.jsonl"),
   ruleEntities: path.join(CACHE_DIR, "entities.rule.jsonl"),
@@ -111,12 +114,17 @@ const RulesInput = z.object({
   include_inactive: z.boolean().default(false)
 });
 
-type ToolHandler = (input: unknown) => Promise<unknown>;
+const ReloadInput = z.object({
+  force: z.boolean().default(true)
+});
 
 let kuzuDb: Database | null = null;
 let kuzuConnection: Connection | null = null;
-let kuzuInitAttempted = false;
 let kuzuInitError: string | null = null;
+let kuzuLastInitAttemptAt = 0;
+let kuzuGraphSignature: string | null = null;
+
+const KUZU_INIT_RETRY_INTERVAL_MS = 2000;
 
 function readFileIfExists(filePath: string): string | null {
   if (!fs.existsSync(filePath)) {
@@ -392,31 +400,95 @@ async function queryRows(
   return (resolved as QueryResult).getAll();
 }
 
-async function getKuzuConnection(): Promise<Connection | null> {
-  if (kuzuConnection) {
-    return kuzuConnection;
-  }
-
-  if (kuzuInitAttempted) {
-    return null;
-  }
-  kuzuInitAttempted = true;
-
+function readGraphSignature(): string | null {
   if (!fs.existsSync(DB_PATH)) {
-    kuzuInitError = `Kuzu DB not found at ${DB_PATH}`;
     return null;
   }
 
   try {
-    kuzuDb = new kuzu.Database(DB_PATH, undefined, undefined, true);
-    kuzuConnection = new kuzu.Connection(kuzuDb);
-    await kuzuDb.init();
-    await kuzuConnection.init();
-    return kuzuConnection;
+    const dbStats = fs.statSync(DB_PATH);
+    const dbPart = `${Math.round(dbStats.mtimeMs)}:${dbStats.size}`;
+
+    let manifestPart = "none";
+    if (fs.existsSync(PATHS.graphManifest)) {
+      const manifestStats = fs.statSync(PATHS.graphManifest);
+      manifestPart = `${Math.round(manifestStats.mtimeMs)}:${manifestStats.size}`;
+    }
+
+    return `${dbPart}:${manifestPart}`;
+  } catch {
+    return null;
+  }
+}
+
+async function closeKuzuResources(): Promise<void> {
+  const currentConnection = kuzuConnection;
+  const currentDb = kuzuDb;
+
+  kuzuConnection = null;
+  kuzuDb = null;
+  kuzuGraphSignature = null;
+
+  if (currentConnection) {
+    try {
+      await currentConnection.close();
+    } catch {
+      // Ignore close errors during refresh/reset.
+    }
+  }
+
+  if (currentDb) {
+    try {
+      await currentDb.close();
+    } catch {
+      // Ignore close errors during refresh/reset.
+    }
+  }
+}
+
+async function resetKuzuState(errorMessage: string): Promise<void> {
+  kuzuInitError = errorMessage;
+  await closeKuzuResources();
+}
+
+async function getKuzuConnection(forceReload = false): Promise<Connection | null> {
+  const diskSignature = readGraphSignature();
+
+  if (kuzuConnection) {
+    if (forceReload) {
+      await closeKuzuResources();
+      kuzuLastInitAttemptAt = 0;
+    } else if (diskSignature && kuzuGraphSignature && diskSignature === kuzuGraphSignature) {
+      return kuzuConnection;
+    } else {
+      await resetKuzuState("Kuzu graph changed on disk; reconnecting.");
+      kuzuLastInitAttemptAt = 0;
+    }
+  }
+
+  const now = Date.now();
+  if (!forceReload && now - kuzuLastInitAttemptAt < KUZU_INIT_RETRY_INTERVAL_MS) {
+    return null;
+  }
+  kuzuLastInitAttemptAt = now;
+
+  if (!diskSignature) {
+    await resetKuzuState(`Kuzu DB not found at ${DB_PATH}`);
+    return null;
+  }
+
+  try {
+    const nextDb = new kuzu.Database(DB_PATH, undefined, undefined, true);
+    const nextConnection = new kuzu.Connection(nextDb);
+    await nextDb.init();
+    await nextConnection.init();
+    kuzuDb = nextDb;
+    kuzuConnection = nextConnection;
+    kuzuGraphSignature = readGraphSignature() ?? diskSignature;
+    kuzuInitError = null;
+    return nextConnection;
   } catch (error) {
-    kuzuInitError = error instanceof Error ? error.message : "Failed to initialize Kuzu";
-    kuzuConnection = null;
-    kuzuDb = null;
+    await resetKuzuState(error instanceof Error ? error.message : "Failed to initialize Kuzu");
     return null;
   }
 }
@@ -636,6 +708,11 @@ async function loadContextData(): Promise<ContextData> {
       source: "kuzu"
     };
   } catch (error) {
+    const message =
+      error instanceof Error
+        ? `Kuzu query failed, using cache fallback: ${error.message}`
+        : "Kuzu query failed, using cache fallback.";
+    await resetKuzuState(message);
     return {
       documents: cachedDocuments,
       adrs: cachedAdrs,
@@ -643,10 +720,7 @@ async function loadContextData(): Promise<ContextData> {
       relations: cachedRelations,
       ranking,
       source: "cache",
-      warning:
-        error instanceof Error
-          ? `Kuzu query failed, using cache fallback: ${error.message}`
-          : "Kuzu query failed, using cache fallback."
+      warning: message
     };
   }
 }
@@ -749,230 +823,268 @@ function entityCatalog(data: ContextData): Map<string, JsonObject> {
   return catalog;
 }
 
-const tools: Record<string, ToolHandler> = {
-  "context.search": async (input) => {
-    const parsed = SearchInput.parse(input);
-    const data = await loadContextData();
-    const ruleLinks = groupRuleLinks(data.relations);
+type ToolPayload = Record<string, unknown>;
 
-    const results = data.documents
-      .filter((doc) => parsed.include_deprecated || doc.status.toLowerCase() !== "deprecated")
-      .map((doc) => {
-        const text = `${doc.path}\n${doc.excerpt}\n${doc.content}`;
-        const semScore = semanticScore(parsed.query, text);
-        const graphScore = Math.min(1, (ruleLinks.get(doc.id)?.length ?? 0) / 3);
-        const trustScore = Math.max(0, Math.min(1, doc.trust_level / 100));
-        const dateScore = recencyScore(doc.updated_at);
+function buildToolResult(data: ToolPayload) {
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: JSON.stringify(data, null, 2)
+      }
+    ],
+    structuredContent: data
+  };
+}
 
-        let score = 0;
-        score += data.ranking.semantic * semScore;
-        score += data.ranking.graph * graphScore;
-        score += data.ranking.trust * trustScore;
-        score += data.ranking.recency * dateScore;
+async function runContextSearch(input: unknown): Promise<ToolPayload> {
+  const parsed = SearchInput.parse(input ?? {});
+  const data = await loadContextData();
+  const ruleLinks = groupRuleLinks(data.relations);
 
-        if (doc.source_of_truth) {
-          score += 0.1;
-        }
+  const results = data.documents
+    .filter((doc) => parsed.include_deprecated || doc.status.toLowerCase() !== "deprecated")
+    .map((doc) => {
+      const text = `${doc.path}\n${doc.excerpt}\n${doc.content}`;
+      const semScore = semanticScore(parsed.query, text);
+      const graphScore = Math.min(1, (ruleLinks.get(doc.id)?.length ?? 0) / 3);
+      const trustScore = Math.max(0, Math.min(1, doc.trust_level / 100));
+      const dateScore = recencyScore(doc.updated_at);
 
-        return {
-          id: doc.id,
-          path: doc.path,
-          kind: doc.kind,
-          score: Number(score.toFixed(4)),
-          source_of_truth: doc.source_of_truth,
-          status: doc.status,
-          updated_at: doc.updated_at,
-          matched_rules: ruleLinks.get(doc.id) ?? [],
-          excerpt: doc.excerpt,
-          content: parsed.include_content ? doc.content : undefined
-        };
-      })
-      .filter((result) => result.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, parsed.top_k);
+      let score = 0;
+      score += data.ranking.semantic * semScore;
+      score += data.ranking.graph * graphScore;
+      score += data.ranking.trust * trustScore;
+      score += data.ranking.recency * dateScore;
 
-    return {
-      query: parsed.query,
-      top_k: parsed.top_k,
-      ranking: data.ranking,
-      total_candidates: data.documents.length,
-      context_source: data.source,
-      warning: data.warning,
-      results
-    };
-  },
+      if (doc.source_of_truth) {
+        score += 0.1;
+      }
 
-  "context.get_related": async (input) => {
-    const parsed = RelatedInput.parse(input);
-    const data = await loadContextData();
-    const catalog = entityCatalog(data);
-
-    if (!catalog.has(parsed.entity_id)) {
       return {
-        entity_id: parsed.entity_id,
-        depth: parsed.depth,
-        related: [],
-        edges: [],
-        context_source: data.source,
-        warning: "Entity not found in indexed context."
+        id: doc.id,
+        path: doc.path,
+        kind: doc.kind,
+        score: Number(score.toFixed(4)),
+        source_of_truth: doc.source_of_truth,
+        status: doc.status,
+        updated_at: doc.updated_at,
+        matched_rules: ruleLinks.get(doc.id) ?? [],
+        excerpt: doc.excerpt,
+        content: parsed.include_content ? doc.content : undefined
       };
-    }
+    })
+    .filter((result) => result.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, parsed.top_k);
 
-    const outgoing = new Map<string, RelationRecord[]>();
-    const incoming = new Map<string, RelationRecord[]>();
+  return {
+    query: parsed.query,
+    top_k: parsed.top_k,
+    ranking: data.ranking,
+    total_candidates: data.documents.length,
+    context_source: data.source,
+    warning: data.warning,
+    results
+  };
+}
 
-    for (const relation of data.relations) {
-      const outList = outgoing.get(relation.from) ?? [];
-      outList.push(relation);
-      outgoing.set(relation.from, outList);
+async function runContextRelated(input: unknown): Promise<ToolPayload> {
+  const parsed = RelatedInput.parse(input ?? {});
+  const data = await loadContextData();
+  const catalog = entityCatalog(data);
 
-      const inList = incoming.get(relation.to) ?? [];
-      inList.push(relation);
-      incoming.set(relation.to, inList);
-    }
-
-    const seen = new Set<string>([parsed.entity_id]);
-    const queue: Array<{ id: string; hop: number }> = [{ id: parsed.entity_id, hop: 0 }];
-    const related: JsonObject[] = [];
-    const traversedEdges: JsonObject[] = [];
-    const traversedEdgeKeys = new Set<string>();
-
-    while (queue.length > 0) {
-      const current = queue.shift() as { id: string; hop: number };
-      if (current.hop >= parsed.depth) {
-        continue;
-      }
-
-      const neighbors = [
-        ...(outgoing.get(current.id) ?? []).map((edge) => ({
-          edge,
-          next: edge.to,
-          direction: "outgoing"
-        })),
-        ...(incoming.get(current.id) ?? []).map((edge) => ({
-          edge,
-          next: edge.from,
-          direction: "incoming"
-        }))
-      ];
-
-      for (const neighbor of neighbors) {
-        const target = neighbor.next;
-        if (!seen.has(target)) {
-          seen.add(target);
-          queue.push({ id: target, hop: current.hop + 1 });
-
-          const entity = catalog.get(target) ?? {
-            id: target,
-            type: "Unknown",
-            label: target,
-            status: "unknown",
-            source_of_truth: false
-          };
-
-          related.push({
-            ...entity,
-            hops: current.hop + 1,
-            via_relation: neighbor.edge.relation,
-            direction: neighbor.direction
-          });
-        }
-
-        const edgeKey = `${neighbor.edge.from}|${neighbor.edge.relation}|${neighbor.edge.to}|${neighbor.edge.note}`;
-        if (!traversedEdgeKeys.has(edgeKey)) {
-          traversedEdgeKeys.add(edgeKey);
-          traversedEdges.push({
-            from: neighbor.edge.from,
-            to: neighbor.edge.to,
-            relation: neighbor.edge.relation,
-            note: neighbor.edge.note
-          });
-        }
-      }
-    }
-
+  if (!catalog.has(parsed.entity_id)) {
     return {
       entity_id: parsed.entity_id,
       depth: parsed.depth,
+      related: [],
+      edges: [],
       context_source: data.source,
-      warning: data.warning,
-      related,
-      edges: parsed.include_edges ? traversedEdges : []
-    };
-  },
-
-  "context.get_rules": async (input) => {
-    const parsed = RulesInput.parse(input);
-    const data = await loadContextData();
-
-    const rules = data.rules
-      .filter((rule) => parsed.include_inactive || rule.status === "active")
-      .filter((rule) => !parsed.scope || rule.scope === parsed.scope || rule.scope === "global")
-      .sort((a, b) => b.priority - a.priority)
-      .map((rule) => ({
-        id: rule.id,
-        title: rule.title,
-        description: rule.body,
-        priority: rule.priority,
-        scope: rule.scope,
-        status: rule.status
-      }));
-
-    return {
-      scope: parsed.scope ?? "global",
-      count: rules.length,
-      context_source: data.source,
-      warning: data.warning,
-      rules
+      warning: "Entity not found in indexed context."
     };
   }
-};
 
-async function main(): Promise<void> {
-  const stdin = process.stdin;
-  stdin.setEncoding("utf8");
+  const outgoing = new Map<string, RelationRecord[]>();
+  const incoming = new Map<string, RelationRecord[]>();
 
-  let buffer = "";
+  for (const relation of data.relations) {
+    const outList = outgoing.get(relation.from) ?? [];
+    outList.push(relation);
+    outgoing.set(relation.from, outList);
 
-  stdin.on("data", async (chunk) => {
-    buffer += chunk;
+    const inList = incoming.get(relation.to) ?? [];
+    inList.push(relation);
+    incoming.set(relation.to, inList);
+  }
 
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
+  const seen = new Set<string>([parsed.entity_id]);
+  const queue: Array<{ id: string; hop: number }> = [{ id: parsed.entity_id, hop: 0 }];
+  const related: JsonObject[] = [];
+  const traversedEdges: JsonObject[] = [];
+  const traversedEdgeKeys = new Set<string>();
 
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
+  while (queue.length > 0) {
+    const current = queue.shift() as { id: string; hop: number };
+    if (current.hop >= parsed.depth) {
+      continue;
+    }
 
-      try {
-        const request = JSON.parse(trimmed) as {
-          id?: string | number;
-          tool?: string;
-          input?: unknown;
+    const neighbors = [
+      ...(outgoing.get(current.id) ?? []).map((edge) => ({
+        edge,
+        next: edge.to,
+        direction: "outgoing"
+      })),
+      ...(incoming.get(current.id) ?? []).map((edge) => ({
+        edge,
+        next: edge.from,
+        direction: "incoming"
+      }))
+    ];
+
+    for (const neighbor of neighbors) {
+      const target = neighbor.next;
+      if (!seen.has(target)) {
+        seen.add(target);
+        queue.push({ id: target, hop: current.hop + 1 });
+
+        const entity = catalog.get(target) ?? {
+          id: target,
+          type: "Unknown",
+          label: target,
+          status: "unknown",
+          source_of_truth: false
         };
 
-        if (!request.tool || !tools[request.tool]) {
-          process.stdout.write(
-            JSON.stringify({
-              id: request.id ?? null,
-              error: `Unknown tool: ${request.tool ?? "undefined"}`
-            }) + "\n"
-          );
-          continue;
-        }
+        related.push({
+          ...entity,
+          hops: current.hop + 1,
+          via_relation: neighbor.edge.relation,
+          direction: neighbor.direction
+        });
+      }
 
-        const data = await tools[request.tool](request.input ?? {});
-        process.stdout.write(JSON.stringify({ id: request.id ?? null, data }) + "\n");
-      } catch (error) {
-        process.stdout.write(
-          JSON.stringify({
-            id: null,
-            error: error instanceof Error ? error.message : "Unknown error"
-          }) + "\n"
-        );
+      const edgeKey = `${neighbor.edge.from}|${neighbor.edge.relation}|${neighbor.edge.to}|${neighbor.edge.note}`;
+      if (!traversedEdgeKeys.has(edgeKey)) {
+        traversedEdgeKeys.add(edgeKey);
+        traversedEdges.push({
+          from: neighbor.edge.from,
+          to: neighbor.edge.to,
+          relation: neighbor.edge.relation,
+          note: neighbor.edge.note
+        });
       }
     }
+  }
+
+  return {
+    entity_id: parsed.entity_id,
+    depth: parsed.depth,
+    context_source: data.source,
+    warning: data.warning,
+    related,
+    edges: parsed.include_edges ? traversedEdges : []
+  };
+}
+
+async function runContextRules(input: unknown): Promise<ToolPayload> {
+  const parsed = RulesInput.parse(input ?? {});
+  const data = await loadContextData();
+
+  const rules = data.rules
+    .filter((rule) => parsed.include_inactive || rule.status === "active")
+    .filter((rule) => !parsed.scope || rule.scope === parsed.scope || rule.scope === "global")
+    .sort((a, b) => b.priority - a.priority)
+    .map((rule) => ({
+      id: rule.id,
+      title: rule.title,
+      description: rule.body,
+      priority: rule.priority,
+      scope: rule.scope,
+      status: rule.status
+    }));
+
+  return {
+    scope: parsed.scope ?? "global",
+    count: rules.length,
+    context_source: data.source,
+    warning: data.warning,
+    rules
+  };
+}
+
+async function runContextReload(input: unknown): Promise<ToolPayload> {
+  const parsed = ReloadInput.parse(input ?? {});
+  const previousSignature = kuzuGraphSignature;
+
+  if (parsed.force || kuzuConnection) {
+    await closeKuzuResources();
+  }
+
+  kuzuInitError = null;
+  kuzuLastInitAttemptAt = 0;
+
+  const nextConnection = await getKuzuConnection(true);
+  const currentSignature = readGraphSignature();
+
+  return {
+    forced: parsed.force,
+    reloaded: nextConnection !== null,
+    context_source: nextConnection ? "kuzu" : "cache",
+    previous_graph_signature: previousSignature,
+    current_graph_signature: currentSignature,
+    warning: nextConnection ? undefined : kuzuInitError ?? "Kuzu DB is not loaded yet."
+  };
+}
+
+function registerTools(server: McpServer): void {
+  server.registerTool(
+    "context.search",
+    {
+      description: "Search ranked context documents and code using semantic, graph and trust weighting.",
+      inputSchema: SearchInput
+    },
+    async (input) => buildToolResult(await runContextSearch(input))
+  );
+
+  server.registerTool(
+    "context.get_related",
+    {
+      description: "Return related entities and graph edges for a context entity id.",
+      inputSchema: RelatedInput
+    },
+    async (input) => buildToolResult(await runContextRelated(input))
+  );
+
+  server.registerTool(
+    "context.get_rules",
+    {
+      description: "List indexed rules filtered by scope and active status.",
+      inputSchema: RulesInput.optional()
+    },
+    async (input) => buildToolResult(await runContextRules(input))
+  );
+
+  server.registerTool(
+    "context.reload",
+    {
+      description: "Reload Kuzu graph connection after graph updates or maintenance.",
+      inputSchema: ReloadInput.optional()
+    },
+    async (input) => buildToolResult(await runContextReload(input))
+  );
+}
+
+async function main(): Promise<void> {
+  const server = new McpServer({
+    name: "cortex-context",
+    version: "0.1.0"
   });
+
+  registerTools(server);
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
 }
 
 main().catch((error) => {

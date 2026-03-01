@@ -66,6 +66,7 @@ After ingestion, data is written under `.context/`:
   - `context.search`
   - `context.get_related`
   - `context.get_rules`
+  - `context.reload`
 
 ## Next Step
 

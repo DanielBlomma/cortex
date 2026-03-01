@@ -341,12 +341,28 @@ function collectCandidateFiles(sourcePaths, mode) {
     const gitChanges = getGitChanges();
     if (gitChanges.changed.length > 0 || gitChanges.deleted.length > 0) {
       for (const absolutePath of gitChanges.changed) {
-        if (!fs.existsSync(absolutePath) || !fs.statSync(absolutePath).isFile()) {
+        if (!fs.existsSync(absolutePath)) {
           continue;
         }
-        const relPath = toPosixPath(path.relative(REPO_ROOT, absolutePath));
-        if (hasSourcePrefix(relPath, sourcePaths)) {
-          candidates.add(absolutePath);
+
+        const stats = fs.statSync(absolutePath);
+        if (stats.isFile()) {
+          const relPath = toPosixPath(path.relative(REPO_ROOT, absolutePath));
+          if (hasSourcePrefix(relPath, sourcePaths)) {
+            candidates.add(absolutePath);
+          }
+          continue;
+        }
+
+        if (stats.isDirectory()) {
+          const nestedFiles = new Set();
+          walkDirectory(absolutePath, nestedFiles);
+          for (const nestedPath of nestedFiles) {
+            const nestedRelPath = toPosixPath(path.relative(REPO_ROOT, nestedPath));
+            if (hasSourcePrefix(nestedRelPath, sourcePaths)) {
+              candidates.add(nestedPath);
+            }
+          }
         }
       }
 
@@ -609,8 +625,15 @@ function main() {
 
   for (const relPath of deletedRelPaths) {
     fileRecordMap.delete(`file:${relPath}`);
+    const relPrefix = relPath.endsWith("/") ? relPath : `${relPath}/`;
+    for (const [fileId, fileRecord] of fileRecordMap.entries()) {
+      if (String(fileRecord.path ?? "").startsWith(relPrefix)) {
+        fileRecordMap.delete(fileId);
+      }
+    }
+
     for (const [adrId, adrRecord] of adrRecordMap.entries()) {
-      if (adrRecord.path === relPath) {
+      if (adrRecord.path === relPath || String(adrRecord.path ?? "").startsWith(relPrefix)) {
         adrRecordMap.delete(adrId);
       }
     }
