@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+print_help() {
+  cat <<'EOF'
+Usage: ./scripts/context.sh <command> [options]
+
+Commands:
+  bootstrap                        Install deps + full ingest + graph load
+  ingest [--changed] [--verbose]   Index docs/code/design context into .context
+  embed [--changed]                Generate semantic embeddings for indexed entities
+  update                           Ingest changed files + rebuild graph
+  refresh [--changed] [--verbose]  Alias for ingest
+  graph-load [--no-reset]          Build Kuzu graph DB from indexed context
+  note <title> [text]              Save tacit knowledge note into .context/notes
+  status                           Show latest ingest summary
+  help                             Show this message
+EOF
+}
+
+COMMAND="${1:-help}"
+if [[ $# -gt 0 ]]; then
+  shift
+fi
+
+case "$COMMAND" in
+  bootstrap)
+    "$SCRIPT_DIR/bootstrap.sh" "$@"
+    ;;
+  ingest)
+    "$SCRIPT_DIR/ingest.sh" "$@"
+    ;;
+  embed)
+    "$SCRIPT_DIR/embed.sh" "$@"
+    ;;
+  update)
+    "$SCRIPT_DIR/update-context.sh" "$@"
+    ;;
+  refresh)
+    "$SCRIPT_DIR/refresh.sh" "$@"
+    ;;
+  graph-load)
+    "$SCRIPT_DIR/load-kuzu.sh" "$@"
+    ;;
+  note)
+    "$SCRIPT_DIR/capture-note.sh" "$@"
+    ;;
+  status)
+    "$SCRIPT_DIR/status.sh"
+    ;;
+  help|--help|-h)
+    print_help
+    ;;
+  *)
+    echo "Unknown command: $COMMAND"
+    print_help
+    exit 1
+    ;;
+esac

@@ -1,0 +1,16 @@
+{
+  "name": "cortex-cli",
+  "version": "0.1.0",
+  "description": "Repo-local context engine installer and command wrapper",
+  "type": "module",
+  "bin": {
+    "cortex": "bin/cortex.mjs"
+  },
+  "files": [
+    "bin",
+    "scaffold"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

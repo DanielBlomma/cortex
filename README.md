@@ -15,6 +15,22 @@ The project provides a practical foundation for:
 - querying context through an MCP server
 - enforcing source-of-truth and conflict rules before context is sent to an AI
 
+## Install In Any Repo (npx)
+
+From the repo you want to enable:
+
+1. Initialize Cortex scaffold:
+   - `npx github:DanielBlomma/cortex init`
+2. Run first setup:
+   - `npx github:DanielBlomma/cortex bootstrap`
+3. Daily refresh while coding:
+   - `npx github:DanielBlomma/cortex update`
+4. Check health:
+   - `npx github:DanielBlomma/cortex status`
+
+If you already have scaffold files and want to refresh from template:
+- `npx github:DanielBlomma/cortex init --force`
+
 ## Project Layout
 
 - `.context/` repo knowledge config, ontology, rules, and local storage

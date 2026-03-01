@@ -1,0 +1,25 @@
+rules:
+  - id: rule.source_of_truth
+    description: "Source-of-truth entities must be prioritized in retrieval and final context."
+    priority: 100
+    enforce: true
+
+  - id: rule.deprecated_filter
+    description: "Deprecated entities must be excluded unless explicitly requested."
+    priority: 95
+    enforce: true
+
+  - id: rule.adr_recency
+    description: "Newer ADR supersedes older ADR when both address the same decision."
+    priority: 90
+    enforce: true
+
+  - id: rule.conflict_flag
+    description: "If two active sources conflict, return both and flag a conflict instead of guessing."
+    priority: 90
+    enforce: true
+
+  - id: rule.context_budget
+    description: "Limit runtime context to highest-signal evidence blocks (top_k)."
+    priority: 80
+    enforce: true
