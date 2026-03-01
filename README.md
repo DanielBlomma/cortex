@@ -8,163 +8,199 @@
   CCC    OOO   R   R   T    EEEEE  X   X
 ```
 
-Local, repo-scoped context platform for code assistants.
+Local, repo-scoped context platform for coding assistants.
 
-The project provides a practical foundation for:
-- ingesting code and documentation into a structured knowledge layer
-- querying context through an MCP server
-- enforcing source-of-truth and conflict rules before context is sent to an AI
+## What Cortex Is (Plain Language)
 
-## Install In Any Repo (npx)
+If you are not an AI engineer, think of Cortex as a **local project memory** for your repository.
 
-From the repo you want to enable:
+Instead of an assistant trying to read everything from scratch on each prompt, Cortex:
 
-1. Initialize Cortex scaffold:
-   - `npx github:DanielBlomma/cortex init --bootstrap`
-   - This now auto-connects MCP to both Codex and Claude Code.
-   - Add `--no-connect` if you only want scaffold + data setup.
-2. Daily refresh while coding:
-   - `npx github:DanielBlomma/cortex update`
-3. Check health:
-   - `npx github:DanielBlomma/cortex status`
+1. Scans your code and documentation.
+2. Structures it into entities (files, rules, ADRs) and relationships.
+3. Builds a local graph + search index.
+4. Lets assistants (Codex/Claude) query that context through MCP tools.
 
-If you already have scaffold files and want to refresh from template:
-- `npx github:DanielBlomma/cortex init --force`
+Result: better answers, less guessing, and fewer "hallucinated" assumptions.
 
-If you want to (re)register MCP integrations later:
-- `npx github:DanielBlomma/cortex connect`
-- `npx github:DanielBlomma/cortex connect --skip-build` to skip local TypeScript build
+## Why Use It
 
-## Installation Guide
+- Keeps context **repo-local** by default.
+- Reduces giant instruction files (`claude.md`, `agent.md`) by moving knowledge into indexed context.
+- Makes assistant output more consistent with your rules/ADRs/source of truth.
+- Supports incremental updates so you do not need full re-ingest on every change.
+
+## Install
 
 ### Prerequisites
 
-- Node.js 20+ (`node -v`)
-- npm 10+ (`npm -v`)
-- git (`git --version`)
-- Optional (for MCP auto-connect): `codex` CLI and/or `claude` CLI available in `PATH`
+- Node.js 20+
+- npm 10+
+- git
+- Optional for auto MCP registration: `codex` CLI and/or `claude` CLI in `PATH`
 
-### Option A: No global install (recommended)
+### Option A: Run with npx (recommended)
 
-Run directly from any repository with `npx`:
+From the repository you want to enable:
 
-1. Go to your target repo:
-   - `cd /path/to/your-repo`
-2. Install scaffold + run first setup:
-   - `npx github:DanielBlomma/cortex init --bootstrap`
-3. Daily usage:
-   - `npx github:DanielBlomma/cortex update`
-   - `npx github:DanielBlomma/cortex status`
+```bash
+npx github:DanielBlomma/cortex init --bootstrap
+```
+
+What this does:
+
+- copies Cortex scaffold (`.context/`, `scripts/`, `mcp/`)
+- bootstraps dependencies + ingest + embeddings + graph
+- tries to auto-connect MCP to Codex and Claude Code
+
+Daily commands:
+
+```bash
+npx github:DanielBlomma/cortex update
+npx github:DanielBlomma/cortex status
+```
 
 ### Option B: Global install (`cortex` command)
 
-Install once on your machine:
+```bash
+npm i -g github:DanielBlomma/cortex
+```
 
-1. Install globally:
-   - `npm i -g github:DanielBlomma/cortex`
-2. Use in any repo:
-   - `cd /path/to/your-repo`
-   - `cortex init --bootstrap`
-   - `cortex update`
-   - `cortex status`
+Then in any repo:
 
-### Reconnect MCP Integrations
+```bash
+cortex init --bootstrap
+cortex update
+cortex status
+```
 
-If Codex/Claude settings were reset or changed:
+If your global install is root-owned on macOS, you may need:
 
-- `npx github:DanielBlomma/cortex connect`
-- or with global install: `cortex connect`
+```bash
+sudo npm i -g github:DanielBlomma/cortex
+```
 
-### Troubleshooting
+## Typical Workflow
 
-- If `init` says command not found for `codex` or `claude`, Cortex setup still works. Only MCP auto-registration is skipped.
-- During first `bootstrap`, npm may print deprecation warnings from upstream `kuzu` dependencies. Current `npm audit` for `mcp/` is clean after transitive dependency overrides.
-- If `mcp/dist/server.js` is missing, run:
-  - `npx github:DanielBlomma/cortex bootstrap`
-- If scaffold already exists and you want a fresh template copy:
-  - `npx github:DanielBlomma/cortex init --force`
+### First setup in a repo
+
+```bash
+cortex init --bootstrap
+```
+
+### During development
+
+```bash
+cortex update
+cortex status
+```
+
+### Reconnect MCP (if CLI/app settings changed)
+
+```bash
+cortex connect
+```
+
+### Refresh scaffold from latest template
+
+```bash
+cortex init --force
+```
+
+## Verify It Works in Claude/Codex
+
+In your repo directory:
+
+```bash
+claude mcp list
+```
+
+You should see `cortex` as connected.
+
+For Codex:
+
+```bash
+codex mcp list
+codex mcp get cortex-<repo-name> --json
+```
+
+## Core MCP Tools
+
+- `context.search`: ranked search across File/Rule/ADR
+- `context.get_related`: graph neighbors for an entity
+- `context.get_rules`: active rules with scope filtering
+- `context.reload`: reload graph connection after updates
+
+## Configure What Gets Indexed
+
+Edit `.context/config.yaml`:
+
+- `source_paths`: folders/files Cortex should ingest
+- `truth_order`: source priority (ADR/RULE/CODE/WIKI)
+- `ranking`: scoring weights (`semantic`, `graph`, `trust`, `recency`)
+
+Then run:
+
+```bash
+cortex update
+```
+
+## Custom Entity Types (`ontology.cypher`)
+
+To add your own entities (for example `APIContract`, `Test`, `Owner`):
+
+1. Update schema in `.context/ontology.cypher` (`CREATE NODE TABLE`, `CREATE REL TABLE`).
+2. Extend `scripts/ingest.mjs` to emit:
+   - `.context/cache/entities.<type>.jsonl`
+   - `.context/db/import/<Type>.tsv`
+3. Extend `mcp/src/loadGraph.ts` to load new TSV data into Kuzu.
+4. Extend `mcp/src/graph.ts` and optionally `mcp/src/search.ts` to expose/query the new types.
+5. Rebuild data:
+
+```bash
+./scripts/context.sh ingest
+./scripts/context.sh graph-load
+./scripts/context.sh status
+```
+
+## Commands
+
+```text
+cortex init [path] [--force] [--bootstrap] [--connect] [--no-connect]
+cortex connect [path] [--skip-build]
+cortex bootstrap
+cortex update
+cortex status
+cortex ingest [--changed] [--verbose]
+cortex embed [--changed]
+cortex graph-load [--no-reset]
+cortex note <title> [text]
+cortex help
+```
 
 ## Project Layout
 
-- `.context/` repo knowledge config, ontology, rules, and local storage
-- `mcp/` MCP server (TypeScript)
-- `scripts/` ingest, refresh, and status commands
-- `docs/` architecture and implementation notes
+- `.context/` config, ontology, rules, local cache/db/embeddings
+- `scripts/` ingest/update/bootstrap/status orchestration
+- `mcp/` TypeScript MCP server
+- `docs/` architecture and release notes
 
-## Quick Start
+## Troubleshooting
 
-1. Review `.context/config.yaml` and adapt `source_paths` for your repo:
-   - Example: `src`, `docs`, `design`, `.context/notes`, `.context/decisions`, `README.md`
-2. Cold start from clone:
-   - `./scripts/context.sh bootstrap`
-3. Incremental update during development:
-   - `./scripts/context.sh update`
-4. Check status:
-   - `./scripts/context.sh status`
-5. Start MCP server:
-   - `cd mcp && npm run dev`
-6. Capture tacit team knowledge:
-   - `./scripts/context.sh note "Invoice edge-case" "Customer X needs ..."`
+- `Unknown command: connect`
+  - Your global CLI is old. Run `npm i -g github:DanielBlomma/cortex`.
+- `codex` / `claude` not found during init
+  - Cortex still works; only auto MCP registration is skipped.
+- `mcp/dist/server.js` missing
+  - Run `cortex bootstrap`.
+- Kuzu DB warnings on cold start
+  - Run `./scripts/context.sh graph-load` or full `./scripts/context.sh bootstrap`.
 
-## Generated Output
+## Notes on Security Warnings
 
-After ingestion, data is written under `.context/`:
-- `.context/cache/documents.jsonl` full text records for indexed files
-- `.context/cache/entities.*.jsonl` entity sets (`file`, `adr`, `rule`)
-- `.context/cache/relations.*.jsonl` discovered relationships
-- `.context/embeddings/entities.jsonl` local embedding vectors for unified semantic retrieval
-- `.context/embeddings/manifest.json` embedding model + generation stats
-- `.context/db/import/*.tsv` import-ready node/relationship tables for graph loading
-- `.context/cache/manifest.json` summary counts and ingest metadata
-- `.context/cache/graph-manifest.json` graph load summary
-- `.context/db/graph.kuzu` local graph database used by MCP search/related/rules tools
-
-## Runtime Commands
-
-- `./scripts/context.sh bootstrap` install deps + full ingest + graph load
-- `./scripts/context.sh ingest` full ingest
-- `./scripts/context.sh ingest --changed` incremental ingest from git diff, preserving previous indexed records (`full` fallback if git diff is unavailable)
-- `./scripts/context.sh embed [--changed]` generate/reuse all-MiniLM embeddings for files/ADRs/rules
-- `./scripts/context.sh update` incremental ingest + graph rebuild
-- `./scripts/context.sh graph-load` rebuild graph from cached entities/relations
-- `./scripts/context.sh note <title> [text]` store tacit team knowledge as indexed notes
-- `./scripts/context.sh status` show ingest + graph status
-
-## Custom Entity Types (ontology.cypher)
-
-To add your own entity types (for example `APIContract`, `Test`, `Owner`):
-
-1. Update graph schema:
-   - Edit `.context/ontology.cypher`
-   - Add `CREATE NODE TABLE ...` and optional `CREATE REL TABLE ...` definitions.
-2. Extend ingest output:
-   - Update `scripts/ingest.mjs` to emit your entity records into:
-     - `.context/cache/entities.<type>.jsonl`
-     - `.context/db/import/<Type>.tsv`
-3. Extend graph loading:
-   - Update `mcp/src/loadGraph.ts` (and scaffold copy) to import the new TSV files into Kuzu.
-4. Expose in MCP retrieval:
-   - Update `mcp/src/graph.ts` to query/load the new entity/relation data.
-   - Update `mcp/src/search.ts` if you want the new entities included in `context.search`.
-5. Rebuild local graph:
-   - `./scripts/context.sh ingest`
-   - `./scripts/context.sh graph-load`
-   - `./scripts/context.sh status`
-
-## v1 Scope
-
-- Entities: `File`, `Rule`, `ADR`
-- Relations: `IMPLEMENTS`, `CONSTRAINS`, `SUPERSEDES`
-- Tools:
-  - `context.search`
-  - `context.get_related`
-  - `context.get_rules`
-  - `context.reload`
-
-## Next Step
-
-Expand ontology with `APIContract`, `Test`, and `Owner` after baseline retrieval quality is validated.
+Current `mcp/` audit is clean with dependency overrides in place.
+You may still see upstream deprecation warnings (`kuzu`, `prebuild-install`) during install.
 
 ## Release Status
 
-- V2 is locked (2026-03-01): see [`docs/v2-status.md`](docs/v2-status.md) for completed scope and current security status.
+V2 lock/status: see [`docs/v2-status.md`](docs/v2-status.md).
