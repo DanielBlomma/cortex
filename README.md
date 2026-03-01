@@ -1,5 +1,13 @@
 # Cortex
 
+```text
+  CCC    OOO   RRRR  TTTTT  EEEEE  X   X
+ C   C  O   O  R   R   T    E       X X
+ C      O   O  RRRR    T    EEEE     X
+ C   C  O   O  R  R    T    E       X X
+  CCC    OOO   R   R   T    EEEEE  X   X
+```
+
 Local, repo-scoped context platform for code assistants.
 
 The project provides a practical foundation for:
