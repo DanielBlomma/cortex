@@ -4,6 +4,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MANIFEST="$REPO_ROOT/.context/cache/manifest.json"
 GRAPH_MANIFEST="$REPO_ROOT/.context/cache/graph-manifest.json"
+EMBED_MANIFEST="$REPO_ROOT/.context/embeddings/manifest.json"
 
 if [[ ! -f "$MANIFEST" ]]; then
   echo "[status] No ingest manifest found."
@@ -40,4 +41,18 @@ console.log(`[status] graph rels constrains=${c.constrains ?? 0} implements=${c.
 ' "$GRAPH_MANIFEST"
 else
   echo "[status] graph manifest missing (run: ./scripts/context.sh graph-load)"
+fi
+
+if [[ -f "$EMBED_MANIFEST" ]]; then
+  node -e '
+const fs = require("node:fs");
+const embedManifestPath = process.argv[1];
+const data = JSON.parse(fs.readFileSync(embedManifestPath, "utf8"));
+const c = data.counts || {};
+console.log(`[status] embeddings generated_at=${data.generated_at}`);
+console.log(`[status] embeddings model=${data.model} dim=${data.dimensions ?? 0}`);
+console.log(`[status] embeddings entities=${c.entities ?? 0} output=${c.output ?? 0} embedded=${c.embedded ?? 0} reused=${c.reused ?? 0} failed=${c.failed ?? 0}`);
+' "$EMBED_MANIFEST"
+else
+  echo "[status] embeddings manifest missing (run: ./scripts/context.sh embed)"
 fi

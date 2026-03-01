@@ -12,6 +12,11 @@ NPM_CONFIG_CACHE="$MCP_DIR/.npm-cache" npm --prefix "$MCP_DIR" install
 echo "[bootstrap] running full ingest"
 "$REPO_ROOT/scripts/ingest.sh"
 
+echo "[bootstrap] generating embeddings"
+if ! "$REPO_ROOT/scripts/embed.sh"; then
+  echo "[bootstrap] warning: embedding generation failed; continuing with lexical search fallback"
+fi
+
 echo "[bootstrap] loading graph"
 "$REPO_ROOT/scripts/load-kuzu.sh"
 

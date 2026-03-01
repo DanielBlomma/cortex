@@ -43,6 +43,8 @@ After ingestion, data is written under `.context/`:
 - `.context/cache/documents.jsonl` full text records for indexed files
 - `.context/cache/entities.*.jsonl` entity sets (`file`, `adr`, `rule`)
 - `.context/cache/relations.*.jsonl` discovered relationships
+- `.context/embeddings/entities.jsonl` local embedding vectors for unified semantic retrieval
+- `.context/embeddings/manifest.json` embedding model + generation stats
 - `.context/db/import/*.tsv` import-ready node/relationship tables for graph loading
 - `.context/cache/manifest.json` summary counts and ingest metadata
 - `.context/cache/graph-manifest.json` graph load summary
@@ -53,6 +55,7 @@ After ingestion, data is written under `.context/`:
 - `./scripts/context.sh bootstrap` install deps + full ingest + graph load
 - `./scripts/context.sh ingest` full ingest
 - `./scripts/context.sh ingest --changed` incremental ingest from git diff, preserving previous indexed records (`full` fallback if git diff is unavailable)
+- `./scripts/context.sh embed [--changed]` generate/reuse all-MiniLM embeddings for files/ADRs/rules
 - `./scripts/context.sh update` incremental ingest + graph rebuild
 - `./scripts/context.sh graph-load` rebuild graph from cached entities/relations
 - `./scripts/context.sh note <title> [text]` store tacit team knowledge as indexed notes

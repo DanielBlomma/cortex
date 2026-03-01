@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { env, pipeline } from "@xenova/transformers";
 import kuzu, { type Connection, type Database, type QueryResult } from "kuzu";
 import { z } from "zod";
 
@@ -17,6 +18,9 @@ const PATHS = {
   config: path.join(CONTEXT_DIR, "config.yaml"),
   rulesYaml: path.join(CONTEXT_DIR, "rules.yaml"),
   graphManifest: path.join(CACHE_DIR, "graph-manifest.json"),
+  embeddingsManifest: path.join(CONTEXT_DIR, "embeddings", "manifest.json"),
+  embeddingsEntities: path.join(CONTEXT_DIR, "embeddings", "entities.jsonl"),
+  embeddingsModelCache: path.join(CONTEXT_DIR, "embeddings", "models"),
   documents: path.join(CACHE_DIR, "documents.jsonl"),
   adrEntities: path.join(CACHE_DIR, "entities.adr.jsonl"),
   ruleEntities: path.join(CACHE_DIR, "entities.rule.jsonl"),
@@ -89,6 +93,28 @@ type ContextData = {
   warning?: string;
 };
 
+type SearchEntity = {
+  id: string;
+  entity_type: "File" | "Rule" | "ADR";
+  kind: string;
+  label: string;
+  path: string;
+  text: string;
+  status: string;
+  source_of_truth: boolean;
+  trust_level: number;
+  updated_at: string;
+  snippet: string;
+  matched_rules: string[];
+  content?: string;
+};
+
+type EmbeddingIndex = {
+  model: string | null;
+  vectors: Map<string, number[]>;
+  warning?: string;
+};
+
 const DEFAULT_RANKING: RankingWeights = {
   semantic: 0.4,
   graph: 0.25,
@@ -123,8 +149,15 @@ let kuzuConnection: Connection | null = null;
 let kuzuInitError: string | null = null;
 let kuzuLastInitAttemptAt = 0;
 let kuzuGraphSignature: string | null = null;
+let embeddingsCacheKey = "";
+let embeddingsCache: EmbeddingIndex = { model: null, vectors: new Map() };
+let embeddingExtractorModel: string | null = null;
+let embeddingExtractorPromise: Promise<unknown | null> | null = null;
+let embeddingLastInitAttemptAt = 0;
+let embeddingRuntimeWarning: string | null = null;
 
 const KUZU_INIT_RETRY_INTERVAL_MS = 2000;
+const EMBEDDING_INIT_RETRY_INTERVAL_MS = 5000;
 
 function readFileIfExists(filePath: string): string | null {
   if (!fs.existsSync(filePath)) {
@@ -767,6 +800,263 @@ function semanticScore(query: string, text: string): number {
   return Math.min(1, overlap * 0.85 + phraseBonus);
 }
 
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length === 0 || b.length === 0 || a.length !== b.length) {
+    return 0;
+  }
+
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let index = 0; index < a.length; index += 1) {
+    const av = a[index];
+    const bv = b[index];
+    dot += av * bv;
+    normA += av * av;
+    normB += bv * bv;
+  }
+
+  if (normA === 0 || normB === 0) {
+    return 0;
+  }
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+function toVector(output: unknown): number[] | null {
+  if (!output || typeof output !== "object") {
+    return null;
+  }
+
+  const data = (output as { data?: unknown }).data;
+  if (!data || typeof (data as ArrayLike<number>).length !== "number") {
+    return null;
+  }
+
+  return Array.from(data as ArrayLike<number>)
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value));
+}
+
+function readFileVersion(filePath: string): string {
+  if (!fs.existsSync(filePath)) {
+    return "none";
+  }
+  try {
+    const stats = fs.statSync(filePath);
+    return `${Math.round(stats.mtimeMs)}:${stats.size}`;
+  } catch {
+    return "none";
+  }
+}
+
+function parseEmbeddingIndex(raw: JsonObject[]): EmbeddingIndex {
+  const vectors = new Map<string, number[]>();
+  let model: string | null = null;
+
+  for (const item of raw) {
+    const id = asString(item.id);
+    if (!id) continue;
+
+    const vectorRaw = item.vector;
+    if (!Array.isArray(vectorRaw)) continue;
+
+    const vector = vectorRaw
+      .map((value) => (typeof value === "number" && Number.isFinite(value) ? value : null))
+      .filter((value): value is number => value !== null);
+
+    if (vector.length === 0) continue;
+    vectors.set(id, vector);
+
+    const nextModel = asString(item.model);
+    if (nextModel && !model) {
+      model = nextModel;
+    }
+  }
+
+  return { model, vectors };
+}
+
+function loadEmbeddingIndex(): EmbeddingIndex {
+  const key = `${readFileVersion(PATHS.embeddingsManifest)}|${readFileVersion(PATHS.embeddingsEntities)}`;
+  if (embeddingsCacheKey === key) {
+    return embeddingsCache;
+  }
+
+  if (!fs.existsSync(PATHS.embeddingsEntities)) {
+    embeddingsCacheKey = key;
+    embeddingsCache = {
+      model: null,
+      vectors: new Map(),
+      warning: "Embedding index missing (run: ./scripts/context.sh embed)"
+    };
+    return embeddingsCache;
+  }
+
+  const parsed = parseEmbeddingIndex(readJsonl(PATHS.embeddingsEntities));
+  embeddingsCacheKey = key;
+  embeddingsCache =
+    parsed.vectors.size === 0
+      ? { ...parsed, warning: "Embedding index is empty; using lexical fallback." }
+      : parsed;
+  return embeddingsCache;
+}
+
+async function getEmbeddingExtractor(modelId: string): Promise<unknown | null> {
+  if (!modelId) {
+    return null;
+  }
+
+  if (embeddingExtractorModel !== modelId) {
+    embeddingExtractorModel = modelId;
+    embeddingExtractorPromise = null;
+    embeddingLastInitAttemptAt = 0;
+  }
+
+  if (embeddingExtractorPromise) {
+    const existing = await embeddingExtractorPromise;
+    if (existing) {
+      return existing;
+    }
+
+    if (Date.now() - embeddingLastInitAttemptAt < EMBEDDING_INIT_RETRY_INTERVAL_MS) {
+      return null;
+    }
+
+    // Previous init failed; allow a fresh retry after cooldown.
+    embeddingExtractorPromise = null;
+  }
+
+  if (Date.now() - embeddingLastInitAttemptAt < EMBEDDING_INIT_RETRY_INTERVAL_MS) {
+    return null;
+  }
+
+  embeddingLastInitAttemptAt = Date.now();
+  embeddingExtractorPromise = (async () => {
+    try {
+      fs.mkdirSync(PATHS.embeddingsModelCache, { recursive: true });
+      env.cacheDir = PATHS.embeddingsModelCache;
+      const extractor = await pipeline("feature-extraction", modelId);
+      embeddingRuntimeWarning = null;
+      return extractor;
+    } catch (error) {
+      embeddingRuntimeWarning =
+        error instanceof Error ? error.message : "Failed to load embedding model";
+      return null;
+    }
+  })();
+
+  return embeddingExtractorPromise;
+}
+
+async function embedQuery(query: string, modelId: string): Promise<number[] | null> {
+  const extractor = await getEmbeddingExtractor(modelId);
+  if (!extractor) {
+    return null;
+  }
+
+  try {
+    const output = await (extractor as (text: string, options: unknown) => Promise<unknown>)(query, {
+      pooling: "mean",
+      normalize: true
+    });
+    const vector = toVector(output);
+    if (!vector || vector.length === 0) {
+      embeddingRuntimeWarning = "Failed to embed query text";
+      return null;
+    }
+
+    embeddingRuntimeWarning = null;
+    return vector;
+  } catch (error) {
+    embeddingRuntimeWarning =
+      error instanceof Error ? error.message : "Failed to embed query text";
+    return null;
+  }
+}
+
+function buildSearchEntities(data: ContextData, includeContent: boolean): SearchEntity[] {
+  const entities: SearchEntity[] = [];
+  const ruleLinks = groupRuleLinks(data.relations);
+  const adrPathSet = new Set(
+    data.adrs
+      .map((adr) => adr.path.trim().toLowerCase())
+      .filter((adrPath) => adrPath.length > 0)
+  );
+
+  for (const document of data.documents) {
+    const normalizedPath = document.path.trim().toLowerCase();
+    // ADR content is represented by ADR entities below; avoid duplicate results.
+    if (document.kind === "ADR" && adrPathSet.has(normalizedPath)) {
+      continue;
+    }
+
+    entities.push({
+      id: document.id,
+      entity_type: "File",
+      kind: document.kind,
+      label: document.path,
+      path: document.path,
+      text: `${document.path}\n${document.excerpt}\n${document.content}`,
+      status: document.status,
+      source_of_truth: document.source_of_truth,
+      trust_level: document.trust_level,
+      updated_at: document.updated_at,
+      snippet: document.excerpt,
+      matched_rules: ruleLinks.get(document.id) ?? [],
+      content: includeContent ? document.content : undefined
+    });
+  }
+
+  for (const rule of data.rules) {
+    entities.push({
+      id: rule.id,
+      entity_type: "Rule",
+      kind: "RULE",
+      label: rule.title || rule.id,
+      path: "",
+      text: `${rule.id}\n${rule.title}\n${rule.body}`,
+      status: rule.status,
+      source_of_truth: rule.source_of_truth,
+      trust_level: rule.trust_level,
+      updated_at: rule.updated_at,
+      snippet: rule.body.slice(0, 500),
+      matched_rules: [rule.id],
+      content: includeContent ? rule.body : undefined
+    });
+  }
+
+  for (const adr of data.adrs) {
+    entities.push({
+      id: adr.id,
+      entity_type: "ADR",
+      kind: "ADR",
+      label: adr.title || adr.id,
+      path: adr.path,
+      text: `${adr.path}\n${adr.title}\n${adr.body}`,
+      status: adr.status,
+      source_of_truth: adr.source_of_truth,
+      trust_level: adr.trust_level,
+      updated_at: adr.decision_date,
+      snippet: adr.body.slice(0, 500),
+      matched_rules: [],
+      content: includeContent ? adr.body : undefined
+    });
+  }
+
+  return entities;
+}
+
+function relationDegree(relations: RelationRecord[]): Map<string, number> {
+  const degrees = new Map<string, number>();
+
+  for (const relation of relations) {
+    degrees.set(relation.from, (degrees.get(relation.from) ?? 0) + 1);
+    degrees.set(relation.to, (degrees.get(relation.to) ?? 0) + 1);
+  }
+
+  return degrees;
+}
+
 function groupRuleLinks(relations: RelationRecord[]): Map<string, string[]> {
   const links = new Map<string, string[]>();
   for (const relation of relations) {
@@ -840,51 +1130,75 @@ function buildToolResult(data: ToolPayload) {
 async function runContextSearch(input: unknown): Promise<ToolPayload> {
   const parsed = SearchInput.parse(input ?? {});
   const data = await loadContextData();
-  const ruleLinks = groupRuleLinks(data.relations);
+  const degreeByEntity = relationDegree(data.relations);
+  const candidates = buildSearchEntities(data, parsed.include_content).filter(
+    (entity) => parsed.include_deprecated || entity.status.toLowerCase() !== "deprecated"
+  );
+  const embeddings = loadEmbeddingIndex();
+  const queryVector =
+    embeddings.model && embeddings.vectors.size > 0
+      ? await embedQuery(parsed.query, embeddings.model)
+      : null;
 
-  const results = data.documents
-    .filter((doc) => parsed.include_deprecated || doc.status.toLowerCase() !== "deprecated")
-    .map((doc) => {
-      const text = `${doc.path}\n${doc.excerpt}\n${doc.content}`;
-      const semScore = semanticScore(parsed.query, text);
-      const graphScore = Math.min(1, (ruleLinks.get(doc.id)?.length ?? 0) / 3);
-      const trustScore = Math.max(0, Math.min(1, doc.trust_level / 100));
-      const dateScore = recencyScore(doc.updated_at);
+  const results = candidates
+    .map((entity) => {
+      const lexicalSemantic = semanticScore(parsed.query, entity.text);
+      const entityVector = embeddings.vectors.get(entity.id);
+      const vectorSemantic =
+        queryVector && entityVector
+          ? Math.max(0, Math.min(1, (cosineSimilarity(queryVector, entityVector) + 1) / 2))
+          : 0;
+      const semantic = vectorSemantic > 0 ? vectorSemantic * 0.75 + lexicalSemantic * 0.25 : lexicalSemantic;
+      const graphScore = Math.min(1, (degreeByEntity.get(entity.id) ?? 0) / 4);
+      const trustScore = Math.max(0, Math.min(1, entity.trust_level / 100));
+      const dateScore = recencyScore(entity.updated_at);
 
       let score = 0;
-      score += data.ranking.semantic * semScore;
+      score += data.ranking.semantic * semantic;
       score += data.ranking.graph * graphScore;
       score += data.ranking.trust * trustScore;
       score += data.ranking.recency * dateScore;
 
-      if (doc.source_of_truth) {
+      if (entity.source_of_truth) {
         score += 0.1;
       }
 
       return {
-        id: doc.id,
-        path: doc.path,
-        kind: doc.kind,
+        id: entity.id,
+        entity_type: entity.entity_type,
+        kind: entity.kind,
+        title: entity.label,
+        path: entity.path || undefined,
         score: Number(score.toFixed(4)),
-        source_of_truth: doc.source_of_truth,
-        status: doc.status,
-        updated_at: doc.updated_at,
-        matched_rules: ruleLinks.get(doc.id) ?? [],
-        excerpt: doc.excerpt,
-        content: parsed.include_content ? doc.content : undefined
+        semantic_score: Number(semantic.toFixed(4)),
+        embedding_score: Number(vectorSemantic.toFixed(4)),
+        lexical_score: Number(lexicalSemantic.toFixed(4)),
+        graph_score: Number(graphScore.toFixed(4)),
+        source_of_truth: entity.source_of_truth,
+        status: entity.status,
+        updated_at: entity.updated_at,
+        matched_rules: entity.matched_rules,
+        excerpt: entity.snippet,
+        content: parsed.include_content ? entity.content : undefined
       };
     })
     .filter((result) => result.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, parsed.top_k);
 
+  const warningMessages = [data.warning, embeddings.warning, embeddingRuntimeWarning].filter(Boolean);
+
   return {
     query: parsed.query,
     top_k: parsed.top_k,
     ranking: data.ranking,
-    total_candidates: data.documents.length,
+    total_candidates: candidates.length,
     context_source: data.source,
-    warning: data.warning,
+    warning: warningMessages.length > 0 ? warningMessages.join(" | ") : undefined,
+    semantic_engine:
+      queryVector && embeddings.model
+        ? `embedding+lexical (${embeddings.model})`
+        : "lexical-only",
     results
   };
 }

@@ -10,6 +10,7 @@ Usage: ./scripts/context.sh <command> [options]
 Commands:
   bootstrap                        Install deps + full ingest + graph load
   ingest [--changed] [--verbose]   Index docs/code/design context into .context
+  embed [--changed]                Generate semantic embeddings for indexed entities
   update                           Ingest changed files + rebuild graph
   refresh [--changed] [--verbose]  Alias for ingest
   graph-load [--no-reset]          Build Kuzu graph DB from indexed context
@@ -30,6 +31,9 @@ case "$COMMAND" in
     ;;
   ingest)
     "$SCRIPT_DIR/ingest.sh" "$@"
+    ;;
+  embed)
+    "$SCRIPT_DIR/embed.sh" "$@"
     ;;
   update)
     "$SCRIPT_DIR/update-context.sh" "$@"
