@@ -178,6 +178,88 @@ cortex note <title> [text]
 cortex help
 ```
 
+## Create Skills and Commands (Claude + Codex)
+
+### Claude: Create a command (`/...`)
+
+Create a project-local command in `.claude/commands/` (or global in `~/.claude/commands/`).
+
+```bash
+mkdir -p .claude/commands
+cat > .claude/commands/my-command.md <<'EOF'
+---
+description: "Short description shown in slash-command list"
+argument-hint: "[optional arguments]"
+allowed-tools:
+  - Read
+  - Bash
+---
+Use this command to do something specific.
+Input: $ARGUMENTS
+EOF
+```
+
+Use it in Claude Code:
+
+```text
+/my-command some text
+```
+
+For namespaced commands, use subfolders:
+`.claude/commands/gsd/debug.md` -> `/gsd:debug`.
+
+### Claude: Create a skill-style agent
+
+Create `.claude/agents/my-agent.md` (or `~/.claude/agents/`):
+
+```md
+---
+name: my-agent
+description: Specialized helper for a specific task
+tools: Read, Bash, Write
+---
+
+You are a specialized agent for ...
+```
+
+Verify available agents:
+
+```bash
+claude agents
+```
+
+### Codex: Create a skill
+
+Codex skills live in `$CODEX_HOME/skills` (normally `~/.codex/skills`).
+
+```bash
+mkdir -p ~/.codex/skills/my-skill
+cat > ~/.codex/skills/my-skill/SKILL.md <<'EOF'
+---
+name: my-skill
+description: What this skill does and when it should be used.
+---
+
+# My Skill
+## Workflow
+1. Do this
+2. Then this
+EOF
+```
+
+Optional files:
+- `agents/openai.yaml` for UI metadata
+- `scripts/` for executable helpers
+- `references/` for docs loaded on demand
+- `assets/` for templates/icons/files
+
+Use the skill by naming it in your prompt (`$my-skill`) or by asking for a task that matches the skill description.
+
+### Codex: Create a command
+
+Codex does not currently use custom slash-command files like `.claude/commands`.
+For command-like workflows in Codex, create normal repo commands (`scripts/*.sh`, `bin/*`, `npm run <name>`, `make <target>`) and run them from terminal or ask Codex to run them.
+
 ## Project Layout
 
 - `.context/` config, ontology, rules, local cache/db/embeddings
