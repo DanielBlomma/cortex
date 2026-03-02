@@ -8,6 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
 const SCAFFOLD_ROOT = path.join(PACKAGE_ROOT, "scaffold");
+const PACKAGE_JSON_PATH = path.join(PACKAGE_ROOT, "package.json");
 
 const GITIGNORE_LINES = [
   "",
@@ -53,6 +54,15 @@ function printHelp() {
   console.log("  cortex plan");
   console.log("  cortex todo [text|list|done <id>|reopen <id>|remove <id>]");
   console.log("  cortex help");
+}
+
+function readCliVersion() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(PACKAGE_JSON_PATH, "utf8"));
+    return typeof parsed.version === "string" ? parsed.version : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
 }
 
 function parseInitArgs(args) {
@@ -338,8 +348,16 @@ async function markPlanEvent(targetDir, eventName) {
 }
 
 async function run() {
+  const cliVersion = readCliVersion();
+  process.env.CORTEX_CLI_VERSION = cliVersion;
+
   const [rawCommand, ...rest] = process.argv.slice(2);
   const command = rawCommand ?? "help";
+
+  if (command === "version" || command === "--version" || command === "-V") {
+    console.log(cliVersion);
+    return;
+  }
 
   if (command === "help" || command === "--help" || command === "-h") {
     printHelp();

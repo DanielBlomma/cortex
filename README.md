@@ -114,6 +114,10 @@ cortex update
 cortex status
 ```
 
+`cortex status` now shows:
+- a freshness bar (`update_needed=yes/no`) for repo context
+- a Cortex CLI version/update check (when network is available)
+
 Automatic progress is saved in `.context/plan/state.json`.
 
 ```bash
