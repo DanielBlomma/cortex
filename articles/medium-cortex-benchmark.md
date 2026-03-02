@@ -10,7 +10,7 @@ We decided to find out. Not with a toy example or a clean Next.js repo — with 
 
 ## The Setup
 
-**The codebase:** A 20k LOC VB.NET legacy service that generates operational reports for enterprise customers. 85 VB files, 29 SQL files, customer-specific code forks, SQL queries embedded in resource files, and string-based ID parsing duplicated across 6+ classes. The kind of codebase where tribal knowledge lives in one person's head.
+**The codebase:** A 20k LOC VB.NET legacy service that processes data and generates reports for enterprise customers. 85 VB files, 29 SQL files, customer-specific code forks, SQL queries embedded in resource files, and string-based ID parsing duplicated across 6+ classes. The kind of codebase where tribal knowledge lives in one person's head.
 
 **The tool:** [Cortex](https://github.com/DanielBlomma/cortex) — an open-source, repo-local context engine that indexes your code into a knowledge graph with semantic embeddings. It gives AI assistants structured access to entities, relationships, and ranked search results instead of raw file dumps.
 
@@ -42,7 +42,7 @@ But the headline doesn't tell the real story. Let's dig in.
 
 This is where Cortex demolished the baseline. Tasks like:
 
-- **"Trace what happens when a journey is cancelled"** — requires following data through 5+ classes, understanding how a SQL flag becomes a red row in an HTML email
+- **"Trace what happens when a record is cancelled"** — requires following data through 5+ classes, understanding how a SQL flag becomes a red row in an HTML email
 - **"Document all ID parsing formats and find inconsistencies"** — the codebase parses 16-character GID strings using `Substring(7, 4)` in 6+ different classes, with subtle format differences between customer variants
 - **"Compare the customer-specific fork with the core implementation"** — the `Custom/` directory contains complete code forks with different ID formats, different thresholds, different error handling, and even different logging frameworks
 
@@ -50,11 +50,11 @@ Without structured context, the model scored an average of **1.5/5** on these ta
 
 With Cortex, the graph immediately surfaces: "this entity is referenced by these 6 classes, and here's how each one handles it differently." Average score: **4.75/5**.
 
-**The killer finding:** The codebase had an ID format inconsistency between the core service (4-part key: `date:line:journey:authority`) and a customer fork (3-part key: `date:line:journey`). This means cross-component lookups would **silently fail** if the systems were mixed. No model found this without Cortex. Every model found it with Cortex.
+**The killer finding:** The codebase had an ID format inconsistency between the core service (4-part composite key) and a customer fork (3-part composite key). This means cross-component lookups would **silently fail** if the systems were mixed. No model found this without Cortex. Every model found it with Cortex.
 
 ### 🟡 Security & Error Handling: +112%
 
-The codebase has 40+ catch blocks with wildly inconsistent behavior — some log and continue, some silently swallow exceptions, some write to a file and terminate the process. SQL queries are constructed via string replacement (`sql.Replace("SelectionTrafficDate", date.ToShortDateString)`) in 6+ locations across both the main service and customer forks.
+The codebase has 40+ catch blocks with wildly inconsistent behavior — some log and continue, some silently swallow exceptions, some write to a file and terminate the process. SQL queries are constructed via string replacement (`sql.Replace("FilterDate", date.ToString)`) in 6+ locations across both the main service and customer forks.
 
 Without Cortex, a model finds 2–3 instances of each pattern. With Cortex, it maps all 6+ SQL injection points, all 40+ catch blocks (categorized by behavior), and the fact that customer forks use `Console.WriteLine` instead of the logging framework — meaning errors in production would go to `/dev/null`.
 
