@@ -37,7 +37,31 @@ case "$SUBCOMMAND" in
     if [[ $# -gt 0 ]]; then
       shift
     fi
-    run_state_tool todo "$TODO_ACTION" "$*"
+    case "$TODO_ACTION" in
+      add)
+        TODO_TEXT="${*:-}"
+        run_state_tool todo-add "$TODO_TEXT"
+        ;;
+      list)
+        run_state_tool todo-list
+        ;;
+      done)
+        TODO_ID="${1:-}"
+        run_state_tool todo-done "$TODO_ID"
+        ;;
+      reopen)
+        TODO_ID="${1:-}"
+        run_state_tool todo-reopen "$TODO_ID"
+        ;;
+      remove)
+        TODO_ID="${1:-}"
+        run_state_tool todo-remove "$TODO_ID"
+        ;;
+      *)
+        # Keep ergonomic behavior: unknown first token is treated as todo text.
+        run_state_tool todo-add "$TODO_ACTION ${*:-}"
+        ;;
+    esac
     ;;
   *)
     echo "Unknown subcommand: $SUBCOMMAND"

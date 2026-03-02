@@ -5,19 +5,42 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENGINE = path.join(__dirname, "..", "scripts", "plan-state-engine.cjs");
+const WRAPPER = path.join(__dirname, "..", "scripts", "plan-state.sh");
 const TMP_STATE = path.join(__dirname, ".tmp-test-state.json");
+const TMP_WRAPPER_ROOT = path.join(__dirname, ".tmp-wrapper-fixture");
+const TMP_WRAPPER_STATE = path.join(TMP_WRAPPER_ROOT, ".context", "plan", "state.json");
 
 function run(action, arg = "") {
   const cmd = `node "${ENGINE}" "${TMP_STATE}" ${action} ${arg}`.trim();
   return execSync(cmd, { encoding: "utf-8" });
 }
 
+function runWrapper(args = "") {
+  const fixtureWrapper = path.join(TMP_WRAPPER_ROOT, "scripts", "plan-state.sh");
+  const cmd = `bash "${fixtureWrapper}" ${args}`.trim();
+  return execSync(cmd, { encoding: "utf-8" });
+}
+
 function cleanup() {
   try { fs.unlinkSync(TMP_STATE); } catch {}
+  fs.rmSync(TMP_WRAPPER_ROOT, { recursive: true, force: true });
 }
 
 function readState() {
   return JSON.parse(fs.readFileSync(TMP_STATE, "utf-8"));
+}
+
+function readWrapperState() {
+  return JSON.parse(fs.readFileSync(TMP_WRAPPER_STATE, "utf-8"));
+}
+
+function setupWrapperFixture() {
+  const fixtureScriptsDir = path.join(TMP_WRAPPER_ROOT, "scripts");
+  fs.rmSync(TMP_WRAPPER_ROOT, { recursive: true, force: true });
+  fs.mkdirSync(fixtureScriptsDir, { recursive: true });
+  fs.copyFileSync(WRAPPER, path.join(fixtureScriptsDir, "plan-state.sh"));
+  fs.copyFileSync(ENGINE, path.join(fixtureScriptsDir, "plan-state-engine.cjs"));
+  fs.chmodSync(path.join(fixtureScriptsDir, "plan-state.sh"), 0o755);
 }
 
 let passed = 0;
@@ -79,6 +102,18 @@ run("reset");
 const s7 = readState();
 assert("resets steps", s7.steps.every(s => s.status === "pending"));
 assert("clears history", s7.history.length === 0);
+
+// 8. Wrapper integration
+console.log("\n8. Wrapper dispatch integration");
+setupWrapperFixture();
+runWrapper('todo add "Wrapper integration todo"');
+const ws1 = readWrapperState();
+assert("wrapper adds todo through shell script", ws1.todos.length === 1 && ws1.todos[0].status === "open");
+const listOut = runWrapper("todo list");
+assert("wrapper list works", listOut.includes("[open]"));
+runWrapper("todo done 1");
+const ws2 = readWrapperState();
+assert("wrapper marks todo done", ws2.todos[0].status === "done");
 
 cleanup();
 console.log(`\n${passed} passed, ${failed} failed`);
