@@ -5,6 +5,7 @@
 .context/db/
 .context/embeddings/
 .context/cache/
+.context/plan/
 
 # Node
 node_modules/

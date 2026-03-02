@@ -58,20 +58,19 @@ sudo npm i -g github:DanielBlomma/cortex
 
 ```bash
 mkdir -p .claude/commands
-cat > .claude/commands/my-command.md <<'EOF'
+cat > .claude/commands/todo.md <<'EOF'
 ---
-description: "Short description"
-argument-hint: "[text]"
+description: "Add a Cortex TODO item"
+argument-hint: "<text>"
 ---
-Use this when you want to do X.
-Input: $ARGUMENTS
+Execute: cortex todo "$ARGUMENTS"
 EOF
 ```
 
 Use in Claude:
 
 ```text
-/my-command hello
+/todo Add missing integration test for search filters
 ```
 
 #### Codex skill (`$skill-name`)
@@ -96,7 +95,7 @@ Use in Codex by writing `$my-skill` in the prompt, or describe a task that match
 
 | Type | How to trigger | Best for | Example |
 |---|---|---|---|
-| Claude command | Explicit via `/name` | Repeating, exact flows | `/my-command release-notes` |
+| Claude command | Explicit via `/name` | Repeating, exact flows | `/todo Add an item` |
 | Codex skill | `$skill-name` or automatic matching | Behavior/rules/work-method across tasks | `$my-skill` for a full workflow |
 | Codex command-like | Normal repo commands (`npm run`, `make`, `scripts/*.sh`) | Executable automation in your project | `npm run validate` |
 
@@ -113,6 +112,14 @@ Daily usage:
 ```bash
 cortex update
 cortex status
+```
+
+Automatic progress is saved in `.context/plan/state.json`.
+
+```bash
+cortex plan
+cortex todo "Check API pagination edge case"
+cortex todo
 ```
 
 When needed:
@@ -190,6 +197,8 @@ cortex ingest [--changed] [--verbose]
 cortex embed [--changed]
 cortex graph-load [--no-reset]
 cortex note <title> [text]
+cortex plan
+cortex todo [text|list|done <id>|reopen <id>|remove <id>]
 cortex help
 ```
 

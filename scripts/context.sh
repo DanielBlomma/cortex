@@ -15,6 +15,9 @@ Commands:
   refresh [--changed] [--verbose]  Alias for ingest
   graph-load [--no-reset]          Build RyuGraph DB from indexed context
   note <title> [text]              Save tacit knowledge note into .context/notes
+  plan [show|reset]                Show or reset automatic plan/progress state
+  todo [text|list|done <id>|reopen <id>|remove <id>]
+                                   Manage TODOs in automatic plan state
   status                           Show latest ingest summary
   help                             Show this message
 EOF
@@ -25,30 +28,64 @@ if [[ $# -gt 0 ]]; then
   shift
 fi
 
+TRACK_EVENT=""
+
 case "$COMMAND" in
   bootstrap)
     "$SCRIPT_DIR/bootstrap.sh" "$@"
+    TRACK_EVENT="bootstrap"
     ;;
   ingest)
     "$SCRIPT_DIR/ingest.sh" "$@"
+    TRACK_EVENT="ingest"
     ;;
   embed)
     "$SCRIPT_DIR/embed.sh" "$@"
+    TRACK_EVENT="embed"
     ;;
   update)
     "$SCRIPT_DIR/update-context.sh" "$@"
+    TRACK_EVENT="update"
     ;;
   refresh)
     "$SCRIPT_DIR/refresh.sh" "$@"
+    TRACK_EVENT="refresh"
     ;;
   graph-load)
     "$SCRIPT_DIR/load-ryu.sh" "$@"
+    TRACK_EVENT="graph-load"
     ;;
   note)
     "$SCRIPT_DIR/capture-note.sh" "$@"
+    TRACK_EVENT="note"
+    ;;
+  plan)
+    PLAN_SUBCOMMAND="${1:-show}"
+    if [[ $# -gt 0 ]]; then
+      shift
+    fi
+    "$SCRIPT_DIR/plan-state.sh" "$PLAN_SUBCOMMAND" "$@"
+    ;;
+  todo)
+    if [[ $# -eq 0 ]]; then
+      "$SCRIPT_DIR/plan-state.sh" todo list
+    else
+      case "$1" in
+        list|done|reopen|remove)
+          TODO_SUBCOMMAND="$1"
+          shift
+          "$SCRIPT_DIR/plan-state.sh" todo "$TODO_SUBCOMMAND" "$@"
+          ;;
+        *)
+          "$SCRIPT_DIR/plan-state.sh" todo add "$*"
+          ;;
+      esac
+    fi
+    TRACK_EVENT="todo"
     ;;
   status)
     "$SCRIPT_DIR/status.sh"
+    TRACK_EVENT="status"
     ;;
   help|--help|-h)
     print_help
@@ -59,3 +96,9 @@ case "$COMMAND" in
     exit 1
     ;;
 esac
+
+if [[ -n "$TRACK_EVENT" ]]; then
+  if ! "$SCRIPT_DIR/plan-state.sh" event "$TRACK_EVENT" >/dev/null 2>&1; then
+    echo "[plan] warning: failed to update plan state"
+  fi
+fi

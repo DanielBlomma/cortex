@@ -15,6 +15,7 @@ const GITIGNORE_LINES = [
   ".context/db/",
   ".context/embeddings/",
   ".context/cache/",
+  ".context/plan/",
   "mcp/.npm-cache/",
   "mcp/dist/",
   "mcp/node_modules/"
@@ -49,6 +50,8 @@ function printHelp() {
   console.log("  cortex embed [--changed]");
   console.log("  cortex graph-load [--no-reset]");
   console.log("  cortex note <title> [text]");
+  console.log("  cortex plan");
+  console.log("  cortex todo [text|list|done <id>|reopen <id>|remove <id>]");
   console.log("  cortex help");
 }
 
@@ -322,6 +325,18 @@ async function runContextCommand(cwd, contextArgs) {
   await runCommand("bash", [contextScript, ...contextArgs], cwd);
 }
 
+async function markPlanEvent(targetDir, eventName) {
+  const planScript = path.join(targetDir, "scripts", "plan-state.sh");
+  if (!fs.existsSync(planScript)) {
+    return;
+  }
+
+  const result = await runCommandResult("bash", [planScript, "event", eventName], targetDir, "ignore");
+  if (!result.ok) {
+    console.log(`[cortex] warning: failed to update automatic plan state for event '${eventName}'`);
+  }
+}
+
 async function run() {
   const [rawCommand, ...rest] = process.argv.slice(2);
   const command = rawCommand ?? "help";
@@ -337,6 +352,7 @@ async function run() {
     printBanner("Cortex initializes repo-scoped context for AI coding agents.");
     fs.mkdirSync(target, { recursive: true });
     installScaffold(target, force);
+    await markPlanEvent(target, "init");
 
     console.log(`[cortex] initialized in ${target}`);
     console.log("[cortex] scaffold copied: .context/, scripts/, mcp/, docs/");
@@ -362,14 +378,20 @@ async function run() {
     }
 
     if (connect) {
-      await connectMcpClients(target);
+      const connected = await connectMcpClients(target);
+      if (connected > 0) {
+        await markPlanEvent(target, "connect");
+      }
     }
     return;
   }
 
   if (command === "connect") {
     const { target, skipBuild } = parseConnectArgs(rest);
-    await connectMcpClients(target, { skipBuild });
+    const connected = await connectMcpClients(target, { skipBuild });
+    if (connected > 0) {
+      await markPlanEvent(target, "connect");
+    }
     return;
   }
 
@@ -381,6 +403,8 @@ async function run() {
     "embed",
     "graph-load",
     "note",
+    "plan",
+    "todo",
     "refresh"
   ]);
 

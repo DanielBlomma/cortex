@@ -56,3 +56,10 @@ console.log(`[status] embeddings entities=${c.entities ?? 0} output=${c.output ?
 else
   echo "[status] embeddings manifest missing (run: ./scripts/context.sh embed)"
 fi
+
+PLAN_SCRIPT="$REPO_ROOT/scripts/plan-state.sh"
+if [[ -x "$PLAN_SCRIPT" ]]; then
+  if ! "$PLAN_SCRIPT" show; then
+    echo "[plan] warning: failed to read plan state"
+  fi
+fi
