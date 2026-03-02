@@ -32,27 +32,27 @@ Result: better answers, less guessing, and fewer "hallucinated" assumptions.
 
 ## Quick Start (3 Steps)
 
-### 1. Installera Cortex
+### 1. Install Cortex
 
-Krav:
+Requirements:
 - Node.js 20+
 - npm 10+
 - git
-- Valfritt (för auto-connect): `codex` och/eller `claude` i `PATH`
+- Optional (for auto-connect): `codex` and/or `claude` in `PATH`
 
-Installera CLI globalt:
+Install the CLI globally:
 
 ```bash
 npm i -g github:DanielBlomma/cortex
 ```
 
-Om global npm kräver sudo på macOS:
+If global npm requires sudo on macOS:
 
 ```bash
 sudo npm i -g github:DanielBlomma/cortex
 ```
 
-### 2. Skapa en skill eller command
+### 2. Create a skill or command
 
 #### Claude command (`/...`)
 
@@ -60,15 +60,15 @@ sudo npm i -g github:DanielBlomma/cortex
 mkdir -p .claude/commands
 cat > .claude/commands/my-command.md <<'EOF'
 ---
-description: "Kort beskrivning"
+description: "Short description"
 argument-hint: "[text]"
 ---
-Kör det här när du vill göra X.
+Use this when you want to do X.
 Input: $ARGUMENTS
 EOF
 ```
 
-Använd i Claude:
+Use in Claude:
 
 ```text
 /my-command hello
@@ -81,41 +81,41 @@ mkdir -p ~/.codex/skills/my-skill
 cat > ~/.codex/skills/my-skill/SKILL.md <<'EOF'
 ---
 name: my-skill
-description: Hjälper till med X och används när uppgiften handlar om X.
+description: Helps with X and should be used when the task is about X.
 ---
 
 # My Skill
-1. Gör A
-2. Gör B
+1. Do A
+2. Do B
 EOF
 ```
 
-Använd i Codex genom att skriva `$my-skill` i prompten eller beskriv en uppgift som matchar skillens beskrivning.
+Use in Codex by writing `$my-skill` in the prompt, or describe a task that matches the skill description.
 
-#### Skillnad: skill vs command (kort)
+#### Difference: skill vs command (quick)
 
-| Typ | Hur du triggar | Bra för | Exempel |
+| Type | How to trigger | Best for | Example |
 |---|---|---|---|
-| Claude command | Explicit via `/namn` | Återkommande, exakta flöden | `/my-command release-notes` |
-| Codex skill | `$skill-name` eller automatisk matchning | Beteende/regler/arbetsmetod över flera uppgifter | `$my-skill` för en hel arbetsgång |
-| Codex command-liknande | Vanliga repo-kommandon (`npm run`, `make`, `scripts/*.sh`) | Körbara automationer i projektet | `npm run validate` |
+| Claude command | Explicit via `/name` | Repeating, exact flows | `/my-command release-notes` |
+| Codex skill | `$skill-name` or automatic matching | Behavior/rules/work-method across tasks | `$my-skill` for a full workflow |
+| Codex command-like | Normal repo commands (`npm run`, `make`, `scripts/*.sh`) | Executable automation in your project | `npm run validate` |
 
-### 3. Initiera ditt repo
+### 3. Initialize your repo
 
-I repot du vill aktivera:
+In the repo you want to enable:
 
 ```bash
 cortex init --bootstrap
 ```
 
-Daglig användning:
+Daily usage:
 
 ```bash
 cortex update
 cortex status
 ```
 
-Vid behov:
+When needed:
 
 ```bash
 cortex connect
