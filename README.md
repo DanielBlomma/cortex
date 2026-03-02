@@ -30,80 +30,95 @@ Result: better answers, less guessing, and fewer "hallucinated" assumptions.
 - Makes assistant output more consistent with your rules/ADRs/source of truth.
 - Supports incremental updates so you do not need full re-ingest on every change.
 
-## Install
+## Quick Start (3 Steps)
 
-### Prerequisites
+### 1. Installera Cortex
 
+Krav:
 - Node.js 20+
 - npm 10+
 - git
-- Optional for auto MCP registration: `codex` CLI and/or `claude` CLI in `PATH`
+- Valfritt (för auto-connect): `codex` och/eller `claude` i `PATH`
 
-### Option A: Run with npx (recommended)
-
-From the repository you want to enable:
-
-```bash
-npx github:DanielBlomma/cortex init --bootstrap
-```
-
-What this does:
-
-- copies Cortex scaffold (`.context/`, `scripts/`, `mcp/`)
-- bootstraps dependencies + ingest + embeddings + graph
-- tries to auto-connect MCP to Codex and Claude Code
-
-Daily commands:
-
-```bash
-npx github:DanielBlomma/cortex update
-npx github:DanielBlomma/cortex status
-```
-
-### Option B: Global install (`cortex` command)
+Installera CLI globalt:
 
 ```bash
 npm i -g github:DanielBlomma/cortex
 ```
 
-Then in any repo:
-
-```bash
-cortex init --bootstrap
-cortex update
-cortex status
-```
-
-If your global install is root-owned on macOS, you may need:
+Om global npm kräver sudo på macOS:
 
 ```bash
 sudo npm i -g github:DanielBlomma/cortex
 ```
 
-## Typical Workflow
+### 2. Skapa en skill eller command
 
-### First setup in a repo
+#### Claude command (`/...`)
+
+```bash
+mkdir -p .claude/commands
+cat > .claude/commands/my-command.md <<'EOF'
+---
+description: "Kort beskrivning"
+argument-hint: "[text]"
+---
+Kör det här när du vill göra X.
+Input: $ARGUMENTS
+EOF
+```
+
+Använd i Claude:
+
+```text
+/my-command hello
+```
+
+#### Codex skill (`$skill-name`)
+
+```bash
+mkdir -p ~/.codex/skills/my-skill
+cat > ~/.codex/skills/my-skill/SKILL.md <<'EOF'
+---
+name: my-skill
+description: Hjälper till med X och används när uppgiften handlar om X.
+---
+
+# My Skill
+1. Gör A
+2. Gör B
+EOF
+```
+
+Använd i Codex genom att skriva `$my-skill` i prompten eller beskriv en uppgift som matchar skillens beskrivning.
+
+#### Skillnad: skill vs command (kort)
+
+| Typ | Hur du triggar | Bra för | Exempel |
+|---|---|---|---|
+| Claude command | Explicit via `/namn` | Återkommande, exakta flöden | `/my-command release-notes` |
+| Codex skill | `$skill-name` eller automatisk matchning | Beteende/regler/arbetsmetod över flera uppgifter | `$my-skill` för en hel arbetsgång |
+| Codex command-liknande | Vanliga repo-kommandon (`npm run`, `make`, `scripts/*.sh`) | Körbara automationer i projektet | `npm run validate` |
+
+### 3. Initiera ditt repo
+
+I repot du vill aktivera:
 
 ```bash
 cortex init --bootstrap
 ```
 
-### During development
+Daglig användning:
 
 ```bash
 cortex update
 cortex status
 ```
 
-### Reconnect MCP (if CLI/app settings changed)
+Vid behov:
 
 ```bash
 cortex connect
-```
-
-### Refresh scaffold from latest template
-
-```bash
 cortex init --force
 ```
 
@@ -163,7 +178,7 @@ To add your own entities (for example `APIContract`, `Test`, `Owner`):
 ./scripts/context.sh status
 ```
 
-## Commands
+## CLI Command Reference
 
 ```text
 cortex init [path] [--force] [--bootstrap] [--connect] [--no-connect]
@@ -177,88 +192,6 @@ cortex graph-load [--no-reset]
 cortex note <title> [text]
 cortex help
 ```
-
-## Create Skills and Commands (Claude + Codex)
-
-### Claude: Create a command (`/...`)
-
-Create a project-local command in `.claude/commands/` (or global in `~/.claude/commands/`).
-
-```bash
-mkdir -p .claude/commands
-cat > .claude/commands/my-command.md <<'EOF'
----
-description: "Short description shown in slash-command list"
-argument-hint: "[optional arguments]"
-allowed-tools:
-  - Read
-  - Bash
----
-Use this command to do something specific.
-Input: $ARGUMENTS
-EOF
-```
-
-Use it in Claude Code:
-
-```text
-/my-command some text
-```
-
-For namespaced commands, use subfolders:
-`.claude/commands/gsd/debug.md` -> `/gsd:debug`.
-
-### Claude: Create a skill-style agent
-
-Create `.claude/agents/my-agent.md` (or `~/.claude/agents/`):
-
-```md
----
-name: my-agent
-description: Specialized helper for a specific task
-tools: Read, Bash, Write
----
-
-You are a specialized agent for ...
-```
-
-Verify available agents:
-
-```bash
-claude agents
-```
-
-### Codex: Create a skill
-
-Codex skills live in `$CODEX_HOME/skills` (normally `~/.codex/skills`).
-
-```bash
-mkdir -p ~/.codex/skills/my-skill
-cat > ~/.codex/skills/my-skill/SKILL.md <<'EOF'
----
-name: my-skill
-description: What this skill does and when it should be used.
----
-
-# My Skill
-## Workflow
-1. Do this
-2. Then this
-EOF
-```
-
-Optional files:
-- `agents/openai.yaml` for UI metadata
-- `scripts/` for executable helpers
-- `references/` for docs loaded on demand
-- `assets/` for templates/icons/files
-
-Use the skill by naming it in your prompt (`$my-skill`) or by asking for a task that matches the skill description.
-
-### Codex: Create a command
-
-Codex does not currently use custom slash-command files like `.claude/commands`.
-For command-like workflows in Codex, create normal repo commands (`scripts/*.sh`, `bin/*`, `npm run <name>`, `make <target>`) and run them from terminal or ask Codex to run them.
 
 ## Project Layout
 
