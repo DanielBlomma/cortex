@@ -1,6 +1,6 @@
 {
   "name": "cortex-cli",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Repo-local context engine installer and command wrapper",
   "type": "module",
   "bin": {
@@ -10,6 +10,9 @@
     "bin",
     "scaffold"
   ],
+  "scripts": {
+    "test": "node tests/plan-state.test.mjs"
+  },
   "engines": {
     "node": ">=18"
   }
