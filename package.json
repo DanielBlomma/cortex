@@ -1,17 +1,40 @@
 {
-  "name": "cortex-cli",
-  "version": "0.3.0",
-  "description": "Repo-local context engine installer and command wrapper",
+  "name": "@danielblomma/cortex-mcp",
+  "version": "0.4.0",
+  "description": "Local, repo-scoped context platform for coding assistants. Semantic search, graph relationships, and architectural rule context.",
   "type": "module",
+  "author": "Daniel Blomma",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DanielBlomma/cortex.git"
+  },
+  "homepage": "https://github.com/DanielBlomma/cortex",
+  "bugs": {
+    "url": "https://github.com/DanielBlomma/cortex/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "context",
+    "code-search",
+    "semantic-search",
+    "refactoring",
+    "claude",
+    "codex"
+  ],
   "bin": {
     "cortex": "bin/cortex.mjs"
   },
   "files": [
     "bin",
-    "scaffold"
+    "scaffold",
+    "README.md",
+    "docs/MCP_MARKETPLACE.md"
   ],
   "scripts": {
-    "test": "node tests/plan-state.test.mjs"
+    "test": "node tests/plan-state.test.mjs",
+    "prepublishOnly": "echo 'Ready to publish to npm'"
   },
   "engines": {
     "node": ">=18"

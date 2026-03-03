@@ -6,6 +6,8 @@
 .context/embeddings/
 .context/cache/
 .context/plan/
+.context/hooks/
+.npm-cache/
 
 # Node
 node_modules/

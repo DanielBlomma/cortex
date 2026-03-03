@@ -335,11 +335,30 @@ async function ensureRequiredFiles(): Promise<void> {
   }
 }
 
+function warnIfOptionalChunkFilesMissing(): void {
+  const optionalChunkFiles = [
+    "entities.chunk.jsonl",
+    "relations.defines.jsonl",
+    "relations.calls.jsonl",
+    "relations.imports.jsonl"
+  ];
+
+  const missing = optionalChunkFiles.filter((fileName) => !fs.existsSync(path.join(CACHE_DIR, fileName)));
+  if (missing.length === 0) {
+    return;
+  }
+
+  console.warn(
+    `[graph-load] warning: missing optional chunk files (${missing.join(", ")}); continuing without chunk nodes/relations`
+  );
+}
+
 async function main(): Promise<void> {
   const args = new Set(process.argv.slice(2));
   const reset = !args.has("--no-reset");
 
   await ensureRequiredFiles();
+  warnIfOptionalChunkFilesMissing();
 
   if (reset) {
     fs.rmSync(DB_PATH, { recursive: true, force: true });

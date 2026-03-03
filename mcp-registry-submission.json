@@ -1,0 +1,63 @@
+{
+  "name": "cortex",
+  "vendor": "danielblomma",
+  "sourceUrl": "https://github.com/DanielBlomma/cortex",
+  "description": "Local, repo-scoped context platform for coding assistants. Semantic search, graph relationships, and architectural rule context for your codebase.",
+  "npmPackage": "@danielblomma/cortex-mcp",
+  "license": "MIT",
+  "homepage": "https://github.com/DanielBlomma/cortex",
+  "categories": [
+    "development-tools",
+    "code-analysis",
+    "search"
+  ],
+  "keywords": [
+    "mcp",
+    "context",
+    "code-search",
+    "semantic-search",
+    "refactoring"
+  ],
+  "installation": {
+    "npm": "npm i -g @danielblomma/cortex-mcp && cortex init --bootstrap"
+  },
+  "tools": [
+    {
+      "name": "context.search",
+      "description": "Semantic search across codebase entities (files, rules, ADRs)"
+    },
+    {
+      "name": "context.get_related",
+      "description": "Get related entities via graph relationships"
+    },
+    {
+      "name": "context.get_rules",
+      "description": "Get active architectural rules and decisions"
+    },
+    {
+      "name": "context.reload",
+      "description": "Reload context graph after code changes"
+    }
+  ],
+  "config": {
+    "command": "cortex",
+    "args": ["mcp"],
+    "env": {
+      "CORTEX_PROJECT_ROOT": "<project-path>"
+    }
+  },
+  "features": [
+    "Semantic codebase search with graph-aware ranking",
+    "Graph relationships between files, rules, and ADRs",
+    "Experimental call graph APIs for function-level tracing and impact analysis (JS/TS semantic chunking builds)",
+    "Architectural rules and ADR enforcement",
+    "Local & private (no cloud, your code stays on your machine)",
+    "Incremental background sync",
+    "Multi-language support (JS/TS today, Python/Go planned)"
+  ],
+  "requirements": {
+    "node": ">=18",
+    "git": "required for change tracking",
+    "disk": "~50MB per project"
+  }
+}
