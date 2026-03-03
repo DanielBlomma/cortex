@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "cortex": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@danielblomma/cortex-mcp@0.4.1",
+        "mcp"
+      ]
+    }
+  }
+}

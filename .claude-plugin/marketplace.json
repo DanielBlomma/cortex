@@ -1,0 +1,23 @@
+{
+  "name": "cortex-marketplace",
+  "metadata": {
+    "description": "Official plugin marketplace for Cortex"
+  },
+  "owner": {
+    "name": "Daniel Blomma",
+    "email": "daniel.blomma@gmail.com",
+    "url": "https://github.com/DanielBlomma"
+  },
+  "plugins": [
+    {
+      "name": "cortex",
+      "source": "./plugins/cortex",
+      "description": "Cortex MCP server for repo-scoped semantic context",
+      "version": "0.4.1",
+      "author": {
+        "name": "Daniel Blomma",
+        "email": "daniel.blomma@gmail.com"
+      }
+    }
+  ]
+}
