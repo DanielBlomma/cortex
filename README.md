@@ -10,6 +10,8 @@
 
 Local, repo-scoped context platform for coding assistants.
 
+![Cortex Demo](docs/cortex-demo.gif)
+
 ## Quick Start (60s)
 
 ```bash
