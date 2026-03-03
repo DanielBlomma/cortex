@@ -10,6 +10,19 @@
 
 Local, repo-scoped context platform for coding assistants.
 
+## Quick Start (60s)
+
+```bash
+npm i -g github:DanielBlomma/cortex
+cd <your-repo>
+cortex init --bootstrap
+```
+
+Then use:
+- `cortex watch status` to confirm automatic background sync.
+- `/todo <task>` and `/note <title> [details]` inside Claude Code.
+- `cortex plan` to see automatic progress state.
+
 ## What Cortex Is (Plain Language)
 
 If you are not an AI engineer, think of Cortex as a **local project memory** for your repository.
@@ -82,6 +95,10 @@ Daily usage:
 cortex watch status
 cortex status
 ```
+
+Optional performance boost for large repos:
+- Install `fswatch` (macOS) or `inotifywait` (Linux).
+- Cortex watch will automatically switch from polling to event-driven mode.
 
 `cortex status` now shows:
 - a freshness bar (`update_needed=yes/no`) for repo context
@@ -179,7 +196,7 @@ To add your own entities (for example `APIContract`, `Test`, `Owner`):
 ```text
 cortex init [path] [--force] [--bootstrap] [--connect] [--no-connect] [--watch] [--no-watch]
 cortex connect [path] [--skip-build]
-cortex watch [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>]
+cortex watch [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>] [--mode <auto|event|poll>]
 cortex bootstrap
 cortex update
 cortex status

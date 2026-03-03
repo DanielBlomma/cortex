@@ -7,6 +7,7 @@ PID_FILE="$WATCH_DIR/watch.pid"
 STAMP_FILE="$WATCH_DIR/last-stamp.sha1"
 HEARTBEAT_FILE="$WATCH_DIR/heartbeat.txt"
 LOG_FILE="$WATCH_DIR/watch.log"
+MODE_FILE="$WATCH_DIR/mode.txt"
 
 ACTION="${1:-status}"
 if [[ $# -gt 0 ]]; then
@@ -15,10 +16,12 @@ fi
 
 INTERVAL_SEC="${CORTEX_WATCH_INTERVAL:-45}"
 DEBOUNCE_SEC="${CORTEX_WATCH_DEBOUNCE:-8}"
+WATCH_MODE="${CORTEX_WATCH_MODE:-auto}"
+EVENT_BACKEND=""
 
 print_usage() {
   cat <<'USAGE'
-Usage: ./scripts/watch.sh [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>]
+Usage: ./scripts/watch.sh [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>] [--mode <auto|event|poll>]
 
 Commands:
   start     Start background watch loop
@@ -38,6 +41,17 @@ ensure_number() {
   fi
 }
 
+ensure_mode() {
+  case "$1" in
+    auto|event|poll)
+      ;;
+    *)
+      echo "[watch] mode must be one of: auto|event|poll (got '$1')"
+      exit 1
+      ;;
+  esac
+}
+
 is_running() {
   if [[ ! -f "$PID_FILE" ]]; then
     return 1
@@ -54,6 +68,44 @@ is_running() {
   fi
 
   return 1
+}
+
+detect_event_backend() {
+  if command -v inotifywait >/dev/null 2>&1; then
+    echo "inotifywait"
+    return 0
+  fi
+
+  if command -v fswatch >/dev/null 2>&1; then
+    echo "fswatch"
+    return 0
+  fi
+
+  return 1
+}
+
+resolve_mode() {
+  case "$WATCH_MODE" in
+    auto)
+      if EVENT_BACKEND="$(detect_event_backend)"; then
+        WATCH_MODE="event"
+      else
+        WATCH_MODE="poll"
+        EVENT_BACKEND=""
+      fi
+      ;;
+    event)
+      EVENT_BACKEND="$(detect_event_backend || true)"
+      if [[ -z "$EVENT_BACKEND" ]]; then
+        echo "[watch] mode=event requested but no event backend found"
+        echo "[watch] install inotifywait (Linux) or fswatch (macOS), or use --mode poll"
+        exit 1
+      fi
+      ;;
+    poll)
+      EVENT_BACKEND=""
+      ;;
+  esac
 }
 
 status_digest() {
@@ -104,6 +156,84 @@ run_update() {
   return 1
 }
 
+maybe_run_update() {
+  local previous_digest="$1"
+
+  sleep "$DEBOUNCE_SEC"
+  local settled_digest
+  settled_digest="$(status_digest)"
+
+  if [[ "$settled_digest" == "$previous_digest" ]]; then
+    echo "$previous_digest"
+    return 0
+  fi
+
+  if run_update; then
+    :
+  else
+    # Move forward anyway to avoid tight retry loops on persistent failures.
+    :
+  fi
+
+  echo "$settled_digest" > "$STAMP_FILE"
+  echo "$settled_digest"
+}
+
+wait_for_change_event() {
+  case "$EVENT_BACKEND" in
+    inotifywait)
+      inotifywait -q -r \
+        -e modify,create,delete,move \
+        --exclude '(^|/)\\.git(/|$)|(^|/)\\.context(/|$)|(^|/)mcp/(node_modules|dist|\\.npm-cache)(/|$)|(^|/)scripts/parsers/(node_modules|\\.npm-cache)(/|$)' \
+        "$REPO_ROOT" >/dev/null 2>&1 || true
+      ;;
+    fswatch)
+      fswatch -1 -r \
+        --exclude '(^|/)\\.git(/|$)' \
+        --exclude '(^|/)\\.context(/|$)' \
+        --exclude '(^|/)mcp/node_modules(/|$)' \
+        --exclude '(^|/)mcp/dist(/|$)' \
+        --exclude '(^|/)mcp/\\.npm-cache(/|$)' \
+        --exclude '(^|/)scripts/parsers/node_modules(/|$)' \
+        --exclude '(^|/)scripts/parsers/\\.npm-cache(/|$)' \
+        "$REPO_ROOT" >/dev/null 2>&1 || true
+      ;;
+    *)
+      echo "[watch] internal error: missing event backend"
+      exit 1
+      ;;
+  esac
+}
+
+run_poll_loop() {
+  local previous_digest="$1"
+
+  while true; do
+    date -u +"%Y-%m-%dT%H:%M:%SZ" > "$HEARTBEAT_FILE"
+    local current_digest
+    current_digest="$(status_digest)"
+
+    if [[ "$current_digest" != "$previous_digest" ]]; then
+      echo "[watch] change detected, waiting ${DEBOUNCE_SEC}s"
+      previous_digest="$(maybe_run_update "$previous_digest")"
+    fi
+
+    sleep "$INTERVAL_SEC"
+  done
+}
+
+run_event_loop() {
+  local previous_digest="$1"
+
+  while true; do
+    date -u +"%Y-%m-%dT%H:%M:%SZ" > "$HEARTBEAT_FILE"
+    wait_for_change_event
+    date -u +"%Y-%m-%dT%H:%M:%SZ" > "$HEARTBEAT_FILE"
+    echo "[watch] change event detected, waiting ${DEBOUNCE_SEC}s"
+    previous_digest="$(maybe_run_update "$previous_digest")"
+  done
+}
+
 run_loop() {
   mkdir -p "$WATCH_DIR"
 
@@ -115,33 +245,18 @@ run_loop() {
     echo "$previous_digest" > "$STAMP_FILE"
   fi
 
-  echo "[watch] running (interval=${INTERVAL_SEC}s debounce=${DEBOUNCE_SEC}s)"
+  resolve_mode
+  local backend_label
+  backend_label="${EVENT_BACKEND:-none}"
+  printf 'mode=%s\nbackend=%s\ninterval=%s\ndebounce=%s\n' "$WATCH_MODE" "$backend_label" "$INTERVAL_SEC" "$DEBOUNCE_SEC" > "$MODE_FILE"
+  echo "[watch] running (mode=${WATCH_MODE} backend=${backend_label} interval=${INTERVAL_SEC}s debounce=${DEBOUNCE_SEC}s)"
 
-  while true; do
-    date -u +"%Y-%m-%dT%H:%M:%SZ" > "$HEARTBEAT_FILE"
-    local current_digest
-    current_digest="$(status_digest)"
+  if [[ "$WATCH_MODE" == "event" ]]; then
+    run_event_loop "$previous_digest"
+    return
+  fi
 
-    if [[ "$current_digest" != "$previous_digest" ]]; then
-      echo "[watch] change detected, waiting ${DEBOUNCE_SEC}s"
-      sleep "$DEBOUNCE_SEC"
-      local settled_digest
-      settled_digest="$(status_digest)"
-
-      if [[ "$settled_digest" != "$previous_digest" ]]; then
-        if run_update; then
-          previous_digest="$settled_digest"
-          echo "$previous_digest" > "$STAMP_FILE"
-        else
-          # Move forward anyway to avoid tight retry loops on persistent failures.
-          previous_digest="$settled_digest"
-          echo "$previous_digest" > "$STAMP_FILE"
-        fi
-      fi
-    fi
-
-    sleep "$INTERVAL_SEC"
-  done
+  run_poll_loop "$previous_digest"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -152,6 +267,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --debounce)
       DEBOUNCE_SEC="${2:-}"
+      shift 2
+      ;;
+    --mode)
+      WATCH_MODE="${2:-}"
       shift 2
       ;;
     -h|--help)
@@ -168,6 +287,7 @@ done
 
 ensure_number "$INTERVAL_SEC" "interval"
 ensure_number "$DEBOUNCE_SEC" "debounce"
+ensure_mode "$WATCH_MODE"
 mkdir -p "$WATCH_DIR"
 
 case "$ACTION" in
@@ -177,7 +297,7 @@ case "$ACTION" in
       exit 0
     fi
 
-    nohup bash "$0" run --interval "$INTERVAL_SEC" --debounce "$DEBOUNCE_SEC" >> "$LOG_FILE" 2>&1 &
+    nohup bash "$0" run --interval "$INTERVAL_SEC" --debounce "$DEBOUNCE_SEC" --mode "$WATCH_MODE" >> "$LOG_FILE" 2>&1 &
     WATCH_PID=$!
     echo "$WATCH_PID" > "$PID_FILE"
     sleep 1
@@ -213,6 +333,10 @@ case "$ACTION" in
     if is_running; then
       echo "[watch] running (pid $(cat "$PID_FILE"))"
       echo "[watch] log: $LOG_FILE"
+      if [[ -f "$MODE_FILE" ]]; then
+        local_mode="$(tr '\n' ' ' < "$MODE_FILE" | sed 's/[[:space:]]\+$//')"
+        echo "[watch] $local_mode"
+      fi
       if [[ -f "$HEARTBEAT_FILE" ]]; then
         echo "[watch] heartbeat: $(cat "$HEARTBEAT_FILE")"
       fi

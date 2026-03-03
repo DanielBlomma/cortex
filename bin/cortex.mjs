@@ -44,7 +44,9 @@ function printHelp() {
   console.log("Usage:");
   console.log("  cortex init [path] [--force] [--bootstrap] [--connect] [--no-connect] [--watch] [--no-watch]");
   console.log("  cortex connect [path] [--skip-build]");
-  console.log("  cortex watch [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>]");
+  console.log(
+    "  cortex watch [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>] [--mode <auto|event|poll>]"
+  );
   console.log("  cortex bootstrap");
   console.log("  cortex update");
   console.log("  cortex status");
