@@ -77,6 +77,22 @@ Codex:
 codex mcp list
 ```
 
+## Claude Plugin Marketplace
+
+Install via Claude Code plugin marketplace:
+
+```bash
+/plugin marketplace add DanielBlomma/cortex
+/plugin install cortex@cortex-marketplace
+/plugin enable cortex
+```
+
+Then initialize Cortex in your target repository:
+
+```bash
+cortex init --bootstrap
+```
+
 ## Manual MCP Configuration
 
 If auto-registration is unavailable, configure MCP manually.
