@@ -16,3 +16,8 @@ mcp/.npm-cache/
 
 # Build output
 mcp/dist/
+
+# Release artifacts and local auth tokens
+*.tgz
+.mcpregistry_github_token
+.mcpregistry_registry_token
