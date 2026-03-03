@@ -468,6 +468,52 @@ function ensureProjectInitialized(targetDir) {
   }
 }
 
+function isTruthyEnv(value) {
+  if (typeof value !== "string") {
+    return false;
+  }
+  const normalized = value.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
+}
+
+function canAutoInitialize(targetDir) {
+  const scaffoldPaths = [".context", "scripts", "mcp", ".githooks"].map((entry) => path.join(targetDir, entry));
+  return scaffoldPaths.every((entryPath) => !fs.existsSync(entryPath));
+}
+
+async function ensureProjectInitializedForMcp(targetDir) {
+  const mcpPackageJson = path.join(targetDir, "mcp", "package.json");
+  const serverEntry = path.join(targetDir, "mcp", "dist", "server.js");
+
+  if (fs.existsSync(mcpPackageJson) && fs.existsSync(serverEntry)) {
+    return;
+  }
+
+  if (!isTruthyEnv(process.env.CORTEX_AUTO_BOOTSTRAP_ON_MCP)) {
+    ensureProjectInitialized(targetDir);
+    return;
+  }
+
+  if (!fs.existsSync(mcpPackageJson)) {
+    if (!canAutoInitialize(targetDir)) {
+      throw new Error(
+        `Cannot auto-initialize Cortex in ${targetDir}: scaffold paths already exist. Run 'cortex init --bootstrap' manually.`
+      );
+    }
+    ensureScaffoldExists();
+    fs.mkdirSync(targetDir, { recursive: true });
+    installScaffold(targetDir, false);
+    installAssistantHelpers(targetDir);
+    await markPlanEvent(targetDir, "init");
+    console.log(`[cortex] auto-init completed in ${targetDir}`);
+  }
+
+  if (!fs.existsSync(serverEntry)) {
+    console.log("[cortex] auto-bootstrap: running initial bootstrap for MCP");
+    await runContextCommand(targetDir, ["bootstrap"]);
+  }
+}
+
 async function runContextCommand(cwd, contextArgs) {
   const contextScript = path.join(cwd, "scripts", "context.sh");
   if (!fs.existsSync(contextScript)) {
@@ -584,6 +630,7 @@ async function run() {
     const target = process.env.CORTEX_PROJECT_ROOT
       ? path.resolve(process.env.CORTEX_PROJECT_ROOT)
       : process.cwd();
+    await ensureProjectInitializedForMcp(target);
     ensureProjectInitialized(target);
     const serverEntry = path.join(target, "mcp", "dist", "server.js");
     if (!fs.existsSync(serverEntry)) {

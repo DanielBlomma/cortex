@@ -4,9 +4,12 @@
       "command": "npx",
       "args": [
         "-y",
-        "@danielblomma/cortex-mcp@0.4.1",
+        "@danielblomma/cortex-mcp@latest",
         "mcp"
-      ]
+      ],
+      "env": {
+        "CORTEX_AUTO_BOOTSTRAP_ON_MCP": "1"
+      }
     }
   }
 }
