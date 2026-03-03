@@ -1,240 +1,186 @@
-# Cortex
+# Cortex MCP
 
-```text
-  CCC    OOO   RRRR  TTTTT  EEEEE  X   X
- C   C  O   O  R   R   T    E       X X
- C      O   O  RRRR    T    EEEE     X
- C   C  O   O  R  R    T    E       X X
-  CCC    OOO   R   R   T    EEEEE  X   X
-```
+`@danielblomma/cortex-mcp` is a local, repo-scoped context platform for coding assistants.
+It indexes your codebase into structured entities (files, rules, ADRs) and exposes that context over MCP (JSON-RPC over stdio).
 
-Local, repo-scoped context platform for coding assistants.
+![Cortex install and bootstrap demo](https://raw.githubusercontent.com/DanielBlomma/cortex/main/docs/install-demo.gif)
 
-![Cortex Installation](docs/install-demo.gif)
+## Why Use Cortex
 
-## Quick Start (60s)
+- Semantic search across code and documentation.
+- Graph relationships between entities and architectural constraints.
+- Local-first: your code and context stay on your machine.
+- Incremental updates keep context fresh as the repo changes.
+- Works with Claude Code/Desktop and Codex MCP clients.
 
-```bash
-npm i -g github:DanielBlomma/cortex
-cd <your-repo>
-cortex init --bootstrap
-```
+## Requirements
 
-Then use:
-- `cortex watch status` to confirm automatic background sync.
-- `/todo <task>` and `/note <title> [details]` inside Claude Code.
-- `cortex plan` to see automatic progress state.
+- Node.js 18+
+- Git repository
+- Optional for auto-connection: `claude` and/or `codex` CLI in `PATH`
 
-## What Cortex Is (Plain Language)
-
-If you are not an AI engineer, think of Cortex as a **local project memory** for your repository.
-
-Instead of an assistant trying to read everything from scratch on each prompt, Cortex:
-
-1. Scans your code and documentation.
-2. Structures it into entities (files, rules, ADRs) and relationships.
-3. Builds a local graph + search index.
-4. Lets assistants (Codex/Claude) query that context through MCP tools.
-
-Result: better answers, less guessing, and fewer "hallucinated" assumptions.
-
-## Why Use It
-
-- Keeps context **repo-local** by default.
-- Reduces giant instruction files (`claude.md`, `agent.md`) by moving knowledge into indexed context.
-- Makes assistant output more consistent with your rules/ADRs/source of truth.
-- Supports incremental updates so you do not need full re-ingest on every change.
-
-## Quick Start (2 Steps)
-
-### 1. Install Cortex
-
-Requirements:
-- Node.js 20+
-- npm 10+
-- git
-- Optional (for auto-connect): `codex` and/or `claude` in `PATH`
-
-Install the CLI globally:
+## Install
 
 ```bash
-npm i -g github:DanielBlomma/cortex
+npm i -g @danielblomma/cortex-mcp
 ```
 
-If global npm requires sudo on macOS:
+## Quick Start
 
-```bash
-sudo npm i -g github:DanielBlomma/cortex
-```
-
-### 2. Initialize your repo (automatic setup)
-
-In the repo you want to enable:
+From the repository you want to index:
 
 ```bash
 cortex init --bootstrap
 ```
 
-What `init --bootstrap` now sets up automatically:
-- MCP registration for Codex + Claude (if CLIs exist in `PATH`)
-- Claude slash commands:
-  - `/note`
-  - `/todo`
-  - `/plan`
-  - `/context-update`
-- Codex workflow section in `AGENTS.md`
-- Background sync watcher (`cortex watch start`) so `cortex update` runs continuously while files change
+This will:
 
-You can disable auto background sync:
+- scaffold `.context/`, `scripts/`, `mcp/`, `.githooks/`, and docs files
+- build and prepare the local MCP server
+- try to auto-register MCP connections for Claude/Codex (if installed)
+- start background sync unless disabled
+
+Disable watcher setup:
 
 ```bash
 cortex init --bootstrap --no-watch
 ```
 
-Daily usage:
+## Verify MCP Connection
 
-```bash
-cortex watch status
-cortex status
-```
-
-Optional git hooks (run `cortex update` after branch switch/merge):
-
-```bash
-./scripts/install-git-hooks.sh
-```
-
-This installs repo-local `post-checkout` + `post-merge` hooks via `core.hooksPath=.githooks`.
-Hook logs are written to `.context/hooks/update.log`.
-If parser dependencies are missing, hooks will log a skip until `cortex bootstrap` has been run.
-
-Optional performance boost for large repos:
-- Install `fswatch` (macOS) or `inotifywait` (Linux).
-- Cortex watch will automatically switch from polling to event-driven mode.
-
-`cortex status` now shows:
-- a freshness bar (`update_needed=yes/no`) for repo context
-- a Cortex CLI version/update check (when network is available)
-
-Automatic progress is saved in `.context/plan/state.json`.
-
-```bash
-cortex plan
-cortex todo "Check API pagination edge case"
-cortex todo
-```
-
-When needed:
-
-```bash
-cortex connect
-cortex watch stop
-cortex watch start
-cortex init --force
-```
-
-## Verify It Works in Claude/Codex
-
-In your repo directory:
+Claude:
 
 ```bash
 claude mcp list
 ```
 
-You should see `cortex` as connected.
-
-For Codex:
+Codex:
 
 ```bash
 codex mcp list
-codex mcp get cortex-<repo-name> --json
 ```
 
-## Core MCP Tools
+## Manual MCP Configuration
 
-- `context.search`: ranked search across File/Rule/ADR
-- `context.search` filters:
-  - `top_k` (1-20)
-  - `include_deprecated` (default `false`)
-  - `include_content` (default `false`)
-- `context.get_related`: graph neighbors for an entity
-- `context.get_rules`: active rules with scope filtering
-- `context.reload`: reload graph connection after updates
+If auto-registration is unavailable, configure MCP manually.
 
-## Configure What Gets Indexed
+Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 
-Edit `.context/config.yaml`:
-
-- `source_paths`: folders/files Cortex should ingest
-- `truth_order`: source priority (ADR/RULE/CODE/WIKI)
-- `ranking`: scoring weights (`semantic`, `graph`, `trust`, `recency`)
-
-Then run:
-
-```bash
-cortex update
+```json
+{
+  "mcpServers": {
+    "cortex": {
+      "command": "cortex",
+      "args": ["mcp"],
+      "env": {
+        "CORTEX_PROJECT_ROOT": "/absolute/path/to/your-project"
+      }
+    }
+  }
+}
 ```
 
-## Custom Entity Types (`ontology.cypher`)
+Codex (`~/.config/codex/mcp-config.json`):
 
-To add your own entities (for example `APIContract`, `Test`, `Owner`):
-
-1. Update schema in `.context/ontology.cypher` (`CREATE NODE TABLE`, `CREATE REL TABLE`).
-2. Extend `scripts/ingest.mjs` to emit:
-   - `.context/cache/entities.<type>.jsonl`
-   - `.context/db/import/<Type>.tsv`
-3. Extend `mcp/src/loadGraph.ts` to load new TSV data into RyuGraph.
-4. Extend `mcp/src/graph.ts` and optionally `mcp/src/search.ts` to expose/query the new types.
-5. Rebuild data:
-
-```bash
-./scripts/context.sh ingest
-./scripts/context.sh graph-load
-./scripts/context.sh status
+```json
+{
+  "mcpServers": {
+    "cortex-myproject": {
+      "command": "cortex",
+      "args": ["mcp"],
+      "cwd": "/absolute/path/to/your-project"
+    }
+  }
+}
 ```
 
-## CLI Command Reference
+## MCP Tools
+
+### `context.search`
+
+Ranked context search across indexed entities.
+
+Input:
+
+- `query` (string, required)
+- `top_k` (int, 1-20, default `5`)
+- `include_deprecated` (bool, default `false`)
+- `include_content` (bool, default `false`)
+
+### `context.get_related`
+
+Fetch entity relationships from the graph.
+
+Input:
+
+- `entity_id` (string, required)
+- `depth` (int, 1-3, default `1`)
+- `include_edges` (bool, default `true`)
+
+### `context.get_rules`
+
+List indexed rules and optionally include inactive rules.
+
+Input:
+
+- `scope` (string, optional)
+- `include_inactive` (bool, default `false`)
+
+### `context.reload`
+
+Reload the RyuGraph connection after updates/maintenance.
+
+Input:
+
+- `force` (bool, default `true`)
+
+## Example Prompts
+
+- "Find files that handle authentication."
+- "Show related files for this ADR."
+- "What active architectural rules apply to this API?"
+
+## Common Commands
 
 ```text
 cortex init [path] [--force] [--bootstrap] [--connect] [--no-connect] [--watch] [--no-watch]
 cortex connect [path] [--skip-build]
 cortex mcp
-cortex watch [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>] [--mode <auto|event|poll>]
 cortex bootstrap
 cortex update
 cortex status
-cortex ingest [--changed] [--verbose]
-cortex embed [--changed]
-cortex graph-load [--no-reset]
+cortex watch [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>] [--mode <auto|event|poll>]
 cortex note <title> [text]
 cortex plan
 cortex todo [text|list|done <id>|reopen <id>|remove <id>]
 cortex help
 ```
 
-## Project Layout
+## Limitations
 
-- `.context/` config, ontology, rules, local cache/db/embeddings
-- `scripts/` ingest/update/bootstrap/status orchestration
-- `mcp/` TypeScript MCP server
-- `docs/` architecture and release notes
+- Requires repo initialization (`cortex init --bootstrap`).
+- Each repository has its own local Cortex context instance.
+- No cloud sync by design (privacy-first local storage).
+
+## Security and Privacy
+
+- Cortex stores context data locally under `.context/`.
+- No source code upload is required for core functionality.
 
 ## Troubleshooting
 
-- `Unknown command: connect`
-  - Your global CLI is old. Run `npm i -g github:DanielBlomma/cortex`.
-- `codex` / `claude` not found during init
-  - Cortex still works; only auto MCP registration is skipped.
-- `mcp/dist/server.js` missing
-  - Run `cortex bootstrap`.
-- RyuGraph DB warnings on cold start
-  - Run `./scripts/context.sh graph-load` or full `./scripts/context.sh bootstrap`.
+- `mcp/dist/server.js` missing:
+  Run `cortex bootstrap` (or re-run `cortex init --bootstrap`).
+- `claude` or `codex` not found during init:
+  Auto-registration is skipped; use manual config above.
+- MCP tools return stale context:
+  Run `cortex update`, then reconnect MCP or call `context.reload` from your MCP client.
 
-## Notes on Security Warnings
+## Support
 
-Current `mcp/` audit is clean with dependency overrides in place.
-You may still see upstream deprecation warnings (`ryugraph`, `prebuild-install`) during install.
+- Issues: https://github.com/DanielBlomma/cortex/issues
+- Marketplace prep notes: [docs/MCP_MARKETPLACE.md](docs/MCP_MARKETPLACE.md)
 
-## Release Status
+## License
 
-V2 lock/status: see [`docs/v2-status.md`](docs/v2-status.md).
+MIT

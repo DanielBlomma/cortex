@@ -136,7 +136,7 @@ Perfect for:
 - [x] MCP SDK integration (JSON-RPC over stdio)
 - [x] Tools documented with schemas
 - [ ] npm package published (@danielblomma/cortex-mcp)
-- [ ] Marketplace-ready README
+- [x] Marketplace-ready README
 - [ ] Example usage screenshots/GIFs
 - [ ] Submit PR to modelcontextprotocol/servers
 
