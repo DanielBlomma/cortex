@@ -30,7 +30,7 @@ Result: better answers, less guessing, and fewer "hallucinated" assumptions.
 - Makes assistant output more consistent with your rules/ADRs/source of truth.
 - Supports incremental updates so you do not need full re-ingest on every change.
 
-## Quick Start (3 Steps)
+## Quick Start (2 Steps)
 
 ### 1. Install Cortex
 
@@ -52,54 +52,7 @@ If global npm requires sudo on macOS:
 sudo npm i -g github:DanielBlomma/cortex
 ```
 
-### 2. Create a skill or command
-
-#### Claude command (`/...`)
-
-```bash
-mkdir -p .claude/commands
-cat > .claude/commands/todo.md <<'EOF'
----
-description: "Add a Cortex TODO item"
-argument-hint: "<text>"
----
-Execute: cortex todo "$ARGUMENTS"
-EOF
-```
-
-Use in Claude:
-
-```text
-/todo Add missing integration test for search filters
-```
-
-#### Codex skill (`$skill-name`)
-
-```bash
-mkdir -p ~/.codex/skills/my-skill
-cat > ~/.codex/skills/my-skill/SKILL.md <<'EOF'
----
-name: my-skill
-description: Helps with X and should be used when the task is about X.
----
-
-# My Skill
-1. Do A
-2. Do B
-EOF
-```
-
-Use in Codex by writing `$my-skill` in the prompt, or describe a task that matches the skill description.
-
-#### Difference: skill vs command (quick)
-
-| Type | How to trigger | Best for | Example |
-|---|---|---|---|
-| Claude command | Explicit via `/name` | Repeating, exact flows | `/todo Add an item` |
-| Codex skill | `$skill-name` or automatic matching | Behavior/rules/work-method across tasks | `$my-skill` for a full workflow |
-| Codex command-like | Normal repo commands (`npm run`, `make`, `scripts/*.sh`) | Executable automation in your project | `npm run validate` |
-
-### 3. Initialize your repo
+### 2. Initialize your repo (automatic setup)
 
 In the repo you want to enable:
 
@@ -107,10 +60,26 @@ In the repo you want to enable:
 cortex init --bootstrap
 ```
 
+What `init --bootstrap` now sets up automatically:
+- MCP registration for Codex + Claude (if CLIs exist in `PATH`)
+- Claude slash commands:
+  - `/note`
+  - `/todo`
+  - `/plan`
+  - `/context-update`
+- Codex workflow section in `AGENTS.md`
+- Background sync watcher (`cortex watch start`) so `cortex update` runs continuously while files change
+
+You can disable auto background sync:
+
+```bash
+cortex init --bootstrap --no-watch
+```
+
 Daily usage:
 
 ```bash
-cortex update
+cortex watch status
 cortex status
 ```
 
@@ -130,6 +99,8 @@ When needed:
 
 ```bash
 cortex connect
+cortex watch stop
+cortex watch start
 cortex init --force
 ```
 
@@ -153,9 +124,23 @@ codex mcp get cortex-<repo-name> --json
 ## Core MCP Tools
 
 - `context.search`: ranked search across File/Rule/ADR
+- `context.search` filters:
+  - `entity_types` (e.g. `["Chunk"]`)
+  - `chunk_kinds` (e.g. `["FUNCTION","METHOD"]`)
+  - `prefer_chunks` (default `true`)
 - `context.get_related`: graph neighbors for an entity
 - `context.get_rules`: active rules with scope filtering
+- `context.find_callers`: reverse call graph from a target chunk/function
+- `context.trace_calls`: forward call graph from a target chunk/function
+- `context.impact_analysis`: impacted chunks/files around a target change
 - `context.reload`: reload graph connection after updates
+
+Call graph tool inputs (`find_callers`, `trace_calls`, `impact_analysis`):
+- `target`, `depth`, `top_k`, `page`, `include_edges`
+- Responses include `pagination` and `limits` metadata.
+- Traversal guardrails are enabled by default:
+  - `CORTEX_CALLGRAPH_MAX_NODES` (default `5000`)
+  - `CORTEX_CALLGRAPH_MAX_EDGES` (default `20000`)
 
 ## Configure What Gets Indexed
 
@@ -192,8 +177,9 @@ To add your own entities (for example `APIContract`, `Test`, `Owner`):
 ## CLI Command Reference
 
 ```text
-cortex init [path] [--force] [--bootstrap] [--connect] [--no-connect]
+cortex init [path] [--force] [--bootstrap] [--connect] [--no-connect] [--watch] [--no-watch]
 cortex connect [path] [--skip-build]
+cortex watch [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>]
 cortex bootstrap
 cortex update
 cortex status
