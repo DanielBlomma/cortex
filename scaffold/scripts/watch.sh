@@ -110,19 +110,28 @@ resolve_mode() {
 
 status_digest() {
   if command -v git >/dev/null 2>&1 && git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    git -C "$REPO_ROOT" status --porcelain=1 --untracked-files=all \
-      | awk '
-        {
-          path = substr($0, 4);
-          if (path ~ /^\.context\//) next;
-          if (path ~ /^mcp\/node_modules\//) next;
-          if (path ~ /^mcp\/dist\//) next;
-          if (path ~ /^mcp\/\.npm-cache\//) next;
-          if (path ~ /^scripts\/parsers\/node_modules\//) next;
-          if (path ~ /^scripts\/parsers\/\.npm-cache\//) next;
-          print $0;
-        }
-      ' \
+    local head_commit
+    local head_ref
+    head_commit="$(git -C "$REPO_ROOT" rev-parse --verify HEAD 2>/dev/null || echo "NO_HEAD")"
+    head_ref="$(git -C "$REPO_ROOT" symbolic-ref --short -q HEAD 2>/dev/null || echo "DETACHED")"
+
+    {
+      printf 'HEAD:%s\n' "$head_commit"
+      printf 'REF:%s\n' "$head_ref"
+      git -C "$REPO_ROOT" status --porcelain=1 --untracked-files=all \
+        | awk '
+          {
+            path = substr($0, 4);
+            if (path ~ /^\.context\//) next;
+            if (path ~ /^mcp\/node_modules\//) next;
+            if (path ~ /^mcp\/dist\//) next;
+            if (path ~ /^mcp\/\.npm-cache\//) next;
+            if (path ~ /^scripts\/parsers\/node_modules\//) next;
+            if (path ~ /^scripts\/parsers\/\.npm-cache\//) next;
+            print $0;
+          }
+        '
+    } \
       | shasum -a 1 \
       | awk '{print $1}'
     return

@@ -553,6 +553,12 @@ function fileTokenSet(fileRecord) {
   return new Set(tokenizeKeywords(tokenSource));
 }
 
+function chunkIdFor(filePath, chunk) {
+  const startLine = Number.isFinite(chunk.startLine) ? chunk.startLine : 0;
+  const endLine = Number.isFinite(chunk.endLine) ? chunk.endLine : startLine;
+  return `chunk:${filePath}:${chunk.name}:${startLine}-${endLine}`;
+}
+
 function main() {
   const { mode, verbose } = parseArgs(process.argv);
   const configPath = path.join(CONTEXT_DIR, "config.yaml");
@@ -731,8 +737,17 @@ function main() {
         console.log(`[ingest] parse errors in ${fileRecord.path}:`, parseResult.errors[0].message);
       }
 
+      const parsedChunks = [];
+      const chunkIdsByName = new Map();
+
       for (const chunk of parseResult.chunks) {
-        const chunkId = `chunk:${fileRecord.path}:${chunk.name}`;
+        const chunkId = chunkIdFor(fileRecord.path, chunk);
+        parsedChunks.push({ chunk, chunkId });
+        if (!chunkIdsByName.has(chunk.name)) {
+          chunkIdsByName.set(chunk.name, []);
+        }
+        chunkIdsByName.get(chunk.name).push(chunkId);
+
         const chunkRecord = {
           id: chunkId,
           file_id: fileRecord.id,
@@ -755,17 +770,6 @@ function main() {
           to: chunkId
         });
 
-        // CALLS relations: Chunk -> Chunk (within same file)
-        for (const calledName of chunk.calls) {
-          const targetChunkId = `chunk:${fileRecord.path}:${calledName}`;
-          // Only create relation if target chunk exists (will be validated later)
-          callsRelations.push({
-            from: chunkId,
-            to: targetChunkId,
-            call_type: "direct"
-          });
-        }
-
         // IMPORTS relations: Chunk -> File
         for (const importPath of chunk.imports || []) {
           // Normalize relative imports to absolute paths
@@ -777,6 +781,26 @@ function main() {
               from: chunkId,
               to: targetFileId,
               import_name: importPath
+            });
+          }
+        }
+      }
+
+      const seenCallEdges = new Set();
+      for (const { chunk, chunkId } of parsedChunks) {
+        // CALLS relations: Chunk -> Chunk (within same file)
+        for (const calledName of chunk.calls || []) {
+          const targetChunkIds = chunkIdsByName.get(calledName) || [];
+          for (const targetChunkId of targetChunkIds) {
+            const callKey = `${chunkId}|${targetChunkId}|direct`;
+            if (seenCallEdges.has(callKey)) {
+              continue;
+            }
+            seenCallEdges.add(callKey);
+            callsRelations.push({
+              from: chunkId,
+              to: targetChunkId,
+              call_type: "direct"
             });
           }
         }
