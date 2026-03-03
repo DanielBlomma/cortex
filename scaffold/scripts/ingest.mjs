@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
+import { parseCode } from "./parsers/javascript.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -709,6 +710,93 @@ function main() {
   const fileRecords = [...fileRecordMap.values()].sort((a, b) => a.path.localeCompare(b.path));
   const adrRecords = [...adrRecordMap.values()].sort((a, b) => a.path.localeCompare(b.path));
 
+  // Extract chunks from code files
+  const chunkRecords = [];
+  const definesRelations = [];
+  const callsRelations = [];
+  const importsRelations = [];
+
+  for (const fileRecord of fileRecords) {
+    if (fileRecord.kind !== "CODE") continue;
+
+    const ext = path.extname(fileRecord.path).toLowerCase();
+    const supportedForChunking = [".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx"].includes(ext);
+    if (!supportedForChunking) continue;
+
+    try {
+      const language = ext === ".ts" || ext === ".tsx" ? "typescript" : "javascript";
+      const parseResult = parseCode(fileRecord.content, fileRecord.path, language);
+
+      if (parseResult.errors.length > 0 && verbose) {
+        console.log(`[ingest] parse errors in ${fileRecord.path}:`, parseResult.errors[0].message);
+      }
+
+      for (const chunk of parseResult.chunks) {
+        const chunkId = `chunk:${fileRecord.path}:${chunk.name}`;
+        const chunkRecord = {
+          id: chunkId,
+          file_id: fileRecord.id,
+          name: chunk.name,
+          kind: chunk.kind,
+          signature: chunk.signature,
+          body: chunk.body.slice(0, 12000), // Limit chunk body size
+          start_line: chunk.startLine,
+          end_line: chunk.endLine,
+          language: chunk.language,
+          checksum: checksum(Buffer.from(chunk.body)),
+          updated_at: fileRecord.updated_at,
+          trust_level: fileRecord.trust_level
+        };
+        chunkRecords.push(chunkRecord);
+
+        // DEFINES relation: File -> Chunk
+        definesRelations.push({
+          from: fileRecord.id,
+          to: chunkId
+        });
+
+        // CALLS relations: Chunk -> Chunk (within same file)
+        for (const calledName of chunk.calls) {
+          const targetChunkId = `chunk:${fileRecord.path}:${calledName}`;
+          // Only create relation if target chunk exists (will be validated later)
+          callsRelations.push({
+            from: chunkId,
+            to: targetChunkId,
+            call_type: "direct"
+          });
+        }
+
+        // IMPORTS relations: Chunk -> File
+        for (const importPath of chunk.imports || []) {
+          // Normalize relative imports to absolute paths
+          if (importPath.startsWith(".")) {
+            const dirName = path.dirname(fileRecord.path);
+            const resolvedImport = path.posix.normalize(path.posix.join(dirName, importPath));
+            const targetFileId = `file:${resolvedImport}`;
+            importsRelations.push({
+              from: chunkId,
+              to: targetFileId,
+              import_name: importPath
+            });
+          }
+        }
+      }
+    } catch (error) {
+      if (verbose) {
+        console.log(`[ingest] failed to parse ${fileRecord.path}: ${error.message}`);
+      }
+    }
+  }
+
+  // Filter CALLS relations to only valid targets (chunks that actually exist)
+  const chunkIdSet = new Set(chunkRecords.map(c => c.id));
+  const validCallsRelations = callsRelations.filter(rel => chunkIdSet.has(rel.to));
+
+  if (verbose && chunkRecords.length > 0) {
+    console.log(`[ingest] extracted ${chunkRecords.length} chunks from ${fileRecords.filter(f => f.kind === "CODE").length} code files`);
+    console.log(`[ingest] ${validCallsRelations.length} call relations (${callsRelations.length - validCallsRelations.length} filtered)`);
+  }
+
   const ruleRecords = rules.map((rule) => ({
     id: rule.id,
     title: rule.id,
@@ -804,9 +892,13 @@ function main() {
   writeJsonl(path.join(CACHE_DIR, "entities.file.jsonl"), fileRecords);
   writeJsonl(path.join(CACHE_DIR, "entities.adr.jsonl"), adrRecords);
   writeJsonl(path.join(CACHE_DIR, "entities.rule.jsonl"), ruleRecords);
+  writeJsonl(path.join(CACHE_DIR, "entities.chunk.jsonl"), chunkRecords);
   writeJsonl(path.join(CACHE_DIR, "relations.supersedes.jsonl"), supersedesRelations);
   writeJsonl(path.join(CACHE_DIR, "relations.constrains.jsonl"), constrainsRelations);
   writeJsonl(path.join(CACHE_DIR, "relations.implements.jsonl"), implementsRelations);
+  writeJsonl(path.join(CACHE_DIR, "relations.defines.jsonl"), definesRelations);
+  writeJsonl(path.join(CACHE_DIR, "relations.calls.jsonl"), validCallsRelations);
+  writeJsonl(path.join(CACHE_DIR, "relations.imports.jsonl"), importsRelations);
 
   writeTsv(
     path.join(DB_IMPORT_DIR, "file_nodes.tsv"),
@@ -904,6 +996,56 @@ function main() {
     supersedesRelations.map((record) => [record.from, record.to, record.reason])
   );
 
+  writeTsv(
+    path.join(DB_IMPORT_DIR, "chunk_nodes.tsv"),
+    [
+      "id",
+      "file_id",
+      "name",
+      "kind",
+      "signature",
+      "body",
+      "start_line",
+      "end_line",
+      "language",
+      "checksum",
+      "updated_at",
+      "trust_level"
+    ],
+    chunkRecords.map((record) => [
+      record.id,
+      record.file_id,
+      record.name,
+      record.kind,
+      record.signature,
+      record.body,
+      record.start_line,
+      record.end_line,
+      record.language,
+      record.checksum,
+      record.updated_at,
+      record.trust_level
+    ])
+  );
+
+  writeTsv(
+    path.join(DB_IMPORT_DIR, "defines_rel.tsv"),
+    ["from", "to"],
+    definesRelations.map((record) => [record.from, record.to])
+  );
+
+  writeTsv(
+    path.join(DB_IMPORT_DIR, "calls_rel.tsv"),
+    ["from", "to", "call_type"],
+    validCallsRelations.map((record) => [record.from, record.to, record.call_type])
+  );
+
+  writeTsv(
+    path.join(DB_IMPORT_DIR, "imports_rel.tsv"),
+    ["from", "to", "import_name"],
+    importsRelations.map((record) => [record.from, record.to, record.import_name])
+  );
+
   const manifest = {
     generated_at: new Date().toISOString(),
     mode,
@@ -912,9 +1054,13 @@ function main() {
       files: fileRecords.length,
       adrs: adrRecords.length,
       rules: ruleRecords.length,
+      chunks: chunkRecords.length,
       relations_constrains: constrainsRelations.length,
       relations_implements: implementsRelations.length,
-      relations_supersedes: supersedesRelations.length
+      relations_supersedes: supersedesRelations.length,
+      relations_defines: definesRelations.length,
+      relations_calls: validCallsRelations.length,
+      relations_imports: importsRelations.length
     },
     skipped,
     incremental_mode: incrementalMode,
@@ -932,9 +1078,12 @@ function main() {
   } else if (mode === "changed") {
     console.log("[ingest] incremental diff unavailable; processed full source set");
   }
-  console.log(`[ingest] files=${manifest.counts.files} adrs=${manifest.counts.adrs} rules=${manifest.counts.rules}`);
+  console.log(`[ingest] files=${manifest.counts.files} adrs=${manifest.counts.adrs} rules=${manifest.counts.rules} chunks=${manifest.counts.chunks}`);
   console.log(
     `[ingest] rels constrains=${manifest.counts.relations_constrains} implements=${manifest.counts.relations_implements} supersedes=${manifest.counts.relations_supersedes}`
+  );
+  console.log(
+    `[ingest] rels defines=${manifest.counts.relations_defines} calls=${manifest.counts.relations_calls} imports=${manifest.counts.relations_imports}`
   );
   console.log(
     `[ingest] skipped unsupported=${skipped.unsupported} too_large=${skipped.tooLarge} binary=${skipped.binary}`
