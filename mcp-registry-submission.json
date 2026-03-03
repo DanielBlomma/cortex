@@ -2,7 +2,7 @@
   "name": "cortex",
   "vendor": "danielblomma",
   "sourceUrl": "https://github.com/DanielBlomma/cortex",
-  "description": "Local, repo-scoped context platform for coding assistants. Function-level search, call graph analysis, and impact tracing for your codebase.",
+  "description": "Local, repo-scoped context platform for coding assistants. Semantic search, graph relationships, and architectural rule context for your codebase.",
   "npmPackage": "@danielblomma/cortex-mcp",
   "license": "MIT",
   "homepage": "https://github.com/DanielBlomma/cortex",
@@ -15,10 +15,8 @@
     "mcp",
     "context",
     "code-search",
-    "call-graph",
     "semantic-search",
-    "refactoring",
-    "impact-analysis"
+    "refactoring"
   ],
   "installation": {
     "npm": "npm i -g @danielblomma/cortex-mcp && cortex init --bootstrap"
@@ -26,7 +24,7 @@
   "tools": [
     {
       "name": "context.search",
-      "description": "Semantic search across codebase entities (files, functions, rules, ADRs)"
+      "description": "Semantic search across codebase entities (files, rules, ADRs)"
     },
     {
       "name": "context.get_related",
@@ -35,18 +33,6 @@
     {
       "name": "context.get_rules",
       "description": "Get active architectural rules and decisions"
-    },
-    {
-      "name": "context.find_callers",
-      "description": "Find what functions call this target (reverse call graph)"
-    },
-    {
-      "name": "context.trace_calls",
-      "description": "Trace what this function calls (forward call graph)"
-    },
-    {
-      "name": "context.impact_analysis",
-      "description": "Multi-hop impact analysis for code changes"
     },
     {
       "name": "context.reload",
@@ -61,9 +47,8 @@
     }
   },
   "features": [
-    "Function-level code search (not just files)",
-    "Call graph analysis and dependency tracing",
-    "Impact analysis for safe refactoring",
+    "Semantic codebase search with graph-aware ranking",
+    "Graph relationships between files, rules, and ADRs",
     "Architectural rules and ADR enforcement",
     "Local & private (no cloud, your code stays on your machine)",
     "Incremental background sync",

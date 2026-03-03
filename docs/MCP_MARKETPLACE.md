@@ -3,7 +3,7 @@
 ## Package Information
 
 **Name:** `@danielblomma/cortex-mcp`  
-**Description:** Local, repo-scoped context platform for coding assistants. Function-level search, call graph analysis, and impact tracing.  
+**Description:** Local, repo-scoped context platform for coding assistants. Semantic search, graph relationships, and architectural rule context.  
 **Author:** Daniel Blomma  
 **License:** MIT  
 **Repository:** https://github.com/DanielBlomma/cortex
@@ -13,31 +13,19 @@
 ### Tools Provided
 
 1. **context.search**
-   - Semantic search across codebase (files, functions, rules, ADRs)
-   - Supports entity type filtering (File, Chunk, Rule, ADR)
-   - Function-level granularity with call graph integration
+   - Semantic search across indexed entities (files, rules, ADRs)
+   - Hybrid ranking (semantic + graph + trust + recency)
+   - Optional content return for high-signal snippets
 
 2. **context.get_related**
    - Graph-based entity relationships
-   - Finds dependencies, definitions, and references
+   - Finds connected rules/files/ADRs with optional edge details
 
 3. **context.get_rules**
    - Active rules and architectural decisions
    - Scope-based filtering
 
-4. **context.find_callers** (NEW - Semantic Chunking)
-   - Reverse call graph: what calls this function?
-   - Impact analysis for refactoring
-
-5. **context.trace_calls** (NEW - Semantic Chunking)
-   - Forward call graph: what does this function call?
-   - Dependency tracing
-
-6. **context.impact_analysis** (NEW - Semantic Chunking)
-   - Multi-hop impact analysis for changes
-   - Safe refactoring guidance
-
-7. **context.reload**
+4. **context.reload**
    - Hot-reload graph after code changes
 
 ### Installation
@@ -59,7 +47,7 @@ This will:
 - Create `.context/` directory with graph schema
 - Set up MCP server for Claude Desktop/Code
 - Start background sync for automatic updates
-- Extract function-level chunks and call graphs
+- Build a local context graph for indexed files/rules/ADRs
 
 #### Manual MCP Configuration
 
@@ -98,19 +86,18 @@ If `cortex init` doesn't auto-register, add to Claude's MCP config:
 Once installed and initialized, Cortex tools are available in Claude:
 
 ```
-"Find all functions that handle authentication"
-"Show me the call graph for parseCode"
-"What would break if I change extractCalls?"
+"Find files that handle authentication"
+"Show related files for this ADR"
 "What are the active architectural rules for this API?"
 ```
 
 ### Key Features
 
-- **Function-level search**: Not just files, but individual functions/methods
-- **Call graph analysis**: Trace dependencies and impact
+- **Semantic search**: ranked retrieval across source files, rules and ADRs
+- **Graph relationships**: quickly discover related entities and constraints
 - **Local & private**: All data stays on your machine
 - **Incremental updates**: Background sync keeps context fresh
-- **Multi-language**: JavaScript/TypeScript today, Python/Go planned
+- **Flexible ingestion**: configurable source paths and ranking signals
 
 ### Requirements
 
@@ -122,16 +109,16 @@ Once installed and initialized, Cortex tools are available in Claude:
 
 Unlike other MCP servers that provide external data (GitHub, web search), Cortex provides **deep, structured knowledge of YOUR codebase**:
 
-- Search at function/method level (not just files)
-- Understand call dependencies and impact
+- Search with semantic ranking across files, rules, and ADRs
+- Understand rule and ADR dependencies in your repo
 - Enforce architectural rules and ADRs
 - Context that evolves with your code
 
 Perfect for:
-- Large codebases where file-level context isn't enough
-- Refactoring (impact analysis, caller/callee tracing)
+- Large codebases where plain keyword search is not enough
+- Refactoring guided by rule and ADR context
 - Onboarding (architectural rules, design decisions)
-- Code review (what depends on this change?)
+- Code review (what constraints and related entities apply?)
 
 ### Limitations
 

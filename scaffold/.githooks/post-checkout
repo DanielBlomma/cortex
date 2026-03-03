@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Args:
+# 1: previous HEAD
+# 2: new HEAD
+# 3: 1 if branch checkout, 0 if file checkout
+if [[ "${3:-0}" != "1" ]]; then
+  exit 0
+fi
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "$REPO_ROOT" ]]; then
+  exit 0
+fi
+
+RUNNER="$REPO_ROOT/.githooks/_cortex-update-runner.sh"
+if [[ ! -x "$RUNNER" ]]; then
+  exit 0
+fi
+
+nohup bash "$RUNNER" >/dev/null 2>&1 &

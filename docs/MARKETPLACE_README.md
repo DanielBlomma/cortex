@@ -1,6 +1,6 @@
 # Cortex - MCP Server for Code Context
 
-> Local, repo-scoped context platform for coding assistants. Function-level search, call graph analysis, and impact tracing.
+> Local, repo-scoped context platform for coding assistants. Semantic search, graph relationships, and architectural rule context.
 
 [![npm version](https://badge.fury.io/js/%40danielblomma%2Fcortex-mcp.svg)](https://www.npmjs.com/package/@danielblomma/cortex-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -9,11 +9,11 @@
 
 Cortex is an MCP server that gives Claude deep, structured knowledge of YOUR codebase:
 
-- 🔍 **Function-level search** - Not just files, but individual functions/methods
-- 🕸️ **Call graph analysis** - Trace dependencies and understand impact
+- 🔍 **Semantic context search** - Ranked retrieval across files, rules and ADRs
+- 🧭 **Graph relationships** - Explore how entities connect
 - 🔒 **Local & private** - All data stays on your machine
 - ⚡ **Background sync** - Context auto-updates as you code
-- 🎯 **Impact analysis** - Safe refactoring with dependency tracing
+- 📋 **Architectural rules** - Keep decisions visible during implementation
 
 ## Quick Start
 
@@ -34,9 +34,8 @@ Unlike other MCP servers that provide external data (GitHub, web search), Cortex
 
 | Feature | Cortex | File-based context |
 |---------|--------|-------------------|
-| Search granularity | Function/method level | File level |
-| Call graph | ✅ Full dependency tracing | ❌ Not available |
-| Impact analysis | ✅ "What breaks if I change this?" | ❌ Manual inspection |
+| Search quality | ✅ Semantic + trust + graph ranking | ⚠️ Keyword only |
+| Relationships | ✅ Linked rules/files/ADRs | ❌ Flat results |
 | Architectural rules | ✅ Enforced via ADRs | ❌ In comments/docs |
 | Privacy | ✅ 100% local | Depends on tool |
 
@@ -45,9 +44,8 @@ Unlike other MCP servers that provide external data (GitHub, web search), Cortex
 Once installed, ask Claude:
 
 ```
-"Find all functions that handle authentication"
-"Show me the call graph for parseCode"
-"What would break if I change extractCalls?"
+"Find files that handle authentication"
+"Show related files for this ADR"
 "What architectural rules apply to this API?"
 ```
 
@@ -56,14 +54,13 @@ Once installed, ask Claude:
 ### 🔍 Semantic Search
 Search across:
 - Files (entire source)
-- Chunks (individual functions/methods/classes)
 - Rules (architectural decisions)
 - ADRs (design documents)
 
-### 🕸️ Call Graph Analysis
-- **find_callers**: What functions call this? (reverse graph)
-- **trace_calls**: What does this function call? (forward graph)
-- **impact_analysis**: Multi-hop impact for safe refactoring
+### 🧭 Graph Relationships
+- **context.get_related**: Find connected entities
+- Include edges to inspect relation direction and labels
+- Use depth-based traversal for dependency context
 
 ### 📋 Architectural Rules
 - Define rules in `.context/rules/`
@@ -78,7 +75,7 @@ Search across:
 ## Supported Languages
 
 **Today:**
-- JavaScript / TypeScript (full support)
+- JavaScript / TypeScript (indexing and search)
 
 **Planned:**
 - Python
@@ -154,7 +151,8 @@ cat ~/Library/Application\ Support/Claude/claude_desktop_config.json
 cortex watch status
 
 # Restart watcher
-cortex watch restart
+cortex watch stop
+cortex watch start
 ```
 
 ### Graph out of date?

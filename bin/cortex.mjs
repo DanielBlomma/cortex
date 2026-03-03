@@ -17,6 +17,8 @@ const GITIGNORE_LINES = [
   ".context/embeddings/",
   ".context/cache/",
   ".context/plan/",
+  ".context/hooks/",
+  ".npm-cache/",
   "mcp/.npm-cache/",
   "mcp/dist/",
   "mcp/node_modules/"
@@ -44,6 +46,7 @@ function printHelp() {
   console.log("Usage:");
   console.log("  cortex init [path] [--force] [--bootstrap] [--connect] [--no-connect] [--watch] [--no-watch]");
   console.log("  cortex connect [path] [--skip-build]");
+  console.log("  cortex mcp");
   console.log(
     "  cortex watch [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>] [--mode <auto|event|poll>]"
   );
@@ -185,7 +188,8 @@ function installScaffold(targetDir, force) {
   const copyMap = [
     [path.join(SCAFFOLD_ROOT, ".context"), path.join(targetDir, ".context")],
     [path.join(SCAFFOLD_ROOT, "scripts"), path.join(targetDir, "scripts")],
-    [path.join(SCAFFOLD_ROOT, "mcp"), path.join(targetDir, "mcp")]
+    [path.join(SCAFFOLD_ROOT, "mcp"), path.join(targetDir, "mcp")],
+    [path.join(SCAFFOLD_ROOT, ".githooks"), path.join(targetDir, ".githooks")]
   ];
 
   for (const [sourcePath, targetPath] of copyMap) {
@@ -457,6 +461,13 @@ async function connectMcpClients(targetDir, options = {}) {
   return connected;
 }
 
+function ensureProjectInitialized(targetDir) {
+  const mcpPackageJson = path.join(targetDir, "mcp", "package.json");
+  if (!fs.existsSync(mcpPackageJson)) {
+    throw new Error(`Missing ${mcpPackageJson}. Run 'cortex init --bootstrap' first.`);
+  }
+}
+
 async function runContextCommand(cwd, contextArgs) {
   const contextScript = path.join(cwd, "scripts", "context.sh");
   if (!fs.existsSync(contextScript)) {
@@ -504,7 +515,7 @@ async function run() {
     await markPlanEvent(target, "init");
 
     console.log(`[cortex] initialized in ${target}`);
-    console.log("[cortex] scaffold copied: .context/, scripts/, mcp/, docs/");
+    console.log("[cortex] scaffold copied: .context/, scripts/, mcp/, .githooks/, docs/");
     console.log(`[cortex] Claude commands ready: /note /todo /plan /context-update (${helpers.claude.total} files)`);
     if (helpers.codex.changed) {
       console.log("[cortex] Codex workflow instructions added to AGENTS.md");
@@ -557,6 +568,7 @@ async function run() {
 
   if (command === "connect") {
     const { target, skipBuild } = parseConnectArgs(rest);
+    ensureProjectInitialized(target);
     const helpers = installAssistantHelpers(target);
     if (helpers.claude.changed > 0 || helpers.codex.changed) {
       console.log("[cortex] assistant helpers updated (.claude/commands + AGENTS.md)");
@@ -565,6 +577,20 @@ async function run() {
     if (connected > 0) {
       await markPlanEvent(target, "connect");
     }
+    return;
+  }
+
+  if (command === "mcp") {
+    const target = process.env.CORTEX_PROJECT_ROOT
+      ? path.resolve(process.env.CORTEX_PROJECT_ROOT)
+      : process.cwd();
+    ensureProjectInitialized(target);
+    const serverEntry = path.join(target, "mcp", "dist", "server.js");
+    if (!fs.existsSync(serverEntry)) {
+      throw new Error(`Missing ${serverEntry}. Run 'cortex bootstrap' in ${target} first.`);
+    }
+    process.stderr.write(`[cortex] starting MCP stdio server from ${serverEntry}\n`);
+    await runCommand("node", [serverEntry], target);
     return;
   }
 

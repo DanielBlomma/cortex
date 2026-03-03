@@ -1,7 +1,7 @@
 {
   "name": "@danielblomma/cortex-mcp",
-  "version": "0.3.0",
-  "description": "Local, repo-scoped context platform for coding assistants. Function-level search, call graph analysis, and impact tracing.",
+  "version": "0.4.0",
+  "description": "Local, repo-scoped context platform for coding assistants. Semantic search, graph relationships, and architectural rule context.",
   "type": "module",
   "author": "Daniel Blomma",
   "license": "MIT",
@@ -18,10 +18,8 @@
     "model-context-protocol",
     "context",
     "code-search",
-    "call-graph",
     "semantic-search",
     "refactoring",
-    "impact-analysis",
     "claude",
     "codex"
   ],

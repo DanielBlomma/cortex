@@ -98,6 +98,16 @@ cortex watch status
 cortex status
 ```
 
+Optional git hooks (run `cortex update` after branch switch/merge):
+
+```bash
+./scripts/install-git-hooks.sh
+```
+
+This installs repo-local `post-checkout` + `post-merge` hooks via `core.hooksPath=.githooks`.
+Hook logs are written to `.context/hooks/update.log`.
+If parser dependencies are missing, hooks will log a skip until `cortex bootstrap` has been run.
+
 Optional performance boost for large repos:
 - Install `fswatch` (macOS) or `inotifywait` (Linux).
 - Cortex watch will automatically switch from polling to event-driven mode.
@@ -144,22 +154,12 @@ codex mcp get cortex-<repo-name> --json
 
 - `context.search`: ranked search across File/Rule/ADR
 - `context.search` filters:
-  - `entity_types` (e.g. `["Chunk"]`)
-  - `chunk_kinds` (e.g. `["FUNCTION","METHOD"]`)
-  - `prefer_chunks` (default `true`)
+  - `top_k` (1-20)
+  - `include_deprecated` (default `false`)
+  - `include_content` (default `false`)
 - `context.get_related`: graph neighbors for an entity
 - `context.get_rules`: active rules with scope filtering
-- `context.find_callers`: reverse call graph from a target chunk/function
-- `context.trace_calls`: forward call graph from a target chunk/function
-- `context.impact_analysis`: impacted chunks/files around a target change
 - `context.reload`: reload graph connection after updates
-
-Call graph tool inputs (`find_callers`, `trace_calls`, `impact_analysis`):
-- `target`, `depth`, `top_k`, `page`, `include_edges`
-- Responses include `pagination` and `limits` metadata.
-- Traversal guardrails are enabled by default:
-  - `CORTEX_CALLGRAPH_MAX_NODES` (default `5000`)
-  - `CORTEX_CALLGRAPH_MAX_EDGES` (default `20000`)
 
 ## Configure What Gets Indexed
 
@@ -198,6 +198,7 @@ To add your own entities (for example `APIContract`, `Test`, `Owner`):
 ```text
 cortex init [path] [--force] [--bootstrap] [--connect] [--no-connect] [--watch] [--no-watch]
 cortex connect [path] [--skip-build]
+cortex mcp
 cortex watch [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>] [--mode <auto|event|poll>]
 cortex bootstrap
 cortex update

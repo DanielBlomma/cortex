@@ -720,11 +720,11 @@ function main() {
     if (fileRecord.kind !== "CODE") continue;
 
     const ext = path.extname(fileRecord.path).toLowerCase();
-    const supportedForChunking = [".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx"].includes(ext);
+    const supportedForChunking = [".js", ".mjs", ".cjs", ".ts"].includes(ext);
     if (!supportedForChunking) continue;
 
     try {
-      const language = ext === ".ts" || ext === ".tsx" ? "typescript" : "javascript";
+      const language = ext === ".ts" ? "typescript" : "javascript";
       const parseResult = parseCode(fileRecord.content, fileRecord.path, language);
 
       if (parseResult.errors.length > 0 && verbose) {
