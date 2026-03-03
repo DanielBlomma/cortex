@@ -28,6 +28,17 @@
 4. **context.reload**
    - Hot-reload graph after code changes
 
+### Advanced Features (Experimental)
+
+Cortex can extract function-level chunks and build call graphs in experimental builds:
+
+- `context.find_callers` - What calls this function?
+- `context.trace_calls` - What does this function call?
+- `context.impact_analysis` - What is impacted if this function changes?
+- Requires JavaScript/TypeScript codebase and semantic chunking/call graph indexing enabled.
+
+Note: these APIs are experimental and are not part of the stable tool contract in this submission.
+
 ### Installation
 
 #### For MCP Marketplace Users
@@ -95,6 +106,7 @@ Once installed and initialized, Cortex tools are available in Claude:
 
 - **Semantic search**: ranked retrieval across source files, rules and ADRs
 - **Graph relationships**: quickly discover related entities and constraints
+- **Experimental call graph APIs**: function caller/callee and impact traversal in semantic chunking builds
 - **Local & private**: All data stays on your machine
 - **Incremental updates**: Background sync keeps context fresh
 - **Flexible ingestion**: configurable source paths and ranking signals

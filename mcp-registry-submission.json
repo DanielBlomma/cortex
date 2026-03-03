@@ -49,6 +49,7 @@
   "features": [
     "Semantic codebase search with graph-aware ranking",
     "Graph relationships between files, rules, and ADRs",
+    "Experimental call graph APIs for function-level tracing and impact analysis (JS/TS semantic chunking builds)",
     "Architectural rules and ADR enforcement",
     "Local & private (no cloud, your code stays on your machine)",
     "Incremental background sync",

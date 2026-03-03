@@ -13,6 +13,23 @@ It indexes your codebase into structured entities (files, rules, ADRs) and expos
 - Incremental updates keep context fresh as the repo changes.
 - Works with Claude Code/Desktop and Codex MCP clients.
 
+## Core Features
+
+- Semantic search (files, rules, ADRs).
+- Graph relationships between entities and constraints.
+- Architectural rules and ADR context for implementation decisions.
+
+## Advanced Features (Experimental)
+
+Cortex can extract function-level chunks and build call graphs in experimental builds:
+
+- `context.find_callers` - what calls this function?
+- `context.trace_calls` - what does this function call?
+- `context.impact_analysis` - what is impacted if this function changes?
+- Requires JavaScript/TypeScript codebase and semantic chunking/call graph indexing enabled.
+
+These APIs are experimental and may not be exposed in every installation.
+
 ## Requirements
 
 - Node.js 18+

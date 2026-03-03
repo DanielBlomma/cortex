@@ -49,7 +49,24 @@ Once installed, ask Claude:
 "What architectural rules apply to this API?"
 ```
 
-## Features
+## Core Features
+
+- Semantic search (files, rules, ADRs)
+- Graph relationships
+- Architectural rules
+
+## Advanced Features (Experimental)
+
+Cortex can extract function-level chunks and build call graphs in experimental builds:
+
+- `context.find_callers` - What calls this function?
+- `context.trace_calls` - What does this function call?
+- `context.impact_analysis` - What is impacted if this function changes?
+- Requires JavaScript/TypeScript codebase and semantic chunking/call graph indexing enabled.
+
+These APIs are experimental and may not be exposed in every installation.
+
+## Feature Details
 
 ### 🔍 Semantic Search
 Search across:
