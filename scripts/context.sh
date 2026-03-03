@@ -12,6 +12,8 @@ Commands:
   ingest [--changed] [--verbose]   Index docs/code/design context into .context
   embed [--changed]                Generate semantic embeddings for indexed entities
   update                           Ingest changed files + rebuild graph
+  watch [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>] [--mode <auto|event|poll>]
+                                    Continuous background update loop
   refresh [--changed] [--verbose]  Alias for ingest
   graph-load [--no-reset]          Build RyuGraph DB from indexed context
   note <title> [text]              Save tacit knowledge note into .context/notes
@@ -46,6 +48,9 @@ case "$COMMAND" in
   update)
     "$SCRIPT_DIR/update-context.sh" "$@"
     TRACK_EVENT="update"
+    ;;
+  watch)
+    "$SCRIPT_DIR/watch.sh" "$@"
     ;;
   refresh)
     "$SCRIPT_DIR/refresh.sh" "$@"

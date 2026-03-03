@@ -42,8 +42,11 @@ function printHelp() {
   console.log("Cortex CLI");
   console.log("");
   console.log("Usage:");
-  console.log("  cortex init [path] [--force] [--bootstrap] [--connect] [--no-connect]");
+  console.log("  cortex init [path] [--force] [--bootstrap] [--connect] [--no-connect] [--watch] [--no-watch]");
   console.log("  cortex connect [path] [--skip-build]");
+  console.log(
+    "  cortex watch [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>] [--mode <auto|event|poll>]"
+  );
   console.log("  cortex bootstrap");
   console.log("  cortex update");
   console.log("  cortex status");
@@ -70,6 +73,7 @@ function parseInitArgs(args) {
   let force = false;
   let bootstrap = false;
   let connect = true;
+  let watch = true;
 
   for (const arg of args) {
     if (arg === "--force") {
@@ -92,6 +96,16 @@ function parseInitArgs(args) {
       continue;
     }
 
+    if (arg === "--watch") {
+      watch = true;
+      continue;
+    }
+
+    if (arg === "--no-watch") {
+      watch = false;
+      continue;
+    }
+
     if (arg.startsWith("-")) {
       throw new Error(`Unknown init option: ${arg}`);
     }
@@ -99,7 +113,7 @@ function parseInitArgs(args) {
     target = path.resolve(arg);
   }
 
-  return { target, force, bootstrap, connect };
+  return { target, force, bootstrap, connect, watch };
 }
 
 function parseConnectArgs(args) {
@@ -188,6 +202,122 @@ function installScaffold(targetDir, force) {
   }
 
   mergeGitignore(targetDir);
+}
+
+function writeTextFile(targetPath, content) {
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  fs.writeFileSync(targetPath, content, "utf8");
+}
+
+function upsertTextFile(targetPath, content) {
+  if (fs.existsSync(targetPath)) {
+    const existing = fs.readFileSync(targetPath, "utf8");
+    if (existing === content) {
+      return false;
+    }
+  }
+  writeTextFile(targetPath, content);
+  return true;
+}
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function upsertSectionByMarkers(targetPath, startMarker, endMarker, sectionContent) {
+  const block = `${startMarker}\n${sectionContent.trimEnd()}\n${endMarker}`;
+  const existing = fs.existsSync(targetPath) ? fs.readFileSync(targetPath, "utf8") : "";
+  const hasMarkers = existing.includes(startMarker) && existing.includes(endMarker);
+
+  if (hasMarkers) {
+    const pattern = new RegExp(`${escapeRegex(startMarker)}[\\s\\S]*?${escapeRegex(endMarker)}`);
+    const replaced = existing.replace(pattern, block);
+    if (replaced === existing) {
+      return false;
+    }
+    writeTextFile(targetPath, replaced.endsWith("\n") ? replaced : `${replaced}\n`);
+    return true;
+  }
+
+  let next = existing;
+  if (next.length > 0 && !next.endsWith("\n")) {
+    next += "\n";
+  }
+  if (next.trim().length > 0 && !next.endsWith("\n\n")) {
+    next += "\n";
+  }
+  next += `${block}\n`;
+  writeTextFile(targetPath, next);
+  return true;
+}
+
+function installClaudeCommands(targetDir) {
+  const commandSpecs = [
+    {
+      file: "note.md",
+      content: `---
+description: "Save important project context into Cortex notes"
+argument-hint: "<title> [details]"
+---
+Execute: cortex note "$ARGUMENTS"
+`
+    },
+    {
+      file: "todo.md",
+      content: `---
+description: "Add or list Cortex TODOs"
+argument-hint: "<text|list|done <id>|reopen <id>|remove <id>>"
+---
+Execute: cortex todo "$ARGUMENTS"
+`
+    },
+    {
+      file: "plan.md",
+      content: `---
+description: "Show Cortex auto-plan progress"
+---
+Execute: cortex plan
+`
+    },
+    {
+      file: "context-update.md",
+      content: `---
+description: "Refresh Cortex context for changed files"
+---
+Execute: cortex update
+`
+    }
+  ];
+
+  const commandsDir = path.join(targetDir, ".claude", "commands");
+  let changed = 0;
+  for (const spec of commandSpecs) {
+    const targetPath = path.join(commandsDir, spec.file);
+    if (upsertTextFile(targetPath, spec.content)) {
+      changed += 1;
+    }
+  }
+  return { total: commandSpecs.length, changed };
+}
+
+function installCodexAgentsSection(targetDir) {
+  const agentsPath = path.join(targetDir, "AGENTS.md");
+  const startMarker = "<!-- cortex:auto:start -->";
+  const endMarker = "<!-- cortex:auto:end -->";
+  const section = `## Cortex Auto Workflow
+- Use \`cortex todo "<task>"\` for every new implementation task.
+- Use \`cortex note "<title>" "<details>"\` when an important decision is made.
+- Run \`cortex update\` before completing substantial code changes.
+- Use \`cortex plan\` to inspect current progress and next command.
+- If background sync is enabled, check with \`cortex watch status\`.`;
+  const changed = upsertSectionByMarkers(agentsPath, startMarker, endMarker, section);
+  return { path: agentsPath, changed };
+}
+
+function installAssistantHelpers(targetDir) {
+  const claude = installClaudeCommands(targetDir);
+  const codex = installCodexAgentsSection(targetDir);
+  return { claude, codex };
 }
 
 function runCommand(command, args, cwd) {
@@ -366,14 +496,21 @@ async function run() {
 
   if (command === "init") {
     ensureScaffoldExists();
-    const { target, force, bootstrap, connect } = parseInitArgs(rest);
+    const { target, force, bootstrap, connect, watch } = parseInitArgs(rest);
     printBanner("Cortex initializes repo-scoped context for AI coding agents.");
     fs.mkdirSync(target, { recursive: true });
     installScaffold(target, force);
+    const helpers = installAssistantHelpers(target);
     await markPlanEvent(target, "init");
 
     console.log(`[cortex] initialized in ${target}`);
     console.log("[cortex] scaffold copied: .context/, scripts/, mcp/, docs/");
+    console.log(`[cortex] Claude commands ready: /note /todo /plan /context-update (${helpers.claude.total} files)`);
+    if (helpers.codex.changed) {
+      console.log("[cortex] Codex workflow instructions added to AGENTS.md");
+    } else {
+      console.log("[cortex] Codex workflow instructions already up to date in AGENTS.md");
+    }
 
     if (bootstrap) {
       console.log("[cortex] bootstrap: install deps -> ingest -> embeddings -> graph");
@@ -385,6 +522,16 @@ async function run() {
       console.log("[cortex] MCP connect: Codex + Claude Code (if CLIs are installed)");
     } else {
       console.log("[cortex] MCP connect skipped (--no-connect)");
+    }
+
+    if (watch) {
+      if (bootstrap) {
+        console.log("[cortex] background sync: cortex watch start");
+      } else {
+        console.log("[cortex] background sync pending: run cortex watch start after bootstrap");
+      }
+    } else {
+      console.log("[cortex] background sync skipped (--no-watch)");
     }
 
     if (!bootstrap) {
@@ -401,11 +548,19 @@ async function run() {
         await markPlanEvent(target, "connect");
       }
     }
+
+    if (watch && bootstrap) {
+      await runContextCommand(target, ["watch", "start"]);
+    }
     return;
   }
 
   if (command === "connect") {
     const { target, skipBuild } = parseConnectArgs(rest);
+    const helpers = installAssistantHelpers(target);
+    if (helpers.claude.changed > 0 || helpers.codex.changed) {
+      console.log("[cortex] assistant helpers updated (.claude/commands + AGENTS.md)");
+    }
     const connected = await connectMcpClients(target, { skipBuild });
     if (connected > 0) {
       await markPlanEvent(target, "connect");
@@ -420,6 +575,7 @@ async function run() {
     "ingest",
     "embed",
     "graph-load",
+    "watch",
     "note",
     "plan",
     "todo",
