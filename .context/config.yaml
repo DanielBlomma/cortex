@@ -1,10 +1,10 @@
 repo_id: cortex
 source_paths:
-  - src
+  - mcp/src
+  - scaffold/scripts
+  - scaffold/scripts/parsers
   - docs
-  - design
-  - .context/notes
-  - .context/decisions
+  - bin
   - README.md
 truth_order:
   - ADR

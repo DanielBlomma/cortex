@@ -783,7 +783,7 @@ function main() {
       }
     } catch (error) {
       if (verbose) {
-        console.log(`[ingest] failed to parse ${fileRecord.path}: ${error.message}`);
+        console.log(`[ingest] failed to parse ${fileRecord.path}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
   }
