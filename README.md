@@ -10,7 +10,7 @@
 
 Local, repo-scoped context platform for coding assistants.
 
-![Cortex Installation](docs/cortex-demo.gif)
+![Cortex Installation](docs/install-demo.gif)
 
 ## Quick Start (60s)
 
