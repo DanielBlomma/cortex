@@ -562,12 +562,145 @@ ranking:
   }
 }
 
+function testIngestChunkMetadataInheritanceInIncrementalMode() {
+  console.log("\n6. ingest preserves status/source_of_truth metadata for base and window chunks");
+  const fixtureRoot = makeTempDir("cortex-ingest-meta-inherit-");
+  try {
+    fs.mkdirSync(path.join(fixtureRoot, ".context", "cache"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
+
+    const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
+      'import { parseCode } from "./parsers/javascript.mjs";',
+      'import { parseCode } from "./parsers/mock-parser.mjs";'
+    );
+    fs.writeFileSync(path.join(fixtureRoot, "scripts", "ingest.mjs"), ingestSource, "utf8");
+
+    const chunkBody = Array.from({ length: 12 }, (_, index) => `line-${index + 1}`).join("\n");
+    fs.writeFileSync(
+      path.join(fixtureRoot, "scripts", "parsers", "mock-parser.mjs"),
+      `export function parseCode() {
+  return {
+    errors: [],
+    chunks: [
+      {
+        name: "PreservedMeta",
+        kind: "function",
+        signature: "PreservedMeta()",
+        body: ${JSON.stringify(chunkBody)},
+        startLine: 10,
+        endLine: 21,
+        calls: [],
+        imports: [],
+        language: "typescript"
+      }
+    ]
+  };
+}
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "config.yaml"),
+      `repo_id: fixture
+source_paths:
+  - src
+truth_order:
+  - ADR
+  - RULE
+  - CODE
+  - WIKI
+ranking:
+  semantic: 0.40
+  graph: 0.25
+  trust: 0.20
+  recency: 0.15
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "rules.yaml"),
+      `rules:
+  - id: rule.test
+    description: "fixture rule"
+    priority: 1
+    enforce: true
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(path.join(fixtureRoot, "src", "sample.ts"), "export const sample = 1;\n", "utf8");
+    fs.writeFileSync(path.join(fixtureRoot, "README.md"), "fixture\n", "utf8");
+
+    run("git", ["init"], { cwd: fixtureRoot });
+    run("git", ["checkout", "-b", "main"], { cwd: fixtureRoot });
+    run("git", ["config", "user.email", "tests@example.com"], { cwd: fixtureRoot });
+    run("git", ["config", "user.name", "Cortex Tests"], { cwd: fixtureRoot });
+    run("git", ["add", "."], { cwd: fixtureRoot });
+    run("git", ["commit", "-m", "initial fixture"], { cwd: fixtureRoot });
+
+    const cachedFileRecord = {
+      id: "file:src/sample.ts",
+      path: "src/sample.ts",
+      kind: "CODE",
+      checksum: "fixture-checksum",
+      updated_at: new Date().toISOString(),
+      source_of_truth: true,
+      trust_level: 88,
+      status: "deprecated",
+      size_bytes: 19,
+      excerpt: "export const sample = 1;",
+      content: "export const sample = 1;\n"
+    };
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "cache", "entities.file.jsonl"),
+      `${JSON.stringify(cachedFileRecord)}\n`,
+      "utf8"
+    );
+
+    fs.writeFileSync(path.join(fixtureRoot, "notes.txt"), "trigger changed mode without touching src\n", "utf8");
+
+    run("node", ["scripts/ingest.mjs", "--changed"], {
+      cwd: fixtureRoot,
+      env: {
+        ...process.env,
+        CORTEX_CHUNK_WINDOW_LINES: "4",
+        CORTEX_CHUNK_OVERLAP_LINES: "1",
+        CORTEX_CHUNK_SPLIT_MIN_LINES: "5"
+      }
+    });
+
+    const chunks = parseJsonl(path.join(fixtureRoot, ".context", "cache", "entities.chunk.jsonl"));
+    const preservedChunks = chunks.filter(
+      (chunk) =>
+        chunk.id === "chunk:src/sample.ts:PreservedMeta:10-21" ||
+        String(chunk.id).startsWith("chunk:src/sample.ts:PreservedMeta:10-21:window:")
+    );
+
+    assert("base and window chunks produced", preservedChunks.length > 1);
+    assert(
+      "all generated chunks inherit deprecated status",
+      preservedChunks.every((chunk) => chunk.status === "deprecated")
+    );
+    assert(
+      "all generated chunks inherit source_of_truth=true",
+      preservedChunks.every((chunk) => chunk.source_of_truth === true)
+    );
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+}
+
 console.log("context regression tests\n");
 testWatchDigestIncludesHead();
 testIngestChunkIdDisambiguation();
 testIngestChunkOverlapWindows();
 testIngestChunkZeroOverlapConfig();
 testIngestChunkMaxWindowCap();
+testIngestChunkMetadataInheritanceInIncrementalMode();
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) {

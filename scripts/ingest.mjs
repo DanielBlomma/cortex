@@ -621,8 +621,8 @@ function splitChunkIntoWindows(chunkRecord, options) {
       checksum: checksum(Buffer.from(windowBody)),
       updated_at: chunkRecord.updated_at,
       trust_level: chunkRecord.trust_level,
-      status: "active",
-      source_of_truth: false
+      status: chunkRecord.status,
+      source_of_truth: chunkRecord.source_of_truth
     });
 
     if (end >= totalLines) {
@@ -858,8 +858,11 @@ function main() {
           checksum: checksum(Buffer.from(chunk.body)),
           updated_at: fileRecord.updated_at,
           trust_level: fileRecord.trust_level,
-          status: "active",
-          source_of_truth: false
+          status:
+            typeof fileRecord.status === "string" && fileRecord.status.trim().length > 0
+              ? fileRecord.status
+              : "active",
+          source_of_truth: Boolean(fileRecord.source_of_truth)
         };
         chunkRecords.push(chunkRecord);
 
