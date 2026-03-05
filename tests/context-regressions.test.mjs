@@ -454,11 +454,120 @@ ranking:
   }
 }
 
+function testIngestChunkMaxWindowCap() {
+  console.log("\n5. ingest caps overlap windows and stretches final window to chunk tail");
+  const fixtureRoot = makeTempDir("cortex-ingest-overlap-cap-");
+  try {
+    fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
+
+    const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
+      'import { parseCode } from "./parsers/javascript.mjs";',
+      'import { parseCode } from "./parsers/mock-parser.mjs";'
+    );
+    fs.writeFileSync(path.join(fixtureRoot, "scripts", "ingest.mjs"), ingestSource, "utf8");
+
+    const largeBody = Array.from(
+      { length: 320 },
+      (_, index) => `line-${String(index + 1).padStart(4, "0")}-${"x".repeat(32)}`
+    ).join("\n");
+    fs.writeFileSync(
+      path.join(fixtureRoot, "scripts", "parsers", "mock-parser.mjs"),
+      `export function parseCode() {
+  return {
+    errors: [],
+    chunks: [
+      {
+        name: "LargeChunkCapped",
+        kind: "function",
+        signature: "LargeChunkCapped()",
+        body: ${JSON.stringify(largeBody)},
+        startLine: 10,
+        endLine: 329,
+        calls: [],
+        imports: [],
+        language: "typescript"
+      }
+    ]
+  };
+}
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "config.yaml"),
+      `repo_id: fixture
+source_paths:
+  - src
+truth_order:
+  - ADR
+  - RULE
+  - CODE
+  - WIKI
+ranking:
+  semantic: 0.40
+  graph: 0.25
+  trust: 0.20
+  recency: 0.15
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "rules.yaml"),
+      `rules:
+  - id: rule.test
+    description: "fixture rule"
+    priority: 1
+    enforce: true
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(path.join(fixtureRoot, "src", "sample.ts"), "export const x = 1;\n", "utf8");
+
+    run("node", ["scripts/ingest.mjs"], {
+      cwd: fixtureRoot,
+      env: {
+        ...process.env,
+        CORTEX_CHUNK_WINDOW_LINES: "4",
+        CORTEX_CHUNK_OVERLAP_LINES: "1",
+        CORTEX_CHUNK_SPLIT_MIN_LINES: "5",
+        CORTEX_CHUNK_MAX_WINDOWS: "3"
+      }
+    });
+
+    const chunks = parseJsonl(path.join(fixtureRoot, ".context", "cache", "entities.chunk.jsonl"));
+    const windowChunks = chunks
+      .filter((chunk) => String(chunk.id).includes(":window:"))
+      .sort((a, b) => Number(a.start_line) - Number(b.start_line));
+
+    assert("window chunk count is capped by max windows", windowChunks.length === 3);
+    assert(
+      "last allowed window still reaches end of chunk range",
+      Number(windowChunks.at(-1)?.end_line) === 329
+    );
+    assert(
+      "last allowed window contains chunk tail content",
+      String(windowChunks.at(-1)?.body ?? "").includes("line-0320-")
+    );
+    assert(
+      "last allowed window keeps configured overlap with previous window",
+      Number(windowChunks[2]?.start_line) === Number(windowChunks[1]?.end_line)
+    );
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+}
+
 console.log("context regression tests\n");
 testWatchDigestIncludesHead();
 testIngestChunkIdDisambiguation();
 testIngestChunkOverlapWindows();
 testIngestChunkZeroOverlapConfig();
+testIngestChunkMaxWindowCap();
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) {
