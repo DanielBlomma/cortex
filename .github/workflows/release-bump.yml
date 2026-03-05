@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   bump:
@@ -75,3 +76,15 @@ jobs:
           git commit -m "release: v${RELEASE_VERSION}"
           git tag -a "v${RELEASE_VERSION}" -m "release: v${RELEASE_VERSION}"
           git push origin "HEAD:${GITHUB_REF_NAME}" --follow-tags
+
+      - name: Trigger release publish workflow
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          curl --fail-with-body -L \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/release-publish.yml/dispatches" \
+            -d "{\"ref\":\"v${RELEASE_VERSION}\"}"
