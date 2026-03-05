@@ -58,7 +58,9 @@ jobs:
 
       - name: Read release version
         id: version
-        run: echo "value=$(node -p \"JSON.parse(require('fs').readFileSync('package.json','utf8')).version\")" >> "$GITHUB_OUTPUT"
+        run: |
+          RELEASE_VERSION="$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version")"
+          echo "value=${RELEASE_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Commit and tag release
         env:
