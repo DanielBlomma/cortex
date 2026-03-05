@@ -189,6 +189,27 @@ cortex todo [text|list|done <id>|reopen <id>|remove <id>]
 cortex help
 ```
 
+## Automated Release
+
+This repository includes two GitHub Actions workflows:
+
+- `Release Bump` (`.github/workflows/release-bump.yml`)
+  - Manual `workflow_dispatch` from `main`
+  - Bumps semver (`patch`/`minor`/`major`)
+  - Syncs release metadata files (`package.json`, `server.json`, plugin manifests)
+  - Runs tests
+  - Commits and tags `vX.Y.Z`
+
+- `Release Publish` (`.github/workflows/release-publish.yml`)
+  - Triggers on tag push `v*.*.*`
+  - Verifies tag/version sync
+  - Runs root tests + MCP build/tests
+  - Publishes `@danielblomma/cortex-mcp` to npm
+
+Required GitHub secret:
+
+- `NPM_TOKEN` (npm automation token with publish rights for `@danielblomma/cortex-mcp`)
+
 ## Limitations
 
 - Requires repo initialization (`cortex init --bootstrap`).
