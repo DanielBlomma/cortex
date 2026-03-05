@@ -4,6 +4,7 @@ import ryugraph, { type Connection, type Database, type QueryResult } from "ryug
 import { DB_PATH, DEFAULT_RANKING, PATHS } from "./paths.js";
 import type {
   AdrRecord,
+  ChunkRecord,
   ContextData,
   DocumentRecord,
   JsonObject,
@@ -146,6 +147,33 @@ function parseAdrs(raw: JsonObject[]): AdrRecord[] {
       };
     })
     .filter((item): item is AdrRecord => item !== null);
+}
+
+function parseChunkEntities(raw: JsonObject[]): ChunkRecord[] {
+  return raw
+    .map((item) => {
+      const id = asString(item.id);
+      if (!id) {
+        return null;
+      }
+
+      return {
+        id,
+        file_id: asString(item.file_id),
+        name: asString(item.name),
+        kind: asString(item.kind, "chunk"),
+        signature: asString(item.signature),
+        body: asString(item.body),
+        start_line: asNumber(item.start_line),
+        end_line: asNumber(item.end_line),
+        language: asString(item.language),
+        updated_at: asString(item.updated_at),
+        source_of_truth: asBoolean(item.source_of_truth, false),
+        trust_level: asNumber(item.trust_level, 60),
+        status: asString(item.status, "active")
+      };
+    })
+    .filter((item): item is ChunkRecord => item !== null);
 }
 
 function parseRuleEntities(raw: JsonObject[]): RuleRecord[] {
@@ -483,6 +511,33 @@ function parseRyuGraphAdrs(rows: UnknownRow[]): AdrRecord[] {
     .filter((value): value is AdrRecord => value !== null);
 }
 
+function parseRyuGraphChunks(rows: UnknownRow[]): ChunkRecord[] {
+  return rows
+    .map((row) => {
+      const id = asStringUnknown(row.id);
+      if (!id) {
+        return null;
+      }
+
+      return {
+        id,
+        file_id: asStringUnknown(row.file_id),
+        name: asStringUnknown(row.name),
+        kind: asStringUnknown(row.kind, "chunk"),
+        signature: asStringUnknown(row.signature),
+        body: asStringUnknown(row.body),
+        start_line: asNumberUnknown(row.start_line),
+        end_line: asNumberUnknown(row.end_line),
+        language: asStringUnknown(row.language),
+        updated_at: asStringUnknown(row.updated_at),
+        source_of_truth: asBooleanUnknown(row.source_of_truth, false),
+        trust_level: asNumberUnknown(row.trust_level, 60),
+        status: asStringUnknown(row.status, "active")
+      };
+    })
+    .filter((value): value is ChunkRecord => value !== null);
+}
+
 function parseRyuGraphRelations(
   rows: UnknownRow[],
   relation: RelationRecord["relation"],
@@ -509,6 +564,7 @@ export async function loadContextData(): Promise<ContextData> {
   const ranking = parseRankingFromConfig(readFileIfExists(PATHS.config));
   const cachedDocuments = parseDocuments(readJsonl(PATHS.documents));
   const cachedAdrs = parseAdrs(readJsonl(PATHS.adrEntities));
+  const cachedChunks = parseChunkEntities(readJsonl(PATHS.chunkEntities));
   const cachedRelations = [
     ...parseRelations(readJsonl(PATHS.constrainsRelations), "CONSTRAINS"),
     ...parseRelations(readJsonl(PATHS.implementsRelations), "IMPLEMENTS"),
@@ -525,6 +581,7 @@ export async function loadContextData(): Promise<ContextData> {
       documents: cachedDocuments,
       adrs: cachedAdrs,
       rules: cachedRules,
+      chunks: cachedChunks,
       relations: cachedRelations,
       ranking,
       source: "cache",
@@ -533,7 +590,7 @@ export async function loadContextData(): Promise<ContextData> {
   }
 
   try {
-    const [fileRows, ruleRows, adrRows, constrainsRows, implementsRows, supersedesRows] =
+    const [fileRows, ruleRows, adrRows, chunkRows, constrainsRows, implementsRows, supersedesRows] =
       await Promise.all([
         queryRows(
           connection,
@@ -585,6 +642,26 @@ export async function loadContextData(): Promise<ContextData> {
         queryRows(
           connection,
           `
+          MATCH (c:Chunk)
+          RETURN
+            c.id AS id,
+            c.file_id AS file_id,
+            c.name AS name,
+            c.kind AS kind,
+            c.signature AS signature,
+            c.body AS body,
+            c.start_line AS start_line,
+            c.end_line AS end_line,
+            c.language AS language,
+            c.updated_at AS updated_at,
+            c.source_of_truth AS source_of_truth,
+            c.trust_level AS trust_level,
+            c.status AS status;
+        `
+        ),
+        queryRows(
+          connection,
+          `
           MATCH (r:Rule)-[c:CONSTRAINS]->(f:File)
           RETURN r.id AS from, f.id AS to, c.note AS note;
         `
@@ -610,6 +687,7 @@ export async function loadContextData(): Promise<ContextData> {
     const ryuDocuments = parseRyuGraphDocuments(fileRows, contentById);
     const ryuRules = parseRyuGraphRules(ruleRows);
     const ryuAdrs = parseRyuGraphAdrs(adrRows);
+    const ryuChunks = parseRyuGraphChunks(chunkRows);
     const ryuRelations = [
       ...parseRyuGraphRelations(constrainsRows, "CONSTRAINS", "note"),
       ...parseRyuGraphRelations(implementsRows, "IMPLEMENTS", "note"),
@@ -620,6 +698,7 @@ export async function loadContextData(): Promise<ContextData> {
       documents: ryuDocuments.length > 0 ? ryuDocuments : cachedDocuments,
       adrs: ryuAdrs.length > 0 ? ryuAdrs : cachedAdrs,
       rules: ryuRules.length > 0 ? ryuRules : cachedRules,
+      chunks: ryuChunks.length > 0 ? ryuChunks : cachedChunks,
       relations: ryuRelations.length > 0 ? ryuRelations : cachedRelations,
       ranking,
       source: "ryu"
@@ -634,6 +713,7 @@ export async function loadContextData(): Promise<ContextData> {
       documents: cachedDocuments,
       adrs: cachedAdrs,
       rules: cachedRules,
+      chunks: cachedChunks,
       relations: cachedRelations,
       ranking,
       source: "cache",

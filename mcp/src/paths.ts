@@ -5,7 +5,10 @@ import type { RankingWeights } from "./types.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export const REPO_ROOT = path.resolve(__dirname, "../..");
+const PROJECT_ROOT_OVERRIDE = process.env.CORTEX_PROJECT_ROOT?.trim();
+export const REPO_ROOT = PROJECT_ROOT_OVERRIDE
+  ? path.resolve(PROJECT_ROOT_OVERRIDE)
+  : path.resolve(__dirname, "../..");
 export const CONTEXT_DIR = path.join(REPO_ROOT, ".context");
 export const CACHE_DIR = path.join(CONTEXT_DIR, "cache");
 export const DB_PATH = path.join(CONTEXT_DIR, "db", "graph.ryu");
@@ -20,6 +23,7 @@ export const PATHS = {
   documents: path.join(CACHE_DIR, "documents.jsonl"),
   adrEntities: path.join(CACHE_DIR, "entities.adr.jsonl"),
   ruleEntities: path.join(CACHE_DIR, "entities.rule.jsonl"),
+  chunkEntities: path.join(CACHE_DIR, "entities.chunk.jsonl"),
   constrainsRelations: path.join(CACHE_DIR, "relations.constrains.jsonl"),
   implementsRelations: path.join(CACHE_DIR, "relations.implements.jsonl"),
   supersedesRelations: path.join(CACHE_DIR, "relations.supersedes.jsonl")

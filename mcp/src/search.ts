@@ -136,7 +136,7 @@ function groupRuleLinks(relations: RelationRecord[]): Map<string, string[]> {
 
 function buildSearchEntities(data: ContextData, includeContent: boolean): SearchEntity[] {
   const entities: SearchEntity[] = [];
-  const ruleLinks = groupRuleLinks(data.relations);
+  const fileRuleLinks = groupRuleLinks(data.relations);
   const adrPathSet = new Set(
     data.adrs
       .map((adr) => adr.path.trim().toLowerCase())
@@ -162,7 +162,7 @@ function buildSearchEntities(data: ContextData, includeContent: boolean): Search
       trust_level: document.trust_level,
       updated_at: document.updated_at,
       snippet: document.excerpt,
-      matched_rules: ruleLinks.get(document.id) ?? [],
+      matched_rules: fileRuleLinks.get(document.id) ?? [],
       content: includeContent ? document.content : undefined
     });
   }
@@ -203,6 +203,31 @@ function buildSearchEntities(data: ContextData, includeContent: boolean): Search
     });
   }
 
+  const filePathById = new Map(
+    data.documents
+      .filter((document) => document.kind === "CODE")
+      .map((document) => [document.id, document.path])
+  );
+
+  for (const chunk of data.chunks) {
+    const filePath = filePathById.get(chunk.file_id) ?? "";
+    entities.push({
+      id: chunk.id,
+      entity_type: "Chunk",
+      kind: chunk.kind || "chunk",
+      label: chunk.name || chunk.id,
+      path: filePath,
+      text: `${filePath}\n${chunk.name}\n${chunk.signature}\n${chunk.body}`,
+      status: chunk.status,
+      source_of_truth: chunk.source_of_truth,
+      trust_level: chunk.trust_level,
+      updated_at: chunk.updated_at,
+      snippet: chunk.body.slice(0, 500),
+      matched_rules: fileRuleLinks.get(chunk.file_id) ?? [],
+      content: includeContent ? chunk.body : undefined
+    });
+  }
+
   return entities;
 }
 
@@ -217,8 +242,26 @@ function relationDegree(relations: RelationRecord[]): Map<string, number> {
   return degrees;
 }
 
+function buildChunkPartOfRelations(data: ContextData): RelationRecord[] {
+  const relations: RelationRecord[] = [];
+  for (const chunk of data.chunks) {
+    if (!chunk.file_id) {
+      continue;
+    }
+
+    relations.push({
+      from: chunk.id,
+      to: chunk.file_id,
+      relation: "PART_OF",
+      note: "Chunk belongs to file"
+    });
+  }
+  return relations;
+}
+
 function entityCatalog(data: ContextData): Map<string, JsonObject> {
   const catalog = new Map<string, JsonObject>();
+  const fileById = new Map(data.documents.map((document) => [document.id, document]));
 
   for (const file of data.documents) {
     catalog.set(file.id, {
@@ -248,6 +291,21 @@ function entityCatalog(data: ContextData): Map<string, JsonObject> {
       status: adr.status,
       source_of_truth: adr.source_of_truth
     });
+  }
+
+  for (const chunk of data.chunks) {
+    const filePath = fileById.get(chunk.file_id)?.path ?? "";
+    const chunkEntity: JsonObject = {
+      id: chunk.id,
+      type: "Chunk",
+      label: chunk.name || chunk.id,
+      status: chunk.status,
+      source_of_truth: chunk.source_of_truth
+    };
+    if (filePath) {
+      chunkEntity.path = filePath;
+    }
+    catalog.set(chunk.id, chunkEntity);
   }
 
   return catalog;
@@ -337,6 +395,7 @@ export async function runContextSearch(parsed: SearchParams): Promise<ToolPayloa
 export async function runContextRelated(parsed: RelatedParams): Promise<ToolPayload> {
   const data = await loadContextData();
   const catalog = entityCatalog(data);
+  const relations = [...data.relations, ...buildChunkPartOfRelations(data)];
 
   if (!catalog.has(parsed.entity_id)) {
     return {
@@ -352,7 +411,7 @@ export async function runContextRelated(parsed: RelatedParams): Promise<ToolPayl
   const outgoing = new Map<string, RelationRecord[]>();
   const incoming = new Map<string, RelationRecord[]>();
 
-  for (const relation of data.relations) {
+  for (const relation of relations) {
     const outList = outgoing.get(relation.from) ?? [];
     outList.push(relation);
     outgoing.set(relation.from, outList);
