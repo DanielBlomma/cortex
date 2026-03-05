@@ -30,6 +30,29 @@ Cortex can extract function-level chunks and build call graphs in experimental b
 
 These APIs are experimental and may not be exposed in every installation.
 
+## Chunking Strategy (Code)
+
+When semantic chunking is enabled, large function/method chunks are split into overlap windows during ingest.
+
+Defaults:
+
+- `CORTEX_CHUNK_WINDOW_LINES=80`
+- `CORTEX_CHUNK_OVERLAP_LINES=16`
+- `CORTEX_CHUNK_SPLIT_MIN_LINES=120`
+- `CORTEX_CHUNK_MAX_WINDOWS=8`
+
+Behavior:
+
+- Chunks are split only when the chunk body exceeds the split threshold.
+- Windows slide forward using configured overlap (`next_start = previous_end - overlap`).
+- The last allowed window always stretches to the end of the chunk body.
+- Window chunks inherit metadata (`status`, `source_of_truth`) from their parent chunk.
+- Window chunks inherit parent graph edges for `CALLS` and `IMPORTS` to keep traversal/ranking consistent.
+
+Verification:
+
+- Overlap and windowing regressions are covered in `tests/context-regressions.test.mjs`.
+
 ## Requirements
 
 - Node.js 18+
