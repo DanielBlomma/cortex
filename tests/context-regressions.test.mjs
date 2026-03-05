@@ -8,6 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(__dirname, "..");
 const WATCH_PATH = path.join(REPO_ROOT, "scripts", "watch.sh");
 const INGEST_PATH = path.join(REPO_ROOT, "scripts", "ingest.mjs");
+const STATUS_PATH = path.join(REPO_ROOT, "scripts", "status.sh");
 
 let passed = 0;
 let failed = 0;
@@ -821,6 +822,72 @@ ranking:
   }
 }
 
+function testStatusReportsSemanticSearchReadiness() {
+  console.log("\n8. status reports semantic search readiness");
+  const fixtureRoot = makeTempDir("cortex-status-semantic-");
+  try {
+    fs.mkdirSync(path.join(fixtureRoot, "scripts"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, ".context", "cache"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, ".context", "embeddings"), { recursive: true });
+
+    const statusSource = fs.readFileSync(STATUS_PATH, "utf8");
+    const fixtureStatusPath = path.join(fixtureRoot, "scripts", "status.sh");
+    fs.writeFileSync(fixtureStatusPath, statusSource, "utf8");
+    fs.chmodSync(fixtureStatusPath, 0o755);
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "cache", "manifest.json"),
+      JSON.stringify(
+        {
+          generated_at: new Date().toISOString(),
+          mode: "full",
+          source_paths: ["src"],
+          counts: { files: 1, adrs: 0, rules: 1, relations_constrains: 0, relations_implements: 0, relations_supersedes: 0 },
+          skipped: { unsupported: 0, too_large: 0, binary: 0 }
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const missingEmbeddingsOutput = run("bash", ["scripts/status.sh"], { cwd: fixtureRoot });
+    assert(
+      "status reports lexical-only when embedding manifest is missing",
+      missingEmbeddingsOutput.includes("[status] semantic_search=lexical-only (embeddings manifest missing)")
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "embeddings", "manifest.json"),
+      JSON.stringify(
+        {
+          generated_at: new Date().toISOString(),
+          model: "Xenova/all-MiniLM-L6-v2",
+          dimensions: 384,
+          counts: {
+            entities: 2,
+            output: 2,
+            embedded: 2,
+            reused: 0,
+            failed: 0
+          }
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const readyEmbeddingsOutput = run("bash", ["scripts/status.sh"], { cwd: fixtureRoot });
+    assert(
+      "status reports embedding+lexical when embeddings are ready",
+      readyEmbeddingsOutput.includes("[status] semantic_search=embedding+lexical (ready)")
+    );
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+}
+
 console.log("context regression tests\n");
 testWatchDigestIncludesHead();
 testIngestChunkIdDisambiguation();
@@ -829,6 +896,7 @@ testIngestChunkZeroOverlapConfig();
 testIngestChunkMaxWindowCap();
 testIngestChunkMetadataInheritanceInIncrementalMode();
 testIngestWindowChunksInheritCallAndImportRelations();
+testStatusReportsSemanticSearchReadiness();
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) {

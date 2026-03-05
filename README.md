@@ -86,6 +86,14 @@ Disable watcher setup:
 cortex init --bootstrap --no-watch
 ```
 
+Check semantic search readiness:
+
+```bash
+cortex status
+```
+
+Look for `semantic_search=embedding+lexical (ready)` to confirm full semantic mode.
+
 ## Verify MCP Connection
 
 Claude:
