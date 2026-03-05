@@ -49,6 +49,19 @@ test("context.search returns unified entity types", async () => {
   });
 });
 
+test("context.search filters out zero-relevance noise", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "context.search",
+      arguments: { query: "zzzxxyyqqqnonexistingterm", top_k: 10 }
+    });
+    assert.notEqual(result.isError, true);
+    assert.ok(result.structuredContent);
+    assert.ok(Array.isArray(result.structuredContent.results));
+    assert.equal(result.structuredContent.results.length, 0);
+  });
+});
+
 test("context.reload returns reload metadata", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({ name: "context.reload" });

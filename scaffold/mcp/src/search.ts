@@ -11,12 +11,43 @@ import type {
   ToolPayload
 } from "./types.js";
 
+const MIN_LEXICAL_RELEVANCE = 0.05;
+const MIN_VECTOR_RELEVANCE = 0.2;
+
+const QUERY_TOKEN_EXPANSIONS: Record<string, string[]> = {
+  semantisk: ["semantic"],
+  sökning: ["search"],
+  sokning: ["search"],
+  regel: ["rule"],
+  regler: ["rules"],
+  relaterad: ["related"],
+  meddelande: ["message"],
+  avvikelse: ["deviation"]
+};
+
+function normalizeText(value: string): string {
+  return value.normalize("NFKC").toLowerCase();
+}
+
 function tokenize(value: string): string[] {
-  return value
-    .toLowerCase()
-    .split(/[^a-z0-9]+/g)
+  return normalizeText(value)
+    .split(/[^\p{L}\p{N}]+/gu)
     .map((part) => part.trim())
     .filter((part) => part.length >= 2);
+}
+
+function expandQueryTokens(tokens: string[]): string[] {
+  const expanded = new Set<string>(tokens);
+  for (const token of tokens) {
+    const aliases = QUERY_TOKEN_EXPANSIONS[token];
+    if (!aliases) {
+      continue;
+    }
+    for (const alias of aliases) {
+      expanded.add(alias);
+    }
+  }
+  return Array.from(expanded);
 }
 
 function daysSince(isoDate: string): number {
@@ -34,22 +65,30 @@ function recencyScore(isoDate: string): number {
   return 1 / (1 + days / 30);
 }
 
-function semanticScore(query: string, text: string): number {
-  const queryTokens = tokenize(query);
+function semanticScore(queryTokens: string[], queryPhrase: string, text: string): number {
   if (queryTokens.length === 0) {
     return 0;
   }
 
-  const haystack = text.toLowerCase();
+  const textTokenSet = new Set(tokenize(text));
+  if (textTokenSet.size === 0) {
+    return 0;
+  }
+
   let matched = 0;
   for (const token of queryTokens) {
-    if (haystack.includes(token)) {
+    if (textTokenSet.has(token)) {
       matched += 1;
     }
   }
 
   const overlap = matched / queryTokens.length;
-  const phraseBonus = haystack.includes(query.toLowerCase()) ? 0.25 : 0;
+  if (overlap <= 0) {
+    return 0;
+  }
+
+  const normalizedText = normalizeText(text);
+  const phraseBonus = queryPhrase && normalizedText.includes(queryPhrase) ? 0.15 : 0;
   return Math.min(1, overlap * 0.85 + phraseBonus);
 }
 
@@ -217,6 +256,8 @@ function entityCatalog(data: ContextData): Map<string, JsonObject> {
 export async function runContextSearch(parsed: SearchParams): Promise<ToolPayload> {
   const data = await loadContextData();
   const degreeByEntity = relationDegree(data.relations);
+  const queryTokens = expandQueryTokens(Array.from(new Set(tokenize(parsed.query))));
+  const queryPhrase = normalizeText(parsed.query).trim();
   const candidates = buildSearchEntities(data, parsed.include_content).filter(
     (entity) => parsed.include_deprecated || entity.status.toLowerCase() !== "deprecated"
   );
@@ -228,12 +269,17 @@ export async function runContextSearch(parsed: SearchParams): Promise<ToolPayloa
 
   const results = candidates
     .map((entity) => {
-      const lexicalSemantic = semanticScore(parsed.query, entity.text);
+      const lexicalSemantic = semanticScore(queryTokens, queryPhrase, entity.text);
       const entityVector = embeddings.vectors.get(entity.id);
       const vectorSemantic =
         queryVector && entityVector
-          ? Math.max(0, Math.min(1, (cosineSimilarity(queryVector, entityVector) + 1) / 2))
+          ? Math.max(0, Math.min(1, cosineSimilarity(queryVector, entityVector)))
           : 0;
+      const hasRelevanceSignal =
+        lexicalSemantic >= MIN_LEXICAL_RELEVANCE || vectorSemantic >= MIN_VECTOR_RELEVANCE;
+      if (!hasRelevanceSignal) {
+        return null;
+      }
       const semantic =
         vectorSemantic > 0 ? vectorSemantic * 0.75 + lexicalSemantic * 0.25 : lexicalSemantic;
       const graphScore = Math.min(1, (degreeByEntity.get(entity.id) ?? 0) / 4);
@@ -247,7 +293,7 @@ export async function runContextSearch(parsed: SearchParams): Promise<ToolPayloa
       score += data.ranking.recency * dateScore;
 
       if (entity.source_of_truth) {
-        score += 0.1;
+        score += 0.1 * semantic;
       }
 
       return {
@@ -269,7 +315,7 @@ export async function runContextSearch(parsed: SearchParams): Promise<ToolPayloa
         content: parsed.include_content ? entity.content : undefined
       };
     })
-    .filter((result) => result.score > 0)
+    .filter((result): result is NonNullable<typeof result> => result !== null)
     .sort((a, b) => b.score - a.score)
     .slice(0, parsed.top_k);
 
