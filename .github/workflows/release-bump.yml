@@ -73,5 +73,5 @@ jobs:
           fi
 
           git commit -m "release: v${RELEASE_VERSION}"
-          git tag "v${RELEASE_VERSION}"
+          git tag -a "v${RELEASE_VERSION}" -m "release: v${RELEASE_VERSION}"
           git push origin "HEAD:${GITHUB_REF_NAME}" --follow-tags
