@@ -241,9 +241,224 @@ export function useValue() {
   }
 }
 
+function testIngestChunkOverlapWindows() {
+  console.log("\n3. ingest creates overlap windows for large chunks");
+  const fixtureRoot = makeTempDir("cortex-ingest-overlap-");
+  try {
+    fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
+
+    const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
+      'import { parseCode } from "./parsers/javascript.mjs";',
+      'import { parseCode } from "./parsers/mock-parser.mjs";'
+    );
+    fs.writeFileSync(path.join(fixtureRoot, "scripts", "ingest.mjs"), ingestSource, "utf8");
+
+    const largeBody = Array.from(
+      { length: 320 },
+      (_, index) => `line-${String(index + 1).padStart(4, "0")}-${"x".repeat(32)}`
+    ).join("\n");
+    fs.writeFileSync(
+      path.join(fixtureRoot, "scripts", "parsers", "mock-parser.mjs"),
+      `export function parseCode() {
+  return {
+    errors: [],
+    chunks: [
+      {
+        name: "LargeChunk",
+        kind: "function",
+        signature: "LargeChunk()",
+        body: ${JSON.stringify(largeBody)},
+        startLine: 10,
+        endLine: 329,
+        calls: [],
+        imports: [],
+        language: "typescript"
+      }
+    ]
+  };
+}
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "config.yaml"),
+      `repo_id: fixture
+source_paths:
+  - src
+truth_order:
+  - ADR
+  - RULE
+  - CODE
+  - WIKI
+ranking:
+  semantic: 0.40
+  graph: 0.25
+  trust: 0.20
+  recency: 0.15
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "rules.yaml"),
+      `rules:
+  - id: rule.test
+    description: "fixture rule"
+    priority: 1
+    enforce: true
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(path.join(fixtureRoot, "src", "sample.ts"), "export const x = 1;\n", "utf8");
+
+    run("node", ["scripts/ingest.mjs"], {
+      cwd: fixtureRoot,
+      env: {
+        ...process.env,
+        CORTEX_CHUNK_WINDOW_LINES: "4",
+        CORTEX_CHUNK_OVERLAP_LINES: "1",
+        CORTEX_CHUNK_SPLIT_MIN_LINES: "5"
+      }
+    });
+
+    const chunks = parseJsonl(path.join(fixtureRoot, ".context", "cache", "entities.chunk.jsonl"));
+    const baseChunk = chunks.find((chunk) => chunk.name === "LargeChunk");
+    const windowChunks = chunks
+      .filter((chunk) => String(chunk.id).includes(":window:"))
+      .sort((a, b) => Number(a.start_line) - Number(b.start_line));
+
+    assert("base chunk exists", Boolean(baseChunk));
+    assert("window chunks created", windowChunks.length >= 3);
+    assert(
+      "window chunks cover the full declaration range",
+      Number(windowChunks.at(-1)?.end_line) === 329
+    );
+    assert(
+      "window chunks include lines from the tail of large chunk bodies",
+      windowChunks.some((chunk) => String(chunk.body).includes("line-0320-"))
+    );
+    assert(
+      "window chunks preserve 1-line overlap",
+      windowChunks.every((chunk, index) => {
+        if (index === 0) return true;
+        const previous = windowChunks[index - 1];
+        return Number(chunk.start_line) === Number(previous.end_line);
+      })
+    );
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+}
+
+function testIngestChunkZeroOverlapConfig() {
+  console.log("\n4. ingest honors zero overlap configuration");
+  const fixtureRoot = makeTempDir("cortex-ingest-overlap-zero-");
+  try {
+    fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
+
+    const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
+      'import { parseCode } from "./parsers/javascript.mjs";',
+      'import { parseCode } from "./parsers/mock-parser.mjs";'
+    );
+    fs.writeFileSync(path.join(fixtureRoot, "scripts", "ingest.mjs"), ingestSource, "utf8");
+
+    const body = Array.from({ length: 10 }, (_, index) => `line-${index + 1}`).join("\n");
+    fs.writeFileSync(
+      path.join(fixtureRoot, "scripts", "parsers", "mock-parser.mjs"),
+      `export function parseCode() {
+  return {
+    errors: [],
+    chunks: [
+      {
+        name: "ZeroOverlapChunk",
+        kind: "function",
+        signature: "ZeroOverlapChunk()",
+        body: ${JSON.stringify(body)},
+        startLine: 50,
+        endLine: 59,
+        calls: [],
+        imports: [],
+        language: "typescript"
+      }
+    ]
+  };
+}
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "config.yaml"),
+      `repo_id: fixture
+source_paths:
+  - src
+truth_order:
+  - ADR
+  - RULE
+  - CODE
+  - WIKI
+ranking:
+  semantic: 0.40
+  graph: 0.25
+  trust: 0.20
+  recency: 0.15
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "rules.yaml"),
+      `rules:
+  - id: rule.test
+    description: "fixture rule"
+    priority: 1
+    enforce: true
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(path.join(fixtureRoot, "src", "sample.ts"), "export const x = 1;\n", "utf8");
+
+    run("node", ["scripts/ingest.mjs"], {
+      cwd: fixtureRoot,
+      env: {
+        ...process.env,
+        CORTEX_CHUNK_WINDOW_LINES: "4",
+        CORTEX_CHUNK_OVERLAP_LINES: "0",
+        CORTEX_CHUNK_SPLIT_MIN_LINES: "5"
+      }
+    });
+
+    const chunks = parseJsonl(path.join(fixtureRoot, ".context", "cache", "entities.chunk.jsonl"));
+    const windowChunks = chunks
+      .filter((chunk) => String(chunk.id).includes(":window:"))
+      .sort((a, b) => Number(a.start_line) - Number(b.start_line));
+
+    assert("window chunks created with overlap=0", windowChunks.length >= 3);
+    assert(
+      "window chunks have no overlap when overlap is set to 0",
+      windowChunks.every((chunk, index) => {
+        if (index === 0) return true;
+        const previous = windowChunks[index - 1];
+        return Number(chunk.start_line) === Number(previous.end_line) + 1;
+      })
+    );
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+}
+
 console.log("context regression tests\n");
 testWatchDigestIncludesHead();
 testIngestChunkIdDisambiguation();
+testIngestChunkOverlapWindows();
+testIngestChunkZeroOverlapConfig();
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) {

@@ -69,6 +69,9 @@ const MAX_FILE_BYTES = 1024 * 1024;
 const MAX_CONTENT_CHARS = 60000;
 const MAX_BODY_CHARS = 12000;
 const RULE_KEYWORD_LIMIT = 20;
+const DEFAULT_CHUNK_WINDOW_LINES = 80;
+const DEFAULT_CHUNK_OVERLAP_LINES = 16;
+const DEFAULT_CHUNK_SPLIT_MIN_LINES = 120;
 
 const STOP_WORDS = new Set([
   "the",
@@ -181,6 +184,30 @@ function tokenizeKeywords(value) {
 
 function uniqueSorted(values) {
   return [...new Set(values)].sort();
+}
+
+function parsePositiveIntegerEnv(name, fallback) {
+  const rawValue = process.env[name];
+  if (!rawValue) {
+    return fallback;
+  }
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return fallback;
+  }
+  return Math.floor(parsed);
+}
+
+function parseNonNegativeIntegerEnv(name, fallback) {
+  const rawValue = process.env[name];
+  if (!rawValue) {
+    return fallback;
+  }
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback;
+  }
+  return Math.floor(parsed);
 }
 
 function parseSourcePaths(configText) {
@@ -559,6 +586,53 @@ function chunkIdFor(filePath, chunk) {
   return `chunk:${filePath}:${chunk.name}:${startLine}-${endLine}`;
 }
 
+function splitChunkIntoWindows(chunkRecord, options) {
+  const { windowLines, overlapLines, splitMinLines, chunkBody } = options;
+  const sourceBody = typeof chunkBody === "string" ? chunkBody : chunkRecord.body;
+  const lines = sourceBody.split(/\r?\n/);
+  const totalLines = lines.length;
+  if (totalLines < splitMinLines || totalLines <= windowLines) {
+    return [];
+  }
+
+  const windows = [];
+  const safeOverlap = Math.max(0, Math.min(overlapLines, windowLines - 1));
+  let start = 0;
+  let windowIndex = 1;
+
+  while (start < totalLines) {
+    const end = Math.min(totalLines, start + windowLines);
+    const windowStartLine = chunkRecord.start_line + start;
+    const windowEndLine = chunkRecord.start_line + Math.max(0, end - 1);
+    const windowBody = lines.slice(start, end).join("\n");
+    windows.push({
+      id: `${chunkRecord.id}:window:${windowIndex}:${windowStartLine}-${windowEndLine}`,
+      file_id: chunkRecord.file_id,
+      name: `${chunkRecord.name}#window${windowIndex}`,
+      kind: chunkRecord.kind,
+      signature: `${chunkRecord.signature} [window ${windowIndex}]`,
+      body: windowBody.slice(0, MAX_BODY_CHARS),
+      start_line: windowStartLine,
+      end_line: windowEndLine,
+      language: chunkRecord.language,
+      checksum: checksum(Buffer.from(windowBody)),
+      updated_at: chunkRecord.updated_at,
+      trust_level: chunkRecord.trust_level,
+      status: "active",
+      source_of_truth: false
+    });
+
+    if (end >= totalLines) {
+      break;
+    }
+
+    start = end - safeOverlap;
+    windowIndex += 1;
+  }
+
+  return windows;
+}
+
 function main() {
   const { mode, verbose } = parseArgs(process.argv);
   const configPath = path.join(CONTEXT_DIR, "config.yaml");
@@ -582,6 +656,21 @@ function main() {
 
   const rules = parseRules(fs.readFileSync(rulesPath, "utf8"));
   const { candidates, incrementalMode, deletedRelPaths } = collectCandidateFiles(sourcePaths, mode);
+  const chunkWindowLines = parsePositiveIntegerEnv(
+    "CORTEX_CHUNK_WINDOW_LINES",
+    DEFAULT_CHUNK_WINDOW_LINES
+  );
+  const chunkOverlapLines = Math.max(
+    0,
+    Math.min(
+      chunkWindowLines - 1,
+      parseNonNegativeIntegerEnv("CORTEX_CHUNK_OVERLAP_LINES", DEFAULT_CHUNK_OVERLAP_LINES)
+    )
+  );
+  const chunkSplitMinLines = Math.max(
+    chunkWindowLines + 1,
+    parsePositiveIntegerEnv("CORTEX_CHUNK_SPLIT_MIN_LINES", DEFAULT_CHUNK_SPLIT_MIN_LINES)
+  );
 
   const fileRecordMap = new Map();
   const adrRecordMap = new Map();
@@ -721,6 +810,7 @@ function main() {
   const definesRelations = [];
   const callsRelations = [];
   const importsRelations = [];
+  let windowedChunkCount = 0;
 
   for (const fileRecord of fileRecords) {
     if (fileRecord.kind !== "CODE") continue;
@@ -754,13 +844,15 @@ function main() {
           name: chunk.name,
           kind: chunk.kind,
           signature: chunk.signature,
-          body: chunk.body.slice(0, 12000), // Limit chunk body size
+          body: chunk.body.slice(0, MAX_BODY_CHARS), // Limit chunk body size
           start_line: chunk.startLine,
           end_line: chunk.endLine,
           language: chunk.language,
           checksum: checksum(Buffer.from(chunk.body)),
           updated_at: fileRecord.updated_at,
-          trust_level: fileRecord.trust_level
+          trust_level: fileRecord.trust_level,
+          status: "active",
+          source_of_truth: false
         };
         chunkRecords.push(chunkRecord);
 
@@ -769,6 +861,23 @@ function main() {
           from: fileRecord.id,
           to: chunkId
         });
+
+        const windows = splitChunkIntoWindows(chunkRecord, {
+          windowLines: chunkWindowLines,
+          overlapLines: chunkOverlapLines,
+          splitMinLines: chunkSplitMinLines,
+          chunkBody: chunk.body
+        });
+        if (windows.length > 0) {
+          windowedChunkCount += windows.length;
+          for (const windowChunk of windows) {
+            chunkRecords.push(windowChunk);
+            definesRelations.push({
+              from: fileRecord.id,
+              to: windowChunk.id
+            });
+          }
+        }
 
         // IMPORTS relations: Chunk -> File
         for (const importPath of chunk.imports || []) {
@@ -818,6 +927,11 @@ function main() {
 
   if (verbose && chunkRecords.length > 0) {
     console.log(`[ingest] extracted ${chunkRecords.length} chunks from ${fileRecords.filter(f => f.kind === "CODE").length} code files`);
+    if (windowedChunkCount > 0) {
+      console.log(
+        `[ingest] overlap windows added=${windowedChunkCount} (window_lines=${chunkWindowLines}, overlap_lines=${chunkOverlapLines})`
+      );
+    }
     console.log(`[ingest] ${validCallsRelations.length} call relations (${callsRelations.length - validCallsRelations.length} filtered)`);
   }
 
