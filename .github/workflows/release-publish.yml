@@ -1,0 +1,60 @@
+name: Release Publish
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Verify tag and metadata versions
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          TAG_VERSION="${TAG_NAME#v}"
+          PACKAGE_VERSION="$(node -p 'JSON.parse(require("fs").readFileSync("package.json","utf8")).version')"
+
+          if [ "${TAG_VERSION}" != "${PACKAGE_VERSION}" ]; then
+            echo "Tag version (${TAG_VERSION}) does not match package.json (${PACKAGE_VERSION})"
+            exit 1
+          fi
+
+          node scripts/sync-release-version.mjs --check
+
+      - name: Run root tests
+        run: |
+          node tests/plan-state.test.mjs
+          node tests/context-regressions.test.mjs
+
+      - name: Run MCP build and tests
+        working-directory: mcp
+        run: |
+          npm ci
+          npm run build --silent
+          npm test
+
+      - name: Verify npm package contents
+        run: npm pack --dry-run
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --provenance

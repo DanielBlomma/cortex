@@ -35,6 +35,8 @@
   ],
   "scripts": {
     "test": "node tests/plan-state.test.mjs",
+    "release:sync-version": "node scripts/sync-release-version.mjs",
+    "release:check-version-sync": "node scripts/sync-release-version.mjs --check",
     "prepublishOnly": "echo 'Ready to publish to npm'"
   },
   "engines": {

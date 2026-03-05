@@ -1,0 +1,75 @@
+name: Release Bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: "Semver bump type"
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate branch
+        run: |
+          if [ "${GITHUB_REF_NAME}" != "main" ]; then
+            echo "Release bumps must run from main. Current branch: ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Configure git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump npm package version
+        run: npm version "${{ inputs.release_type }}" --no-git-tag-version
+
+      - name: Sync release metadata
+        run: |
+          node scripts/sync-release-version.mjs
+          node scripts/sync-release-version.mjs --check
+
+      - name: Validate tests
+        run: |
+          node tests/plan-state.test.mjs
+          node tests/context-regressions.test.mjs
+
+      - name: Read release version
+        id: version
+        run: echo "value=$(node -p \"JSON.parse(require('fs').readFileSync('package.json','utf8')).version\")" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and tag release
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          git add package.json server.json .claude-plugin/marketplace.json plugins/cortex/.claude-plugin/plugin.json
+          if git diff --cached --quiet; then
+            echo "No release metadata changes to commit."
+            exit 1
+          fi
+
+          git commit -m "release: v${RELEASE_VERSION}"
+          git tag "v${RELEASE_VERSION}"
+          git push origin "HEAD:${GITHUB_REF_NAME}" --follow-tags
