@@ -271,7 +271,11 @@ function parseRulesYaml(yamlText: string | null): RuleRecord[] {
   return rules;
 }
 
-function parseRelations(raw: JsonObject[], relation: RelationRecord["relation"]): RelationRecord[] {
+function parseRelations(
+  raw: JsonObject[],
+  relation: RelationRecord["relation"],
+  noteFields: string[] = ["note", "reason"]
+): RelationRecord[] {
   return raw
     .map((item) => {
       const from = asString(item.from);
@@ -280,11 +284,20 @@ function parseRelations(raw: JsonObject[], relation: RelationRecord["relation"])
         return null;
       }
 
+      let note = "";
+      for (const fieldName of noteFields) {
+        const candidate = asString(item[fieldName]);
+        if (candidate) {
+          note = candidate;
+          break;
+        }
+      }
+
       return {
         from,
         to,
         relation,
-        note: asString(item.note) || asString(item.reason)
+        note
       };
     })
     .filter((item): item is RelationRecord => item !== null);
@@ -565,10 +578,15 @@ export async function loadContextData(): Promise<ContextData> {
   const cachedDocuments = parseDocuments(readJsonl(PATHS.documents));
   const cachedAdrs = parseAdrs(readJsonl(PATHS.adrEntities));
   const cachedChunks = parseChunkEntities(readJsonl(PATHS.chunkEntities));
+  const cachedChunkRelations = [
+    ...parseRelations(readJsonl(PATHS.callsRelations), "CALLS", ["call_type"]),
+    ...parseRelations(readJsonl(PATHS.importsRelations), "IMPORTS", ["import_name"])
+  ];
   const cachedRelations = [
     ...parseRelations(readJsonl(PATHS.constrainsRelations), "CONSTRAINS"),
     ...parseRelations(readJsonl(PATHS.implementsRelations), "IMPLEMENTS"),
-    ...parseRelations(readJsonl(PATHS.supersedesRelations), "SUPERSEDES")
+    ...parseRelations(readJsonl(PATHS.supersedesRelations), "SUPERSEDES"),
+    ...cachedChunkRelations
   ];
 
   const yamlRules = parseRulesYaml(readFileIfExists(PATHS.rulesYaml));
@@ -699,7 +717,7 @@ export async function loadContextData(): Promise<ContextData> {
       adrs: ryuAdrs.length > 0 ? ryuAdrs : cachedAdrs,
       rules: ryuRules.length > 0 ? ryuRules : cachedRules,
       chunks: ryuChunks.length > 0 ? ryuChunks : cachedChunks,
-      relations: ryuRelations.length > 0 ? ryuRelations : cachedRelations,
+      relations: ryuRelations.length > 0 ? [...ryuRelations, ...cachedChunkRelations] : cachedRelations,
       ranking,
       source: "ryu"
     };

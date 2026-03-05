@@ -41,7 +41,7 @@ export type AdrRecord = {
 export type RelationRecord = {
   from: string;
   to: string;
-  relation: "CONSTRAINS" | "IMPLEMENTS" | "SUPERSEDES" | "PART_OF";
+  relation: "CONSTRAINS" | "IMPLEMENTS" | "SUPERSEDES" | "CALLS" | "IMPORTS" | "PART_OF";
   note: string;
 };
 

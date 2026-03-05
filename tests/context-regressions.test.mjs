@@ -694,6 +694,133 @@ ranking:
   }
 }
 
+function testIngestWindowChunksInheritCallAndImportRelations() {
+  console.log("\n7. ingest propagates call/import relations to overlap windows");
+  const fixtureRoot = makeTempDir("cortex-ingest-window-relations-");
+  try {
+    fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
+
+    const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
+      'import { parseCode } from "./parsers/javascript.mjs";',
+      'import { parseCode } from "./parsers/mock-parser.mjs";'
+    );
+    fs.writeFileSync(path.join(fixtureRoot, "scripts", "ingest.mjs"), ingestSource, "utf8");
+
+    const mainBody = Array.from({ length: 14 }, (_, index) => `main-line-${index + 1}`).join("\n");
+    fs.writeFileSync(
+      path.join(fixtureRoot, "scripts", "parsers", "mock-parser.mjs"),
+      `export function parseCode() {
+  return {
+    errors: [],
+    chunks: [
+      {
+        name: "MainChunk",
+        kind: "function",
+        signature: "MainChunk()",
+        body: ${JSON.stringify(mainBody)},
+        startLine: 10,
+        endLine: 23,
+        calls: ["HelperChunk"],
+        imports: ["./dep"],
+        language: "typescript"
+      },
+      {
+        name: "HelperChunk",
+        kind: "function",
+        signature: "HelperChunk()",
+        body: "function HelperChunk() { return 1; }",
+        startLine: 30,
+        endLine: 32,
+        calls: [],
+        imports: [],
+        language: "typescript"
+      }
+    ]
+  };
+}
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "config.yaml"),
+      `repo_id: fixture
+source_paths:
+  - src
+truth_order:
+  - ADR
+  - RULE
+  - CODE
+  - WIKI
+ranking:
+  semantic: 0.40
+  graph: 0.25
+  trust: 0.20
+  recency: 0.15
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "rules.yaml"),
+      `rules:
+  - id: rule.test
+    description: "fixture rule"
+    priority: 1
+    enforce: true
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(path.join(fixtureRoot, "src", "sample.ts"), "export const sample = 1;\n", "utf8");
+    fs.writeFileSync(path.join(fixtureRoot, "src", "dep.ts"), "export const dep = 1;\n", "utf8");
+
+    run("node", ["scripts/ingest.mjs"], {
+      cwd: fixtureRoot,
+      env: {
+        ...process.env,
+        CORTEX_CHUNK_WINDOW_LINES: "4",
+        CORTEX_CHUNK_OVERLAP_LINES: "1",
+        CORTEX_CHUNK_SPLIT_MIN_LINES: "5"
+      }
+    });
+
+    const chunks = parseJsonl(path.join(fixtureRoot, ".context", "cache", "entities.chunk.jsonl"));
+    const calls = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.calls.jsonl"));
+    const imports = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.imports.jsonl"));
+
+    const baseMainId = "chunk:src/sample.ts:MainChunk:10-23";
+    const helperId = "chunk:src/sample.ts:HelperChunk:30-32";
+    const mainWindowIds = chunks
+      .filter((chunk) => String(chunk.id).startsWith(`${baseMainId}:window:`))
+      .map((chunk) => String(chunk.id));
+
+    assert("main chunk was split into overlap windows", mainWindowIds.length > 0);
+    assert(
+      "base main chunk keeps call relation",
+      calls.some((edge) => edge.from === baseMainId && edge.to === helperId)
+    );
+    assert(
+      "all main windows inherit call relation",
+      mainWindowIds.every((windowId) => calls.some((edge) => edge.from === windowId && edge.to === helperId))
+    );
+    assert(
+      "base main chunk keeps import relation",
+      imports.some((edge) => edge.from === baseMainId && edge.to === "file:src/dep")
+    );
+    assert(
+      "all main windows inherit import relation",
+      mainWindowIds.every((windowId) =>
+        imports.some((edge) => edge.from === windowId && edge.to === "file:src/dep")
+      )
+    );
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+}
+
 console.log("context regression tests\n");
 testWatchDigestIncludesHead();
 testIngestChunkIdDisambiguation();
@@ -701,6 +828,7 @@ testIngestChunkOverlapWindows();
 testIngestChunkZeroOverlapConfig();
 testIngestChunkMaxWindowCap();
 testIngestChunkMetadataInheritanceInIncrementalMode();
+testIngestWindowChunksInheritCallAndImportRelations();
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) {

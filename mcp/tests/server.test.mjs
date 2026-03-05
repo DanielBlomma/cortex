@@ -26,6 +26,7 @@ function buildWindowChunkSearchFixture() {
   const fileId = "file:src/large.ts";
   const baseChunkId = "chunk:src/large.ts:LargeChunk:10-329";
   const windowChunkId = `${baseChunkId}:window:4:250-329`;
+  const helperChunkId = "chunk:src/large.ts:HelperChunk:400-410";
 
   fs.writeFileSync(
     path.join(contextDir, "config.yaml"),
@@ -92,14 +93,43 @@ ranking:
       source_of_truth: false,
       trust_level: 80,
       status: "active"
+    },
+    {
+      id: helperChunkId,
+      file_id: fileId,
+      name: "HelperChunk",
+      kind: "function",
+      signature: "HelperChunk()",
+      body: "function HelperChunk() { return 1; }",
+      start_line: 400,
+      end_line: 410,
+      language: "typescript",
+      updated_at: now,
+      source_of_truth: false,
+      trust_level: 80,
+      status: "active"
     }
   ]);
+  writeJsonl(path.join(cacheDir, "relations.calls.jsonl"), [
+    {
+      from: baseChunkId,
+      to: helperChunkId,
+      call_type: "direct"
+    },
+    {
+      from: windowChunkId,
+      to: helperChunkId,
+      call_type: "direct"
+    }
+  ]);
+  writeJsonl(path.join(cacheDir, "relations.imports.jsonl"), []);
 
   return {
     fixtureRoot,
     fileId,
     baseChunkId,
-    windowChunkId
+    windowChunkId,
+    helperChunkId
   };
 }
 
@@ -259,4 +289,37 @@ test("context.reload returns reload metadata", async () => {
     assert.equal(typeof result.structuredContent.reloaded, "boolean");
     assert.ok(["ryu", "cache"].includes(String(result.structuredContent.context_source)));
   });
+});
+
+test("context.get_related includes window chunk call edges", async () => {
+  const { fixtureRoot, windowChunkId, helperChunkId } = buildWindowChunkSearchFixture();
+  try {
+    await withClient(
+      async (client) => {
+        const result = await client.callTool({
+          name: "context.get_related",
+          arguments: { entity_id: windowChunkId, depth: 1, include_edges: true }
+        });
+        assert.notEqual(result.isError, true);
+        assert.ok(result.structuredContent);
+        assert.ok(Array.isArray(result.structuredContent.related));
+        assert.ok(Array.isArray(result.structuredContent.edges));
+
+        const relatedIds = result.structuredContent.related.map((item) => String(item.id));
+        assert.ok(relatedIds.includes(helperChunkId));
+
+        const callEdge = result.structuredContent.edges.find(
+          (edge) => edge.from === windowChunkId && edge.to === helperChunkId && edge.relation === "CALLS"
+        );
+        assert.ok(callEdge);
+      },
+      {
+        env: {
+          CORTEX_PROJECT_ROOT: fixtureRoot
+        }
+      }
+    );
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
 });

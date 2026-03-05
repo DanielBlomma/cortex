@@ -26,7 +26,9 @@ export const PATHS = {
   chunkEntities: path.join(CACHE_DIR, "entities.chunk.jsonl"),
   constrainsRelations: path.join(CACHE_DIR, "relations.constrains.jsonl"),
   implementsRelations: path.join(CACHE_DIR, "relations.implements.jsonl"),
-  supersedesRelations: path.join(CACHE_DIR, "relations.supersedes.jsonl")
+  supersedesRelations: path.join(CACHE_DIR, "relations.supersedes.jsonl"),
+  callsRelations: path.join(CACHE_DIR, "relations.calls.jsonl"),
+  importsRelations: path.join(CACHE_DIR, "relations.imports.jsonl")
 };
 
 export const DEFAULT_RANKING: RankingWeights = {
