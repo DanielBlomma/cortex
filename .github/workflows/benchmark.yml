@@ -1,0 +1,78 @@
+name: Benchmark
+
+on:
+  # Run before release
+  workflow_call:
+    inputs:
+      threshold:
+        description: 'Minimum score % to pass'
+        required: false
+        default: '70'
+        type: string
+  
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      threshold:
+        description: 'Minimum score % to pass'
+        required: false
+        default: '70'
+      tasks:
+        description: 'Comma-separated task IDs (empty = all)'
+        required: false
+        default: ''
+      runs:
+        description: 'Number of runs per task'
+        required: false
+        default: '1'
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: |
+          cd mcp && npm ci
+          npm i -g mcporter || true
+
+      - name: Build Cortex MCP
+        run: cd mcp && npm run build
+
+      - name: Ingest test codebase
+        run: |
+          # Use scaffold as test codebase if no real repo context exists
+          if [ ! -d ".context/db" ]; then
+            echo "No context DB found, running ingest on scaffold..."
+            node scripts/ingest.mjs --path scaffold/ || true
+          fi
+
+      - name: Run benchmark
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BENCH_MODEL: claude-sonnet-4-20250514
+          BENCH_JUDGE_MODEL: claude-sonnet-4-20250514
+        run: |
+          ARGS="--repo . --ci --threshold ${{ inputs.threshold || '70' }} --with-cortex-only"
+          if [ -n "${{ inputs.tasks }}" ]; then
+            ARGS="$ARGS --tasks ${{ inputs.tasks }}"
+          fi
+          if [ -n "${{ inputs.runs }}" ]; then
+            ARGS="$ARGS --runs ${{ inputs.runs || '1' }}"
+          fi
+          node benchmark/run.mjs $ARGS
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark/results/
+          retention-days: 30
