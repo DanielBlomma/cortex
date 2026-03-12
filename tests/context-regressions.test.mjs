@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseCode as parseJavascriptCode } from "../scripts/parsers/javascript.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(__dirname, "..");
@@ -809,12 +810,12 @@ ranking:
     );
     assert(
       "base main chunk keeps import relation",
-      imports.some((edge) => edge.from === baseMainId && edge.to === "file:src/dep")
+      imports.some((edge) => edge.from === baseMainId && edge.to === "file:src/dep.ts")
     );
     assert(
       "all main windows inherit import relation",
       mainWindowIds.every((windowId) =>
-        imports.some((edge) => edge.from === windowId && edge.to === "file:src/dep")
+        imports.some((edge) => edge.from === windowId && edge.to === "file:src/dep.ts")
       )
     );
   } finally {
@@ -822,8 +823,530 @@ ranking:
   }
 }
 
+function testIngestAssignsImportEdgesOnlyToChunksThatUseImports() {
+  console.log("\n8. parser assigns imports only to chunks that use imported bindings");
+  const source = `import { dep } from "./dep";
+
+export function usesDep() {
+  return dep();
+}
+
+export function localOnly() {
+  return 1;
+}
+`;
+
+  const result = parseJavascriptCode(source, "src/sample.ts", "typescript");
+  const usesDepChunk = result.chunks.find((chunk) => chunk.name === "usesDep");
+  const localOnlyChunk = result.chunks.find((chunk) => chunk.name === "localOnly");
+
+  assert("usesDep chunk exists", Boolean(usesDepChunk));
+  assert("localOnly chunk exists", Boolean(localOnlyChunk));
+  assert(
+    "usesDep keeps the static import",
+    Array.isArray(usesDepChunk?.imports) && usesDepChunk.imports.includes("./dep")
+  );
+  assert(
+    "localOnly does not inherit unrelated file imports",
+    Array.isArray(localOnlyChunk?.imports) && localOnlyChunk.imports.length === 0
+  );
+}
+
+function testParserPreservesSideEffectImportsForAllChunks() {
+  console.log("\n9. parser preserves side-effect imports for all chunks");
+  const source = `import "./setup";
+import { dep } from "./dep";
+
+export function usesDep() {
+  return dep();
+}
+
+export function initOnly() {
+  return 1;
+}
+`;
+
+  const result = parseJavascriptCode(source, "src/sample.ts", "typescript");
+  const usesDepChunk = result.chunks.find((chunk) => chunk.name === "usesDep");
+  const initOnlyChunk = result.chunks.find((chunk) => chunk.name === "initOnly");
+
+  assert("usesDep chunk exists", Boolean(usesDepChunk));
+  assert("initOnly chunk exists", Boolean(initOnlyChunk));
+  assert(
+    "usesDep keeps side-effect import",
+    Array.isArray(usesDepChunk?.imports) && usesDepChunk.imports.includes("./setup")
+  );
+  assert(
+    "usesDep keeps named import",
+    Array.isArray(usesDepChunk?.imports) && usesDepChunk.imports.includes("./dep")
+  );
+  assert(
+    "initOnly keeps side-effect import",
+    Array.isArray(initOnlyChunk?.imports) && initOnlyChunk.imports.includes("./setup")
+  );
+  assert(
+    "initOnly does not inherit unrelated named import",
+    Array.isArray(initOnlyChunk?.imports) && !initOnlyChunk.imports.includes("./dep")
+  );
+}
+
+function testParserIgnoresShadowedImportedBindings() {
+  console.log("\n10. parser ignores shadowed imported bindings");
+  const source = `import { dep } from "./dep";
+
+export function run(dep) {
+  return dep;
+}
+`;
+
+  const result = parseJavascriptCode(source, "src/sample.ts", "typescript");
+  const runChunk = result.chunks.find((chunk) => chunk.name === "run");
+
+  assert("run chunk exists", Boolean(runChunk));
+  assert(
+    "shadowed import is not attributed to chunk",
+    Array.isArray(runChunk?.imports) && runChunk.imports.length === 0
+  );
+}
+
+function testParserCapturesImportsReferencedInDeclarationHeaders() {
+  console.log("\n11. parser keeps imports referenced in declaration headers");
+  const source = `import { dep } from "./dep";
+import Base from "./Base";
+
+export function run(x = dep()) {
+  return x;
+}
+
+export class C extends Base {
+  method(value = dep()) {
+    return value;
+  }
+}
+`;
+
+  const result = parseJavascriptCode(source, "src/sample.ts", "typescript");
+  const runChunk = result.chunks.find((chunk) => chunk.name === "run");
+  const classChunk = result.chunks.find((chunk) => chunk.name === "C");
+  const methodChunk = result.chunks.find((chunk) => chunk.name === "C.method");
+
+  assert("run chunk exists", Boolean(runChunk));
+  assert("class chunk exists", Boolean(classChunk));
+  assert("method chunk exists", Boolean(methodChunk));
+  assert(
+    "function default parameter keeps import",
+    Array.isArray(runChunk?.imports) && runChunk.imports.includes("./dep")
+  );
+  assert(
+    "class extends keeps import",
+    Array.isArray(classChunk?.imports) && classChunk.imports.includes("./Base")
+  );
+  assert(
+    "method default parameter keeps import",
+    Array.isArray(methodChunk?.imports) && methodChunk.imports.includes("./dep")
+  );
+}
+
+function testParserCapturesModuleScopeRequireBindings() {
+  console.log("\n12. parser keeps module-scope require bindings");
+  const source = `const dep = require("./dep");
+
+export function run() {
+  return dep();
+}
+`;
+
+  const result = parseJavascriptCode(source, "src/sample.js", "javascript");
+  const runChunk = result.chunks.find((chunk) => chunk.name === "run");
+
+  assert("run chunk exists", Boolean(runChunk));
+  assert(
+    "module-scope require binding is attributed to chunk",
+    Array.isArray(runChunk?.imports) && runChunk.imports.includes("./dep")
+  );
+}
+
+function testIngestPersistsImportEdgesForDeclarationHeaders() {
+  console.log("\n13. ingest persists import edges referenced in declaration headers");
+  const fixtureRoot = makeTempDir("cortex-ingest-header-imports-");
+  try {
+    fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
+
+    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
+    fs.writeFileSync(
+      path.join(fixtureRoot, "scripts", "parsers", "javascript.mjs"),
+      `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scripts", "parsers", "javascript.mjs"))};\n`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "config.yaml"),
+      `repo_id: fixture
+source_paths:
+  - src
+truth_order:
+  - ADR
+  - RULE
+  - CODE
+  - WIKI
+ranking:
+  semantic: 0.40
+  graph: 0.25
+  trust: 0.20
+  recency: 0.15
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "rules.yaml"),
+      `rules:
+  - id: rule.test
+    description: "fixture rule"
+    priority: 1
+    enforce: true
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, "src", "sample.ts"),
+      `import { dep } from "./dep";
+import Base from "./Base";
+
+export function run(x = dep()) {
+  return x;
+}
+
+export class C extends Base {}
+`,
+      "utf8"
+    );
+    fs.writeFileSync(path.join(fixtureRoot, "src", "dep.ts"), "export const dep = 1;\n", "utf8");
+    fs.writeFileSync(path.join(fixtureRoot, "src", "Base.ts"), "export default class Base {}\n", "utf8");
+
+    run("node", ["scripts/ingest.mjs"], { cwd: fixtureRoot });
+
+    const imports = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.imports.jsonl"));
+
+    assert(
+      "function default parameter import edge is stored",
+      imports.some((edge) => edge.from === "chunk:src/sample.ts:run:4-6" && edge.to === "file:src/dep.ts")
+    );
+    assert(
+      "class extends import edge is stored",
+      imports.some((edge) => edge.from === "chunk:src/sample.ts:C:8-8" && edge.to === "file:src/Base.ts")
+    );
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+}
+
+function testIngestResolvesNodeNextJsSpecifiersToTypescriptSources() {
+  console.log("\n14. ingest resolves NodeNext .js specifiers to TypeScript sources");
+  const fixtureRoot = makeTempDir("cortex-ingest-nodenext-imports-");
+  try {
+    fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
+
+    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
+    fs.writeFileSync(
+      path.join(fixtureRoot, "scripts", "parsers", "javascript.mjs"),
+      `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scripts", "parsers", "javascript.mjs"))};\n`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "config.yaml"),
+      `repo_id: fixture
+source_paths:
+  - src
+truth_order:
+  - ADR
+  - RULE
+  - CODE
+  - WIKI
+ranking:
+  semantic: 0.40
+  graph: 0.25
+  trust: 0.20
+  recency: 0.15
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "rules.yaml"),
+      `rules:
+  - id: rule.test
+    description: "fixture rule"
+    priority: 1
+    enforce: true
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, "src", "server.ts"),
+      `import { graph } from "./graph.js";
+
+export function run() {
+  return graph();
+}
+`,
+      "utf8"
+    );
+    fs.writeFileSync(
+      path.join(fixtureRoot, "src", "graph.ts"),
+      `export function graph() {
+  return 1;
+}
+`,
+      "utf8"
+    );
+
+    run("node", ["scripts/ingest.mjs"], { cwd: fixtureRoot });
+
+    const imports = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.imports.jsonl"));
+
+    assert(
+      "NodeNext .js import resolves to graph.ts",
+      imports.some((edge) => edge.from === "chunk:src/server.ts:run:3-5" && edge.to === "file:src/graph.ts")
+    );
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+}
+
+function testIngestDoesNotResolveExplicitJsSpecifiersToJsonFiles() {
+  console.log("\n15. ingest does not resolve explicit .js specifiers to .json files");
+  const fixtureRoot = makeTempDir("cortex-ingest-js-to-json-");
+  try {
+    fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
+
+    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
+    fs.writeFileSync(
+      path.join(fixtureRoot, "scripts", "parsers", "javascript.mjs"),
+      `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scripts", "parsers", "javascript.mjs"))};\n`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "config.yaml"),
+      `repo_id: fixture
+source_paths:
+  - src
+truth_order:
+  - ADR
+  - RULE
+  - CODE
+  - WIKI
+ranking:
+  semantic: 0.40
+  graph: 0.25
+  trust: 0.20
+  recency: 0.15
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "rules.yaml"),
+      `rules:
+  - id: rule.test
+    description: "fixture rule"
+    priority: 1
+    enforce: true
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, "src", "server.ts"),
+      `import data from "./graph.js";
+
+export function run() {
+  return data;
+}
+`,
+      "utf8"
+    );
+    fs.writeFileSync(path.join(fixtureRoot, "src", "graph.json"), "{\"ok\":true}\n", "utf8");
+
+    run("node", ["scripts/ingest.mjs"], { cwd: fixtureRoot });
+
+    const imports = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.imports.jsonl"));
+
+    assert(
+      "explicit .js import does not resolve to graph.json",
+      !imports.some((edge) => edge.from.startsWith("chunk:src/server.ts:run:") && edge.to === "file:src/graph.json")
+    );
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+}
+
+function testIngestPersistsImportEdgesForModuleScopeRequireBindings() {
+  console.log("\n16. ingest persists import edges for module-scope require bindings");
+  const fixtureRoot = makeTempDir("cortex-ingest-require-bindings-");
+  try {
+    fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
+
+    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
+    fs.writeFileSync(
+      path.join(fixtureRoot, "scripts", "parsers", "javascript.mjs"),
+      `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scripts", "parsers", "javascript.mjs"))};\n`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "config.yaml"),
+      `repo_id: fixture
+source_paths:
+  - src
+truth_order:
+  - ADR
+  - RULE
+  - CODE
+  - WIKI
+ranking:
+  semantic: 0.40
+  graph: 0.25
+  trust: 0.20
+  recency: 0.15
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "rules.yaml"),
+      `rules:
+  - id: rule.test
+    description: "fixture rule"
+    priority: 1
+    enforce: true
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, "src", "sample.js"),
+      `const dep = require("./dep");
+
+export function run() {
+  return dep();
+}
+`,
+      "utf8"
+    );
+    fs.writeFileSync(path.join(fixtureRoot, "src", "dep.js"), "module.exports = () => 1;\n", "utf8");
+
+    run("node", ["scripts/ingest.mjs"], { cwd: fixtureRoot });
+
+    const imports = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.imports.jsonl"));
+
+    assert(
+      "module-scope require binding import edge is stored",
+      imports.some((edge) => edge.from.startsWith("chunk:src/sample.js:run:") && edge.to === "file:src/dep.js")
+    );
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+}
+
+function testIngestResolvesDirectoryImportsToIndexFiles() {
+  console.log("\n17. ingest resolves directory imports to index files");
+  const fixtureRoot = makeTempDir("cortex-ingest-import-index-");
+  try {
+    fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "src", "pkg"), { recursive: true });
+
+    const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
+      'import { parseCode } from "./parsers/javascript.mjs";',
+      'import { parseCode } from "./parsers/mock-parser.mjs";'
+    );
+    fs.writeFileSync(path.join(fixtureRoot, "scripts", "ingest.mjs"), ingestSource, "utf8");
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, "scripts", "parsers", "mock-parser.mjs"),
+      `export function parseCode() {
+  return {
+    errors: [],
+    chunks: [
+      {
+        name: "MainChunk",
+        kind: "function",
+        signature: "MainChunk()",
+        body: "function MainChunk() { return loadPkg(); }",
+        startLine: 10,
+        endLine: 14,
+        calls: [],
+        imports: ["./pkg"],
+        language: "typescript"
+      }
+    ]
+  };
+}
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "config.yaml"),
+      `repo_id: fixture
+source_paths:
+  - src
+truth_order:
+  - ADR
+  - RULE
+  - CODE
+  - WIKI
+ranking:
+  semantic: 0.40
+  graph: 0.25
+  trust: 0.20
+  recency: 0.15
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "rules.yaml"),
+      `rules:
+  - id: rule.test
+    description: "fixture rule"
+    priority: 1
+    enforce: true
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(path.join(fixtureRoot, "src", "sample.ts"), "export const sample = 1;\n", "utf8");
+    fs.writeFileSync(path.join(fixtureRoot, "src", "pkg", "index.ts"), "export const pkg = 1;\n", "utf8");
+
+    run("node", ["scripts/ingest.mjs"], { cwd: fixtureRoot });
+
+    const imports = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.imports.jsonl"));
+
+    assert(
+      "directory import resolves to index.ts",
+      imports.some((edge) => edge.from === "chunk:src/sample.ts:MainChunk:10-14" && edge.to === "file:src/pkg/index.ts")
+    );
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+}
+
 function testStatusReportsSemanticSearchReadiness() {
-  console.log("\n8. status reports semantic search readiness");
+  console.log("\n18. status reports semantic search readiness");
   const fixtureRoot = makeTempDir("cortex-status-semantic-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, "scripts"), { recursive: true });
@@ -896,6 +1419,16 @@ testIngestChunkZeroOverlapConfig();
 testIngestChunkMaxWindowCap();
 testIngestChunkMetadataInheritanceInIncrementalMode();
 testIngestWindowChunksInheritCallAndImportRelations();
+testIngestAssignsImportEdgesOnlyToChunksThatUseImports();
+testParserPreservesSideEffectImportsForAllChunks();
+testParserIgnoresShadowedImportedBindings();
+testParserCapturesImportsReferencedInDeclarationHeaders();
+testParserCapturesModuleScopeRequireBindings();
+testIngestPersistsImportEdgesForDeclarationHeaders();
+testIngestResolvesNodeNextJsSpecifiersToTypescriptSources();
+testIngestDoesNotResolveExplicitJsSpecifiersToJsonFiles();
+testIngestPersistsImportEdgesForModuleScopeRequireBindings();
+testIngestResolvesDirectoryImportsToIndexFiles();
 testStatusReportsSemanticSearchReadiness();
 
 console.log(`\n${passed} passed, ${failed} failed`);

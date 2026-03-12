@@ -73,6 +73,9 @@ const DEFAULT_CHUNK_WINDOW_LINES = 80;
 const DEFAULT_CHUNK_OVERLAP_LINES = 16;
 const DEFAULT_CHUNK_SPLIT_MIN_LINES = 120;
 const DEFAULT_CHUNK_MAX_WINDOWS = 8;
+const IMPORT_RESOLUTION_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json"];
+const IMPORT_RUNTIME_JS_EXTENSIONS = new Set([".js", ".jsx", ".mjs", ".cjs"]);
+const IMPORT_RUNTIME_JS_RESOLUTION_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
 
 const STOP_WORDS = new Set([
   "the",
@@ -316,6 +319,48 @@ function hasSourcePrefix(relPath, sourcePaths) {
     const source = toPosixPath(sourcePath).replace(/\/+$/, "");
     return relPath === source || relPath.startsWith(`${source}/`);
   });
+}
+
+function pushImportResolutionCandidate(candidates, seenCandidates, candidatePath) {
+  if (!seenCandidates.has(candidatePath)) {
+    seenCandidates.add(candidatePath);
+    candidates.push(candidatePath);
+  }
+}
+
+function resolveRelativeImportTargetId(filePath, importPath, indexedFileIds) {
+  if (!importPath.startsWith(".")) {
+    return null;
+  }
+
+  const basePath = path.posix.normalize(path.posix.join(path.posix.dirname(filePath), importPath));
+  const candidates = [];
+  const seenCandidates = new Set();
+  pushImportResolutionCandidate(candidates, seenCandidates, basePath);
+
+  if (path.posix.extname(basePath) === "") {
+    for (const extension of IMPORT_RESOLUTION_EXTENSIONS) {
+      pushImportResolutionCandidate(candidates, seenCandidates, `${basePath}${extension}`);
+    }
+    for (const extension of IMPORT_RESOLUTION_EXTENSIONS) {
+      pushImportResolutionCandidate(candidates, seenCandidates, path.posix.join(basePath, `index${extension}`));
+    }
+  } else if (IMPORT_RUNTIME_JS_EXTENSIONS.has(path.posix.extname(basePath))) {
+    const extension = path.posix.extname(basePath);
+    const stemPath = basePath.slice(0, -extension.length);
+    for (const candidateExtension of IMPORT_RUNTIME_JS_RESOLUTION_EXTENSIONS) {
+      pushImportResolutionCandidate(candidates, seenCandidates, `${stemPath}${candidateExtension}`);
+    }
+  }
+
+  for (const candidate of candidates) {
+    const targetFileId = `file:${candidate}`;
+    if (indexedFileIds.has(targetFileId)) {
+      return targetFileId;
+    }
+  }
+
+  return null;
 }
 
 function getGitChanges() {
@@ -811,6 +856,7 @@ function main() {
 
   const fileRecords = [...fileRecordMap.values()].sort((a, b) => a.path.localeCompare(b.path));
   const adrRecords = [...adrRecordMap.values()].sort((a, b) => a.path.localeCompare(b.path));
+  const indexedFileIds = new Set(fileRecords.map((record) => record.id));
 
   // Extract chunks from code files
   const chunkRecords = [];
@@ -898,18 +944,17 @@ function main() {
         // IMPORTS relations: Chunk -> File
         const sourceChunkIds = [chunkId, ...(windowChunkIdsByBaseId.get(chunkId) ?? [])];
         for (const importPath of chunk.imports || []) {
-          // Normalize relative imports to absolute paths
-          if (importPath.startsWith(".")) {
-            const dirName = path.dirname(fileRecord.path);
-            const resolvedImport = path.posix.normalize(path.posix.join(dirName, importPath));
-            const targetFileId = `file:${resolvedImport}`;
-            for (const sourceChunkId of sourceChunkIds) {
-              importsRelations.push({
-                from: sourceChunkId,
-                to: targetFileId,
-                import_name: importPath
-              });
-            }
+          const targetFileId = resolveRelativeImportTargetId(fileRecord.path, importPath, indexedFileIds);
+          if (!targetFileId) {
+            continue;
+          }
+
+          for (const sourceChunkId of sourceChunkIds) {
+            importsRelations.push({
+              from: sourceChunkId,
+              to: targetFileId,
+              import_name: importPath
+            });
           }
         }
       }
