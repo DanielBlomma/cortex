@@ -1,12 +1,9 @@
 import { fullAncestor, simple as walkSimple } from "acorn-walk";
 
 import { WALK_BASE } from "./ast.mjs";
-import {
-  buildScopeDeclarations,
-  collectPatternIdentifiers,
-  isReferenceIdentifier,
-  isShadowedIdentifier
-} from "./scope-analysis.mjs";
+import { collectPatternIdentifiers } from "./patterns.mjs";
+import { buildScopeGraph } from "./scope-builder.mjs";
+import { isReferenceIdentifier, resolveIdentifier } from "./scope-resolver.mjs";
 
 export function collectStaticImports(ast) {
   const bindings = [];
@@ -99,7 +96,7 @@ function extractReferencedStaticImportSources(bodyNode, bindings) {
     }
   }
 
-  const scopeDeclarations = buildScopeDeclarations(bodyNode);
+  const scopeGraph = buildScopeGraph(bodyNode);
   const sources = new Set();
 
   try {
@@ -115,7 +112,7 @@ function extractReferencedStaticImportSources(bodyNode, bindings) {
           return;
         }
 
-        if (isShadowedIdentifier(node.name, ancestors, scopeDeclarations)) {
+        if (resolveIdentifier(node.name, ancestors, scopeGraph)) {
           return;
         }
 
