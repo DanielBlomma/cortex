@@ -19,7 +19,9 @@
   },
   "overrides": {
     "cmake-js": "^8.0.0",
-    "tar": "^7.5.9"
+    "express-rate-limit": "^8.3.1",
+    "hono": "^4.12.7",
+    "tar": "^7.5.11"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",

@@ -245,6 +245,15 @@ function relationDegree(relations: RelationRecord[]): Map<string, number> {
 function buildChunkPartOfRelations(data: ContextData): RelationRecord[] {
   const relations: RelationRecord[] = [];
   for (const chunk of data.chunks) {
+    if (isWindowChunkId(chunk.id)) {
+      relations.push({
+        from: chunk.id,
+        to: baseChunkId(chunk.id),
+        relation: "PART_OF",
+        note: "Overlap window belongs to base chunk"
+      });
+    }
+
     if (!chunk.file_id) {
       continue;
     }
@@ -257,6 +266,20 @@ function buildChunkPartOfRelations(data: ContextData): RelationRecord[] {
     });
   }
   return relations;
+}
+
+function isWindowChunkId(id: string): boolean {
+  return id.includes(":window:");
+}
+
+function baseChunkId(id: string): string {
+  const markerIndex = id.indexOf(":window:");
+  return markerIndex === -1 ? id : id.slice(0, markerIndex);
+}
+
+function baseChunkLabel(label: string): string {
+  const markerIndex = label.indexOf("#window");
+  return markerIndex === -1 ? label : label.slice(0, markerIndex);
 }
 
 function entityCatalog(data: ContextData): Map<string, JsonObject> {
@@ -313,7 +336,8 @@ function entityCatalog(data: ContextData): Map<string, JsonObject> {
 
 export async function runContextSearch(parsed: SearchParams): Promise<ToolPayload> {
   const data = await loadContextData();
-  const degreeByEntity = relationDegree(data.relations);
+  const allRelations = [...data.relations, ...buildChunkPartOfRelations(data)];
+  const degreeByEntity = relationDegree(allRelations);
   const queryTokens = expandQueryTokens(Array.from(new Set(tokenize(parsed.query))));
   const queryPhrase = normalizeText(parsed.query).trim();
   const candidates = buildSearchEntities(data, parsed.include_content).filter(
@@ -325,7 +349,7 @@ export async function runContextSearch(parsed: SearchParams): Promise<ToolPayloa
       ? await embedQuery(parsed.query, embeddings.model)
       : null;
 
-  const results = candidates
+  const rawResults = candidates
     .map((entity) => {
       const lexicalSemantic = semanticScore(queryTokens, queryPhrase, entity.text);
       const entityVector = embeddings.vectors.get(entity.id);
@@ -374,6 +398,38 @@ export async function runContextSearch(parsed: SearchParams): Promise<ToolPayloa
       };
     })
     .filter((result): result is NonNullable<typeof result> => result !== null)
+    .sort((a, b) => b.score - a.score);
+
+  const chunkCandidatesById = new Map(
+    candidates.filter((entity) => entity.entity_type === "Chunk").map((entity) => [entity.id, entity])
+  );
+  const normalizedById = new Map<string, (typeof rawResults)[number]>();
+
+  for (const result of rawResults) {
+    if (result.entity_type !== "Chunk" || !isWindowChunkId(result.id)) {
+      if (!normalizedById.has(result.id)) {
+        normalizedById.set(result.id, result);
+      }
+      continue;
+    }
+
+    const canonicalId = baseChunkId(result.id);
+    const baseChunk = chunkCandidatesById.get(canonicalId);
+    const normalizedResult = baseChunk
+      ? {
+          ...result,
+          id: canonicalId,
+          title: baseChunkLabel(baseChunk.label),
+          path: baseChunk.path || undefined
+        }
+      : result;
+    const existing = normalizedById.get(normalizedResult.id);
+    if (!existing || normalizedResult.score > existing.score) {
+      normalizedById.set(normalizedResult.id, normalizedResult);
+    }
+  }
+
+  const results = [...normalizedById.values()]
     .sort((a, b) => b.score - a.score)
     .slice(0, parsed.top_k);
 
