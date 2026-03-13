@@ -1,0 +1,143 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "codebase": "TrafficQualityReportService (VB.NET Legacy)",
+    "description": "Ground truth for Cortex context quality benchmarks",
+    "created": "2026-03-06",
+    "linesOfCode": 20500,
+    "languages": ["vb.net", "sql"]
+  },
+  "tasks": [
+    {
+      "id": "arch-overview",
+      "category": "Architecture Comprehension",
+      "question": "Describe the high-level architecture of this codebase. What are the main components, how do they interact, and what is the data flow?",
+      "groundTruth": {
+        "mustMention": [
+          "Windows Service with timer-based execution",
+          "Subscription is the central hub (configures thresholds, mail lists, culture, report types)",
+          "QualityMail orchestrates: loads Blocks, Assignments, JourneyCalls, Deviations per subscription",
+          "Html.vb and Xls.vb are output renderers",
+          "Old_Custom/ contains per-customer forks (Skånetrafiken, Möre, X-Trafik, Karlstadsbuss, Östgötatrafiken)",
+          "Monitoring is a cross-cutting concern (performance counters)"
+        ],
+        "mustNotMention": [
+          "Separate database layer component (does not exist)"
+        ],
+        "keyInsight": "Subscription-driven architecture where each subscriber configures what data to include and how to render it"
+      }
+    },
+    {
+      "id": "data-flow",
+      "category": "Data Flow Tracing",
+      "question": "Trace the data flow from SQL queries to final email output. What transformations happen along the way?",
+      "groundTruth": {
+        "mustMention": [
+          "SQL Server databases ptDOI4/ptROI as data sources",
+          "SQL queries embedded in resource files, parameterized via string replacement",
+          "Data flows: SQL → List → Dictionary(Of String, List(Of JourneyCall)) → LINQ queries",
+          "JourneyKey links Assignment ↔ JourneyCall ↔ Block across classes",
+          "GID string parsing duplicated across 6+ classes",
+          "Final output: HTML email and/or XLS attachment"
+        ],
+        "mustNotMention": [],
+        "keyInsight": "JourneyKey is the cross-cutting link between all data structures, and GID parsing is duplicated rather than centralized"
+      }
+    },
+    {
+      "id": "dependency-impact",
+      "category": "Dependency Impact Analysis",
+      "question": "If we change the JourneyKey format from 3 parts to 4 parts, what files and classes would be affected?",
+      "groundTruth": {
+        "mustMention": [
+          "JourneyKey is used across both core and Old_Custom variants",
+          "Inconsistency already exists: 3 vs 4 parts between core and customer variants",
+          "At least 6+ files parse or construct JourneyKey",
+          "Assignment, JourneyCall, Block classes all depend on JourneyKey format"
+        ],
+        "mustNotMention": [],
+        "keyInsight": "There is already an inconsistency between core (3-part) and customer variants (4-part) JourneyKey — this is a latent bug"
+      }
+    },
+    {
+      "id": "sql-mapping",
+      "category": "SQL/Database Mapping",
+      "question": "Map all SQL queries to their consuming code. Which queries feed which data structures?",
+      "groundTruth": {
+        "mustMention": [
+          "SQL queries in resource files (.resx)",
+          "String replacement for parameterization (not parameterized queries)",
+          "selectionTrafficDate.ToShortDateString injected directly into SQL",
+          "ptDOI4 and ptROI databases",
+          "Queries feed Assignments, JourneyCalls, Blocks, Deviations data structures"
+        ],
+        "mustNotMention": [],
+        "keyInsight": "SQL injection risk from string replacement pattern used consistently across all database access"
+      }
+    },
+    {
+      "id": "security-audit",
+      "category": "Security & Error Handling",
+      "question": "Perform a security audit of this codebase. What are the critical vulnerabilities?",
+      "groundTruth": {
+        "mustMention": [
+          "SQL injection via sql.Replace with ToShortDateString in 6+ locations",
+          "Pattern exists in both service and Old_Custom variants",
+          "No parameterized queries used anywhere",
+          "Connection close outside try blocks",
+          "No connection pooling configuration"
+        ],
+        "mustNotMention": [],
+        "keyInsight": "Consistent sql.Replace pattern across all variants means the vulnerability is systemic, not isolated"
+      }
+    },
+    {
+      "id": "error-handling",
+      "category": "Error Handling Review",
+      "question": "Analyze the error handling patterns. Are they consistent? What are the risks?",
+      "groundTruth": {
+        "mustMention": [
+          "40+ catch blocks with inconsistent handling",
+          "Categories: log-only, file-write (Error.txt), silent-swallow, process-terminating",
+          "Dangerous Thread.Sleep(5000) : End pattern in Old_Custom getNextCallInBlock",
+          "Old_Custom uses Console.WriteLine instead of log4net in some error paths",
+          "Two loggers exist (Application and Database) with inconsistent usage"
+        ],
+        "mustNotMention": [],
+        "keyInsight": "Error handling is wildly inconsistent — some errors kill the process, others are silently swallowed"
+      }
+    },
+    {
+      "id": "customer-variants",
+      "category": "Deep Code Comprehension",
+      "question": "Analyze the Old_Custom directory. How do customer variants differ from the core service? What are the risks of this architecture?",
+      "groundTruth": {
+        "mustMention": [
+          "Old_Custom contains per-customer forks with duplicated but divergent logic",
+          "Customers: Karlstadsbuss, X-Trafik (and references to Skånetrafiken, Möre, Östgötatrafiken)",
+          "JourneyKey inconsistency between core (3 parts) and variants (4 parts)",
+          "Bug fixes in core don't propagate to variants",
+          "Duplicated GID parsing with subtle differences"
+        ],
+        "mustNotMention": [],
+        "keyInsight": "Fork-based customization means every bug fix must be applied N+1 times, and the JourneyKey inconsistency proves this has already failed"
+      }
+    },
+    {
+      "id": "modernization",
+      "category": "Feature Implementation",
+      "question": "Create a modernization plan for this codebase. What should be refactored first and why?",
+      "groundTruth": {
+        "mustMention": [
+          "Centralize GID parsing (duplicated in 6+ places)",
+          "Fix JourneyKey inconsistency between core and variants",
+          "Replace sql.Replace with parameterized queries",
+          "Unify error handling patterns",
+          "Extract customer-specific logic into configuration rather than code forks"
+        ],
+        "mustNotMention": [],
+        "keyInsight": "The fork-based customer model is the root cause of most issues — unifying it unlocks all other improvements"
+      }
+    }
+  ]
+}
