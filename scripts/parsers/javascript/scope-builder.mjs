@@ -35,6 +35,7 @@ export function buildScopeGraph(bodyNode) {
           if (node.id) {
             declareIdentifier(functionScope, node.id.name);
           }
+          declareTypeParameters(functionScope, node.typeParameters);
           for (const param of node.params || []) {
             declarePattern(functionScope, param);
           }
@@ -54,6 +55,7 @@ export function buildScopeGraph(bodyNode) {
           if (node.id) {
             declareIdentifier(functionScope, node.id.name);
           }
+          declareTypeParameters(functionScope, node.typeParameters);
           for (const param of node.params || []) {
             declarePattern(functionScope, param);
           }
@@ -70,6 +72,7 @@ export function buildScopeGraph(bodyNode) {
 
         ArrowFunctionExpression(node, state, recurse) {
           const functionScope = createChildScope(scopeByNode, currentScope(scopeStack), node, "function");
+          declareTypeParameters(functionScope, node.typeParameters);
           for (const param of node.params || []) {
             declarePattern(functionScope, param);
           }
@@ -98,6 +101,7 @@ export function buildScopeGraph(bodyNode) {
           if (node.id) {
             declareIdentifier(classScope, node.id.name);
           }
+          declareTypeParameters(classScope, node.typeParameters);
 
           withScope(scopeStack, classScope, () => {
             if (node.body) {
@@ -115,6 +119,7 @@ export function buildScopeGraph(bodyNode) {
           if (node.id) {
             declareIdentifier(classScope, node.id.name);
           }
+          declareTypeParameters(classScope, node.typeParameters);
 
           withScope(scopeStack, classScope, () => {
             if (node.body) {
@@ -282,6 +287,12 @@ function declarePattern(scope, pattern) {
   collectPatternIdentifiers(pattern, (name) => {
     declareIdentifier(scope, name);
   });
+}
+
+function declareTypeParameters(scope, typeParameters) {
+  for (const param of typeParameters?.params || []) {
+    declareIdentifier(scope, param.name);
+  }
 }
 
 function withScope(scopeStack, scope, visit) {

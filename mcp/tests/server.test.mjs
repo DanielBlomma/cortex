@@ -115,11 +115,6 @@ ranking:
       from: baseChunkId,
       to: helperChunkId,
       call_type: "direct"
-    },
-    {
-      from: windowChunkId,
-      to: helperChunkId,
-      call_type: "direct"
     }
   ]);
   writeJsonl(path.join(cacheDir, "relations.imports.jsonl"), []);
@@ -204,7 +199,7 @@ test("context.search filters out zero-relevance noise", async () => {
   }
 });
 
-test("context.search retrieves terms that only exist in overlap window chunks", async () => {
+test("context.search collapses overlap window hits back to the base chunk", async () => {
   const { fixtureRoot, baseChunkId, windowChunkId } = buildWindowChunkSearchFixture();
   try {
     await withClient(
@@ -218,12 +213,12 @@ test("context.search retrieves terms that only exist in overlap window chunks", 
         assert.ok(Array.isArray(result.structuredContent.results));
 
         const ids = result.structuredContent.results.map((item) => String(item.id));
-        assert.ok(ids.includes(windowChunkId));
-        assert.ok(!ids.includes(baseChunkId));
+        assert.ok(ids.includes(baseChunkId));
+        assert.ok(!ids.includes(windowChunkId));
 
-        const windowResult = result.structuredContent.results.find((item) => item.id === windowChunkId);
-        assert.equal(windowResult?.entity_type, "Chunk");
-        assert.ok(String(windowResult?.content ?? "").includes("windowtailonlytokenzqv993"));
+        const baseResult = result.structuredContent.results.find((item) => item.id === baseChunkId);
+        assert.equal(baseResult?.entity_type, "Chunk");
+        assert.ok(String(baseResult?.content ?? "").includes("windowtailonlytokenzqv993"));
       },
       {
         env: {
@@ -237,7 +232,7 @@ test("context.search retrieves terms that only exist in overlap window chunks", 
 });
 
 test("context.get_related accepts chunk ids returned by context.search", async () => {
-  const { fixtureRoot, fileId, windowChunkId } = buildWindowChunkSearchFixture();
+  const { fixtureRoot, fileId, baseChunkId } = buildWindowChunkSearchFixture();
   try {
     await withClient(
       async (client) => {
@@ -249,12 +244,12 @@ test("context.get_related accepts chunk ids returned by context.search", async (
         assert.ok(searchResult.structuredContent);
         assert.ok(Array.isArray(searchResult.structuredContent.results));
 
-        const chunkResult = searchResult.structuredContent.results.find((item) => item.id === windowChunkId);
+        const chunkResult = searchResult.structuredContent.results.find((item) => item.id === baseChunkId);
         assert.ok(chunkResult);
 
         const relatedResult = await client.callTool({
           name: "context.get_related",
-          arguments: { entity_id: windowChunkId, depth: 1, include_edges: true }
+          arguments: { entity_id: baseChunkId, depth: 1, include_edges: true }
         });
         assert.notEqual(relatedResult.isError, true);
         assert.ok(relatedResult.structuredContent);
@@ -266,7 +261,7 @@ test("context.get_related accepts chunk ids returned by context.search", async (
         assert.ok(relatedIds.includes(fileId));
 
         const partOfEdge = relatedResult.structuredContent.edges.find(
-          (edge) => edge.from === windowChunkId && edge.to === fileId && edge.relation === "PART_OF"
+          (edge) => edge.from === baseChunkId && edge.to === fileId && edge.relation === "PART_OF"
         );
         assert.ok(partOfEdge);
       },
@@ -291,7 +286,7 @@ test("context.reload returns reload metadata", async () => {
   });
 });
 
-test("context.get_related includes window chunk call edges", async () => {
+test("context.get_related links window chunks to the base chunk", async () => {
   const { fixtureRoot, windowChunkId, helperChunkId } = buildWindowChunkSearchFixture();
   try {
     await withClient(
@@ -306,10 +301,50 @@ test("context.get_related includes window chunk call edges", async () => {
         assert.ok(Array.isArray(result.structuredContent.edges));
 
         const relatedIds = result.structuredContent.related.map((item) => String(item.id));
+        assert.ok(relatedIds.includes("chunk:src/large.ts:LargeChunk:10-329"));
+        assert.ok(!relatedIds.includes(helperChunkId));
+
+        const partOfEdge = result.structuredContent.edges.find(
+          (edge) =>
+            edge.from === windowChunkId &&
+            edge.to === "chunk:src/large.ts:LargeChunk:10-329" &&
+            edge.relation === "PART_OF"
+        );
+        assert.ok(partOfEdge);
+      },
+      {
+        env: {
+          CORTEX_PROJECT_ROOT: fixtureRoot
+        }
+      }
+    );
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+});
+
+test("context.get_related reaches base chunk relations from a window chunk", async () => {
+  const { fixtureRoot, windowChunkId, helperChunkId } = buildWindowChunkSearchFixture();
+  try {
+    await withClient(
+      async (client) => {
+        const result = await client.callTool({
+          name: "context.get_related",
+          arguments: { entity_id: windowChunkId, depth: 2, include_edges: true }
+        });
+        assert.notEqual(result.isError, true);
+        assert.ok(result.structuredContent);
+        assert.ok(Array.isArray(result.structuredContent.related));
+        assert.ok(Array.isArray(result.structuredContent.edges));
+
+        const relatedIds = result.structuredContent.related.map((item) => String(item.id));
         assert.ok(relatedIds.includes(helperChunkId));
 
         const callEdge = result.structuredContent.edges.find(
-          (edge) => edge.from === windowChunkId && edge.to === helperChunkId && edge.relation === "CALLS"
+          (edge) =>
+            edge.from === "chunk:src/large.ts:LargeChunk:10-329" &&
+            edge.to === helperChunkId &&
+            edge.relation === "CALLS"
         );
         assert.ok(callEdge);
       },

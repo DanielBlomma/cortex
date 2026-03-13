@@ -882,7 +882,6 @@ function main() {
 
       const parsedChunks = [];
       const chunkIdsByName = new Map();
-      const windowChunkIdsByBaseId = new Map();
 
       for (const chunk of parseResult.chunks) {
         const chunkId = chunkIdFor(fileRecord.path, chunk);
@@ -928,10 +927,6 @@ function main() {
         });
         if (windows.length > 0) {
           windowedChunkCount += windows.length;
-          windowChunkIdsByBaseId.set(
-            chunkId,
-            windows.map((windowChunk) => windowChunk.id)
-          );
           for (const windowChunk of windows) {
             chunkRecords.push(windowChunk);
             definesRelations.push({
@@ -942,20 +937,17 @@ function main() {
         }
 
         // IMPORTS relations: Chunk -> File
-        const sourceChunkIds = [chunkId, ...(windowChunkIdsByBaseId.get(chunkId) ?? [])];
         for (const importPath of chunk.imports || []) {
           const targetFileId = resolveRelativeImportTargetId(fileRecord.path, importPath, indexedFileIds);
           if (!targetFileId) {
             continue;
           }
 
-          for (const sourceChunkId of sourceChunkIds) {
-            importsRelations.push({
-              from: sourceChunkId,
-              to: targetFileId,
-              import_name: importPath
-            });
-          }
+          importsRelations.push({
+            from: chunkId,
+            to: targetFileId,
+            import_name: importPath
+          });
         }
       }
 
@@ -975,20 +967,6 @@ function main() {
               to: targetChunkId,
               call_type: "direct"
             });
-
-            const windowChunkIds = windowChunkIdsByBaseId.get(chunkId) ?? [];
-            for (const windowChunkId of windowChunkIds) {
-              const windowCallKey = `${windowChunkId}|${targetChunkId}|direct`;
-              if (seenCallEdges.has(windowCallKey)) {
-                continue;
-              }
-              seenCallEdges.add(windowCallKey);
-              callsRelations.push({
-                from: windowChunkId,
-                to: targetChunkId,
-                call_type: "direct"
-              });
-            }
           }
         }
       }

@@ -696,8 +696,8 @@ ranking:
   }
 }
 
-function testIngestWindowChunksInheritCallAndImportRelations() {
-  console.log("\n7. ingest propagates call/import relations to overlap windows");
+function testIngestWindowChunksKeepRelationsOnBaseChunk() {
+  console.log("\n7. ingest keeps call/import relations on the base chunk only");
   const fixtureRoot = makeTempDir("cortex-ingest-window-relations-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
@@ -805,17 +805,17 @@ ranking:
       calls.some((edge) => edge.from === baseMainId && edge.to === helperId)
     );
     assert(
-      "all main windows inherit call relation",
-      mainWindowIds.every((windowId) => calls.some((edge) => edge.from === windowId && edge.to === helperId))
+      "window chunks do not inherit unrelated call relations",
+      mainWindowIds.every((windowId) => !calls.some((edge) => edge.from === windowId && edge.to === helperId))
     );
     assert(
       "base main chunk keeps import relation",
       imports.some((edge) => edge.from === baseMainId && edge.to === "file:src/dep.ts")
     );
     assert(
-      "all main windows inherit import relation",
+      "window chunks do not inherit unrelated import relations",
       mainWindowIds.every((windowId) =>
-        imports.some((edge) => edge.from === windowId && edge.to === "file:src/dep.ts")
+        !imports.some((edge) => edge.from === windowId && edge.to === "file:src/dep.ts")
       )
     );
   } finally {
@@ -905,6 +905,25 @@ export function run(dep) {
   assert("run chunk exists", Boolean(runChunk));
   assert(
     "shadowed import is not attributed to chunk",
+    Array.isArray(runChunk?.imports) && runChunk.imports.length === 0
+  );
+}
+
+function testParserIgnoresTypeImportsShadowedByGenericParameters() {
+  console.log("\n11. parser ignores type imports shadowed by generic parameters");
+  const source = `import type { T } from "./dep";
+
+export function run<T>(value: T): T {
+  return value;
+}
+`;
+
+  const result = parseJavascriptCode(source, "src/sample.ts", "typescript");
+  const runChunk = result.chunks.find((chunk) => chunk.name === "run");
+
+  assert("run chunk exists", Boolean(runChunk));
+  assert(
+    "generic type parameter does not keep the type import",
     Array.isArray(runChunk?.imports) && runChunk.imports.length === 0
   );
 }
@@ -1044,8 +1063,191 @@ export class C extends Base {}
   }
 }
 
+function testParserCapturesImportsReferencedInTypes() {
+  console.log("\n14. parser keeps imports referenced in TypeScript type positions");
+  const source = `import type { Dep } from "./dep";
+
+export function run(dep: Dep): Dep {
+  return dep;
+}
+
+export class C implements Dep {
+  method(value: Dep): Dep {
+    return value;
+  }
+}
+`;
+
+  const result = parseJavascriptCode(source, "src/sample.ts", "typescript");
+  const runChunk = result.chunks.find((chunk) => chunk.name === "run");
+  const classChunk = result.chunks.find((chunk) => chunk.name === "C");
+  const methodChunk = result.chunks.find((chunk) => chunk.name === "C.method");
+
+  assert("run chunk exists", Boolean(runChunk));
+  assert("class chunk exists", Boolean(classChunk));
+  assert("method chunk exists", Boolean(methodChunk));
+  assert(
+    "function type annotation keeps import",
+    Array.isArray(runChunk?.imports) && runChunk.imports.includes("./dep")
+  );
+  assert(
+    "class implements keeps import",
+    Array.isArray(classChunk?.imports) && classChunk.imports.includes("./dep")
+  );
+  assert(
+    "method type annotation keeps import",
+    Array.isArray(methodChunk?.imports) && methodChunk.imports.includes("./dep")
+  );
+}
+
+function testIngestPersistsImportEdgesForTypes() {
+  console.log("\n15. ingest persists import edges referenced in TypeScript type positions");
+  const fixtureRoot = makeTempDir("cortex-ingest-type-imports-");
+  try {
+    fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
+
+    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
+    fs.writeFileSync(
+      path.join(fixtureRoot, "scripts", "parsers", "javascript.mjs"),
+      `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scripts", "parsers", "javascript.mjs"))};\n`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "config.yaml"),
+      `repo_id: fixture
+source_paths:
+  - src
+truth_order:
+  - ADR
+  - RULE
+  - CODE
+  - WIKI
+ranking:
+  semantic: 0.40
+  graph: 0.25
+  trust: 0.20
+  recency: 0.15
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "rules.yaml"),
+      `rules:
+  - id: rule.test
+    description: "fixture rule"
+    priority: 1
+    enforce: true
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, "src", "sample.ts"),
+      `import type { Dep } from "./dep";
+
+export function run(dep: Dep): Dep {
+  return dep;
+}
+
+export class C implements Dep {}
+`,
+      "utf8"
+    );
+    fs.writeFileSync(path.join(fixtureRoot, "src", "dep.ts"), "export type Dep = { value: string };\n", "utf8");
+
+    run("node", ["scripts/ingest.mjs"], { cwd: fixtureRoot });
+
+    const imports = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.imports.jsonl"));
+
+    assert(
+      "function type annotation import edge is stored",
+      imports.some((edge) => edge.from === "chunk:src/sample.ts:run:3-5" && edge.to === "file:src/dep.ts")
+    );
+    assert(
+      "class implements import edge is stored",
+      imports.some((edge) => edge.from === "chunk:src/sample.ts:C:7-7" && edge.to === "file:src/dep.ts")
+    );
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+}
+
+function testIngestDoesNotPersistTypeImportEdgesForGenericParameters() {
+  console.log("\n16. ingest ignores type imports shadowed by generic parameters");
+  const fixtureRoot = makeTempDir("cortex-ingest-generic-type-imports-");
+  try {
+    fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
+
+    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
+    fs.writeFileSync(
+      path.join(fixtureRoot, "scripts", "parsers", "javascript.mjs"),
+      `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scripts", "parsers", "javascript.mjs"))};\n`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "config.yaml"),
+      `repo_id: fixture
+source_paths:
+  - src
+truth_order:
+  - ADR
+  - RULE
+  - CODE
+  - WIKI
+ranking:
+  semantic: 0.40
+  graph: 0.25
+  trust: 0.20
+  recency: 0.15
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "rules.yaml"),
+      `rules:
+  - id: rule.test
+    description: "fixture rule"
+    priority: 1
+    enforce: true
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, "src", "sample.ts"),
+      `import type { T } from "./dep";
+
+export function run<T>(value: T): T {
+  return value;
+}
+`,
+      "utf8"
+    );
+    fs.writeFileSync(path.join(fixtureRoot, "src", "dep.ts"), "export type T = { value: string };\n", "utf8");
+
+    run("node", ["scripts/ingest.mjs"], { cwd: fixtureRoot });
+
+    const imports = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.imports.jsonl"));
+
+    assert(
+      "generic type parameter does not create an import edge",
+      !imports.some((edge) => edge.from === "chunk:src/sample.ts:run:3-5" && edge.to === "file:src/dep.ts")
+    );
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+}
+
 function testIngestResolvesNodeNextJsSpecifiersToTypescriptSources() {
-  console.log("\n14. ingest resolves NodeNext .js specifiers to TypeScript sources");
+  console.log("\n16. ingest resolves NodeNext .js specifiers to TypeScript sources");
   const fixtureRoot = makeTempDir("cortex-ingest-nodenext-imports-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
@@ -1122,7 +1324,7 @@ export function run() {
 }
 
 function testIngestDoesNotResolveExplicitJsSpecifiersToJsonFiles() {
-  console.log("\n15. ingest does not resolve explicit .js specifiers to .json files");
+  console.log("\n17. ingest does not resolve explicit .js specifiers to .json files");
   const fixtureRoot = makeTempDir("cortex-ingest-js-to-json-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
@@ -1192,7 +1394,7 @@ export function run() {
 }
 
 function testIngestPersistsImportEdgesForModuleScopeRequireBindings() {
-  console.log("\n16. ingest persists import edges for module-scope require bindings");
+  console.log("\n18. ingest persists import edges for module-scope require bindings");
   const fixtureRoot = makeTempDir("cortex-ingest-require-bindings-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
@@ -1262,7 +1464,7 @@ export function run() {
 }
 
 function testIngestResolvesDirectoryImportsToIndexFiles() {
-  console.log("\n17. ingest resolves directory imports to index files");
+  console.log("\n19. ingest resolves directory imports to index files");
   const fixtureRoot = makeTempDir("cortex-ingest-import-index-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
@@ -1346,7 +1548,7 @@ ranking:
 }
 
 function testStatusReportsSemanticSearchReadiness() {
-  console.log("\n18. status reports semantic search readiness");
+  console.log("\n20. status reports semantic search readiness");
   const fixtureRoot = makeTempDir("cortex-status-semantic-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, "scripts"), { recursive: true });
@@ -1418,13 +1620,17 @@ testIngestChunkOverlapWindows();
 testIngestChunkZeroOverlapConfig();
 testIngestChunkMaxWindowCap();
 testIngestChunkMetadataInheritanceInIncrementalMode();
-testIngestWindowChunksInheritCallAndImportRelations();
+testIngestWindowChunksKeepRelationsOnBaseChunk();
 testIngestAssignsImportEdgesOnlyToChunksThatUseImports();
 testParserPreservesSideEffectImportsForAllChunks();
 testParserIgnoresShadowedImportedBindings();
+testParserIgnoresTypeImportsShadowedByGenericParameters();
 testParserCapturesImportsReferencedInDeclarationHeaders();
 testParserCapturesModuleScopeRequireBindings();
 testIngestPersistsImportEdgesForDeclarationHeaders();
+testParserCapturesImportsReferencedInTypes();
+testIngestPersistsImportEdgesForTypes();
+testIngestDoesNotPersistTypeImportEdgesForGenericParameters();
 testIngestResolvesNodeNextJsSpecifiersToTypescriptSources();
 testIngestDoesNotResolveExplicitJsSpecifiersToJsonFiles();
 testIngestPersistsImportEdgesForModuleScopeRequireBindings();

@@ -213,6 +213,10 @@ function extractClassMethods(classNode, code, language) {
 }
 
 function formatParameterName(param) {
+  if (param.type === "TSParameterProperty") {
+    return formatParameterName(param.parameter);
+  }
+
   if (param.type === "Identifier") {
     return param.name;
   }
