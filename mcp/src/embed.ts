@@ -62,6 +62,8 @@ type AdrEntity = {
   signature: string;
 };
 
+// Embedding-specific entity types — intentionally different from types.ts records
+// because they carry `text` and `signature` fields used for embedding generation.
 type ModuleEntity = {
   id: string;
   type: "Module";

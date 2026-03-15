@@ -670,158 +670,30 @@ export async function loadContextData(): Promise<ContextData> {
   }
 
   try {
-    const [fileRows, ruleRows, adrRows, chunkRows, moduleRows, constrainsRows, implementsRows, supersedesRows, definesRows, callsRows, importsRows, containsRows, containsModuleRows, exportsRows] =
-      await Promise.all([
-        queryRows(
-          connection,
-          `
-          MATCH (f:File)
-          RETURN
-            f.id AS id,
-            f.path AS path,
-            f.kind AS kind,
-            f.excerpt AS excerpt,
-            f.updated_at AS updated_at,
-            f.source_of_truth AS source_of_truth,
-            f.trust_level AS trust_level,
-            f.status AS status;
-        `
-        ),
-        queryRows(
-          connection,
-          `
-          MATCH (r:Rule)
-          RETURN
-            r.id AS id,
-            r.title AS title,
-            r.body AS body,
-            r.scope AS scope,
-            r.priority AS priority,
-            r.updated_at AS updated_at,
-            r.source_of_truth AS source_of_truth,
-            r.trust_level AS trust_level,
-            r.status AS status;
-        `
-        ),
-        queryRows(
-          connection,
-          `
-          MATCH (a:ADR)
-          RETURN
-            a.id AS id,
-            a.path AS path,
-            a.title AS title,
-            a.body AS body,
-            a.decision_date AS decision_date,
-            a.supersedes_id AS supersedes_id,
-            a.source_of_truth AS source_of_truth,
-            a.trust_level AS trust_level,
-            a.status AS status;
-        `
-        ),
-        queryRows(
-          connection,
-          `
-          MATCH (c:Chunk)
-          RETURN
-            c.id AS id,
-            c.file_id AS file_id,
-            c.name AS name,
-            c.kind AS kind,
-            c.signature AS signature,
-            c.body AS body,
-            c.description AS description,
-            c.start_line AS start_line,
-            c.end_line AS end_line,
-            c.language AS language,
-            c.exported AS exported,
-            c.updated_at AS updated_at,
-            c.source_of_truth AS source_of_truth,
-            c.trust_level AS trust_level,
-            c.status AS status;
-        `
-        ),
-        queryRows(
-          connection,
-          `
-          MATCH (m:Module)
-          RETURN
-            m.id AS id,
-            m.path AS path,
-            m.name AS name,
-            m.summary AS summary,
-            m.file_count AS file_count,
-            m.exported_symbols AS exported_symbols,
-            m.updated_at AS updated_at,
-            m.source_of_truth AS source_of_truth,
-            m.trust_level AS trust_level,
-            m.status AS status;
-        `
-        ),
-        queryRows(
-          connection,
-          `
-          MATCH (r:Rule)-[c:CONSTRAINS]->(f:File)
-          RETURN r.id AS from, f.id AS to, c.note AS note;
-        `
-        ),
-        queryRows(
-          connection,
-          `
-          MATCH (f:File)-[i:IMPLEMENTS]->(r:Rule)
-          RETURN f.id AS from, r.id AS to, i.note AS note;
-        `
-        ),
-        queryRows(
-          connection,
-          `
-          MATCH (a1:ADR)-[s:SUPERSEDES]->(a2:ADR)
-          RETURN a1.id AS from, a2.id AS to, s.reason AS note;
-        `
-        ),
-        queryRows(
-          connection,
-          `
-          MATCH (f:File)-[:DEFINES]->(c:Chunk)
-          RETURN f.id AS from, c.id AS to;
-        `
-        ),
-        queryRows(
-          connection,
-          `
-          MATCH (c1:Chunk)-[ca:CALLS]->(c2:Chunk)
-          RETURN c1.id AS from, c2.id AS to, ca.call_type AS call_type;
-        `
-        ),
-        queryRows(
-          connection,
-          `
-          MATCH (c:Chunk)-[im:IMPORTS]->(f:File)
-          RETURN c.id AS from, f.id AS to, im.import_name AS import_name;
-        `
-        ),
-        queryRows(
-          connection,
-          `
-          MATCH (m:Module)-[:CONTAINS]->(f:File)
-          RETURN m.id AS from, f.id AS to;
-        `
-        ),
-        queryRows(
-          connection,
-          `
-          MATCH (m1:Module)-[:CONTAINS_MODULE]->(m2:Module)
-          RETURN m1.id AS from, m2.id AS to;
-        `
-        ),
-        queryRows(
-          connection,
-          `
-          MATCH (m:Module)-[:EXPORTS]->(c:Chunk)
-          RETURN m.id AS from, c.id AS to;
-        `
-        )
-      ]);
+    const ryuQueries = await Promise.all([
+      queryRows(connection, `MATCH (f:File) RETURN f.id AS id, f.path AS path, f.kind AS kind, f.excerpt AS excerpt, f.updated_at AS updated_at, f.source_of_truth AS source_of_truth, f.trust_level AS trust_level, f.status AS status;`),
+      queryRows(connection, `MATCH (r:Rule) RETURN r.id AS id, r.title AS title, r.body AS body, r.scope AS scope, r.priority AS priority, r.updated_at AS updated_at, r.source_of_truth AS source_of_truth, r.trust_level AS trust_level, r.status AS status;`),
+      queryRows(connection, `MATCH (a:ADR) RETURN a.id AS id, a.path AS path, a.title AS title, a.body AS body, a.decision_date AS decision_date, a.supersedes_id AS supersedes_id, a.source_of_truth AS source_of_truth, a.trust_level AS trust_level, a.status AS status;`),
+      queryRows(connection, `MATCH (c:Chunk) RETURN c.id AS id, c.file_id AS file_id, c.name AS name, c.kind AS kind, c.signature AS signature, c.body AS body, c.description AS description, c.start_line AS start_line, c.end_line AS end_line, c.language AS language, c.exported AS exported, c.updated_at AS updated_at, c.source_of_truth AS source_of_truth, c.trust_level AS trust_level, c.status AS status;`),
+      queryRows(connection, `MATCH (m:Module) RETURN m.id AS id, m.path AS path, m.name AS name, m.summary AS summary, m.file_count AS file_count, m.exported_symbols AS exported_symbols, m.updated_at AS updated_at, m.source_of_truth AS source_of_truth, m.trust_level AS trust_level, m.status AS status;`),
+      queryRows(connection, `MATCH (r:Rule)-[c:CONSTRAINS]->(f:File) RETURN r.id AS from, f.id AS to, c.note AS note;`),
+      queryRows(connection, `MATCH (f:File)-[i:IMPLEMENTS]->(r:Rule) RETURN f.id AS from, r.id AS to, i.note AS note;`),
+      queryRows(connection, `MATCH (a1:ADR)-[s:SUPERSEDES]->(a2:ADR) RETURN a1.id AS from, a2.id AS to, s.reason AS note;`),
+      queryRows(connection, `MATCH (f:File)-[:DEFINES]->(c:Chunk) RETURN f.id AS from, c.id AS to;`),
+      queryRows(connection, `MATCH (c1:Chunk)-[ca:CALLS]->(c2:Chunk) RETURN c1.id AS from, c2.id AS to, ca.call_type AS call_type;`),
+      queryRows(connection, `MATCH (c:Chunk)-[im:IMPORTS]->(f:File) RETURN c.id AS from, f.id AS to, im.import_name AS import_name;`),
+      queryRows(connection, `MATCH (m:Module)-[:CONTAINS]->(f:File) RETURN m.id AS from, f.id AS to;`),
+      queryRows(connection, `MATCH (m1:Module)-[:CONTAINS_MODULE]->(m2:Module) RETURN m1.id AS from, m2.id AS to;`),
+      queryRows(connection, `MATCH (m:Module)-[:EXPORTS]->(c:Chunk) RETURN m.id AS from, c.id AS to;`)
+    ]);
+
+    // Named destructuring to avoid positional misalignment with 14 parallel queries
+    const [
+      fileRows, ruleRows, adrRows, chunkRows, moduleRows,          // entities
+      constrainsRows, implementsRows, supersedesRows,               // core relations
+      definesRows, callsRows, importsRows,                          // chunk relations
+      containsRows, containsModuleRows, exportsRows                 // module relations
+    ] = ryuQueries;
 
     const contentById = new Map(cachedDocuments.map((doc) => [doc.id, doc.content]));
 
@@ -848,6 +720,8 @@ export async function loadContextData(): Promise<ContextData> {
       rules: ryuRules.length > 0 ? ryuRules : cachedRules,
       chunks: ryuChunks.length > 0 ? ryuChunks : cachedChunks,
       modules: ryuModules.length > 0 ? ryuModules : cachedModules,
+      // Ryu now queries all relation types (core + chunk + module), so no need
+      // to merge cached chunk/module relations separately.
       relations: ryuRelations.length > 0 ? ryuRelations : cachedRelations,
       ranking,
       source: "ryu"

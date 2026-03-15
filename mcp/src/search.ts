@@ -240,7 +240,7 @@ function buildSearchEntities(data: ContextData, includeContent: boolean): Search
       source_of_truth: module.source_of_truth,
       trust_level: module.trust_level,
       updated_at: module.updated_at,
-      snippet: module.summary.slice(0, 500),
+      snippet: (module.summary || "").slice(0, 500),
       matched_rules: [],
       content: includeContent ? module.summary : undefined
     });

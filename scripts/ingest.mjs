@@ -639,7 +639,8 @@ function generateChunkDescription(chunk) {
   parts.push(chunk.signature);
 
   // Extract leading JSDoc/comment from body
-  const commentMatch = chunk.body.match(/^(?:\s*(?:\/\*\*[\s\S]*?\*\/|\/\/[^\n]*)[\s\n]*)+/);
+  // Match leading JSDoc (/** */), block (/* */) and line (//) comments
+  const commentMatch = chunk.body.match(/^(?:\s*(?:\/\*[\s\S]*?\*\/|\/\/[^\n]*)[\s\n]*)+/);
   if (commentMatch) {
     const cleaned = commentMatch[0]
       .replace(/\/\*\*|\*\/|\*|\/\//g, "")

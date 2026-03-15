@@ -420,6 +420,7 @@ async function main(): Promise<void> {
   const ontologyStatements = parseOntologyStatements(fs.readFileSync(ONTOLOGY_PATH, "utf8"));
   await executeStatements(conn, ontologyStatements);
 
+  // Delete all relations first, then all nodes, to avoid orphaned edges
   await conn.query("MATCH (a:ADR)-[r:SUPERSEDES]->(b:ADR) DELETE r;");
   await conn.query("MATCH (f:File)-[i:IMPLEMENTS]->(r:Rule) DELETE i;");
   await conn.query("MATCH (r:Rule)-[c:CONSTRAINS]->(f:File) DELETE c;");
@@ -429,6 +430,8 @@ async function main(): Promise<void> {
   await conn.query("MATCH (m:Module)-[co:CONTAINS]->(f:File) DELETE co;");
   await conn.query("MATCH (m1:Module)-[cm:CONTAINS_MODULE]->(m2:Module) DELETE cm;");
   await conn.query("MATCH (m:Module)-[ex:EXPORTS]->(c:Chunk) DELETE ex;");
+
+  // Now delete all nodes
   await conn.query("MATCH (n:ADR) DELETE n;");
   await conn.query("MATCH (n:Rule) DELETE n;");
   await conn.query("MATCH (n:Chunk) DELETE n;");
