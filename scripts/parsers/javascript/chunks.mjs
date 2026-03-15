@@ -1,4 +1,4 @@
-import { simple as walkSimple } from "acorn-walk";
+import { ancestor as walkAncestor, simple as walkSimple } from "acorn-walk";
 
 import { WALK_BASE } from "./ast.mjs";
 
@@ -136,7 +136,110 @@ function collectExportedNames(ast) {
     WALK_BASE
   );
 
+  walkAncestor(
+    ast,
+    {
+      AssignmentExpression(node, ancestors) {
+        if (isNestedInFunctionScope(ancestors)) {
+          return;
+        }
+
+        addCommonJsExportedNames(exportedNames, node);
+      }
+    },
+    WALK_BASE
+  );
+
   return exportedNames;
+}
+
+function isNestedInFunctionScope(ancestors) {
+  return ancestors.slice(0, -1).some((node) =>
+    node.type === "FunctionDeclaration" ||
+    node.type === "FunctionExpression" ||
+    node.type === "ArrowFunctionExpression"
+  );
+}
+
+function addCommonJsExportedNames(exportedNames, assignment) {
+  const exportPath = getCommonJsExportPath(assignment.left);
+  if (!exportPath) {
+    return;
+  }
+
+  addExportedNamesFromValue(exportedNames, assignment.right);
+}
+
+function getCommonJsExportPath(node) {
+  if (!node || node.type !== "MemberExpression") {
+    return null;
+  }
+
+  const propertyName = getStaticPropertyName(node);
+  if (!propertyName) {
+    return null;
+  }
+
+  if (node.object.type === "Identifier") {
+    if (node.object.name === "exports") {
+      return ["exports", propertyName];
+    }
+
+    if (node.object.name === "module" && propertyName === "exports") {
+      return ["module", "exports"];
+    }
+  }
+
+  const objectPath = getCommonJsExportPath(node.object);
+  if (!objectPath) {
+    return null;
+  }
+
+  if (objectPath.length >= 2 && objectPath[0] === "module" && objectPath[1] === "exports") {
+    return [...objectPath, propertyName];
+  }
+
+  return null;
+}
+
+function getStaticPropertyName(node) {
+  if (!node.computed && node.property.type === "Identifier") {
+    return node.property.name;
+  }
+
+  if (node.computed && node.property.type === "Literal" && typeof node.property.value === "string") {
+    return node.property.value;
+  }
+
+  return null;
+}
+
+function addExportedNamesFromValue(exportedNames, value) {
+  if (!value) {
+    return;
+  }
+
+  if (value.type === "Identifier") {
+    exportedNames.add(value.name);
+    return;
+  }
+
+  if (value.type === "AssignmentExpression") {
+    addExportedNamesFromValue(exportedNames, value.right);
+    return;
+  }
+
+  if (value.type !== "ObjectExpression") {
+    return;
+  }
+
+  for (const property of value.properties || []) {
+    if (property.type !== "Property" || property.kind !== "init") {
+      continue;
+    }
+
+    addExportedNamesFromValue(exportedNames, property.value);
+  }
 }
 
 function extractFunctionChunk(node, kind, code, nameOverride = null) {

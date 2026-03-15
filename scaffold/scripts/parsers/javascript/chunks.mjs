@@ -1,9 +1,22 @@
-import { simple as walkSimple } from "acorn-walk";
+import { ancestor as walkAncestor, simple as walkSimple } from "acorn-walk";
 
 import { WALK_BASE } from "./ast.mjs";
 
 export function discoverChunks(ast, code, language = "javascript") {
   const chunks = [];
+  const exportedNames = collectExportedNames(ast);
+
+  function pushChunk(chunk) {
+    if (!chunk) {
+      return;
+    }
+
+    chunk.language = language;
+    if (exportedNames.has(chunk.name)) {
+      chunk.exported = true;
+    }
+    chunks.push(chunk);
+  }
 
   walkSimple(
     ast,
@@ -13,11 +26,7 @@ export function discoverChunks(ast, code, language = "javascript") {
           return;
         }
 
-        const chunk = extractFunctionChunk(node, "function", code);
-        if (chunk) {
-          chunk.language = language;
-          chunks.push(chunk);
-        }
+        pushChunk(extractFunctionChunk(node, "function", code));
       },
 
       ClassDeclaration(node) {
@@ -27,8 +36,7 @@ export function discoverChunks(ast, code, language = "javascript") {
 
         const chunk = extractClassChunk(node, code);
         if (chunk) {
-          chunk.language = language;
-          chunks.push(chunk);
+          pushChunk(chunk);
 
           for (const method of extractClassMethods(node, code, language)) {
             method.parentChunk = chunk.name;
@@ -52,68 +60,7 @@ export function discoverChunks(ast, code, language = "javascript") {
           }
 
           const chunk = extractFunctionChunk(declarator.init, "const", code, declarator.id.name);
-          if (chunk) {
-            chunk.language = language;
-            chunks.push(chunk);
-          }
-        }
-      },
-
-      ExportNamedDeclaration(node) {
-        if (!node.declaration) {
-          return;
-        }
-
-        if (node.declaration.type === "FunctionDeclaration") {
-          const chunk = extractFunctionChunk(node.declaration, "function", code);
-          if (chunk) {
-            chunk.exported = true;
-            chunk.language = language;
-            chunks.push(chunk);
-          }
-          return;
-        }
-
-        if (node.declaration.type === "ClassDeclaration") {
-          const chunk = extractClassChunk(node.declaration, code);
-          if (chunk) {
-            chunk.exported = true;
-            chunk.language = language;
-            chunks.push(chunk);
-
-            for (const method of extractClassMethods(node.declaration, code, language)) {
-              method.parentChunk = chunk.name;
-              chunks.push(method);
-            }
-          }
-        }
-      },
-
-      ExportDefaultDeclaration(node) {
-        if (node.declaration.type === "FunctionDeclaration") {
-          const chunk = extractFunctionChunk(node.declaration, "function", code);
-          if (chunk) {
-            chunk.exported = true;
-            chunk.default = true;
-            chunk.language = language;
-            chunks.push(chunk);
-          }
-          return;
-        }
-
-        if (node.declaration.type === "ClassDeclaration") {
-          const chunk = extractClassChunk(node.declaration, code);
-          if (chunk) {
-            chunk.exported = true;
-            chunk.default = true;
-            chunk.language = language;
-            chunks.push(chunk);
-
-            for (const method of extractClassMethods(node.declaration, code, language)) {
-              method.parentChunk = chunk.name;
-              chunks.push(method);
-            }
-          }
+          pushChunk(chunk);
         }
       }
     },
@@ -135,6 +82,164 @@ function dedupeChunks(chunks) {
   }
 
   return [...seenChunks.values()];
+}
+
+function collectExportedNames(ast) {
+  const exportedNames = new Set();
+
+  walkSimple(
+    ast,
+    {
+      ExportNamedDeclaration(node) {
+        if (node.declaration) {
+          if (
+            (node.declaration.type === "FunctionDeclaration" ||
+              node.declaration.type === "ClassDeclaration") &&
+            node.declaration.id?.name
+          ) {
+            exportedNames.add(node.declaration.id.name);
+          }
+
+          if (node.declaration.type === "VariableDeclaration") {
+            for (const declarator of node.declaration.declarations || []) {
+              if (declarator.id?.type === "Identifier") {
+                exportedNames.add(declarator.id.name);
+              }
+            }
+          }
+        }
+
+        if (!node.source) {
+          for (const specifier of node.specifiers || []) {
+            if (specifier.local?.type === "Identifier") {
+              exportedNames.add(specifier.local.name);
+            }
+          }
+        }
+      },
+
+      ExportDefaultDeclaration(node) {
+        const declaration = node.declaration;
+        if (
+          (declaration.type === "FunctionDeclaration" || declaration.type === "ClassDeclaration") &&
+          declaration.id?.name
+        ) {
+          exportedNames.add(declaration.id.name);
+          return;
+        }
+
+        if (declaration.type === "Identifier") {
+          exportedNames.add(declaration.name);
+        }
+      }
+    },
+    WALK_BASE
+  );
+
+  walkAncestor(
+    ast,
+    {
+      AssignmentExpression(node, ancestors) {
+        if (isNestedInFunctionScope(ancestors)) {
+          return;
+        }
+
+        addCommonJsExportedNames(exportedNames, node);
+      }
+    },
+    WALK_BASE
+  );
+
+  return exportedNames;
+}
+
+function isNestedInFunctionScope(ancestors) {
+  return ancestors.slice(0, -1).some((node) =>
+    node.type === "FunctionDeclaration" ||
+    node.type === "FunctionExpression" ||
+    node.type === "ArrowFunctionExpression"
+  );
+}
+
+function addCommonJsExportedNames(exportedNames, assignment) {
+  const exportPath = getCommonJsExportPath(assignment.left);
+  if (!exportPath) {
+    return;
+  }
+
+  addExportedNamesFromValue(exportedNames, assignment.right);
+}
+
+function getCommonJsExportPath(node) {
+  if (!node || node.type !== "MemberExpression") {
+    return null;
+  }
+
+  const propertyName = getStaticPropertyName(node);
+  if (!propertyName) {
+    return null;
+  }
+
+  if (node.object.type === "Identifier") {
+    if (node.object.name === "exports") {
+      return ["exports", propertyName];
+    }
+
+    if (node.object.name === "module" && propertyName === "exports") {
+      return ["module", "exports"];
+    }
+  }
+
+  const objectPath = getCommonJsExportPath(node.object);
+  if (!objectPath) {
+    return null;
+  }
+
+  if (objectPath.length >= 2 && objectPath[0] === "module" && objectPath[1] === "exports") {
+    return [...objectPath, propertyName];
+  }
+
+  return null;
+}
+
+function getStaticPropertyName(node) {
+  if (!node.computed && node.property.type === "Identifier") {
+    return node.property.name;
+  }
+
+  if (node.computed && node.property.type === "Literal" && typeof node.property.value === "string") {
+    return node.property.value;
+  }
+
+  return null;
+}
+
+function addExportedNamesFromValue(exportedNames, value) {
+  if (!value) {
+    return;
+  }
+
+  if (value.type === "Identifier") {
+    exportedNames.add(value.name);
+    return;
+  }
+
+  if (value.type === "AssignmentExpression") {
+    addExportedNamesFromValue(exportedNames, value.right);
+    return;
+  }
+
+  if (value.type !== "ObjectExpression") {
+    return;
+  }
+
+  for (const property of value.properties || []) {
+    if (property.type !== "Property" || property.kind !== "init") {
+      continue;
+    }
+
+    addExportedNamesFromValue(exportedNames, property.value);
+  }
 }
 
 function extractFunctionChunk(node, kind, code, nameOverride = null) {
