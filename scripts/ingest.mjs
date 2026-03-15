@@ -610,6 +610,114 @@ function readJsonlSafe(filePath) {
     .filter((record) => record !== null);
 }
 
+function relationKey(...parts) {
+  return parts.map((part) => String(part ?? "")).join("|");
+}
+
+function removeChunkStateForFile(fileId, chunkRecordMap, definesRelationMap, callsRelationMap, importsRelationMap) {
+  const removedChunkIds = new Set();
+
+  for (const [chunkId, chunkRecord] of chunkRecordMap.entries()) {
+    if (chunkRecord.file_id === fileId) {
+      removedChunkIds.add(chunkId);
+      chunkRecordMap.delete(chunkId);
+    }
+  }
+
+  if (removedChunkIds.size === 0) {
+    return;
+  }
+
+  for (const [key, relation] of definesRelationMap.entries()) {
+    if (relation.from === fileId || removedChunkIds.has(relation.to)) {
+      definesRelationMap.delete(key);
+    }
+  }
+
+  for (const [key, relation] of callsRelationMap.entries()) {
+    if (removedChunkIds.has(relation.from) || removedChunkIds.has(relation.to)) {
+      callsRelationMap.delete(key);
+    }
+  }
+
+  for (const [key, relation] of importsRelationMap.entries()) {
+    if (removedChunkIds.has(relation.from)) {
+      importsRelationMap.delete(key);
+    }
+  }
+}
+
+function hydrateIncrementalChunkState(fileRecords) {
+  const fileIdSet = new Set(fileRecords.map((record) => record.id));
+  const chunkRecordMap = new Map();
+  const definesRelationMap = new Map();
+  const callsRelationMap = new Map();
+  const importsRelationMap = new Map();
+
+  for (const record of readJsonlSafe(path.join(CACHE_DIR, "entities.chunk.jsonl"))) {
+    if (!record || typeof record !== "object") continue;
+    const chunkId = String(record.id ?? "");
+    const fileId = String(record.file_id ?? "");
+    if (!chunkId || !fileIdSet.has(fileId)) {
+      continue;
+    }
+    chunkRecordMap.set(chunkId, {
+      ...record,
+      id: chunkId,
+      file_id: fileId
+    });
+  }
+
+  const chunkIdSet = new Set(chunkRecordMap.keys());
+
+  for (const record of readJsonlSafe(path.join(CACHE_DIR, "relations.defines.jsonl"))) {
+    if (!record || typeof record !== "object") continue;
+    const from = String(record.from ?? "");
+    const to = String(record.to ?? "");
+    if (!fileIdSet.has(from) || !chunkIdSet.has(to)) {
+      continue;
+    }
+    definesRelationMap.set(relationKey(from, to), { from, to });
+  }
+
+  for (const record of readJsonlSafe(path.join(CACHE_DIR, "relations.calls.jsonl"))) {
+    if (!record || typeof record !== "object") continue;
+    const from = String(record.from ?? "");
+    const to = String(record.to ?? "");
+    const callType = String(record.call_type ?? "direct");
+    if (!chunkIdSet.has(from) || !chunkIdSet.has(to)) {
+      continue;
+    }
+    callsRelationMap.set(relationKey(from, to, callType), {
+      from,
+      to,
+      call_type: callType
+    });
+  }
+
+  for (const record of readJsonlSafe(path.join(CACHE_DIR, "relations.imports.jsonl"))) {
+    if (!record || typeof record !== "object") continue;
+    const from = String(record.from ?? "");
+    const to = String(record.to ?? "");
+    const importName = String(record.import_name ?? "");
+    if (!chunkIdSet.has(from) || !fileIdSet.has(to)) {
+      continue;
+    }
+    importsRelationMap.set(relationKey(from, to, importName), {
+      from,
+      to,
+      import_name: importName
+    });
+  }
+
+  return {
+    chunkRecordMap,
+    definesRelationMap,
+    callsRelationMap,
+    importsRelationMap
+  };
+}
+
 function normalizeRuleTokens(ruleRecord) {
   const idParts = ruleRecord.id.split(/[._-]+/g);
   const descriptionTokens = tokenizeKeywords(ruleRecord.body);
@@ -996,12 +1104,29 @@ function main() {
   const fileRecords = [...fileRecordMap.values()].sort((a, b) => a.path.localeCompare(b.path));
   const adrRecords = [...adrRecordMap.values()].sort((a, b) => a.path.localeCompare(b.path));
   const indexedFileIds = new Set(fileRecords.map((record) => record.id));
+  const changedFileIds = new Set(
+    [...candidates].map((absolutePath) => `file:${toPosixPath(path.relative(REPO_ROOT, absolutePath))}`)
+  );
 
-  // Extract chunks from code files
-  const chunkRecords = [];
-  const definesRelations = [];
-  const callsRelations = [];
-  const importsRelations = [];
+  const {
+    chunkRecordMap,
+    definesRelationMap,
+    callsRelationMap,
+    importsRelationMap
+  } = incrementalMode
+    ? hydrateIncrementalChunkState(fileRecords)
+    : {
+        chunkRecordMap: new Map(),
+        definesRelationMap: new Map(),
+        callsRelationMap: new Map(),
+        importsRelationMap: new Map()
+      };
+
+  const cachedChunkFileIds = new Set(
+    [...chunkRecordMap.values()].map((record) => String(record.file_id ?? "")).filter(Boolean)
+  );
+
+  // Extract chunks from changed or uncached code files
   let windowedChunkCount = 0;
 
   for (const fileRecord of fileRecords) {
@@ -1010,6 +1135,20 @@ function main() {
     const ext = path.extname(fileRecord.path).toLowerCase();
     const supportedForChunking = [".js", ".mjs", ".cjs", ".ts"].includes(ext);
     if (!supportedForChunking) continue;
+
+    const shouldParseFile =
+      !incrementalMode || changedFileIds.has(fileRecord.id) || !cachedChunkFileIds.has(fileRecord.id);
+    if (!shouldParseFile) {
+      continue;
+    }
+
+    removeChunkStateForFile(
+      fileRecord.id,
+      chunkRecordMap,
+      definesRelationMap,
+      callsRelationMap,
+      importsRelationMap
+    );
 
     try {
       const language = ext === ".ts" ? "typescript" : "javascript";
@@ -1051,10 +1190,10 @@ function main() {
               : "active",
           source_of_truth: Boolean(fileRecord.source_of_truth)
         };
-        chunkRecords.push(chunkRecord);
+        chunkRecordMap.set(chunkId, chunkRecord);
 
         // DEFINES relation: File -> Chunk
-        definesRelations.push({
+        definesRelationMap.set(relationKey(fileRecord.id, chunkId), {
           from: fileRecord.id,
           to: chunkId
         });
@@ -1069,8 +1208,8 @@ function main() {
         if (windows.length > 0) {
           windowedChunkCount += windows.length;
           for (const windowChunk of windows) {
-            chunkRecords.push(windowChunk);
-            definesRelations.push({
+            chunkRecordMap.set(windowChunk.id, windowChunk);
+            definesRelationMap.set(relationKey(fileRecord.id, windowChunk.id), {
               from: fileRecord.id,
               to: windowChunk.id
             });
@@ -1084,7 +1223,7 @@ function main() {
             continue;
           }
 
-          importsRelations.push({
+          importsRelationMap.set(relationKey(chunkId, targetFileId, importPath), {
             from: chunkId,
             to: targetFileId,
             import_name: importPath
@@ -1103,7 +1242,7 @@ function main() {
               continue;
             }
             seenCallEdges.add(callKey);
-            callsRelations.push({
+            callsRelationMap.set(relationKey(chunkId, targetChunkId, "direct"), {
               from: chunkId,
               to: targetChunkId,
               call_type: "direct"
@@ -1118,9 +1257,20 @@ function main() {
     }
   }
 
+  const chunkRecords = [...chunkRecordMap.values()].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+
   // Filter CALLS relations to only valid targets (chunks that actually exist)
   const chunkIdSet = new Set(chunkRecords.map(c => c.id));
-  const validCallsRelations = callsRelations.filter(rel => chunkIdSet.has(rel.to));
+  const validDefinesRelations = [...definesRelationMap.values()].filter(
+    (rel) => indexedFileIds.has(rel.from) && chunkIdSet.has(rel.to)
+  );
+  const totalCallsRelations = callsRelationMap.size;
+  const validCallsRelations = [...callsRelationMap.values()].filter(
+    (rel) => chunkIdSet.has(rel.from) && chunkIdSet.has(rel.to)
+  );
+  const validImportsRelations = [...importsRelationMap.values()].filter(
+    (rel) => chunkIdSet.has(rel.from) && indexedFileIds.has(rel.to)
+  );
 
   if (verbose && chunkRecords.length > 0) {
     console.log(`[ingest] extracted ${chunkRecords.length} chunks from ${fileRecords.filter(f => f.kind === "CODE").length} code files`);
@@ -1129,7 +1279,7 @@ function main() {
         `[ingest] overlap windows added=${windowedChunkCount} (window_lines=${chunkWindowLines}, overlap_lines=${chunkOverlapLines}, max_windows=${chunkMaxWindows})`
       );
     }
-    console.log(`[ingest] ${validCallsRelations.length} call relations (${callsRelations.length - validCallsRelations.length} filtered)`);
+    console.log(`[ingest] ${validCallsRelations.length} call relations (${totalCallsRelations - validCallsRelations.length} filtered)`);
   }
 
   // Generate Module entities and relations
@@ -1242,9 +1392,9 @@ function main() {
   writeJsonl(path.join(CACHE_DIR, "relations.supersedes.jsonl"), supersedesRelations);
   writeJsonl(path.join(CACHE_DIR, "relations.constrains.jsonl"), constrainsRelations);
   writeJsonl(path.join(CACHE_DIR, "relations.implements.jsonl"), implementsRelations);
-  writeJsonl(path.join(CACHE_DIR, "relations.defines.jsonl"), definesRelations);
+  writeJsonl(path.join(CACHE_DIR, "relations.defines.jsonl"), validDefinesRelations);
   writeJsonl(path.join(CACHE_DIR, "relations.calls.jsonl"), validCallsRelations);
-  writeJsonl(path.join(CACHE_DIR, "relations.imports.jsonl"), importsRelations);
+  writeJsonl(path.join(CACHE_DIR, "relations.imports.jsonl"), validImportsRelations);
   writeJsonl(path.join(CACHE_DIR, "entities.module.jsonl"), moduleRecords);
   writeJsonl(path.join(CACHE_DIR, "relations.contains.jsonl"), moduleContainsRelations);
   writeJsonl(path.join(CACHE_DIR, "relations.contains_module.jsonl"), moduleContainsModuleRelations);
@@ -1381,7 +1531,7 @@ function main() {
   writeTsv(
     path.join(DB_IMPORT_DIR, "defines_rel.tsv"),
     ["from", "to"],
-    definesRelations.map((record) => [record.from, record.to])
+    validDefinesRelations.map((record) => [record.from, record.to])
   );
 
   writeTsv(
@@ -1393,7 +1543,7 @@ function main() {
   writeTsv(
     path.join(DB_IMPORT_DIR, "imports_rel.tsv"),
     ["from", "to", "import_name"],
-    importsRelations.map((record) => [record.from, record.to, record.import_name])
+    validImportsRelations.map((record) => [record.from, record.to, record.import_name])
   );
 
   const manifest = {
@@ -1408,9 +1558,9 @@ function main() {
       relations_constrains: constrainsRelations.length,
       relations_implements: implementsRelations.length,
       relations_supersedes: supersedesRelations.length,
-      relations_defines: definesRelations.length,
+      relations_defines: validDefinesRelations.length,
       relations_calls: validCallsRelations.length,
-      relations_imports: importsRelations.length,
+      relations_imports: validImportsRelations.length,
       modules: moduleRecords.length,
       relations_contains: moduleContainsRelations.length,
       relations_contains_module: moduleContainsModuleRelations.length,

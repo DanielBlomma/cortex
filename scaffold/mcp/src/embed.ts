@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { env, pipeline } from "@xenova/transformers";
+import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
+import type { JsonObject, JsonValue } from "./types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,9 +18,7 @@ const MODEL_CACHE_DIR = path.join(EMBEDDINGS_DIR, "models");
 
 const DEFAULT_MODEL_ID = "Xenova/all-MiniLM-L6-v2";
 const DEFAULT_MAX_TEXT_CHARS = 7000;
-
-type JsonValue = string | number | boolean | null | JsonObject | JsonValue[];
-type JsonObject = { [key: string]: JsonValue };
+const CHUNK_BODY_PREVIEW_CHARS = 2000;
 
 type FileEntity = {
   id: string;
@@ -62,7 +62,37 @@ type AdrEntity = {
   signature: string;
 };
 
-type SearchEntity = FileEntity | RuleEntity | AdrEntity;
+// Embedding-specific entity types — intentionally different from types.ts records
+// because they carry `text` and `signature` fields used for embedding generation.
+type ModuleEntity = {
+  id: string;
+  type: "Module";
+  kind: "MODULE";
+  label: string;
+  path: string;
+  status: string;
+  source_of_truth: boolean;
+  trust_level: number;
+  updated_at: string;
+  text: string;
+  signature: string;
+};
+
+type ChunkEntity = {
+  id: string;
+  type: "Chunk";
+  kind: string;
+  label: string;
+  path: string;
+  status: string;
+  source_of_truth: boolean;
+  trust_level: number;
+  updated_at: string;
+  text: string;
+  signature: string;
+};
+
+type SearchEntity = FileEntity | RuleEntity | AdrEntity | ModuleEntity | ChunkEntity;
 
 type EmbeddingRecord = {
   id: string;
@@ -87,18 +117,6 @@ function parseArgs(argv: string[]): { mode: "full" | "changed" } {
   };
 }
 
-function asString(value: JsonValue | undefined, fallback = ""): string {
-  return typeof value === "string" ? value : fallback;
-}
-
-function asNumber(value: JsonValue | undefined, fallback = 0): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-function asBoolean(value: JsonValue | undefined, fallback = false): boolean {
-  return typeof value === "boolean" ? value : fallback;
-}
-
 function hashText(value: string): string {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
@@ -109,26 +127,6 @@ function normalizeText(value: string): string {
 
 function clampText(value: string, maxChars: number): string {
   return value.slice(0, maxChars);
-}
-
-function readJsonl(filePath: string): JsonObject[] {
-  if (!fs.existsSync(filePath)) {
-    return [];
-  }
-
-  return fs
-    .readFileSync(filePath, "utf8")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      try {
-        return JSON.parse(line) as JsonObject;
-      } catch {
-        return null;
-      }
-    })
-    .filter((value): value is JsonObject => value !== null);
 }
 
 function writeJsonl(filePath: string, records: EmbeddingRecord[]): void {
@@ -243,6 +241,73 @@ function parseAdrEntities(raw: JsonObject[], maxChars: number): AdrEntity[] {
     .filter((value): value is AdrEntity => value !== null);
 }
 
+function parseModuleEntities(raw: JsonObject[], maxChars: number): ModuleEntity[] {
+  return raw
+    .map((item) => {
+      const id = asString(item.id);
+      if (!id) {
+        return null;
+      }
+
+      const modulePath = asString(item.path);
+      const name = asString(item.name);
+      const summary = asString(item.summary);
+      const exportedSymbols = asString(item.exported_symbols);
+      const updatedAt = asString(item.updated_at);
+      const text = clampText(`${modulePath}\n${name}\n${summary}\n${exportedSymbols}`, maxChars);
+
+      return {
+        id,
+        type: "Module" as const,
+        kind: "MODULE" as const,
+        label: name || modulePath,
+        path: modulePath,
+        status: asString(item.status, "active"),
+        source_of_truth: asBoolean(item.source_of_truth, false),
+        trust_level: asNumber(item.trust_level, 75),
+        updated_at: updatedAt,
+        text,
+        signature: hashText(`module|${id}|${updatedAt}|${hashText(text)}`)
+      };
+    })
+    .filter((value): value is ModuleEntity => value !== null);
+}
+
+function parseChunkEntities(raw: JsonObject[], filePathById: Map<string, string>, maxChars: number): ChunkEntity[] {
+  return raw
+    .map((item) => {
+      const id = asString(item.id);
+      if (!id) {
+        return null;
+      }
+
+      const fileId = asString(item.file_id);
+      const filePath = filePathById.get(fileId) ?? "";
+      const name = asString(item.name);
+      const sig = asString(item.signature);
+      const description = asString(item.description);
+      const body = asString(item.body);
+      const updatedAt = asString(item.updated_at);
+      const checksum = asString(item.checksum, hashText(body));
+      const text = clampText(`${filePath}\n${name}\n${sig}\n${description}\n${body.slice(0, CHUNK_BODY_PREVIEW_CHARS)}`, maxChars);
+
+      return {
+        id,
+        type: "Chunk" as const,
+        kind: asString(item.kind, "chunk"),
+        label: name || id,
+        path: filePath,
+        status: asString(item.status, "active"),
+        source_of_truth: asBoolean(item.source_of_truth, false),
+        trust_level: asNumber(item.trust_level, 60),
+        updated_at: updatedAt,
+        text,
+        signature: hashText(`chunk|${checksum}|${updatedAt}|${hashText(text)}`)
+      };
+    })
+    .filter((value): value is ChunkEntity => value !== null);
+}
+
 function parseExistingEmbeddings(raw: JsonObject[], modelId: string): Map<string, EmbeddingRecord> {
   const index = new Map<string, EmbeddingRecord>();
 
@@ -312,7 +377,16 @@ async function main(): Promise<void> {
   const documents = parseFileEntities(readJsonl(path.join(CACHE_DIR, "documents.jsonl")), maxTextChars);
   const rules = parseRuleEntities(readJsonl(path.join(CACHE_DIR, "entities.rule.jsonl")), maxTextChars);
   const adrs = parseAdrEntities(readJsonl(path.join(CACHE_DIR, "entities.adr.jsonl")), maxTextChars);
-  const entities: SearchEntity[] = [...documents, ...rules, ...adrs].sort((a, b) => a.id.localeCompare(b.id));
+  const modules = parseModuleEntities(readJsonl(path.join(CACHE_DIR, "entities.module.jsonl")), maxTextChars);
+
+  // Build file path lookup for chunk embedding text (reuse already-parsed documents)
+  const filePathById = new Map<string, string>();
+  for (const doc of documents) {
+    filePathById.set(doc.id, doc.path);
+  }
+  const chunks = parseChunkEntities(readJsonl(path.join(CACHE_DIR, "entities.chunk.jsonl")), filePathById, maxTextChars);
+
+  const entities: SearchEntity[] = [...documents, ...rules, ...adrs, ...modules, ...chunks].sort((a, b) => a.id.localeCompare(b.id));
 
   const existing = parseExistingEmbeddings(readJsonl(EMBEDDINGS_PATH), modelId);
 

@@ -1,7 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import ryugraph, { type Connection, type QueryResult } from "ryugraph";
+import ryugraph, { type Connection, type PreparedStatement, type QueryResult, type RyuValue } from "ryugraph";
+import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
+import type { JsonObject } from "./types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,9 +12,19 @@ const CONTEXT_DIR = path.join(REPO_ROOT, ".context");
 const CACHE_DIR = path.join(CONTEXT_DIR, "cache");
 const DB_PATH = path.join(CONTEXT_DIR, "db", "graph.ryu");
 const ONTOLOGY_PATH = path.join(CONTEXT_DIR, "ontology.cypher");
+const BATCH_SIZE = 50;
 
-type JsonValue = string | number | boolean | null | JsonObject | JsonValue[];
-type JsonObject = { [key: string]: JsonValue };
+async function executeBatch(
+  conn: Connection,
+  statement: PreparedStatement,
+  items: Record<string, RyuValue>[],
+  batchSize = BATCH_SIZE
+): Promise<void> {
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    await Promise.all(batch.map((item) => conn.execute(statement, item)));
+  }
+}
 
 type FileEntity = {
   id: string;
@@ -57,10 +69,25 @@ type ChunkEntity = {
   kind: string;
   signature: string;
   body: string;
+  description: string;
   start_line: number;
   end_line: number;
   language: string;
+  exported: boolean;
   checksum: string;
+  updated_at: string;
+  source_of_truth: boolean;
+  trust_level: number;
+  status: string;
+};
+
+type ModuleEntity = {
+  id: string;
+  path: string;
+  name: string;
+  summary: string;
+  file_count: number;
+  exported_symbols: string;
   updated_at: string;
   source_of_truth: boolean;
   trust_level: number;
@@ -84,38 +111,6 @@ type ImportRelation = {
   to: string;
   import_name: string;
 };
-
-function asString(value: JsonValue | undefined, fallback = ""): string {
-  return typeof value === "string" ? value : fallback;
-}
-
-function asNumber(value: JsonValue | undefined, fallback = 0): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-function asBoolean(value: JsonValue | undefined, fallback = false): boolean {
-  return typeof value === "boolean" ? value : fallback;
-}
-
-function readJsonl(filePath: string): JsonObject[] {
-  if (!fs.existsSync(filePath)) {
-    return [];
-  }
-
-  return fs
-    .readFileSync(filePath, "utf8")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      try {
-        return JSON.parse(line) as JsonObject;
-      } catch {
-        return null;
-      }
-    })
-    .filter((value): value is JsonObject => value !== null);
-}
 
 function readEntityFile(fileName: string): JsonObject[] {
   return readJsonl(path.join(CACHE_DIR, fileName));
@@ -208,9 +203,11 @@ function parseChunks(raw: JsonObject[]): ChunkEntity[] {
         kind: asString(item.kind, "function"),
         signature: asString(item.signature),
         body: asString(item.body),
+        description: asString(item.description),
         start_line: asNumber(item.start_line, 0),
         end_line: asNumber(item.end_line, 0),
         language: asString(item.language, "javascript"),
+        exported: asBoolean(item.exported, false),
         checksum: asString(item.checksum),
         updated_at: asString(item.updated_at),
         source_of_truth: asBoolean(item.source_of_truth, true),
@@ -219,6 +216,30 @@ function parseChunks(raw: JsonObject[]): ChunkEntity[] {
       };
     })
     .filter((value): value is ChunkEntity => value !== null);
+}
+
+function parseModules(raw: JsonObject[]): ModuleEntity[] {
+  return raw
+    .map((item) => {
+      const id = asString(item.id);
+      if (!id) {
+        return null;
+      }
+
+      return {
+        id,
+        path: asString(item.path),
+        name: asString(item.name),
+        summary: asString(item.summary),
+        file_count: asNumber(item.file_count, 0),
+        exported_symbols: asString(item.exported_symbols),
+        updated_at: asString(item.updated_at),
+        source_of_truth: asBoolean(item.source_of_truth, false),
+        trust_level: asNumber(item.trust_level, 75),
+        status: asString(item.status, "active")
+      };
+    })
+    .filter((value): value is ModuleEntity => value !== null);
 }
 
 function parseRelations(fileName: string, noteField: string): Relation[] {
@@ -339,21 +360,25 @@ async function ensureRequiredFiles(): Promise<void> {
   }
 }
 
-function warnIfOptionalChunkFilesMissing(): void {
-  const optionalChunkFiles = [
+function warnIfOptionalFilesMissing(): void {
+  const optionalFiles = [
     "entities.chunk.jsonl",
     "relations.defines.jsonl",
     "relations.calls.jsonl",
-    "relations.imports.jsonl"
+    "relations.imports.jsonl",
+    "entities.module.jsonl",
+    "relations.contains.jsonl",
+    "relations.contains_module.jsonl",
+    "relations.exports.jsonl"
   ];
 
-  const missing = optionalChunkFiles.filter((fileName) => !fs.existsSync(path.join(CACHE_DIR, fileName)));
+  const missing = optionalFiles.filter((fileName) => !fs.existsSync(path.join(CACHE_DIR, fileName)));
   if (missing.length === 0) {
     return;
   }
 
   console.warn(
-    `[graph-load] warning: missing optional chunk files (${missing.join(", ")}); continuing without chunk nodes/relations`
+    `[graph-load] warning: missing optional files (${missing.join(", ")}); continuing without those nodes/relations`
   );
 }
 
@@ -362,7 +387,7 @@ async function main(): Promise<void> {
   const reset = !args.has("--no-reset");
 
   await ensureRequiredFiles();
-  warnIfOptionalChunkFilesMissing();
+  warnIfOptionalFilesMissing();
 
   if (reset) {
     fs.rmSync(DB_PATH, { recursive: true, force: true });
@@ -375,15 +400,22 @@ async function main(): Promise<void> {
   const ontologyStatements = parseOntologyStatements(fs.readFileSync(ONTOLOGY_PATH, "utf8"));
   await executeStatements(conn, ontologyStatements);
 
+  // Delete all relations first, then all nodes, to avoid orphaned edges
   await conn.query("MATCH (a:ADR)-[r:SUPERSEDES]->(b:ADR) DELETE r;");
   await conn.query("MATCH (f:File)-[i:IMPLEMENTS]->(r:Rule) DELETE i;");
   await conn.query("MATCH (r:Rule)-[c:CONSTRAINS]->(f:File) DELETE c;");
   await conn.query("MATCH (f:File)-[d:DEFINES]->(c:Chunk) DELETE d;");
   await conn.query("MATCH (c1:Chunk)-[ca:CALLS]->(c2:Chunk) DELETE ca;");
   await conn.query("MATCH (c:Chunk)-[im:IMPORTS]->(f:File) DELETE im;");
+  await conn.query("MATCH (m:Module)-[co:CONTAINS]->(f:File) DELETE co;");
+  await conn.query("MATCH (m1:Module)-[cm:CONTAINS_MODULE]->(m2:Module) DELETE cm;");
+  await conn.query("MATCH (m:Module)-[ex:EXPORTS]->(c:Chunk) DELETE ex;");
+
+  // Now delete all nodes
   await conn.query("MATCH (n:ADR) DELETE n;");
   await conn.query("MATCH (n:Rule) DELETE n;");
   await conn.query("MATCH (n:Chunk) DELETE n;");
+  await conn.query("MATCH (n:Module) DELETE n;");
   await conn.query("MATCH (n:File) DELETE n;");
 
   const fileEntities = parseFiles(readEntityFile("entities.file.jsonl"));
@@ -396,6 +428,10 @@ async function main(): Promise<void> {
   const defines = parseSimpleRelations("relations.defines.jsonl");
   const calls = parseCallRelations("relations.calls.jsonl");
   const imports = parseImportRelations("relations.imports.jsonl");
+  const moduleEntities = parseModules(readEntityFile("entities.module.jsonl"));
+  const contains = parseSimpleRelations("relations.contains.jsonl");
+  const containsModule = parseSimpleRelations("relations.contains_module.jsonl");
+  const exports = parseSimpleRelations("relations.exports.jsonl");
 
   const insertFile = await conn.prepare(`
     CREATE (f:File {
@@ -447,9 +483,11 @@ async function main(): Promise<void> {
       kind: $kind,
       signature: $signature,
       body: $body,
+      description: $description,
       start_line: $start_line,
       end_line: $end_line,
       language: $language,
+      exported: $exported,
       checksum: $checksum,
       updated_at: $updated_at,
       source_of_truth: $source_of_truth,
@@ -488,55 +526,57 @@ async function main(): Promise<void> {
     CREATE (c)-[:IMPORTS {import_name: $import_name}]->(f);
   `);
 
-  for (const entity of fileEntities) {
-    await conn.execute(insertFile, entity);
-  }
-
-  for (const entity of ruleEntities) {
-    await conn.execute(insertRule, {
-      id: entity.id,
-      title: entity.title,
-      body: entity.body,
-      scope: entity.scope,
-      priority: entity.priority,
-      updated_at: entity.updated_at,
-      source_of_truth: entity.source_of_truth,
-      trust_level: entity.trust_level,
-      status: entity.status
+  const insertModule = await conn.prepare(`
+    CREATE (m:Module {
+      id: $id,
+      path: $path,
+      name: $name,
+      summary: $summary,
+      file_count: $file_count,
+      exported_symbols: $exported_symbols,
+      updated_at: $updated_at,
+      source_of_truth: $source_of_truth,
+      trust_level: $trust_level,
+      status: $status
     });
-  }
+  `);
 
-  for (const entity of adrEntities) {
-    await conn.execute(insertAdr, entity);
-  }
+  const insertContains = await conn.prepare(`
+    MATCH (m:Module {id: $from}), (f:File {id: $to})
+    CREATE (m)-[:CONTAINS]->(f);
+  `);
 
-  for (const entity of chunkEntities) {
-    await conn.execute(insertChunk, entity);
-  }
+  const insertContainsModule = await conn.prepare(`
+    MATCH (m1:Module {id: $from}), (m2:Module {id: $to})
+    CREATE (m1)-[:CONTAINS_MODULE]->(m2);
+  `);
 
-  for (const edge of defines) {
-    await conn.execute(insertDefines, edge);
-  }
+  const insertExports = await conn.prepare(`
+    MATCH (m:Module {id: $from}), (c:Chunk {id: $to})
+    CREATE (m)-[:EXPORTS]->(c);
+  `);
 
-  for (const edge of calls) {
-    await conn.execute(insertCalls, edge);
-  }
+  // Insert all nodes first (batched for performance)
+  await executeBatch(conn, insertFile, fileEntities);
+  await executeBatch(conn, insertRule, ruleEntities.map((e) => ({
+    id: e.id, title: e.title, body: e.body, scope: e.scope,
+    priority: e.priority, updated_at: e.updated_at,
+    source_of_truth: e.source_of_truth, trust_level: e.trust_level, status: e.status
+  })));
+  await executeBatch(conn, insertAdr, adrEntities);
+  await executeBatch(conn, insertChunk, chunkEntities);
+  await executeBatch(conn, insertModule, moduleEntities);
 
-  for (const edge of imports) {
-    await conn.execute(insertImports, edge);
-  }
-
-  for (const edge of constrains) {
-    await conn.execute(insertConstrains, edge);
-  }
-
-  for (const edge of implementsEdges) {
-    await conn.execute(insertImplements, edge);
-  }
-
-  for (const edge of supersedes) {
-    await conn.execute(insertSupersedes, edge);
-  }
+  // Insert all edges (nodes must exist first)
+  await executeBatch(conn, insertDefines, defines);
+  await executeBatch(conn, insertCalls, calls);
+  await executeBatch(conn, insertImports, imports);
+  await executeBatch(conn, insertConstrains, constrains);
+  await executeBatch(conn, insertImplements, implementsEdges);
+  await executeBatch(conn, insertSupersedes, supersedes);
+  await executeBatch(conn, insertContains, contains);
+  await executeBatch(conn, insertContainsModule, containsModule);
+  await executeBatch(conn, insertExports, exports);
 
   const fileCount = await rows(await conn.query("MATCH (f:File) RETURN count(*) AS count;"));
   const ruleCount = await rows(await conn.query("MATCH (r:Rule) RETURN count(*) AS count;"));
@@ -560,6 +600,16 @@ async function main(): Promise<void> {
   const importsCount = await rows(
     await conn.query("MATCH (:Chunk)-[im:IMPORTS]->(:File) RETURN count(im) AS count;")
   );
+  const moduleCount = await rows(await conn.query("MATCH (m:Module) RETURN count(*) AS count;"));
+  const containsCount = await rows(
+    await conn.query("MATCH (:Module)-[co:CONTAINS]->(:File) RETURN count(co) AS count;")
+  );
+  const containsModuleCount = await rows(
+    await conn.query("MATCH (:Module)-[cm:CONTAINS_MODULE]->(:Module) RETURN count(cm) AS count;")
+  );
+  const exportsCount = await rows(
+    await conn.query("MATCH (:Module)-[ex:EXPORTS]->(:Chunk) RETURN count(ex) AS count;")
+  );
 
   const summary = {
     generated_at: new Date().toISOString(),
@@ -574,7 +624,11 @@ async function main(): Promise<void> {
       supersedes: Number(supersedesCount[0]?.count ?? 0),
       defines: Number(definesCount[0]?.count ?? 0),
       calls: Number(callsCount[0]?.count ?? 0),
-      imports: Number(importsCount[0]?.count ?? 0)
+      imports: Number(importsCount[0]?.count ?? 0),
+      modules: Number(moduleCount[0]?.count ?? 0),
+      contains: Number(containsCount[0]?.count ?? 0),
+      contains_module: Number(containsModuleCount[0]?.count ?? 0),
+      exports: Number(exportsCount[0]?.count ?? 0)
     }
   };
 
@@ -583,13 +637,16 @@ async function main(): Promise<void> {
 
   console.log(`[graph-load] db_path=${DB_PATH}`);
   console.log(
-    `[graph-load] files=${summary.counts.files} rules=${summary.counts.rules} adrs=${summary.counts.adrs} chunks=${summary.counts.chunks}`
+    `[graph-load] files=${summary.counts.files} rules=${summary.counts.rules} adrs=${summary.counts.adrs} chunks=${summary.counts.chunks} modules=${summary.counts.modules}`
   );
   console.log(
     `[graph-load] rels constrains=${summary.counts.constrains} implements=${summary.counts.implements} supersedes=${summary.counts.supersedes}`
   );
   console.log(
     `[graph-load] rels defines=${summary.counts.defines} calls=${summary.counts.calls} imports=${summary.counts.imports}`
+  );
+  console.log(
+    `[graph-load] rels contains=${summary.counts.contains} contains_module=${summary.counts.contains_module} exports=${summary.counts.exports}`
   );
   console.log(`[graph-load] manifest=${summaryPath}`);
 

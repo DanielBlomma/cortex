@@ -696,8 +696,146 @@ ranking:
   }
 }
 
+function testIngestIncrementalPreservesModuleExports() {
+  console.log("\n7. ingest incremental preserves module exports for unchanged sibling files");
+  const fixtureRoot = makeTempDir("cortex-ingest-module-exports-");
+  try {
+    fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "src", "lib"), { recursive: true });
+
+    const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
+      'import { parseCode } from "./parsers/javascript.mjs";',
+      'import { parseCode } from "./parsers/mock-parser.mjs";'
+    );
+    fs.writeFileSync(path.join(fixtureRoot, "scripts", "ingest.mjs"), ingestSource, "utf8");
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, "scripts", "parsers", "mock-parser.mjs"),
+      `export function parseCode(_content, filePath) {
+  if (filePath === "src/lib/a.ts") {
+    return {
+      errors: [],
+      chunks: [
+        {
+          name: "alpha",
+          kind: "function",
+          signature: "alpha()",
+          body: "export function alpha() { return 1; }",
+          startLine: 1,
+          endLine: 1,
+          calls: [],
+          imports: [],
+          language: "typescript",
+          exported: true
+        }
+      ]
+    };
+  }
+
+  if (filePath === "src/lib/b.ts") {
+    return {
+      errors: [],
+      chunks: [
+        {
+          name: "beta",
+          kind: "function",
+          signature: "beta()",
+          body: "export function beta() { return 2; }",
+          startLine: 1,
+          endLine: 1,
+          calls: [],
+          imports: [],
+          language: "typescript",
+          exported: true
+        }
+      ]
+    };
+  }
+
+  return { errors: [], chunks: [] };
+}
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "config.yaml"),
+      `repo_id: fixture
+source_paths:
+  - src
+truth_order:
+  - ADR
+  - RULE
+  - CODE
+  - WIKI
+ranking:
+  semantic: 0.40
+  graph: 0.25
+  trust: 0.20
+  recency: 0.15
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "rules.yaml"),
+      `rules:
+  - id: rule.test
+    description: "fixture rule"
+    priority: 1
+    enforce: true
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(path.join(fixtureRoot, "src", "lib", "a.ts"), "export const alpha = 1;\n", "utf8");
+    fs.writeFileSync(path.join(fixtureRoot, "src", "lib", "b.ts"), "export const beta = 2;\n", "utf8");
+
+    run("git", ["init"], { cwd: fixtureRoot });
+    run("git", ["checkout", "-b", "main"], { cwd: fixtureRoot });
+    run("git", ["config", "user.email", "tests@example.com"], { cwd: fixtureRoot });
+    run("git", ["config", "user.name", "Cortex Tests"], { cwd: fixtureRoot });
+    run("git", ["add", "."], { cwd: fixtureRoot });
+    run("git", ["commit", "-m", "initial fixture"], { cwd: fixtureRoot });
+
+    run("node", ["scripts/ingest.mjs"], { cwd: fixtureRoot });
+
+    let modules = parseJsonl(path.join(fixtureRoot, ".context", "cache", "entities.module.jsonl"));
+    let exports = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.exports.jsonl"));
+    let libModule = modules.find((record) => record.id === "module:src/lib");
+
+    assert("full ingest creates src/lib module", Boolean(libModule));
+    assert(
+      "full ingest exports both alpha and beta",
+      exports.some((edge) => edge.from === "module:src/lib" && edge.to === "chunk:src/lib/a.ts:alpha:1-1") &&
+        exports.some((edge) => edge.from === "module:src/lib" && edge.to === "chunk:src/lib/b.ts:beta:1-1")
+    );
+
+    fs.writeFileSync(path.join(fixtureRoot, "src", "lib", "a.ts"), "export const alpha = 3;\n", "utf8");
+
+    run("node", ["scripts/ingest.mjs", "--changed"], { cwd: fixtureRoot });
+
+    modules = parseJsonl(path.join(fixtureRoot, ".context", "cache", "entities.module.jsonl"));
+    exports = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.exports.jsonl"));
+    libModule = modules.find((record) => record.id === "module:src/lib");
+
+    assert("incremental ingest keeps src/lib module", Boolean(libModule));
+    assert(
+      "incremental ingest keeps unchanged sibling export relation",
+      exports.some((edge) => edge.from === "module:src/lib" && edge.to === "chunk:src/lib/b.ts:beta:1-1")
+    );
+    assert(
+      "incremental ingest keeps exported_symbols for both siblings",
+      libModule?.exported_symbols === "alpha, beta"
+    );
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+}
+
 function testIngestWindowChunksKeepRelationsOnBaseChunk() {
-  console.log("\n7. ingest keeps call/import relations on the base chunk only");
+  console.log("\n8. ingest keeps call/import relations on the base chunk only");
   const fixtureRoot = makeTempDir("cortex-ingest-window-relations-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
@@ -1620,6 +1758,7 @@ testIngestChunkOverlapWindows();
 testIngestChunkZeroOverlapConfig();
 testIngestChunkMaxWindowCap();
 testIngestChunkMetadataInheritanceInIncrementalMode();
+testIngestIncrementalPreservesModuleExports();
 testIngestWindowChunksKeepRelationsOnBaseChunk();
 testIngestAssignsImportEdgesOnlyToChunksThatUseImports();
 testParserPreservesSideEffectImportsForAllChunks();
