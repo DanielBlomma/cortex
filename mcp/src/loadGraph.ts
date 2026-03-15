@@ -1,7 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import ryugraph, { type Connection, type QueryResult } from "ryugraph";
+import ryugraph, { type Connection, type PreparedStatement, type QueryResult, type RyuValue } from "ryugraph";
+import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
+import type { JsonObject } from "./types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,9 +12,19 @@ const CONTEXT_DIR = path.join(REPO_ROOT, ".context");
 const CACHE_DIR = path.join(CONTEXT_DIR, "cache");
 const DB_PATH = path.join(CONTEXT_DIR, "db", "graph.ryu");
 const ONTOLOGY_PATH = path.join(CONTEXT_DIR, "ontology.cypher");
+const BATCH_SIZE = 50;
 
-type JsonValue = string | number | boolean | null | JsonObject | JsonValue[];
-type JsonObject = { [key: string]: JsonValue };
+async function executeBatch(
+  conn: Connection,
+  statement: PreparedStatement,
+  items: Record<string, RyuValue>[],
+  batchSize = BATCH_SIZE
+): Promise<void> {
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    await Promise.all(batch.map((item) => conn.execute(statement, item)));
+  }
+}
 
 type FileEntity = {
   id: string;
@@ -99,38 +111,6 @@ type ImportRelation = {
   to: string;
   import_name: string;
 };
-
-function asString(value: JsonValue | undefined, fallback = ""): string {
-  return typeof value === "string" ? value : fallback;
-}
-
-function asNumber(value: JsonValue | undefined, fallback = 0): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-function asBoolean(value: JsonValue | undefined, fallback = false): boolean {
-  return typeof value === "boolean" ? value : fallback;
-}
-
-function readJsonl(filePath: string): JsonObject[] {
-  if (!fs.existsSync(filePath)) {
-    return [];
-  }
-
-  return fs
-    .readFileSync(filePath, "utf8")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      try {
-        return JSON.parse(line) as JsonObject;
-      } catch {
-        return null;
-      }
-    })
-    .filter((value): value is JsonObject => value !== null);
-}
 
 function readEntityFile(fileName: string): JsonObject[] {
   return readJsonl(path.join(CACHE_DIR, fileName));
@@ -576,71 +556,27 @@ async function main(): Promise<void> {
     CREATE (m)-[:EXPORTS]->(c);
   `);
 
-  for (const entity of fileEntities) {
-    await conn.execute(insertFile, entity);
-  }
+  // Insert all nodes first (batched for performance)
+  await executeBatch(conn, insertFile, fileEntities);
+  await executeBatch(conn, insertRule, ruleEntities.map((e) => ({
+    id: e.id, title: e.title, body: e.body, scope: e.scope,
+    priority: e.priority, updated_at: e.updated_at,
+    source_of_truth: e.source_of_truth, trust_level: e.trust_level, status: e.status
+  })));
+  await executeBatch(conn, insertAdr, adrEntities);
+  await executeBatch(conn, insertChunk, chunkEntities);
+  await executeBatch(conn, insertModule, moduleEntities);
 
-  for (const entity of ruleEntities) {
-    await conn.execute(insertRule, {
-      id: entity.id,
-      title: entity.title,
-      body: entity.body,
-      scope: entity.scope,
-      priority: entity.priority,
-      updated_at: entity.updated_at,
-      source_of_truth: entity.source_of_truth,
-      trust_level: entity.trust_level,
-      status: entity.status
-    });
-  }
-
-  for (const entity of adrEntities) {
-    await conn.execute(insertAdr, entity);
-  }
-
-  for (const entity of chunkEntities) {
-    await conn.execute(insertChunk, entity);
-  }
-
-  for (const edge of defines) {
-    await conn.execute(insertDefines, edge);
-  }
-
-  for (const edge of calls) {
-    await conn.execute(insertCalls, edge);
-  }
-
-  for (const edge of imports) {
-    await conn.execute(insertImports, edge);
-  }
-
-  for (const edge of constrains) {
-    await conn.execute(insertConstrains, edge);
-  }
-
-  for (const edge of implementsEdges) {
-    await conn.execute(insertImplements, edge);
-  }
-
-  for (const edge of supersedes) {
-    await conn.execute(insertSupersedes, edge);
-  }
-
-  for (const entity of moduleEntities) {
-    await conn.execute(insertModule, entity);
-  }
-
-  for (const edge of contains) {
-    await conn.execute(insertContains, edge);
-  }
-
-  for (const edge of containsModule) {
-    await conn.execute(insertContainsModule, edge);
-  }
-
-  for (const edge of exports) {
-    await conn.execute(insertExports, edge);
-  }
+  // Insert all edges (nodes must exist first)
+  await executeBatch(conn, insertDefines, defines);
+  await executeBatch(conn, insertCalls, calls);
+  await executeBatch(conn, insertImports, imports);
+  await executeBatch(conn, insertConstrains, constrains);
+  await executeBatch(conn, insertImplements, implementsEdges);
+  await executeBatch(conn, insertSupersedes, supersedes);
+  await executeBatch(conn, insertContains, contains);
+  await executeBatch(conn, insertContainsModule, containsModule);
+  await executeBatch(conn, insertExports, exports);
 
   const fileCount = await rows(await conn.query("MATCH (f:File) RETURN count(*) AS count;"));
   const ruleCount = await rows(await conn.query("MATCH (r:Rule) RETURN count(*) AS count;"));

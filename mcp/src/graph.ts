@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import ryugraph, { type Connection, type Database, type QueryResult } from "ryugraph";
+import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
 import { DB_PATH, DEFAULT_RANKING, PATHS } from "./paths.js";
 import type {
   AdrRecord,
@@ -8,10 +9,10 @@ import type {
   ContextData,
   DocumentRecord,
   JsonObject,
-  JsonValue,
   ModuleRecord,
   RankingWeights,
   RelationRecord,
+  RelationType,
   RuleRecord,
   UnknownRow
 } from "./types.js";
@@ -38,38 +39,6 @@ function readFileIfExists(filePath: string): string | null {
     return null;
   }
   return fs.readFileSync(filePath, "utf8");
-}
-
-function readJsonl(filePath: string): JsonObject[] {
-  const raw = readFileIfExists(filePath);
-  if (!raw) {
-    return [];
-  }
-
-  return raw
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      try {
-        return JSON.parse(line) as JsonObject;
-      } catch {
-        return null;
-      }
-    })
-    .filter((value): value is JsonObject => value !== null);
-}
-
-function asString(value: JsonValue | undefined, fallback = ""): string {
-  return typeof value === "string" ? value : fallback;
-}
-
-function asNumber(value: JsonValue | undefined, fallback = 0): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-function asBoolean(value: JsonValue | undefined, fallback = false): boolean {
-  return typeof value === "boolean" ? value : fallback;
 }
 
 function asStringUnknown(value: unknown, fallback = ""): string {
@@ -300,7 +269,7 @@ function parseRulesYaml(yamlText: string | null): RuleRecord[] {
 
 function parseRelations(
   raw: JsonObject[],
-  relation: RelationRecord["relation"],
+  relation: RelationType,
   noteFields: string[] = ["note", "reason"]
 ): RelationRecord[] {
   return raw
@@ -606,7 +575,7 @@ function parseRyuGraphModules(rows: UnknownRow[]): ModuleRecord[] {
 
 function parseRyuGraphRelations(
   rows: UnknownRow[],
-  relation: RelationRecord["relation"],
+  relation: RelationType,
   noteField: string
 ): RelationRecord[] {
   return rows

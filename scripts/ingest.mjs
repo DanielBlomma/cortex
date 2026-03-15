@@ -652,9 +652,9 @@ function generateChunkDescription(chunk) {
   return parts.join(". ") + ".";
 }
 
-function generateModuleSummary(dir, files, exportNames) {
+function generateModuleSummary(dir, files, exportNames, repoRoot = REPO_ROOT) {
   // Check for README.md in directory
-  const readmePath = path.join(REPO_ROOT, dir, "README.md");
+  const readmePath = path.join(repoRoot, dir, "README.md");
   if (fs.existsSync(readmePath)) {
     try {
       const content = fs.readFileSync(readmePath, "utf8");
@@ -1441,4 +1441,9 @@ function main() {
   console.log(`[ingest] wrote cache + db import files under .context/`);
 }
 
-main();
+const isMainModule = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename);
+if (isMainModule) {
+  main();
+}
+
+export { generateChunkDescription, generateModuleSummary, generateModules };

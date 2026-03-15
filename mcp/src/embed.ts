@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { env, pipeline } from "@xenova/transformers";
+import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
+import type { JsonObject, JsonValue } from "./types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,9 +18,7 @@ const MODEL_CACHE_DIR = path.join(EMBEDDINGS_DIR, "models");
 
 const DEFAULT_MODEL_ID = "Xenova/all-MiniLM-L6-v2";
 const DEFAULT_MAX_TEXT_CHARS = 7000;
-
-type JsonValue = string | number | boolean | null | JsonObject | JsonValue[];
-type JsonObject = { [key: string]: JsonValue };
+const CHUNK_BODY_PREVIEW_CHARS = 2000;
 
 type FileEntity = {
   id: string;
@@ -117,18 +117,6 @@ function parseArgs(argv: string[]): { mode: "full" | "changed" } {
   };
 }
 
-function asString(value: JsonValue | undefined, fallback = ""): string {
-  return typeof value === "string" ? value : fallback;
-}
-
-function asNumber(value: JsonValue | undefined, fallback = 0): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-function asBoolean(value: JsonValue | undefined, fallback = false): boolean {
-  return typeof value === "boolean" ? value : fallback;
-}
-
 function hashText(value: string): string {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
@@ -139,26 +127,6 @@ function normalizeText(value: string): string {
 
 function clampText(value: string, maxChars: number): string {
   return value.slice(0, maxChars);
-}
-
-function readJsonl(filePath: string): JsonObject[] {
-  if (!fs.existsSync(filePath)) {
-    return [];
-  }
-
-  return fs
-    .readFileSync(filePath, "utf8")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      try {
-        return JSON.parse(line) as JsonObject;
-      } catch {
-        return null;
-      }
-    })
-    .filter((value): value is JsonObject => value !== null);
 }
 
 function writeJsonl(filePath: string, records: EmbeddingRecord[]): void {
@@ -321,7 +289,7 @@ function parseChunkEntities(raw: JsonObject[], filePathById: Map<string, string>
       const body = asString(item.body);
       const updatedAt = asString(item.updated_at);
       const checksum = asString(item.checksum, hashText(body));
-      const text = clampText(`${filePath}\n${name}\n${sig}\n${description}\n${body.slice(0, 2000)}`, maxChars);
+      const text = clampText(`${filePath}\n${name}\n${sig}\n${description}\n${body.slice(0, CHUNK_BODY_PREVIEW_CHARS)}`, maxChars);
 
       return {
         id,

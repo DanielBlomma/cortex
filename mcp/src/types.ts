@@ -38,10 +38,22 @@ export type AdrRecord = {
   status: string;
 };
 
+export type RelationType =
+  | "CONSTRAINS"
+  | "IMPLEMENTS"
+  | "SUPERSEDES"
+  | "DEFINES"
+  | "CALLS"
+  | "IMPORTS"
+  | "PART_OF"
+  | "CONTAINS"
+  | "CONTAINS_MODULE"
+  | "EXPORTS";
+
 export type RelationRecord = {
   from: string;
   to: string;
-  relation: "CONSTRAINS" | "IMPLEMENTS" | "SUPERSEDES" | "DEFINES" | "CALLS" | "IMPORTS" | "PART_OF" | "CONTAINS" | "CONTAINS_MODULE" | "EXPORTS";
+  relation: RelationType;
   note: string;
 };
 
