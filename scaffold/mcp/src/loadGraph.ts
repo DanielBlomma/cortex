@@ -62,7 +62,9 @@ type ChunkEntity = {
   language: string;
   checksum: string;
   updated_at: string;
+  source_of_truth: boolean;
   trust_level: number;
+  status: string;
 };
 
 type Relation = {
@@ -211,7 +213,9 @@ function parseChunks(raw: JsonObject[]): ChunkEntity[] {
         language: asString(item.language, "javascript"),
         checksum: asString(item.checksum),
         updated_at: asString(item.updated_at),
-        trust_level: asNumber(item.trust_level, 80)
+        source_of_truth: asBoolean(item.source_of_truth, true),
+        trust_level: asNumber(item.trust_level, 80),
+        status: asString(item.status, "active")
       };
     })
     .filter((value): value is ChunkEntity => value !== null);
@@ -448,7 +452,9 @@ async function main(): Promise<void> {
       language: $language,
       checksum: $checksum,
       updated_at: $updated_at,
-      trust_level: $trust_level
+      source_of_truth: $source_of_truth,
+      trust_level: $trust_level,
+      status: $status
     });
   `);
 

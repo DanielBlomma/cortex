@@ -50,7 +50,9 @@ CREATE NODE TABLE IF NOT EXISTS Chunk(
   language STRING,
   checksum STRING,
   updated_at STRING,
+  source_of_truth BOOL,
   trust_level INT64,
+  status STRING,
   PRIMARY KEY(id)
 );
 
