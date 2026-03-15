@@ -28,7 +28,12 @@ export const PATHS = {
   implementsRelations: path.join(CACHE_DIR, "relations.implements.jsonl"),
   supersedesRelations: path.join(CACHE_DIR, "relations.supersedes.jsonl"),
   callsRelations: path.join(CACHE_DIR, "relations.calls.jsonl"),
-  importsRelations: path.join(CACHE_DIR, "relations.imports.jsonl")
+  definesRelations: path.join(CACHE_DIR, "relations.defines.jsonl"),
+  importsRelations: path.join(CACHE_DIR, "relations.imports.jsonl"),
+  moduleEntities: path.join(CACHE_DIR, "entities.module.jsonl"),
+  containsRelations: path.join(CACHE_DIR, "relations.contains.jsonl"),
+  containsModuleRelations: path.join(CACHE_DIR, "relations.contains_module.jsonl"),
+  exportsRelations: path.join(CACHE_DIR, "relations.exports.jsonl")
 };
 
 export const DEFAULT_RANKING: RankingWeights = {
