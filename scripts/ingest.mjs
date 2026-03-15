@@ -704,7 +704,7 @@ function generateModules(fileRecords, chunkRecords) {
   }
 
   for (const chunk of chunkRecords) {
-    if (!chunk.exported) continue;
+    if (!chunk.exported || isWindowChunkId(chunk.id)) continue;
     const file = fileById.get(chunk.file_id);
     if (!file) continue;
     const dir = path.dirname(file.path);
@@ -723,7 +723,7 @@ function generateModules(fileRecords, chunkRecords) {
     if (files.length < MIN_MODULE_FILES) continue;
 
     const exports = dirChunks.get(dir) || [];
-    const exportNames = exports.slice(0, 20).map(c => c.name);
+    const exportNames = [...new Set(exports.slice(0, 20).map(c => c.name))];
     const moduleId = `module:${dir}`;
 
     modules.push({
@@ -763,6 +763,10 @@ function generateModules(fileRecords, chunkRecords) {
   }
 
   return { modules, containsRelations, containsModuleRelations, exportsRelations };
+}
+
+function isWindowChunkId(chunkId) {
+  return typeof chunkId === "string" && chunkId.includes(":window:");
 }
 
 function splitChunkIntoWindows(chunkRecord, options) {

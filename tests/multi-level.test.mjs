@@ -168,6 +168,16 @@ test("EXPORTS relations link modules to exported chunks", () => {
   }
 });
 
+test("EXPORTS relations exclude synthetic window chunks", () => {
+  ensureIngest();
+
+  const exports = readJsonl(path.join(CACHE_DIR, "relations.exports.jsonl"));
+  assert.ok(
+    exports.every((rel) => !String(rel.to).includes(":window:")),
+    "EXPORTS relations should not point to synthetic window chunks"
+  );
+});
+
 test("DEFINES relations exist", () => {
   ensureIngest();
 

@@ -223,6 +223,30 @@ test("generateModules: exported chunks create EXPORTS relations", () => {
   assert.ok(result.exportsRelations.some(r => r.from === "module:lib" && r.to === "chunk:lib/b.ts:bar:1-5"));
 });
 
+test("generateModules: window chunks are excluded from module exports", () => {
+  const files = [
+    { id: "file:lib/a.ts", path: "lib/a.ts", kind: "CODE", updated_at: "2026-01-01" },
+    { id: "file:lib/b.ts", path: "lib/b.ts", kind: "CODE", updated_at: "2026-01-01" }
+  ];
+  const chunks = [
+    { id: "chunk:lib/a.ts:foo:1-120", file_id: "file:lib/a.ts", name: "foo", exported: true },
+    {
+      id: "chunk:lib/a.ts:foo:1-120:window:1:1-80",
+      file_id: "file:lib/a.ts",
+      name: "foo#window1",
+      exported: true
+    }
+  ];
+  const result = generateModules(files, chunks);
+
+  assert.equal(result.exportsRelations.length, 1);
+  assert.deepEqual(result.exportsRelations[0], {
+    from: "module:lib",
+    to: "chunk:lib/a.ts:foo:1-120"
+  });
+  assert.equal(result.modules[0].exported_symbols, "foo");
+});
+
 test("generateModules: no exported chunks means empty exports", () => {
   const files = [
     { id: "file:lib/a.ts", path: "lib/a.ts", kind: "CODE", updated_at: "2026-01-01" },
