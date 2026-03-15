@@ -144,12 +144,13 @@ function extractFunctionChunk(node, kind, code, nameOverride = null) {
   }
 
   const params = (node.params || []).map(formatParameterName);
+  const bodyStart = findLeadingCommentStart(code, node);
 
   return {
     name,
     kind,
     signature: `${name}(${params.join(", ")})`,
-    body: code.slice(node.start, node.end),
+    body: code.slice(bodyStart, node.end),
     startLine: node.loc.start.line,
     endLine: node.loc.end.line,
     callNode: node.body || node,
@@ -166,12 +167,13 @@ function extractClassChunk(node, code) {
   }
 
   const superClass = node.superClass?.name || null;
+  const bodyStart = findLeadingCommentStart(code, node);
 
   return {
     name,
     kind: "class",
     signature: superClass ? `class ${name} extends ${superClass}` : `class ${name}`,
-    body: code.slice(node.start, node.end),
+    body: code.slice(bodyStart, node.end),
     startLine: node.loc.start.line,
     endLine: node.loc.end.line,
     callNode: node.body,
@@ -192,12 +194,13 @@ function extractClassMethods(classNode, code, language) {
     const params = (member.value.params || []).map(formatParameterName);
     const isStatic = member.static === true;
     const prefix = isStatic ? "static " : "";
+    const bodyStart = findLeadingCommentStart(code, member);
 
     methods.push({
       name: `${className}.${member.key.name}`,
       kind: "method",
       signature: `${prefix}${member.key.name}(${params.join(", ")})`,
-      body: code.slice(member.start, member.end),
+      body: code.slice(bodyStart, member.end),
       startLine: member.loc.start.line,
       endLine: member.loc.end.line,
       callNode: member.value.body,
@@ -210,6 +213,61 @@ function extractClassMethods(classNode, code, language) {
   }
 
   return methods;
+}
+
+function findLeadingCommentStart(code, node) {
+  let bodyStart = node.start;
+  let lineStart = code.lastIndexOf("\n", node.start - 1) + 1;
+
+  while (lineStart > 0) {
+    const previousLineEnd = lineStart - 1;
+    const previousLineStart = code.lastIndexOf("\n", previousLineEnd - 1) + 1;
+    const previousLine = code.slice(previousLineStart, previousLineEnd).replace(/\r$/, "");
+    const trimmed = previousLine.trim();
+
+    if (!trimmed) {
+      break;
+    }
+
+    if (trimmed.startsWith("//")) {
+      bodyStart = previousLineStart;
+      lineStart = previousLineStart;
+      continue;
+    }
+
+    if (trimmed.endsWith("*/")) {
+      let blockStart = previousLineStart;
+      let searchStart = previousLineStart;
+      let foundBlockStart = trimmed.startsWith("/*");
+
+      while (!foundBlockStart && searchStart > 0) {
+        const blockLineEnd = searchStart - 1;
+        const blockLineStart = code.lastIndexOf("\n", blockLineEnd - 1) + 1;
+        const blockLine = code.slice(blockLineStart, blockLineEnd).replace(/\r$/, "");
+        const blockTrimmed = blockLine.trim();
+
+        if (!blockTrimmed) {
+          return bodyStart;
+        }
+
+        blockStart = blockLineStart;
+        searchStart = blockLineStart;
+        foundBlockStart = blockTrimmed.startsWith("/*");
+      }
+
+      if (!foundBlockStart) {
+        break;
+      }
+
+      bodyStart = blockStart;
+      lineStart = blockStart;
+      continue;
+    }
+
+    break;
+  }
+
+  return bodyStart;
 }
 
 function formatParameterName(param) {
