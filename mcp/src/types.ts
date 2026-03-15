@@ -41,7 +41,7 @@ export type AdrRecord = {
 export type RelationRecord = {
   from: string;
   to: string;
-  relation: "CONSTRAINS" | "IMPLEMENTS" | "SUPERSEDES" | "CALLS" | "IMPORTS" | "PART_OF";
+  relation: "CONSTRAINS" | "IMPLEMENTS" | "SUPERSEDES" | "DEFINES" | "CALLS" | "IMPORTS" | "PART_OF" | "CONTAINS" | "CONTAINS_MODULE" | "EXPORTS";
   note: string;
 };
 
@@ -52,9 +52,24 @@ export type ChunkRecord = {
   kind: string;
   signature: string;
   body: string;
+  description: string;
   start_line: number;
   end_line: number;
   language: string;
+  exported: boolean;
+  updated_at: string;
+  source_of_truth: boolean;
+  trust_level: number;
+  status: string;
+};
+
+export type ModuleRecord = {
+  id: string;
+  path: string;
+  name: string;
+  summary: string;
+  file_count: number;
+  exported_symbols: string;
   updated_at: string;
   source_of_truth: boolean;
   trust_level: number;
@@ -73,6 +88,7 @@ export type ContextData = {
   adrs: AdrRecord[];
   rules: RuleRecord[];
   chunks: ChunkRecord[];
+  modules: ModuleRecord[];
   relations: RelationRecord[];
   ranking: RankingWeights;
   source: "cache" | "ryu";
@@ -81,7 +97,7 @@ export type ContextData = {
 
 export type SearchEntity = {
   id: string;
-  entity_type: "File" | "Rule" | "ADR" | "Chunk";
+  entity_type: "File" | "Rule" | "ADR" | "Chunk" | "Module";
   kind: string;
   label: string;
   path: string;

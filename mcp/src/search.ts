@@ -217,14 +217,32 @@ function buildSearchEntities(data: ContextData, includeContent: boolean): Search
       kind: chunk.kind || "chunk",
       label: chunk.name || chunk.id,
       path: filePath,
-      text: `${filePath}\n${chunk.name}\n${chunk.signature}\n${chunk.body}`,
+      text: `${filePath}\n${chunk.name}\n${chunk.signature}\n${chunk.description}\n${chunk.body}`,
       status: chunk.status,
       source_of_truth: chunk.source_of_truth,
       trust_level: chunk.trust_level,
       updated_at: chunk.updated_at,
-      snippet: chunk.body.slice(0, 500),
+      snippet: chunk.description || chunk.body.slice(0, 500),
       matched_rules: fileRuleLinks.get(chunk.file_id) ?? [],
       content: includeContent ? chunk.body : undefined
+    });
+  }
+
+  for (const module of data.modules) {
+    entities.push({
+      id: module.id,
+      entity_type: "Module",
+      kind: "MODULE",
+      label: module.name,
+      path: module.path,
+      text: `${module.path}\n${module.name}\n${module.summary}\n${module.exported_symbols}`,
+      status: module.status,
+      source_of_truth: module.source_of_truth,
+      trust_level: module.trust_level,
+      updated_at: module.updated_at,
+      snippet: module.summary.slice(0, 500),
+      matched_rules: [],
+      content: includeContent ? module.summary : undefined
     });
   }
 
@@ -329,6 +347,17 @@ function entityCatalog(data: ContextData): Map<string, JsonObject> {
       chunkEntity.path = filePath;
     }
     catalog.set(chunk.id, chunkEntity);
+  }
+
+  for (const module of data.modules) {
+    catalog.set(module.id, {
+      id: module.id,
+      type: "Module",
+      label: module.name,
+      status: module.status,
+      source_of_truth: module.source_of_truth,
+      path: module.path
+    });
   }
 
   return catalog;

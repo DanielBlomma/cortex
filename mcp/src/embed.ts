@@ -62,7 +62,35 @@ type AdrEntity = {
   signature: string;
 };
 
-type SearchEntity = FileEntity | RuleEntity | AdrEntity;
+type ModuleEntity = {
+  id: string;
+  type: "Module";
+  kind: "MODULE";
+  label: string;
+  path: string;
+  status: string;
+  source_of_truth: boolean;
+  trust_level: number;
+  updated_at: string;
+  text: string;
+  signature: string;
+};
+
+type ChunkEntity = {
+  id: string;
+  type: "Chunk";
+  kind: string;
+  label: string;
+  path: string;
+  status: string;
+  source_of_truth: boolean;
+  trust_level: number;
+  updated_at: string;
+  text: string;
+  signature: string;
+};
+
+type SearchEntity = FileEntity | RuleEntity | AdrEntity | ModuleEntity | ChunkEntity;
 
 type EmbeddingRecord = {
   id: string;
@@ -243,6 +271,73 @@ function parseAdrEntities(raw: JsonObject[], maxChars: number): AdrEntity[] {
     .filter((value): value is AdrEntity => value !== null);
 }
 
+function parseModuleEntities(raw: JsonObject[], maxChars: number): ModuleEntity[] {
+  return raw
+    .map((item) => {
+      const id = asString(item.id);
+      if (!id) {
+        return null;
+      }
+
+      const modulePath = asString(item.path);
+      const name = asString(item.name);
+      const summary = asString(item.summary);
+      const exportedSymbols = asString(item.exported_symbols);
+      const updatedAt = asString(item.updated_at);
+      const text = clampText(`${modulePath}\n${name}\n${summary}\n${exportedSymbols}`, maxChars);
+
+      return {
+        id,
+        type: "Module" as const,
+        kind: "MODULE" as const,
+        label: name || modulePath,
+        path: modulePath,
+        status: asString(item.status, "active"),
+        source_of_truth: asBoolean(item.source_of_truth, false),
+        trust_level: asNumber(item.trust_level, 75),
+        updated_at: updatedAt,
+        text,
+        signature: hashText(`module|${id}|${updatedAt}|${hashText(text)}`)
+      };
+    })
+    .filter((value): value is ModuleEntity => value !== null);
+}
+
+function parseChunkEntities(raw: JsonObject[], filePathById: Map<string, string>, maxChars: number): ChunkEntity[] {
+  return raw
+    .map((item) => {
+      const id = asString(item.id);
+      if (!id) {
+        return null;
+      }
+
+      const fileId = asString(item.file_id);
+      const filePath = filePathById.get(fileId) ?? "";
+      const name = asString(item.name);
+      const sig = asString(item.signature);
+      const description = asString(item.description);
+      const body = asString(item.body);
+      const updatedAt = asString(item.updated_at);
+      const checksum = asString(item.checksum, hashText(body));
+      const text = clampText(`${filePath}\n${name}\n${sig}\n${description}\n${body.slice(0, 2000)}`, maxChars);
+
+      return {
+        id,
+        type: "Chunk" as const,
+        kind: asString(item.kind, "chunk"),
+        label: name || id,
+        path: filePath,
+        status: asString(item.status, "active"),
+        source_of_truth: asBoolean(item.source_of_truth, false),
+        trust_level: asNumber(item.trust_level, 60),
+        updated_at: updatedAt,
+        text,
+        signature: hashText(`chunk|${checksum}|${updatedAt}|${hashText(text)}`)
+      };
+    })
+    .filter((value): value is ChunkEntity => value !== null);
+}
+
 function parseExistingEmbeddings(raw: JsonObject[], modelId: string): Map<string, EmbeddingRecord> {
   const index = new Map<string, EmbeddingRecord>();
 
@@ -312,7 +407,16 @@ async function main(): Promise<void> {
   const documents = parseFileEntities(readJsonl(path.join(CACHE_DIR, "documents.jsonl")), maxTextChars);
   const rules = parseRuleEntities(readJsonl(path.join(CACHE_DIR, "entities.rule.jsonl")), maxTextChars);
   const adrs = parseAdrEntities(readJsonl(path.join(CACHE_DIR, "entities.adr.jsonl")), maxTextChars);
-  const entities: SearchEntity[] = [...documents, ...rules, ...adrs].sort((a, b) => a.id.localeCompare(b.id));
+  const modules = parseModuleEntities(readJsonl(path.join(CACHE_DIR, "entities.module.jsonl")), maxTextChars);
+
+  // Build file path lookup for chunk embedding text (reuse already-parsed documents)
+  const filePathById = new Map<string, string>();
+  for (const doc of documents) {
+    filePathById.set(doc.id, doc.path);
+  }
+  const chunks = parseChunkEntities(readJsonl(path.join(CACHE_DIR, "entities.chunk.jsonl")), filePathById, maxTextChars);
+
+  const entities: SearchEntity[] = [...documents, ...rules, ...adrs, ...modules, ...chunks].sort((a, b) => a.id.localeCompare(b.id));
 
   const existing = parseExistingEmbeddings(readJsonl(EMBEDDINGS_PATH), modelId);
 
