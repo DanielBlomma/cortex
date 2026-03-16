@@ -10,6 +10,7 @@ import type {
   DocumentRecord,
   JsonObject,
   ModuleRecord,
+  ProjectRecord,
   RankingWeights,
   RelationRecord,
   RelationType,
@@ -33,6 +34,33 @@ let ryuLastInitAttemptAt = 0;
 let ryuGraphSignature: string | null = null;
 
 const RYU_INIT_RETRY_INTERVAL_MS = 2000;
+const REQUIRED_GRAPH_MANIFEST_COUNT_KEYS = [
+  "files",
+  "rules",
+  "adrs",
+  "chunks",
+  "constrains",
+  "implements",
+  "supersedes",
+  "defines",
+  "calls",
+  "imports",
+  "calls_sql",
+  "uses_config_key",
+  "uses_resource_key",
+  "uses_setting_key",
+  "modules",
+  "projects",
+  "contains",
+  "contains_module",
+  "exports",
+  "includes_file",
+  "references_project",
+  "uses_resource",
+  "uses_setting",
+  "uses_config",
+  "transforms_config"
+] as const;
 
 function readFileIfExists(filePath: string): string | null {
   if (!fs.existsSync(filePath)) {
@@ -170,6 +198,32 @@ function parseModuleEntities(raw: JsonObject[]): ModuleRecord[] {
       };
     })
     .filter((item): item is ModuleRecord => item !== null);
+}
+
+function parseProjectEntities(raw: JsonObject[]): ProjectRecord[] {
+  return raw
+    .map((item) => {
+      const id = asString(item.id);
+      if (!id) {
+        return null;
+      }
+
+      return {
+        id,
+        path: asString(item.path),
+        name: asString(item.name),
+        kind: asString(item.kind, "project"),
+        language: asString(item.language, "dotnet"),
+        target_framework: asString(item.target_framework),
+        summary: asString(item.summary),
+        file_count: asNumber(item.file_count, 0),
+        updated_at: asString(item.updated_at),
+        source_of_truth: asBoolean(item.source_of_truth, false),
+        trust_level: asNumber(item.trust_level, 80),
+        status: asString(item.status, "active")
+      };
+    })
+    .filter((item): item is ProjectRecord => item !== null);
 }
 
 function parseRuleEntities(raw: JsonObject[]): RuleRecord[] {
@@ -375,6 +429,28 @@ function buildMissingDbMessage(): string {
   return `RyuGraph DB not found at ${DB_PATH}. Run ${loadCommand} (or ${bootstrapCommand} on cold start).`;
 }
 
+function buildIncompatibleGraphMessage(missingKeys: string[]): string {
+  const loadCommand = "./scripts/context.sh graph-load";
+  const missing = missingKeys.join(", ");
+  return `RyuGraph manifest is missing schema keys (${missing}). Run ${loadCommand} to rebuild the graph DB.`;
+}
+
+function readGraphManifestMissingKeys(): string[] {
+  if (!fs.existsSync(PATHS.graphManifest)) {
+    return [...REQUIRED_GRAPH_MANIFEST_COUNT_KEYS];
+  }
+
+  try {
+    const raw = JSON.parse(fs.readFileSync(PATHS.graphManifest, "utf8")) as {
+      counts?: Record<string, unknown>;
+    };
+    const counts = raw.counts ?? {};
+    return REQUIRED_GRAPH_MANIFEST_COUNT_KEYS.filter((key) => !(key in counts));
+  } catch {
+    return [...REQUIRED_GRAPH_MANIFEST_COUNT_KEYS];
+  }
+}
+
 async function closeRyuGraphResources(): Promise<void> {
   const currentConnection = ryuConnection;
   const currentDb = ryuDb;
@@ -428,6 +504,12 @@ async function getRyuGraphConnection(forceReload = false): Promise<Connection | 
 
   if (!diskSignature) {
     await resetRyuGraphState(buildMissingDbMessage());
+    return null;
+  }
+
+  const missingManifestKeys = readGraphManifestMissingKeys();
+  if (missingManifestKeys.length > 0) {
+    await resetRyuGraphState(buildIncompatibleGraphMessage(missingManifestKeys));
     return null;
   }
 
@@ -573,6 +655,32 @@ function parseRyuGraphModules(rows: UnknownRow[]): ModuleRecord[] {
     .filter((value): value is ModuleRecord => value !== null);
 }
 
+function parseRyuGraphProjects(rows: UnknownRow[]): ProjectRecord[] {
+  return rows
+    .map((row) => {
+      const id = asStringUnknown(row.id);
+      if (!id) {
+        return null;
+      }
+
+      return {
+        id,
+        path: asStringUnknown(row.path),
+        name: asStringUnknown(row.name),
+        kind: asStringUnknown(row.kind, "project"),
+        language: asStringUnknown(row.language, "dotnet"),
+        target_framework: asStringUnknown(row.target_framework),
+        summary: asStringUnknown(row.summary),
+        file_count: asNumberUnknown(row.file_count, 0),
+        updated_at: asStringUnknown(row.updated_at),
+        source_of_truth: asBooleanUnknown(row.source_of_truth, false),
+        trust_level: asNumberUnknown(row.trust_level, 80),
+        status: asStringUnknown(row.status, "active")
+      };
+    })
+    .filter((value): value is ProjectRecord => value !== null);
+}
+
 function parseRyuGraphRelations(
   rows: UnknownRow[],
   relation: RelationType,
@@ -601,22 +709,36 @@ export async function loadContextData(): Promise<ContextData> {
   const cachedAdrs = parseAdrs(readJsonl(PATHS.adrEntities));
   const cachedChunks = parseChunkEntities(readJsonl(PATHS.chunkEntities));
   const cachedModules = parseModuleEntities(readJsonl(PATHS.moduleEntities));
+  const cachedProjects = parseProjectEntities(readJsonl(PATHS.projectEntities));
   const cachedChunkRelations = [
     ...parseRelations(readJsonl(PATHS.definesRelations), "DEFINES"),
     ...parseRelations(readJsonl(PATHS.callsRelations), "CALLS", ["call_type"]),
-    ...parseRelations(readJsonl(PATHS.importsRelations), "IMPORTS", ["import_name"])
+    ...parseRelations(readJsonl(PATHS.importsRelations), "IMPORTS", ["import_name"]),
+    ...parseRelations(readJsonl(PATHS.callsSqlRelations), "CALLS_SQL"),
+    ...parseRelations(readJsonl(PATHS.usesConfigKeyRelations), "USES_CONFIG_KEY"),
+    ...parseRelations(readJsonl(PATHS.usesResourceKeyRelations), "USES_RESOURCE_KEY"),
+    ...parseRelations(readJsonl(PATHS.usesSettingKeyRelations), "USES_SETTING_KEY")
   ];
   const cachedModuleRelations = [
     ...parseRelations(readJsonl(PATHS.containsRelations), "CONTAINS"),
     ...parseRelations(readJsonl(PATHS.containsModuleRelations), "CONTAINS_MODULE"),
     ...parseRelations(readJsonl(PATHS.exportsRelations), "EXPORTS")
   ];
+  const cachedProjectRelations = [
+    ...parseRelations(readJsonl(PATHS.includesFileRelations), "INCLUDES_FILE"),
+    ...parseRelations(readJsonl(PATHS.referencesProjectRelations), "REFERENCES_PROJECT"),
+    ...parseRelations(readJsonl(PATHS.usesResourceRelations), "USES_RESOURCE"),
+    ...parseRelations(readJsonl(PATHS.usesSettingRelations), "USES_SETTING"),
+    ...parseRelations(readJsonl(PATHS.usesConfigRelations), "USES_CONFIG"),
+    ...parseRelations(readJsonl(PATHS.transformsConfigRelations), "TRANSFORMS_CONFIG")
+  ];
   const cachedRelations = [
     ...parseRelations(readJsonl(PATHS.constrainsRelations), "CONSTRAINS"),
     ...parseRelations(readJsonl(PATHS.implementsRelations), "IMPLEMENTS"),
     ...parseRelations(readJsonl(PATHS.supersedesRelations), "SUPERSEDES"),
     ...cachedChunkRelations,
-    ...cachedModuleRelations
+    ...cachedModuleRelations,
+    ...cachedProjectRelations
   ];
 
   const yamlRules = parseRulesYaml(readFileIfExists(PATHS.rulesYaml));
@@ -631,6 +753,7 @@ export async function loadContextData(): Promise<ContextData> {
       rules: cachedRules,
       chunks: cachedChunks,
       modules: cachedModules,
+      projects: cachedProjects,
       relations: cachedRelations,
       ranking,
       source: "cache",
@@ -645,23 +768,35 @@ export async function loadContextData(): Promise<ContextData> {
       queryRows(connection, `MATCH (a:ADR) RETURN a.id AS id, a.path AS path, a.title AS title, a.body AS body, a.decision_date AS decision_date, a.supersedes_id AS supersedes_id, a.source_of_truth AS source_of_truth, a.trust_level AS trust_level, a.status AS status;`),
       queryRows(connection, `MATCH (c:Chunk) RETURN c.id AS id, c.file_id AS file_id, c.name AS name, c.kind AS kind, c.signature AS signature, c.body AS body, c.description AS description, c.start_line AS start_line, c.end_line AS end_line, c.language AS language, c.exported AS exported, c.updated_at AS updated_at, c.source_of_truth AS source_of_truth, c.trust_level AS trust_level, c.status AS status;`),
       queryRows(connection, `MATCH (m:Module) RETURN m.id AS id, m.path AS path, m.name AS name, m.summary AS summary, m.file_count AS file_count, m.exported_symbols AS exported_symbols, m.updated_at AS updated_at, m.source_of_truth AS source_of_truth, m.trust_level AS trust_level, m.status AS status;`),
+      queryRows(connection, `MATCH (p:Project) RETURN p.id AS id, p.path AS path, p.name AS name, p.kind AS kind, p.language AS language, p.target_framework AS target_framework, p.summary AS summary, p.file_count AS file_count, p.updated_at AS updated_at, p.source_of_truth AS source_of_truth, p.trust_level AS trust_level, p.status AS status;`),
       queryRows(connection, `MATCH (r:Rule)-[c:CONSTRAINS]->(f:File) RETURN r.id AS from, f.id AS to, c.note AS note;`),
       queryRows(connection, `MATCH (f:File)-[i:IMPLEMENTS]->(r:Rule) RETURN f.id AS from, r.id AS to, i.note AS note;`),
       queryRows(connection, `MATCH (a1:ADR)-[s:SUPERSEDES]->(a2:ADR) RETURN a1.id AS from, a2.id AS to, s.reason AS note;`),
       queryRows(connection, `MATCH (f:File)-[:DEFINES]->(c:Chunk) RETURN f.id AS from, c.id AS to;`),
       queryRows(connection, `MATCH (c1:Chunk)-[ca:CALLS]->(c2:Chunk) RETURN c1.id AS from, c2.id AS to, ca.call_type AS call_type;`),
       queryRows(connection, `MATCH (c:Chunk)-[im:IMPORTS]->(f:File) RETURN c.id AS from, f.id AS to, im.import_name AS import_name;`),
+      queryRows(connection, `MATCH (f:File)-[cs:CALLS_SQL]->(c:Chunk) RETURN f.id AS from, c.id AS to, cs.note AS note;`),
+      queryRows(connection, `MATCH (f:File)-[uck:USES_CONFIG_KEY]->(c:Chunk) RETURN f.id AS from, c.id AS to, uck.note AS note;`),
+      queryRows(connection, `MATCH (f:File)-[urk:USES_RESOURCE_KEY]->(c:Chunk) RETURN f.id AS from, c.id AS to, urk.note AS note;`),
+      queryRows(connection, `MATCH (f:File)-[usk:USES_SETTING_KEY]->(c:Chunk) RETURN f.id AS from, c.id AS to, usk.note AS note;`),
       queryRows(connection, `MATCH (m:Module)-[:CONTAINS]->(f:File) RETURN m.id AS from, f.id AS to;`),
       queryRows(connection, `MATCH (m1:Module)-[:CONTAINS_MODULE]->(m2:Module) RETURN m1.id AS from, m2.id AS to;`),
-      queryRows(connection, `MATCH (m:Module)-[:EXPORTS]->(c:Chunk) RETURN m.id AS from, c.id AS to;`)
+      queryRows(connection, `MATCH (m:Module)-[:EXPORTS]->(c:Chunk) RETURN m.id AS from, c.id AS to;`),
+      queryRows(connection, `MATCH (p:Project)-[:INCLUDES_FILE]->(f:File) RETURN p.id AS from, f.id AS to;`),
+      queryRows(connection, `MATCH (p1:Project)-[rp:REFERENCES_PROJECT]->(p2:Project) RETURN p1.id AS from, p2.id AS to, rp.note AS note;`),
+      queryRows(connection, `MATCH (f1:File)-[ur:USES_RESOURCE]->(f2:File) RETURN f1.id AS from, f2.id AS to, ur.note AS note;`),
+      queryRows(connection, `MATCH (f1:File)-[us:USES_SETTING]->(f2:File) RETURN f1.id AS from, f2.id AS to, us.note AS note;`),
+      queryRows(connection, `MATCH (f1:File)-[uc:USES_CONFIG]->(f2:File) RETURN f1.id AS from, f2.id AS to, uc.note AS note;`),
+      queryRows(connection, `MATCH (f1:File)-[tc:TRANSFORMS_CONFIG]->(f2:File) RETURN f1.id AS from, f2.id AS to, tc.note AS note;`)
     ]);
 
     // Named destructuring to avoid positional misalignment with 14 parallel queries
     const [
-      fileRows, ruleRows, adrRows, chunkRows, moduleRows,          // entities
+      fileRows, ruleRows, adrRows, chunkRows, moduleRows, projectRows, // entities
       constrainsRows, implementsRows, supersedesRows,               // core relations
-      definesRows, callsRows, importsRows,                          // chunk relations
-      containsRows, containsModuleRows, exportsRows                 // module relations
+      definesRows, callsRows, importsRows, callsSqlRows, usesConfigKeyRows, usesResourceKeyRows, usesSettingKeyRows, // chunk relations
+      containsRows, containsModuleRows, exportsRows,                // module relations
+      includesFileRows, referencesProjectRows, usesResourceRows, usesSettingRows, usesConfigRows, transformsConfigRows // project/file relations
     ] = ryuQueries;
 
     const contentById = new Map(cachedDocuments.map((doc) => [doc.id, doc.content]));
@@ -671,6 +806,7 @@ export async function loadContextData(): Promise<ContextData> {
     const ryuAdrs = parseRyuGraphAdrs(adrRows);
     const ryuChunks = parseRyuGraphChunks(chunkRows);
     const ryuModules = parseRyuGraphModules(moduleRows);
+    const ryuProjects = parseRyuGraphProjects(projectRows);
     const ryuRelations = [
       ...parseRyuGraphRelations(constrainsRows, "CONSTRAINS", "note"),
       ...parseRyuGraphRelations(implementsRows, "IMPLEMENTS", "note"),
@@ -678,9 +814,19 @@ export async function loadContextData(): Promise<ContextData> {
       ...parseRyuGraphRelations(definesRows, "DEFINES", "note"),
       ...parseRyuGraphRelations(callsRows, "CALLS", "call_type"),
       ...parseRyuGraphRelations(importsRows, "IMPORTS", "import_name"),
+      ...parseRyuGraphRelations(callsSqlRows, "CALLS_SQL", "note"),
+      ...parseRyuGraphRelations(usesConfigKeyRows, "USES_CONFIG_KEY", "note"),
+      ...parseRyuGraphRelations(usesResourceKeyRows, "USES_RESOURCE_KEY", "note"),
+      ...parseRyuGraphRelations(usesSettingKeyRows, "USES_SETTING_KEY", "note"),
       ...parseRyuGraphRelations(containsRows, "CONTAINS", "note"),
       ...parseRyuGraphRelations(containsModuleRows, "CONTAINS_MODULE", "note"),
-      ...parseRyuGraphRelations(exportsRows, "EXPORTS", "note")
+      ...parseRyuGraphRelations(exportsRows, "EXPORTS", "note"),
+      ...parseRyuGraphRelations(includesFileRows, "INCLUDES_FILE", "note"),
+      ...parseRyuGraphRelations(referencesProjectRows, "REFERENCES_PROJECT", "note"),
+      ...parseRyuGraphRelations(usesResourceRows, "USES_RESOURCE", "note"),
+      ...parseRyuGraphRelations(usesSettingRows, "USES_SETTING", "note"),
+      ...parseRyuGraphRelations(usesConfigRows, "USES_CONFIG", "note"),
+      ...parseRyuGraphRelations(transformsConfigRows, "TRANSFORMS_CONFIG", "note")
     ];
 
     return {
@@ -689,6 +835,7 @@ export async function loadContextData(): Promise<ContextData> {
       rules: ryuRules.length > 0 ? ryuRules : cachedRules,
       chunks: ryuChunks.length > 0 ? ryuChunks : cachedChunks,
       modules: ryuModules.length > 0 ? ryuModules : cachedModules,
+      projects: ryuProjects.length > 0 ? ryuProjects : cachedProjects,
       // Ryu now queries all relation types (core + chunk + module), so no need
       // to merge cached chunk/module relations separately.
       relations: ryuRelations.length > 0 ? ryuRelations : cachedRelations,
@@ -707,6 +854,7 @@ export async function loadContextData(): Promise<ContextData> {
       rules: cachedRules,
       chunks: cachedChunks,
       modules: cachedModules,
+      projects: cachedProjects,
       relations: cachedRelations,
       ranking,
       source: "cache",

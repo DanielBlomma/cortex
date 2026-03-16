@@ -45,10 +45,20 @@ export type RelationType =
   | "DEFINES"
   | "CALLS"
   | "IMPORTS"
+  | "CALLS_SQL"
+  | "USES_CONFIG_KEY"
+  | "USES_RESOURCE_KEY"
+  | "USES_SETTING_KEY"
   | "PART_OF"
   | "CONTAINS"
   | "CONTAINS_MODULE"
-  | "EXPORTS";
+  | "EXPORTS"
+  | "INCLUDES_FILE"
+  | "REFERENCES_PROJECT"
+  | "USES_RESOURCE"
+  | "USES_SETTING"
+  | "USES_CONFIG"
+  | "TRANSFORMS_CONFIG";
 
 export type RelationRecord = {
   from: string;
@@ -88,6 +98,21 @@ export type ModuleRecord = {
   status: string;
 };
 
+export type ProjectRecord = {
+  id: string;
+  path: string;
+  name: string;
+  kind: string;
+  language: string;
+  target_framework: string;
+  summary: string;
+  file_count: number;
+  updated_at: string;
+  source_of_truth: boolean;
+  trust_level: number;
+  status: string;
+};
+
 export type RankingWeights = {
   semantic: number;
   graph: number;
@@ -101,6 +126,7 @@ export type ContextData = {
   rules: RuleRecord[];
   chunks: ChunkRecord[];
   modules: ModuleRecord[];
+  projects: ProjectRecord[];
   relations: RelationRecord[];
   ranking: RankingWeights;
   source: "cache" | "ryu";
@@ -109,7 +135,7 @@ export type ContextData = {
 
 export type SearchEntity = {
   id: string;
-  entity_type: "File" | "Rule" | "ADR" | "Chunk" | "Module";
+  entity_type: "File" | "Rule" | "ADR" | "Chunk" | "Module" | "Project";
   kind: string;
   label: string;
   path: string;
@@ -133,13 +159,38 @@ export type SearchParams = {
   query: string;
   top_k: number;
   include_deprecated: boolean;
-  include_content: boolean;
+  response_preset?: "full" | "compact" | "minimal";
+  include_scores?: boolean;
+  include_matched_rules?: boolean;
+  include_content?: boolean;
 };
 
 export type RelatedParams = {
   entity_id: string;
   depth: number;
+  include_edges?: boolean;
+  response_preset?: "full" | "compact" | "minimal";
+  include_entity_metadata?: boolean;
+};
+
+export type ImpactParams = {
+  entity_id?: string;
+  query?: string;
+  depth: number;
+  top_k: number;
   include_edges: boolean;
+  response_preset?: "full" | "compact" | "minimal";
+  include_scores?: boolean;
+  include_reasons?: boolean;
+  verbose_paths?: boolean;
+  max_path_hops_shown?: number;
+  profile?: "all" | "config_only" | "config_to_sql" | "code_only" | "sql_only";
+  sort_by?: "impact_score" | "shortest_path" | "semantic_score" | "graph_score" | "trust_score";
+  relation_types?: RelationType[];
+  path_must_include?: RelationType[];
+  path_must_exclude?: RelationType[];
+  result_domains?: ("code" | "config" | "resource" | "settings" | "sql" | "project")[];
+  result_entity_types?: ("File" | "Chunk" | "Module" | "Project" | "ADR" | "Rule")[];
 };
 
 export type RulesParams = {

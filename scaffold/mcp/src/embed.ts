@@ -78,6 +78,20 @@ type ModuleEntity = {
   signature: string;
 };
 
+type ProjectEntity = {
+  id: string;
+  type: "Project";
+  kind: string;
+  label: string;
+  path: string;
+  status: string;
+  source_of_truth: boolean;
+  trust_level: number;
+  updated_at: string;
+  text: string;
+  signature: string;
+};
+
 type ChunkEntity = {
   id: string;
   type: "Chunk";
@@ -92,7 +106,7 @@ type ChunkEntity = {
   signature: string;
 };
 
-type SearchEntity = FileEntity | RuleEntity | AdrEntity | ModuleEntity | ChunkEntity;
+type SearchEntity = FileEntity | RuleEntity | AdrEntity | ModuleEntity | ProjectEntity | ChunkEntity;
 
 type EmbeddingRecord = {
   id: string;
@@ -308,6 +322,43 @@ function parseChunkEntities(raw: JsonObject[], filePathById: Map<string, string>
     .filter((value): value is ChunkEntity => value !== null);
 }
 
+function parseProjectEntities(raw: JsonObject[], maxChars: number): ProjectEntity[] {
+  return raw
+    .map((item) => {
+      const id = asString(item.id);
+      if (!id) {
+        return null;
+      }
+
+      const projectPath = asString(item.path);
+      const name = asString(item.name);
+      const kind = asString(item.kind, "project");
+      const language = asString(item.language, "dotnet");
+      const targetFramework = asString(item.target_framework);
+      const summary = asString(item.summary);
+      const updatedAt = asString(item.updated_at);
+      const text = clampText(
+        `${projectPath}\n${name}\n${kind}\n${language}\n${targetFramework}\n${summary}`,
+        maxChars
+      );
+
+      return {
+        id,
+        type: "Project" as const,
+        kind: kind.toUpperCase() || "PROJECT",
+        label: name || projectPath,
+        path: projectPath,
+        status: asString(item.status, "active"),
+        source_of_truth: asBoolean(item.source_of_truth, false),
+        trust_level: asNumber(item.trust_level, 80),
+        updated_at: updatedAt,
+        text,
+        signature: hashText(`project|${id}|${updatedAt}|${hashText(text)}`)
+      };
+    })
+    .filter((value): value is ProjectEntity => value !== null);
+}
+
 function parseExistingEmbeddings(raw: JsonObject[], modelId: string): Map<string, EmbeddingRecord> {
   const index = new Map<string, EmbeddingRecord>();
 
@@ -378,6 +429,7 @@ async function main(): Promise<void> {
   const rules = parseRuleEntities(readJsonl(path.join(CACHE_DIR, "entities.rule.jsonl")), maxTextChars);
   const adrs = parseAdrEntities(readJsonl(path.join(CACHE_DIR, "entities.adr.jsonl")), maxTextChars);
   const modules = parseModuleEntities(readJsonl(path.join(CACHE_DIR, "entities.module.jsonl")), maxTextChars);
+  const projects = parseProjectEntities(readJsonl(path.join(CACHE_DIR, "entities.project.jsonl")), maxTextChars);
 
   // Build file path lookup for chunk embedding text (reuse already-parsed documents)
   const filePathById = new Map<string, string>();
@@ -386,7 +438,7 @@ async function main(): Promise<void> {
   }
   const chunks = parseChunkEntities(readJsonl(path.join(CACHE_DIR, "entities.chunk.jsonl")), filePathById, maxTextChars);
 
-  const entities: SearchEntity[] = [...documents, ...rules, ...adrs, ...modules, ...chunks].sort((a, b) => a.id.localeCompare(b.id));
+  const entities: SearchEntity[] = [...documents, ...rules, ...adrs, ...modules, ...projects, ...chunks].sort((a, b) => a.id.localeCompare(b.id));
 
   const existing = parseExistingEmbeddings(readJsonl(EMBEDDINGS_PATH), modelId);
 
