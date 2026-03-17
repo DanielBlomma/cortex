@@ -94,6 +94,21 @@ type ModuleEntity = {
   status: string;
 };
 
+type ProjectEntity = {
+  id: string;
+  path: string;
+  name: string;
+  kind: string;
+  language: string;
+  target_framework: string;
+  summary: string;
+  file_count: number;
+  updated_at: string;
+  source_of_truth: boolean;
+  trust_level: number;
+  status: string;
+};
+
 type Relation = {
   from: string;
   to: string;
@@ -242,6 +257,32 @@ function parseModules(raw: JsonObject[]): ModuleEntity[] {
     .filter((value): value is ModuleEntity => value !== null);
 }
 
+function parseProjects(raw: JsonObject[]): ProjectEntity[] {
+  return raw
+    .map((item) => {
+      const id = asString(item.id);
+      if (!id) {
+        return null;
+      }
+
+      return {
+        id,
+        path: asString(item.path),
+        name: asString(item.name),
+        kind: asString(item.kind, "project"),
+        language: asString(item.language, "dotnet"),
+        target_framework: asString(item.target_framework),
+        summary: asString(item.summary),
+        file_count: asNumber(item.file_count, 0),
+        updated_at: asString(item.updated_at),
+        source_of_truth: asBoolean(item.source_of_truth, false),
+        trust_level: asNumber(item.trust_level, 80),
+        status: asString(item.status, "active")
+      };
+    })
+    .filter((value): value is ProjectEntity => value !== null);
+}
+
 function parseRelations(fileName: string, noteField: string): Relation[] {
   const raw = readEntityFile(fileName);
   return raw
@@ -365,11 +406,22 @@ function warnIfOptionalFilesMissing(): void {
     "entities.chunk.jsonl",
     "relations.defines.jsonl",
     "relations.calls.jsonl",
+    "relations.calls_sql.jsonl",
+    "relations.uses_config_key.jsonl",
+    "relations.uses_resource_key.jsonl",
+    "relations.uses_setting_key.jsonl",
     "relations.imports.jsonl",
     "entities.module.jsonl",
+    "entities.project.jsonl",
     "relations.contains.jsonl",
     "relations.contains_module.jsonl",
-    "relations.exports.jsonl"
+    "relations.exports.jsonl",
+    "relations.includes_file.jsonl",
+    "relations.references_project.jsonl",
+    "relations.uses_resource.jsonl",
+    "relations.uses_setting.jsonl",
+    "relations.uses_config.jsonl",
+    "relations.transforms_config.jsonl"
   ];
 
   const missing = optionalFiles.filter((fileName) => !fs.existsSync(path.join(CACHE_DIR, fileName)));
@@ -407,15 +459,26 @@ async function main(): Promise<void> {
   await conn.query("MATCH (f:File)-[d:DEFINES]->(c:Chunk) DELETE d;");
   await conn.query("MATCH (c1:Chunk)-[ca:CALLS]->(c2:Chunk) DELETE ca;");
   await conn.query("MATCH (c:Chunk)-[im:IMPORTS]->(f:File) DELETE im;");
+  await conn.query("MATCH (f:File)-[cs:CALLS_SQL]->(c:Chunk) DELETE cs;");
+  await conn.query("MATCH (f:File)-[uck:USES_CONFIG_KEY]->(c:Chunk) DELETE uck;");
+  await conn.query("MATCH (f:File)-[urk:USES_RESOURCE_KEY]->(c:Chunk) DELETE urk;");
+  await conn.query("MATCH (f:File)-[usk:USES_SETTING_KEY]->(c:Chunk) DELETE usk;");
   await conn.query("MATCH (m:Module)-[co:CONTAINS]->(f:File) DELETE co;");
   await conn.query("MATCH (m1:Module)-[cm:CONTAINS_MODULE]->(m2:Module) DELETE cm;");
   await conn.query("MATCH (m:Module)-[ex:EXPORTS]->(c:Chunk) DELETE ex;");
+  await conn.query("MATCH (p:Project)-[inc:INCLUDES_FILE]->(f:File) DELETE inc;");
+  await conn.query("MATCH (p1:Project)-[rp:REFERENCES_PROJECT]->(p2:Project) DELETE rp;");
+  await conn.query("MATCH (f1:File)-[ur:USES_RESOURCE]->(f2:File) DELETE ur;");
+  await conn.query("MATCH (f1:File)-[us:USES_SETTING]->(f2:File) DELETE us;");
+  await conn.query("MATCH (f1:File)-[uc:USES_CONFIG]->(f2:File) DELETE uc;");
+  await conn.query("MATCH (f1:File)-[tc:TRANSFORMS_CONFIG]->(f2:File) DELETE tc;");
 
   // Now delete all nodes
   await conn.query("MATCH (n:ADR) DELETE n;");
   await conn.query("MATCH (n:Rule) DELETE n;");
   await conn.query("MATCH (n:Chunk) DELETE n;");
   await conn.query("MATCH (n:Module) DELETE n;");
+  await conn.query("MATCH (n:Project) DELETE n;");
   await conn.query("MATCH (n:File) DELETE n;");
 
   const fileEntities = parseFiles(readEntityFile("entities.file.jsonl"));
@@ -427,11 +490,22 @@ async function main(): Promise<void> {
   const supersedes = parseRelations("relations.supersedes.jsonl", "reason");
   const defines = parseSimpleRelations("relations.defines.jsonl");
   const calls = parseCallRelations("relations.calls.jsonl");
+  const callsSql = parseRelations("relations.calls_sql.jsonl", "note");
+  const usesConfigKey = parseRelations("relations.uses_config_key.jsonl", "note");
+  const usesResourceKey = parseRelations("relations.uses_resource_key.jsonl", "note");
+  const usesSettingKey = parseRelations("relations.uses_setting_key.jsonl", "note");
   const imports = parseImportRelations("relations.imports.jsonl");
   const moduleEntities = parseModules(readEntityFile("entities.module.jsonl"));
+  const projectEntities = parseProjects(readEntityFile("entities.project.jsonl"));
   const contains = parseSimpleRelations("relations.contains.jsonl");
   const containsModule = parseSimpleRelations("relations.contains_module.jsonl");
   const exports = parseSimpleRelations("relations.exports.jsonl");
+  const includesFile = parseSimpleRelations("relations.includes_file.jsonl");
+  const referencesProject = parseRelations("relations.references_project.jsonl", "note");
+  const usesResource = parseRelations("relations.uses_resource.jsonl", "note");
+  const usesSetting = parseRelations("relations.uses_setting.jsonl", "note");
+  const usesConfig = parseRelations("relations.uses_config.jsonl", "note");
+  const transformsConfig = parseRelations("relations.transforms_config.jsonl", "note");
 
   const insertFile = await conn.prepare(`
     CREATE (f:File {
@@ -526,6 +600,26 @@ async function main(): Promise<void> {
     CREATE (c)-[:IMPORTS {import_name: $import_name}]->(f);
   `);
 
+  const insertCallsSql = await conn.prepare(`
+    MATCH (f:File {id: $from}), (c:Chunk {id: $to})
+    CREATE (f)-[:CALLS_SQL {note: $note}]->(c);
+  `);
+
+  const insertUsesConfigKey = await conn.prepare(`
+    MATCH (f:File {id: $from}), (c:Chunk {id: $to})
+    CREATE (f)-[:USES_CONFIG_KEY {note: $note}]->(c);
+  `);
+
+  const insertUsesResourceKey = await conn.prepare(`
+    MATCH (f:File {id: $from}), (c:Chunk {id: $to})
+    CREATE (f)-[:USES_RESOURCE_KEY {note: $note}]->(c);
+  `);
+
+  const insertUsesSettingKey = await conn.prepare(`
+    MATCH (f:File {id: $from}), (c:Chunk {id: $to})
+    CREATE (f)-[:USES_SETTING_KEY {note: $note}]->(c);
+  `);
+
   const insertModule = await conn.prepare(`
     CREATE (m:Module {
       id: $id,
@@ -534,6 +628,23 @@ async function main(): Promise<void> {
       summary: $summary,
       file_count: $file_count,
       exported_symbols: $exported_symbols,
+      updated_at: $updated_at,
+      source_of_truth: $source_of_truth,
+      trust_level: $trust_level,
+      status: $status
+    });
+  `);
+
+  const insertProject = await conn.prepare(`
+    CREATE (p:Project {
+      id: $id,
+      path: $path,
+      name: $name,
+      kind: $kind,
+      language: $language,
+      target_framework: $target_framework,
+      summary: $summary,
+      file_count: $file_count,
       updated_at: $updated_at,
       source_of_truth: $source_of_truth,
       trust_level: $trust_level,
@@ -556,6 +667,36 @@ async function main(): Promise<void> {
     CREATE (m)-[:EXPORTS]->(c);
   `);
 
+  const insertIncludesFile = await conn.prepare(`
+    MATCH (p:Project {id: $from}), (f:File {id: $to})
+    CREATE (p)-[:INCLUDES_FILE]->(f);
+  `);
+
+  const insertReferencesProject = await conn.prepare(`
+    MATCH (p1:Project {id: $from}), (p2:Project {id: $to})
+    CREATE (p1)-[:REFERENCES_PROJECT {note: $note}]->(p2);
+  `);
+
+  const insertUsesResource = await conn.prepare(`
+    MATCH (f1:File {id: $from}), (f2:File {id: $to})
+    CREATE (f1)-[:USES_RESOURCE {note: $note}]->(f2);
+  `);
+
+  const insertUsesSetting = await conn.prepare(`
+    MATCH (f1:File {id: $from}), (f2:File {id: $to})
+    CREATE (f1)-[:USES_SETTING {note: $note}]->(f2);
+  `);
+
+  const insertUsesConfig = await conn.prepare(`
+    MATCH (f1:File {id: $from}), (f2:File {id: $to})
+    CREATE (f1)-[:USES_CONFIG {note: $note}]->(f2);
+  `);
+
+  const insertTransformsConfig = await conn.prepare(`
+    MATCH (f1:File {id: $from}), (f2:File {id: $to})
+    CREATE (f1)-[:TRANSFORMS_CONFIG {note: $note}]->(f2);
+  `);
+
   // Insert all nodes first (batched for performance)
   await executeBatch(conn, insertFile, fileEntities);
   await executeBatch(conn, insertRule, ruleEntities.map((e) => ({
@@ -566,17 +707,28 @@ async function main(): Promise<void> {
   await executeBatch(conn, insertAdr, adrEntities);
   await executeBatch(conn, insertChunk, chunkEntities);
   await executeBatch(conn, insertModule, moduleEntities);
+  await executeBatch(conn, insertProject, projectEntities);
 
   // Insert all edges (nodes must exist first)
   await executeBatch(conn, insertDefines, defines);
   await executeBatch(conn, insertCalls, calls);
   await executeBatch(conn, insertImports, imports);
+  await executeBatch(conn, insertCallsSql, callsSql);
+  await executeBatch(conn, insertUsesConfigKey, usesConfigKey);
+  await executeBatch(conn, insertUsesResourceKey, usesResourceKey);
+  await executeBatch(conn, insertUsesSettingKey, usesSettingKey);
   await executeBatch(conn, insertConstrains, constrains);
   await executeBatch(conn, insertImplements, implementsEdges);
   await executeBatch(conn, insertSupersedes, supersedes);
   await executeBatch(conn, insertContains, contains);
   await executeBatch(conn, insertContainsModule, containsModule);
   await executeBatch(conn, insertExports, exports);
+  await executeBatch(conn, insertIncludesFile, includesFile);
+  await executeBatch(conn, insertReferencesProject, referencesProject);
+  await executeBatch(conn, insertUsesResource, usesResource);
+  await executeBatch(conn, insertUsesSetting, usesSetting);
+  await executeBatch(conn, insertUsesConfig, usesConfig);
+  await executeBatch(conn, insertTransformsConfig, transformsConfig);
 
   const fileCount = await rows(await conn.query("MATCH (f:File) RETURN count(*) AS count;"));
   const ruleCount = await rows(await conn.query("MATCH (r:Rule) RETURN count(*) AS count;"));
@@ -600,7 +752,20 @@ async function main(): Promise<void> {
   const importsCount = await rows(
     await conn.query("MATCH (:Chunk)-[im:IMPORTS]->(:File) RETURN count(im) AS count;")
   );
+  const callsSqlCount = await rows(
+    await conn.query("MATCH (:File)-[cs:CALLS_SQL]->(:Chunk) RETURN count(cs) AS count;")
+  );
+  const usesConfigKeyCount = await rows(
+    await conn.query("MATCH (:File)-[uck:USES_CONFIG_KEY]->(:Chunk) RETURN count(uck) AS count;")
+  );
+  const usesResourceKeyCount = await rows(
+    await conn.query("MATCH (:File)-[urk:USES_RESOURCE_KEY]->(:Chunk) RETURN count(urk) AS count;")
+  );
+  const usesSettingKeyCount = await rows(
+    await conn.query("MATCH (:File)-[usk:USES_SETTING_KEY]->(:Chunk) RETURN count(usk) AS count;")
+  );
   const moduleCount = await rows(await conn.query("MATCH (m:Module) RETURN count(*) AS count;"));
+  const projectCount = await rows(await conn.query("MATCH (p:Project) RETURN count(*) AS count;"));
   const containsCount = await rows(
     await conn.query("MATCH (:Module)-[co:CONTAINS]->(:File) RETURN count(co) AS count;")
   );
@@ -609,6 +774,26 @@ async function main(): Promise<void> {
   );
   const exportsCount = await rows(
     await conn.query("MATCH (:Module)-[ex:EXPORTS]->(:Chunk) RETURN count(ex) AS count;")
+  );
+  const includesFileCount = await rows(
+    await conn.query("MATCH (:Project)-[inc:INCLUDES_FILE]->(:File) RETURN count(inc) AS count;")
+  );
+  const referencesProjectCount = await rows(
+    await conn.query(
+      "MATCH (:Project)-[rp:REFERENCES_PROJECT]->(:Project) RETURN count(rp) AS count;"
+    )
+  );
+  const usesResourceCount = await rows(
+    await conn.query("MATCH (:File)-[ur:USES_RESOURCE]->(:File) RETURN count(ur) AS count;")
+  );
+  const usesSettingCount = await rows(
+    await conn.query("MATCH (:File)-[us:USES_SETTING]->(:File) RETURN count(us) AS count;")
+  );
+  const usesConfigCount = await rows(
+    await conn.query("MATCH (:File)-[uc:USES_CONFIG]->(:File) RETURN count(uc) AS count;")
+  );
+  const transformsConfigCount = await rows(
+    await conn.query("MATCH (:File)-[tc:TRANSFORMS_CONFIG]->(:File) RETURN count(tc) AS count;")
   );
 
   const summary = {
@@ -625,10 +810,21 @@ async function main(): Promise<void> {
       defines: Number(definesCount[0]?.count ?? 0),
       calls: Number(callsCount[0]?.count ?? 0),
       imports: Number(importsCount[0]?.count ?? 0),
+      calls_sql: Number(callsSqlCount[0]?.count ?? 0),
+      uses_config_key: Number(usesConfigKeyCount[0]?.count ?? 0),
+      uses_resource_key: Number(usesResourceKeyCount[0]?.count ?? 0),
+      uses_setting_key: Number(usesSettingKeyCount[0]?.count ?? 0),
       modules: Number(moduleCount[0]?.count ?? 0),
+      projects: Number(projectCount[0]?.count ?? 0),
       contains: Number(containsCount[0]?.count ?? 0),
       contains_module: Number(containsModuleCount[0]?.count ?? 0),
-      exports: Number(exportsCount[0]?.count ?? 0)
+      exports: Number(exportsCount[0]?.count ?? 0),
+      includes_file: Number(includesFileCount[0]?.count ?? 0),
+      references_project: Number(referencesProjectCount[0]?.count ?? 0),
+      uses_resource: Number(usesResourceCount[0]?.count ?? 0),
+      uses_setting: Number(usesSettingCount[0]?.count ?? 0),
+      uses_config: Number(usesConfigCount[0]?.count ?? 0),
+      transforms_config: Number(transformsConfigCount[0]?.count ?? 0)
     }
   };
 
@@ -637,16 +833,16 @@ async function main(): Promise<void> {
 
   console.log(`[graph-load] db_path=${DB_PATH}`);
   console.log(
-    `[graph-load] files=${summary.counts.files} rules=${summary.counts.rules} adrs=${summary.counts.adrs} chunks=${summary.counts.chunks} modules=${summary.counts.modules}`
+    `[graph-load] files=${summary.counts.files} rules=${summary.counts.rules} adrs=${summary.counts.adrs} chunks=${summary.counts.chunks} modules=${summary.counts.modules} projects=${summary.counts.projects}`
   );
   console.log(
     `[graph-load] rels constrains=${summary.counts.constrains} implements=${summary.counts.implements} supersedes=${summary.counts.supersedes}`
   );
   console.log(
-    `[graph-load] rels defines=${summary.counts.defines} calls=${summary.counts.calls} imports=${summary.counts.imports}`
+    `[graph-load] rels defines=${summary.counts.defines} calls=${summary.counts.calls} imports=${summary.counts.imports} calls_sql=${summary.counts.calls_sql} uses_config_key=${summary.counts.uses_config_key} uses_resource_key=${summary.counts.uses_resource_key} uses_setting_key=${summary.counts.uses_setting_key}`
   );
   console.log(
-    `[graph-load] rels contains=${summary.counts.contains} contains_module=${summary.counts.contains_module} exports=${summary.counts.exports}`
+    `[graph-load] rels contains=${summary.counts.contains} contains_module=${summary.counts.contains_module} exports=${summary.counts.exports} includes_file=${summary.counts.includes_file} references_project=${summary.counts.references_project} uses_resource=${summary.counts.uses_resource} uses_setting=${summary.counts.uses_setting} uses_config=${summary.counts.uses_config} transforms_config=${summary.counts.transforms_config}`
   );
   console.log(`[graph-load] manifest=${summaryPath}`);
 

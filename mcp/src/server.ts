@@ -2,7 +2,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { reloadContextGraph } from "./graph.js";
-import { runContextRelated, runContextRules, runContextSearch } from "./search.js";
+import { runContextRules } from "./rules.js";
+import { runContextImpact, runContextRelated, runContextSearch } from "./search.js";
 
 type ToolPayload = Record<string, unknown>;
 
@@ -10,14 +11,102 @@ const SearchInput = z.object({
   query: z.string().min(1),
   top_k: z.number().int().positive().max(20).default(5),
   include_deprecated: z.boolean().default(false),
-  include_content: z.boolean().default(false)
+  response_preset: z.enum(["full", "compact", "minimal"]).optional(),
+  include_scores: z.boolean().optional(),
+  include_matched_rules: z.boolean().optional(),
+  include_content: z.boolean().optional()
 });
 
 const RelatedInput = z.object({
   entity_id: z.string().min(1),
   depth: z.number().int().positive().max(3).default(1),
-  include_edges: z.boolean().default(true)
+  include_edges: z.boolean().optional(),
+  response_preset: z.enum(["full", "compact", "minimal"]).optional(),
+  include_entity_metadata: z.boolean().optional()
 });
+
+const ImpactInput = z
+  .object({
+    entity_id: z.string().min(1).optional(),
+    query: z.string().min(1).optional(),
+    depth: z.number().int().positive().max(4).default(2),
+    top_k: z.number().int().positive().max(20).default(8),
+    include_edges: z.boolean().default(true),
+    response_preset: z.enum(["full", "compact", "minimal"]).optional(),
+    include_scores: z.boolean().optional(),
+    include_reasons: z.boolean().optional(),
+    verbose_paths: z.boolean().optional(),
+    max_path_hops_shown: z.number().int().positive().max(8).optional(),
+    profile: z.enum(["all", "config_only", "config_to_sql", "code_only", "sql_only"]).default("all"),
+    sort_by: z
+      .enum(["impact_score", "shortest_path", "semantic_score", "graph_score", "trust_score"])
+      .default("impact_score"),
+    relation_types: z
+      .array(
+        z.enum([
+          "CALLS",
+          "CALLS_SQL",
+          "IMPORTS",
+          "INCLUDES_FILE",
+          "REFERENCES_PROJECT",
+          "USES_CONFIG_KEY",
+          "USES_RESOURCE_KEY",
+          "USES_SETTING_KEY",
+          "USES_CONFIG",
+          "TRANSFORMS_CONFIG",
+          "PART_OF"
+        ])
+      )
+      .max(11)
+      .optional(),
+    path_must_include: z
+      .array(
+        z.enum([
+          "CALLS",
+          "CALLS_SQL",
+          "IMPORTS",
+          "INCLUDES_FILE",
+          "REFERENCES_PROJECT",
+          "USES_CONFIG_KEY",
+          "USES_RESOURCE_KEY",
+          "USES_SETTING_KEY",
+          "USES_CONFIG",
+          "TRANSFORMS_CONFIG",
+          "PART_OF"
+        ])
+      )
+      .max(11)
+      .optional(),
+    path_must_exclude: z
+      .array(
+        z.enum([
+          "CALLS",
+          "CALLS_SQL",
+          "IMPORTS",
+          "INCLUDES_FILE",
+          "REFERENCES_PROJECT",
+          "USES_CONFIG_KEY",
+          "USES_RESOURCE_KEY",
+          "USES_SETTING_KEY",
+          "USES_CONFIG",
+          "TRANSFORMS_CONFIG",
+          "PART_OF"
+        ])
+      )
+      .max(11)
+      .optional(),
+    result_domains: z
+      .array(z.enum(["code", "config", "resource", "settings", "sql", "project"]))
+      .max(6)
+      .optional(),
+    result_entity_types: z
+      .array(z.enum(["File", "Chunk", "Module", "Project", "ADR", "Rule"]))
+      .max(6)
+      .optional()
+  })
+  .refine((value) => Boolean(value.entity_id || value.query), {
+    message: "Either entity_id or query is required."
+  });
 
 const RulesInput = z.object({
   scope: z.string().optional(),
@@ -57,6 +146,15 @@ function registerTools(server: McpServer): void {
       inputSchema: RelatedInput
     },
     async (input) => buildToolResult(await runContextRelated(RelatedInput.parse(input ?? {})))
+  );
+
+  server.registerTool(
+    "context.impact",
+    {
+      description: "Traverse likely impact paths across config, code and SQL starting from an entity id or query.",
+      inputSchema: ImpactInput
+    },
+    async (input) => buildToolResult(await runContextImpact(ImpactInput.parse(input ?? {})))
   );
 
   server.registerTool(
