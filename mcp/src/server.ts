@@ -47,6 +47,8 @@ const ImpactInput = z
           "CALLS",
           "CALLS_SQL",
           "IMPORTS",
+          "INCLUDES_FILE",
+          "REFERENCES_PROJECT",
           "USES_CONFIG_KEY",
           "USES_RESOURCE_KEY",
           "USES_SETTING_KEY",
@@ -55,7 +57,7 @@ const ImpactInput = z
           "PART_OF"
         ])
       )
-      .max(9)
+      .max(11)
       .optional(),
     path_must_include: z
       .array(
@@ -63,6 +65,8 @@ const ImpactInput = z
           "CALLS",
           "CALLS_SQL",
           "IMPORTS",
+          "INCLUDES_FILE",
+          "REFERENCES_PROJECT",
           "USES_CONFIG_KEY",
           "USES_RESOURCE_KEY",
           "USES_SETTING_KEY",
@@ -71,7 +75,7 @@ const ImpactInput = z
           "PART_OF"
         ])
       )
-      .max(9)
+      .max(11)
       .optional(),
     path_must_exclude: z
       .array(
@@ -79,6 +83,8 @@ const ImpactInput = z
           "CALLS",
           "CALLS_SQL",
           "IMPORTS",
+          "INCLUDES_FILE",
+          "REFERENCES_PROJECT",
           "USES_CONFIG_KEY",
           "USES_RESOURCE_KEY",
           "USES_SETTING_KEY",
@@ -87,7 +93,7 @@ const ImpactInput = z
           "PART_OF"
         ])
       )
-      .max(9)
+      .max(11)
       .optional(),
     result_domains: z
       .array(z.enum(["code", "config", "resource", "settings", "sql", "project"]))

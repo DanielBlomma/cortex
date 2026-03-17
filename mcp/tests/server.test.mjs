@@ -915,6 +915,103 @@ function buildConfigHandlerFixture() {
   };
 }
 
+function buildProjectImpactFixture() {
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-project-impact-"));
+  const contextDir = path.join(fixtureRoot, ".context");
+  const cacheDir = path.join(contextDir, "cache");
+  fs.mkdirSync(cacheDir, { recursive: true });
+
+  const now = new Date().toISOString();
+  const appProjectId = "project:src/App/App.csproj";
+  const coreProjectId = "project:src/Core/Core.csproj";
+  const appFileId = "file:src/App/Program.cs";
+
+  fs.writeFileSync(
+    path.join(contextDir, "config.yaml"),
+    "repo_id: fixture\nsource_paths:\n  - src\n",
+    "utf8"
+  );
+  fs.writeFileSync(path.join(contextDir, "rules.yaml"), "rules:\n", "utf8");
+
+  writeJsonl(path.join(cacheDir, "documents.jsonl"), [
+    {
+      id: appFileId,
+      path: "src/App/Program.cs",
+      kind: "CODE",
+      updated_at: now,
+      source_of_truth: false,
+      trust_level: 80,
+      status: "active",
+      excerpt: "App entry point",
+      content: "namespace App; class Program { static void Main() {} }"
+    }
+  ]);
+
+  writeJsonl(path.join(cacheDir, "entities.rule.jsonl"), []);
+  writeJsonl(path.join(cacheDir, "entities.adr.jsonl"), []);
+  writeJsonl(path.join(cacheDir, "entities.chunk.jsonl"), []);
+  writeJsonl(path.join(cacheDir, "entities.project.jsonl"), [
+    {
+      id: appProjectId,
+      path: "src/App/App.csproj",
+      name: "App",
+      kind: "csproj",
+      language: "csharp",
+      target_framework: "net8.0",
+      summary: "Application project",
+      file_count: 1,
+      updated_at: now,
+      source_of_truth: false,
+      trust_level: 80,
+      status: "active"
+    },
+    {
+      id: coreProjectId,
+      path: "src/Core/Core.csproj",
+      name: "Core",
+      kind: "csproj",
+      language: "csharp",
+      target_framework: "net8.0",
+      summary: "Shared core library",
+      file_count: 0,
+      updated_at: now,
+      source_of_truth: false,
+      trust_level: 80,
+      status: "active"
+    }
+  ]);
+  writeJsonl(path.join(cacheDir, "relations.constrains.jsonl"), []);
+  writeJsonl(path.join(cacheDir, "relations.implements.jsonl"), []);
+  writeJsonl(path.join(cacheDir, "relations.supersedes.jsonl"), []);
+  writeJsonl(path.join(cacheDir, "relations.defines.jsonl"), []);
+  writeJsonl(path.join(cacheDir, "relations.calls.jsonl"), []);
+  writeJsonl(path.join(cacheDir, "relations.imports.jsonl"), []);
+  writeJsonl(path.join(cacheDir, "relations.calls_sql.jsonl"), []);
+  writeJsonl(path.join(cacheDir, "relations.uses_config_key.jsonl"), []);
+  writeJsonl(path.join(cacheDir, "relations.uses_resource_key.jsonl"), []);
+  writeJsonl(path.join(cacheDir, "relations.uses_setting_key.jsonl"), []);
+  writeJsonl(path.join(cacheDir, "relations.contains.jsonl"), []);
+  writeJsonl(path.join(cacheDir, "relations.contains_module.jsonl"), []);
+  writeJsonl(path.join(cacheDir, "relations.exports.jsonl"), []);
+  writeJsonl(path.join(cacheDir, "relations.includes_file.jsonl"), [
+    { from: appProjectId, to: appFileId, note: "Compile:Program.cs" }
+  ]);
+  writeJsonl(path.join(cacheDir, "relations.references_project.jsonl"), [
+    { from: appProjectId, to: coreProjectId, note: "ProjectReference:../Core/Core.csproj" }
+  ]);
+  writeJsonl(path.join(cacheDir, "relations.uses_resource.jsonl"), []);
+  writeJsonl(path.join(cacheDir, "relations.uses_setting.jsonl"), []);
+  writeJsonl(path.join(cacheDir, "relations.uses_config.jsonl"), []);
+  writeJsonl(path.join(cacheDir, "relations.transforms_config.jsonl"), []);
+
+  return {
+    fixtureRoot,
+    appProjectId,
+    coreProjectId,
+    appFileId
+  };
+}
+
 async function withClient(fn, options = {}) {
   const mergedEnv = {
     ...process.env,
@@ -1649,6 +1746,85 @@ test("context.impact supports explicit relation type filtering", async () => {
 
         const edgeRelations = result.structuredContent.edges.map((edge) => edge?.relation);
         assert.deepEqual([...new Set(edgeRelations)], ["TRANSFORMS_CONFIG"]);
+      },
+      {
+        env: {
+          CORTEX_PROJECT_ROOT: fixtureRoot
+        }
+      }
+    );
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+});
+
+test("context.impact traverses project relations by default", async () => {
+  const { fixtureRoot, appProjectId, coreProjectId, appFileId } = buildProjectImpactFixture();
+  try {
+    await withClient(
+      async (client) => {
+        const result = await client.callTool({
+          name: "context.impact",
+          arguments: {
+            entity_id: appProjectId,
+            depth: 1,
+            top_k: 5,
+            include_edges: true
+          }
+        });
+        assert.notEqual(result.isError, true);
+        assert.ok(result.structuredContent);
+        assert.ok(Array.isArray(result.structuredContent.relation_types));
+        assert.ok(result.structuredContent.relation_types.includes("INCLUDES_FILE"));
+        assert.ok(result.structuredContent.relation_types.includes("REFERENCES_PROJECT"));
+
+        const resultIds = result.structuredContent.results.map((item) => item?.id);
+        assert.ok(resultIds.includes(appFileId));
+        assert.ok(resultIds.includes(coreProjectId));
+
+        const edgeRelations = result.structuredContent.edges.map((edge) => edge?.relation);
+        assert.ok(edgeRelations.includes("INCLUDES_FILE"));
+        assert.ok(edgeRelations.includes("REFERENCES_PROJECT"));
+      },
+      {
+        env: {
+          CORTEX_PROJECT_ROOT: fixtureRoot
+        }
+      }
+    );
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+});
+
+test("context.impact accepts explicit project relation filters", async () => {
+  const { fixtureRoot, appProjectId, coreProjectId, appFileId } = buildProjectImpactFixture();
+  try {
+    await withClient(
+      async (client) => {
+        const result = await client.callTool({
+          name: "context.impact",
+          arguments: {
+            entity_id: appProjectId,
+            depth: 1,
+            top_k: 5,
+            relation_types: ["INCLUDES_FILE", "REFERENCES_PROJECT"],
+            include_edges: true
+          }
+        });
+        assert.notEqual(result.isError, true);
+        assert.ok(result.structuredContent);
+        assert.deepEqual(result.structuredContent.relation_types, [
+          "INCLUDES_FILE",
+          "REFERENCES_PROJECT"
+        ]);
+
+        const resultIds = result.structuredContent.results.map((item) => item?.id);
+        assert.ok(resultIds.includes(appFileId));
+        assert.ok(resultIds.includes(coreProjectId));
+
+        const edgeRelations = [...new Set(result.structuredContent.edges.map((edge) => edge?.relation))];
+        assert.deepEqual(edgeRelations.sort(), ["INCLUDES_FILE", "REFERENCES_PROJECT"]);
       },
       {
         env: {
