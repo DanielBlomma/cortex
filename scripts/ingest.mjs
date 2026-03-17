@@ -50,6 +50,7 @@ const SUPPORTED_TEXT_EXTENSIONS = new Set([
   ".vbproj",
   ".csproj",
   ".fsproj",
+  ".vcxproj",
   ".props",
   ".targets",
   ".config",
@@ -78,6 +79,7 @@ const LEGACY_DOTNET_METADATA_EXTENSIONS = new Set([
   ".vbproj",
   ".csproj",
   ".fsproj",
+  ".vcxproj",
   ".props",
   ".targets",
   ".config",
@@ -85,7 +87,7 @@ const LEGACY_DOTNET_METADATA_EXTENSIONS = new Set([
   ".settings"
 ]);
 
-const PROJECT_DEFINITION_EXTENSIONS = new Set([".sln", ".vbproj", ".csproj", ".fsproj"]);
+const PROJECT_DEFINITION_EXTENSIONS = new Set([".sln", ".vbproj", ".csproj", ".fsproj", ".vcxproj"]);
 const STRUCTURED_NON_CODE_CHUNK_EXTENSIONS = new Set([".config", ".resx", ".settings"]);
 
 const CODE_FILE_EXTENSIONS = new Set([
@@ -1728,6 +1730,8 @@ function projectLanguageForExtension(ext) {
       return "csharp";
     case ".fsproj":
       return "fsharp";
+    case ".vcxproj":
+      return "cpp";
     case ".sln":
       return "solution";
     default:
@@ -1761,7 +1765,7 @@ function parseSolutionProject(fileRecord, indexedFileIds) {
   const ext = path.extname(fileRecord.path).toLowerCase();
   const fallbackName = path.basename(fileRecord.path, ext);
   const projectPattern =
-    /^Project\([^)]*\)\s*=\s*"([^"]+)",\s*"([^"]+\.(?:vbproj|csproj|fsproj))",\s*"\{[^"]+\}"$/gim;
+    /^Project\([^)]*\)\s*=\s*"([^"]+)",\s*"([^"]+\.(?:vbproj|csproj|fsproj|vcxproj))",\s*"\{[^"]+\}"$/gim;
 
   let match;
   while ((match = projectPattern.exec(fileRecord.content)) !== null) {

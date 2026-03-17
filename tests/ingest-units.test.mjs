@@ -41,6 +41,7 @@ test("detectKind: treats legacy .NET project and config files as DOC metadata fo
   assert.equal(detectKind("legacy/App.config"), "DOC");
   assert.equal(detectKind("legacy/Resources.resx"), "DOC");
   assert.equal(detectKind("legacy/Settings.settings"), "DOC");
+  assert.equal(detectKind("native/Engine.vcxproj"), "DOC");
 });
 
 test("getChunkParserForExtension: only dispatches current chunk-capable languages", () => {
@@ -517,6 +518,58 @@ test("generateProjects: creates solution and project entities with project refer
   assert.ok(result.referencesProjectRelations.some((relation) => relation.from === "project:legacy/App.sln" && relation.to === "project:legacy/App/App.vbproj"));
   assert.ok(result.referencesProjectRelations.some((relation) => relation.from === "project:legacy/App.sln" && relation.to === "project:legacy/Lib/Lib.csproj"));
   assert.ok(result.referencesProjectRelations.some((relation) => relation.from === "project:legacy/App/App.vbproj" && relation.to === "project:legacy/Lib/Lib.csproj"));
+});
+
+test("generateProjects: includes vcxproj solution members in the project graph", () => {
+  const files = [
+    {
+      id: "file:native/App.sln",
+      path: "native/App.sln",
+      kind: "DOC",
+      updated_at: "2026-01-01",
+      content: [
+        'Project("{GUID}") = "Engine", "Engine/Engine.vcxproj", "{ENGINE-GUID}"',
+        'Project("{GUID}") = "Interop", "Interop/Interop.csproj", "{INTEROP-GUID}"'
+      ].join("\n")
+    },
+    {
+      id: "file:native/Engine/Engine.vcxproj",
+      path: "native/Engine/Engine.vcxproj",
+      kind: "DOC",
+      updated_at: "2026-01-01",
+      content: [
+        "<Project>",
+        "  <ItemGroup>",
+        '    <ProjectReference Include="..\\Interop\\Interop.csproj" />',
+        "  </ItemGroup>",
+        "</Project>"
+      ].join("\n")
+    },
+    {
+      id: "file:native/Interop/Interop.csproj",
+      path: "native/Interop/Interop.csproj",
+      kind: "DOC",
+      updated_at: "2026-01-01",
+      content: "<Project><PropertyGroup><AssemblyName>Interop</AssemblyName></PropertyGroup></Project>"
+    }
+  ];
+
+  const result = generateProjects(files);
+
+  assert.ok(result.projects.some((project) => project.id === "project:native/Engine/Engine.vcxproj" && project.language === "cpp"));
+  assert.ok(
+    result.referencesProjectRelations.some(
+      (relation) =>
+        relation.from === "project:native/App.sln" && relation.to === "project:native/Engine/Engine.vcxproj"
+    )
+  );
+  assert.ok(
+    result.referencesProjectRelations.some(
+      (relation) =>
+        relation.from === "project:native/Engine/Engine.vcxproj" &&
+        relation.to === "project:native/Interop/Interop.csproj"
+    )
+  );
 });
 
 test("generateNamedResourceRelations: links code files to matching resx and settings files", () => {
