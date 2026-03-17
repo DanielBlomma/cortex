@@ -14,6 +14,15 @@ import {
 } from "./impactRanking.js";
 import type { ImpactParams, JsonObject, SearchEntity } from "./types.js";
 
+type ImpactResult = Record<string, unknown> & {
+  impact_score: number;
+  profile_score: number;
+  note_score: number;
+  semantic_score: number;
+  graph_score: number;
+  trust_score: number;
+};
+
 function normalizeText(value: string): string {
   return value.normalize("NFKC").toLowerCase();
 }
@@ -53,6 +62,28 @@ function matchesImpactFilters(
   return !resultEntityTypes || resultEntityTypes.has(normalizeText(String(result.entity_type ?? "")));
 }
 
+function finalizeImpactResult(result: ImpactResult, includeScores: boolean): Record<string, unknown> {
+  if (includeScores) {
+    return result;
+  }
+  const {
+    impact_score,
+    profile_score,
+    note_score,
+    semantic_score,
+    graph_score,
+    trust_score,
+    ...publicResult
+  } = result;
+  void impact_score;
+  void profile_score;
+  void note_score;
+  void semantic_score;
+  void graph_score;
+  void trust_score;
+  return publicResult;
+}
+
 export function buildImpactResults(params: {
   visited: Map<string, ImpactTraversalStep>;
   seedId: string;
@@ -75,7 +106,7 @@ export function buildImpactResults(params: {
   topK: number;
   semanticScorer: (queryTokens: string[], queryPhrase: string, text: string) => number;
 }): Record<string, unknown>[] {
-  return [...params.visited.entries()]
+  const results: ImpactResult[] = [...params.visited.entries()]
     .filter(([id]) => id !== params.seedId)
     .map(([id, metadata]) => {
       const entity = params.searchEntities.get(id);
@@ -136,19 +167,15 @@ export function buildImpactResults(params: {
         excerpt: entity?.snippet ?? "",
         status: entity?.status ?? String(catalogEntry.status ?? "unknown"),
         source_of_truth: entity?.source_of_truth ?? Boolean(catalogEntry.source_of_truth),
+        impact_score: impactScore,
+        profile_score: profileScore,
+        note_score: noteScore,
+        semantic_score: Number(semantic.toFixed(4)),
+        graph_score: Number(graphScore.toFixed(4)),
+        trust_score: Number(trustScore.toFixed(4)),
         ...(params.includeReasons
           ? {
               top_reasons: topReasons
-            }
-          : {}),
-        ...(params.includeScores
-          ? {
-              impact_score: impactScore,
-              profile_score: profileScore,
-              note_score: noteScore,
-              semantic_score: Number(semantic.toFixed(4)),
-              graph_score: Number(graphScore.toFixed(4)),
-              trust_score: Number(trustScore.toFixed(4))
             }
           : {}),
         ...(params.verbosePaths
@@ -168,6 +195,7 @@ export function buildImpactResults(params: {
         params.pathMustExclude
       )
     )
-    .sort(impactResultComparator(params.sortBy))
-    .slice(0, params.topK);
+    .sort(impactResultComparator(params.sortBy));
+
+  return results.slice(0, params.topK).map((result) => finalizeImpactResult(result, params.includeScores));
 }

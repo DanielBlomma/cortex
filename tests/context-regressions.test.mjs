@@ -961,8 +961,223 @@ ranking:
   }
 }
 
+function testIngestIncrementalPreservesStructuredTargetRelations() {
+  console.log("\n9. ingest incremental keeps relations to unchanged structured targets");
+  const fixtureRoot = makeTempDir("cortex-ingest-structured-targets-");
+  try {
+    fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "scripts"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "legacy"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, "db"), { recursive: true });
+    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
+    fs.cpSync(path.join(REPO_ROOT, "scripts", "parsers"), path.join(fixtureRoot, "scripts", "parsers"), {
+      recursive: true
+    });
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "config.yaml"),
+      `repo_id: fixture
+source_paths:
+  - src
+  - legacy
+  - db
+truth_order:
+  - ADR
+  - RULE
+  - CODE
+  - WIKI
+ranking:
+  semantic: 0.40
+  graph: 0.25
+  trust: 0.20
+  recency: 0.15
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, ".context", "rules.yaml"),
+      `rules:
+  - id: rule.test
+    description: "fixture rule"
+    priority: 1
+    enforce: true
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, "src", "ReportRepository.vb"),
+      `Imports System.Configuration
+Imports System.Data.SqlClient
+
+Public Module ReportRepository
+  Public Function LoadReport() As String
+    Dim conn = ConfigurationManager.ConnectionStrings("LegacyDb")
+    Dim feature = ConfigurationManager.AppSettings("FeatureToggle")
+    Dim sqlText = My.Resources.LookupSql
+    Dim procName = My.Settings.RunReportProc
+    Dim cmd = New SqlCommand("dbo.usp_RunReport", Nothing)
+    cmd.CommandType = CommandType.StoredProcedure
+    Return feature & ":" & sqlText & ":" & procName & ":" & conn.ConnectionString
+  End Function
+End Module
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, "legacy", "App.config"),
+      `<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <connectionStrings>
+    <add name="LegacyDb" connectionString="Server=.;Database=Legacy;Trusted_Connection=True;" />
+  </connectionStrings>
+  <appSettings>
+    <add key="FeatureToggle" value="true" />
+  </appSettings>
+</configuration>
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, "legacy", "Resources.resx"),
+      `<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <data name="LookupSql" xml:space="preserve">
+    <value>SELECT * FROM dbo.usp_RunReport</value>
+  </data>
+</root>
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, "legacy", "App.settings"),
+      `<?xml version="1.0" encoding="utf-8"?>
+<SettingsFile>
+  <Settings>
+    <Setting Name="RunReportProc" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">dbo.usp_RunReport</Value>
+    </Setting>
+  </Settings>
+</SettingsFile>
+`,
+      "utf8"
+    );
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, "db", "reporting.sql"),
+      `CREATE PROCEDURE dbo.usp_RunReport
+AS
+BEGIN
+  SELECT 1;
+END
+GO
+`,
+      "utf8"
+    );
+
+    run("git", ["init"], { cwd: fixtureRoot });
+    run("git", ["checkout", "-b", "main"], { cwd: fixtureRoot });
+    run("git", ["config", "user.email", "tests@example.com"], { cwd: fixtureRoot });
+    run("git", ["config", "user.name", "Cortex Tests"], { cwd: fixtureRoot });
+    run("git", ["add", "."], { cwd: fixtureRoot });
+    run("git", ["commit", "-m", "initial fixture"], { cwd: fixtureRoot });
+
+    run("node", ["scripts/ingest.mjs"], { cwd: fixtureRoot });
+
+    let chunkById = new Map(
+      parseJsonl(path.join(fixtureRoot, ".context", "cache", "entities.chunk.jsonl")).map((chunk) => [chunk.id, chunk])
+    );
+    let callsSql = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.calls_sql.jsonl"));
+    let usesConfigKey = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.uses_config_key.jsonl"));
+    let usesResourceKey = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.uses_resource_key.jsonl"));
+    let usesSettingKey = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.uses_setting_key.jsonl"));
+    let manifest = JSON.parse(fs.readFileSync(path.join(fixtureRoot, ".context", "cache", "manifest.json"), "utf8"));
+
+    const sourceFileId = "file:src/ReportRepository.vb";
+    const configFileId = "file:legacy/App.config";
+    const resourceFileId = "file:legacy/Resources.resx";
+    const settingsFileId = "file:legacy/App.settings";
+    const sqlFileId = "file:db/reporting.sql";
+
+    const hasCallsSql = () =>
+      callsSql.some((edge) => edge.from === sourceFileId && chunkById.get(edge.to)?.file_id === sqlFileId);
+    const hasConfigKey = () =>
+      usesConfigKey.some(
+        (edge) =>
+          edge.from === sourceFileId &&
+          edge.note === "legacydb" &&
+          chunkById.get(edge.to)?.file_id === configFileId
+      );
+    const hasResourceKey = () =>
+      usesResourceKey.some(
+        (edge) =>
+          edge.from === sourceFileId &&
+          edge.note === "lookupsql" &&
+          chunkById.get(edge.to)?.file_id === resourceFileId
+      );
+    const hasSettingKey = () =>
+      usesSettingKey.some(
+        (edge) =>
+          edge.from === sourceFileId &&
+          edge.note === "runreportproc" &&
+          chunkById.get(edge.to)?.file_id === settingsFileId
+      );
+
+    assert("full ingest creates CALLS_SQL relation to sql chunk", hasCallsSql());
+    assert("full ingest creates USES_CONFIG_KEY relation to config chunk", hasConfigKey());
+    assert("full ingest creates USES_RESOURCE_KEY relation to resx chunk", hasResourceKey());
+    assert("full ingest creates USES_SETTING_KEY relation to settings chunk", hasSettingKey());
+    assert("full ingest records non-incremental manifest", manifest.incremental_mode === false);
+
+    fs.writeFileSync(
+      path.join(fixtureRoot, "src", "ReportRepository.vb"),
+      `Imports System.Configuration
+Imports System.Data.SqlClient
+
+Public Module ReportRepository
+  Public Function LoadReport() As String
+    Dim conn = ConfigurationManager.ConnectionStrings("LegacyDb")
+    Dim feature = ConfigurationManager.AppSettings("FeatureToggle")
+    Dim sqlText = My.Resources.LookupSql
+    Dim procName = My.Settings.RunReportProc
+    Dim cmd = New SqlCommand("dbo.usp_RunReport", Nothing)
+    cmd.CommandType = CommandType.StoredProcedure
+    Dim auditMessage = "refreshed"
+    Return auditMessage & ":" & feature & ":" & sqlText & ":" & procName & ":" & conn.ConnectionString
+  End Function
+End Module
+`,
+      "utf8"
+    );
+
+    run("node", ["scripts/ingest.mjs", "--changed"], { cwd: fixtureRoot });
+
+    chunkById = new Map(
+      parseJsonl(path.join(fixtureRoot, ".context", "cache", "entities.chunk.jsonl")).map((chunk) => [chunk.id, chunk])
+    );
+    callsSql = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.calls_sql.jsonl"));
+    usesConfigKey = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.uses_config_key.jsonl"));
+    usesResourceKey = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.uses_resource_key.jsonl"));
+    usesSettingKey = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.uses_setting_key.jsonl"));
+    manifest = JSON.parse(fs.readFileSync(path.join(fixtureRoot, ".context", "cache", "manifest.json"), "utf8"));
+
+    assert("incremental ingest runs in incremental mode", manifest.incremental_mode === true);
+    assert("incremental ingest keeps CALLS_SQL relation to unchanged sql chunk", hasCallsSql());
+    assert("incremental ingest keeps USES_CONFIG_KEY relation to unchanged config chunk", hasConfigKey());
+    assert("incremental ingest keeps USES_RESOURCE_KEY relation to unchanged resx chunk", hasResourceKey());
+    assert("incremental ingest keeps USES_SETTING_KEY relation to unchanged settings chunk", hasSettingKey());
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+}
+
 function testIngestAssignsImportEdgesOnlyToChunksThatUseImports() {
-  console.log("\n8. parser assigns imports only to chunks that use imported bindings");
+  console.log("\n10. parser assigns imports only to chunks that use imported bindings");
   const source = `import { dep } from "./dep";
 
 export function usesDep() {
@@ -991,7 +1206,7 @@ export function localOnly() {
 }
 
 function testParserPreservesSideEffectImportsForAllChunks() {
-  console.log("\n9. parser preserves side-effect imports for all chunks");
+  console.log("\n11. parser preserves side-effect imports for all chunks");
   const source = `import "./setup";
 import { dep } from "./dep";
 
@@ -1029,7 +1244,7 @@ export function initOnly() {
 }
 
 function testParserIgnoresShadowedImportedBindings() {
-  console.log("\n10. parser ignores shadowed imported bindings");
+  console.log("\n12. parser ignores shadowed imported bindings");
   const source = `import { dep } from "./dep";
 
 export function run(dep) {
@@ -1048,7 +1263,7 @@ export function run(dep) {
 }
 
 function testParserIgnoresTypeImportsShadowedByGenericParameters() {
-  console.log("\n11. parser ignores type imports shadowed by generic parameters");
+  console.log("\n13. parser ignores type imports shadowed by generic parameters");
   const source = `import type { T } from "./dep";
 
 export function run<T>(value: T): T {
@@ -1067,7 +1282,7 @@ export function run<T>(value: T): T {
 }
 
 function testParserCapturesImportsReferencedInDeclarationHeaders() {
-  console.log("\n11. parser keeps imports referenced in declaration headers");
+  console.log("\n14. parser keeps imports referenced in declaration headers");
   const source = `import { dep } from "./dep";
 import Base from "./Base";
 
@@ -1105,7 +1320,7 @@ export class C extends Base {
 }
 
 function testParserCapturesModuleScopeRequireBindings() {
-  console.log("\n12. parser keeps module-scope require bindings");
+  console.log("\n15. parser keeps module-scope require bindings");
   const source = `const dep = require("./dep");
 
 export function run() {
@@ -1760,6 +1975,7 @@ testIngestChunkMaxWindowCap();
 testIngestChunkMetadataInheritanceInIncrementalMode();
 testIngestIncrementalPreservesModuleExports();
 testIngestWindowChunksKeepRelationsOnBaseChunk();
+testIngestIncrementalPreservesStructuredTargetRelations();
 testIngestAssignsImportEdgesOnlyToChunksThatUseImports();
 testParserPreservesSideEffectImportsForAllChunks();
 testParserIgnoresShadowedImportedBindings();

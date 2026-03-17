@@ -10,6 +10,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
+  buildChunkAliasIndexes,
   buildSqlResourceReferenceMap,
   detectKind,
   extractSqlObjectReferencesFromContent,
@@ -155,6 +156,44 @@ test("resolveRelativeImportTargetId: keeps JS package imports unresolved", () =>
 
   assert.equal(resolveRelativeImportTargetId("src/app.ts", "react", indexed), null);
   assert.equal(resolveRelativeImportTargetId("src/app.ts", "./local", indexed), "file:src/local.ts");
+});
+
+test("buildChunkAliasIndexes includes cached structured targets and skips window chunks", () => {
+  const indexes = buildChunkAliasIndexes([
+    {
+      id: "chunk:db/Queries.sql:dbo.GetUsers:1-3",
+      name: "dbo.GetUsers",
+      language: "sql"
+    },
+    {
+      id: "chunk:App.config:LegacyDb:1-1",
+      name: "LegacyDb",
+      language: "config"
+    },
+    {
+      id: "chunk:Resources.resx:QueryName:1-1",
+      name: "QueryName",
+      resourceKey: "QueryName",
+      language: "resource"
+    },
+    {
+      id: "chunk:Settings.settings:RunReportProc:1-1",
+      name: "RunReportProc",
+      resourceKey: "RunReportProc",
+      language: "settings"
+    },
+    {
+      id: "chunk:db/Queries.sql:dbo.GetUsers:1-3:window:1:1-2",
+      name: "dbo.GetUsers#window1",
+      language: "sql"
+    }
+  ]);
+
+  assert.deepEqual(indexes.sqlChunkIdsByAlias.get("dbo.getusers"), ["chunk:db/Queries.sql:dbo.GetUsers:1-3"]);
+  assert.deepEqual(indexes.sqlChunkIdsByAlias.get("getusers"), ["chunk:db/Queries.sql:dbo.GetUsers:1-3"]);
+  assert.deepEqual(indexes.configChunkIdsByAlias.get("legacydb"), ["chunk:App.config:LegacyDb:1-1"]);
+  assert.deepEqual(indexes.resourceChunkIdsByAlias.get("queryname"), ["chunk:Resources.resx:QueryName:1-1"]);
+  assert.deepEqual(indexes.settingChunkIdsByAlias.get("runreportproc"), ["chunk:Settings.settings:RunReportProc:1-1"]);
 });
 
 // ─── generateChunkDescription ────────────────────────────────────────────────

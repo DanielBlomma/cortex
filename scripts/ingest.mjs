@@ -933,6 +933,53 @@ function namedEntryChunkAliases(chunk) {
   return [...aliases];
 }
 
+function appendChunkAliases(aliasMap, aliases, chunkId) {
+  for (const alias of aliases) {
+    if (!alias) {
+      continue;
+    }
+    const existing = aliasMap.get(alias) ?? [];
+    existing.push(chunkId);
+    aliasMap.set(alias, existing);
+  }
+}
+
+function buildChunkAliasIndexes(chunkRecords) {
+  const sqlChunkIdsByAlias = new Map();
+  const configChunkIdsByAlias = new Map();
+  const resourceChunkIdsByAlias = new Map();
+  const settingChunkIdsByAlias = new Map();
+
+  for (const chunk of chunkRecords) {
+    if (isWindowChunkId(String(chunk?.id ?? ""))) {
+      continue;
+    }
+
+    const chunkId = String(chunk?.id ?? "");
+    const language = String(chunk?.language ?? "").toLowerCase();
+    if (!chunkId || !language) {
+      continue;
+    }
+
+    if (language === "sql") {
+      appendChunkAliases(sqlChunkIdsByAlias, sqlChunkAliases(String(chunk?.name ?? "")), chunkId);
+    } else if (language === "config") {
+      appendChunkAliases(configChunkIdsByAlias, configChunkAliases(chunk), chunkId);
+    } else if (language === "resource") {
+      appendChunkAliases(resourceChunkIdsByAlias, namedEntryChunkAliases(chunk), chunkId);
+    } else if (language === "settings") {
+      appendChunkAliases(settingChunkIdsByAlias, namedEntryChunkAliases(chunk), chunkId);
+    }
+  }
+
+  return {
+    sqlChunkIdsByAlias,
+    configChunkIdsByAlias,
+    resourceChunkIdsByAlias,
+    settingChunkIdsByAlias
+  };
+}
+
 function extractSqlReferenceNamesFromString(text) {
   const refs = new Set();
 
@@ -2462,10 +2509,10 @@ function main() {
 
   // Extract chunks from changed or uncached code files
   let windowedChunkCount = 0;
-  const sqlChunkIdsByAlias = new Map();
-  const configChunkIdsByAlias = new Map();
-  const resourceChunkIdsByAlias = new Map();
-  const settingChunkIdsByAlias = new Map();
+  let sqlChunkIdsByAlias = new Map();
+  let configChunkIdsByAlias = new Map();
+  let resourceChunkIdsByAlias = new Map();
+  let settingChunkIdsByAlias = new Map();
   const deferredSqlCallEdges = [];
 
   for (const fileRecord of fileRecords) {
@@ -2643,6 +2690,8 @@ function main() {
   }
 
   const chunkRecords = [...chunkRecordMap.values()].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  ({ sqlChunkIdsByAlias, configChunkIdsByAlias, resourceChunkIdsByAlias, settingChunkIdsByAlias } =
+    buildChunkAliasIndexes(chunkRecords));
 
   // Filter CALLS relations to only valid targets (chunks that actually exist)
   const chunkIdSet = new Set(chunkRecords.map(c => c.id));
@@ -3260,6 +3309,7 @@ if (isMainModule) {
 }
 
 export {
+  buildChunkAliasIndexes,
   buildSqlResourceReferenceMap,
   detectKind,
   extractSqlObjectReferencesFromContent,

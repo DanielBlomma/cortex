@@ -1,5 +1,13 @@
 import type { RankingWeights, SearchEntity } from "./types.js";
 
+type SearchResult = Record<string, unknown> & {
+  score: number;
+  semantic_score: number;
+  embedding_score: number;
+  lexical_score: number;
+  graph_score: number;
+};
+
 function isWindowChunkId(id: string): boolean {
   return id.includes(":window:");
 }
@@ -12,6 +20,19 @@ function baseChunkId(id: string): string {
 function baseChunkLabel(label: string): string {
   const markerIndex = label.indexOf("#window");
   return markerIndex === -1 ? label : label.slice(0, markerIndex);
+}
+
+function finalizeSearchResult(result: SearchResult, includeScores: boolean): Record<string, unknown> {
+  if (includeScores) {
+    return result;
+  }
+  const { score, semantic_score, embedding_score, lexical_score, graph_score, ...publicResult } = result;
+  void score;
+  void semantic_score;
+  void embedding_score;
+  void lexical_score;
+  void graph_score;
+  return publicResult;
 }
 
 export function buildSearchResults(params: {
@@ -34,7 +55,7 @@ export function buildSearchResults(params: {
   legacyDataAccessBooster: (entity: SearchEntity, queryTokens: string[], queryPhrase: string) => number;
 }): Record<string, unknown>[] {
   const rawResults = params.candidates
-    .map((entity) => {
+    .map<SearchResult | null>((entity) => {
       const lexicalSemantic = params.semanticScorer(params.queryTokens, params.queryPhrase, entity.text);
       const entityVector = params.embeddingVectors.get(entity.id);
       const vectorSemantic =
@@ -74,15 +95,11 @@ export function buildSearchResults(params: {
         status: entity.status,
         updated_at: entity.updated_at,
         excerpt: entity.snippet,
-        ...(params.includeScores
-          ? {
-              score: Number(score.toFixed(4)),
-              semantic_score: Number(semantic.toFixed(4)),
-              embedding_score: Number(vectorSemantic.toFixed(4)),
-              lexical_score: Number(lexicalSemantic.toFixed(4)),
-              graph_score: Number(graphScore.toFixed(4))
-            }
-          : {}),
+        score: Number(score.toFixed(4)),
+        semantic_score: Number(semantic.toFixed(4)),
+        embedding_score: Number(vectorSemantic.toFixed(4)),
+        lexical_score: Number(lexicalSemantic.toFixed(4)),
+        graph_score: Number(graphScore.toFixed(4)),
         ...(params.includeMatchedRules
           ? {
               matched_rules: entity.matched_rules
@@ -93,15 +110,15 @@ export function buildSearchResults(params: {
               content: entity.content
             }
           : {})
-      };
+      } satisfies SearchResult;
     })
-    .filter((result): result is NonNullable<typeof result> => result !== null)
-    .sort((a, b) => Number(b.score ?? 0) - Number(a.score ?? 0));
+    .filter((result): result is SearchResult => result !== null)
+    .sort((a, b) => b.score - a.score);
 
   const chunkCandidatesById = new Map(
     params.candidates.filter((entity) => entity.entity_type === "Chunk").map((entity) => [entity.id, entity])
   );
-  const normalizedById = new Map<string, (typeof rawResults)[number]>();
+  const normalizedById = new Map<string, SearchResult>();
 
   for (const result of rawResults) {
     if (result.entity_type !== "Chunk" || !isWindowChunkId(String(result.id))) {
@@ -122,12 +139,13 @@ export function buildSearchResults(params: {
         }
       : result;
     const existing = normalizedById.get(String(normalizedResult.id));
-    if (!existing || Number(normalizedResult.score ?? 0) > Number(existing.score ?? 0)) {
+    if (!existing || normalizedResult.score > existing.score) {
       normalizedById.set(String(normalizedResult.id), normalizedResult);
     }
   }
 
   return [...normalizedById.values()]
-    .sort((a, b) => Number(b.score ?? 0) - Number(a.score ?? 0))
-    .slice(0, params.topK);
+    .sort((a, b) => b.score - a.score)
+    .slice(0, params.topK)
+    .map((result) => finalizeSearchResult(result, params.includeScores));
 }
