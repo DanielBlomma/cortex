@@ -1,5 +1,8 @@
 # Cortex MCP
 
+[![npm version](https://img.shields.io/npm/v/%40danielblomma%2Fcortex-mcp)](https://www.npmjs.com/package/@danielblomma/cortex-mcp)
+[![npm downloads](https://img.shields.io/npm/dw/%40danielblomma%2Fcortex-mcp)](https://www.npmjs.com/package/@danielblomma/cortex-mcp)
+
 `@danielblomma/cortex-mcp` is a local, repo-scoped context platform for coding assistants.
 It indexes your codebase into structured entities (files, rules, ADRs) and exposes that context over MCP (JSON-RPC over stdio).
 
