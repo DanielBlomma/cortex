@@ -54,6 +54,10 @@ jobs:
             node scripts/ingest.mjs --path scaffold/ || true
           fi
 
+      - name: Run retrieval eval
+        run: |
+          node benchmark/retrieval-eval.mjs --ci --threshold 60
+
       - name: Run benchmark
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

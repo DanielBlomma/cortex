@@ -648,6 +648,7 @@ async function run() {
     "ingest",
     "embed",
     "graph-load",
+    "dashboard",
     "watch",
     "note",
     "plan",

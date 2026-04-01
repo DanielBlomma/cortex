@@ -21,3 +21,6 @@ mcp/dist/
 *.tgz
 .mcpregistry_github_token
 .mcpregistry_registry_token
+# Cortex local storage
+mcp/node_modules/
+

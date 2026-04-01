@@ -1,0 +1,140 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "description": "Gold context for retrieval quality evaluation — measures whether Cortex returns the right entities for a given query",
+    "created": "2026-03-14",
+    "notes": "Path patterns use regex. Run with --discover to see actual results and refine gold sets. Gold context calibrated against Cortex's own indexed codebase."
+  },
+  "queries": [
+    {
+      "id": "search-scoring",
+      "query": "search scoring ranking semantic graph",
+      "description": "Should surface the search/ranking implementation",
+      "goldContext": {
+        "expectedPaths": [
+          "mcp/src/search.ts"
+        ],
+        "expectedChunkPatterns": [
+          "runContextSearch",
+          "semanticScore"
+        ]
+      }
+    },
+    {
+      "id": "chunk-handling",
+      "query": "chunk window overlap ingest split large function",
+      "description": "Should surface chunk handling in ingest and graph loading",
+      "goldContext": {
+        "expectedPaths": [
+          "scaffold/scripts/ingest.mjs"
+        ],
+        "expectedChunkPatterns": [
+          "parseChunks",
+          "parseCode"
+        ]
+      }
+    },
+    {
+      "id": "javascript-parser",
+      "query": "parse JavaScript TypeScript AST extract functions classes",
+      "description": "Should surface the JS/TS parser modules",
+      "goldContext": {
+        "expectedPaths": [
+          "scaffold/scripts/parsers/javascript.mjs"
+        ],
+        "expectedChunkPatterns": [
+          "parseCode",
+          "extractFunctionChunk"
+        ]
+      }
+    },
+    {
+      "id": "import-resolution",
+      "query": "resolve import path relative file extension",
+      "description": "Should surface the import resolution logic in ingest",
+      "goldContext": {
+        "expectedPaths": [
+          "scaffold/scripts/ingest.mjs"
+        ],
+        "expectedChunkPatterns": []
+      }
+    },
+    {
+      "id": "mcp-server",
+      "query": "MCP server tools register context search get_related",
+      "description": "Should surface the MCP server setup and tool registration",
+      "goldContext": {
+        "expectedPaths": [
+          "mcp/src/server.ts"
+        ],
+        "expectedChunkPatterns": [
+          "registerTools"
+        ]
+      }
+    },
+    {
+      "id": "graph-loading",
+      "query": "graph relations CALLS IMPORTS PART_OF edges load",
+      "description": "Should surface relation and graph handling",
+      "goldContext": {
+        "expectedPaths": [
+          "mcp/src/graph.ts",
+          "mcp/src/loadGraph.ts"
+        ],
+        "expectedChunkPatterns": []
+      }
+    },
+    {
+      "id": "cli-init",
+      "query": "cortex init bootstrap setup project",
+      "description": "Should surface the CLI entry point and init logic",
+      "goldContext": {
+        "expectedPaths": [
+          "bin/cortex.mjs"
+        ],
+        "expectedChunkPatterns": [
+          "parseInitArgs",
+          "ensureProjectInitialized"
+        ]
+      }
+    },
+    {
+      "id": "embeddings",
+      "query": "vector embedding cosine similarity model transformer",
+      "description": "Should surface the embedding generation and scoring logic",
+      "goldContext": {
+        "expectedPaths": [
+          "mcp/src/embeddings.ts",
+          "mcp/src/search.ts"
+        ],
+        "expectedChunkPatterns": [
+          "runContextSearch"
+        ]
+      }
+    },
+    {
+      "id": "rules-engine",
+      "query": "rules constraints match file path keywords apply",
+      "description": "Should surface how rules are loaded and matched to entities",
+      "goldContext": {
+        "expectedPaths": [
+          "mcp/src/search.ts",
+          "scaffold/scripts/ingest.mjs"
+        ],
+        "expectedChunkPatterns": []
+      }
+    },
+    {
+      "id": "file-watcher",
+      "query": "watch file changes detect modified ingest incremental",
+      "description": "Should surface the file watcher and incremental ingest",
+      "goldContext": {
+        "expectedPaths": [
+          "scaffold/scripts/watch.sh",
+          "scaffold/scripts/ingest.mjs"
+        ],
+        "expectedChunkPatterns": []
+      }
+    }
+  ]
+}
