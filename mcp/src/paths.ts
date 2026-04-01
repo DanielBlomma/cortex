@@ -23,28 +23,9 @@ export const PATHS = {
   documents: path.join(CACHE_DIR, "documents.jsonl"),
   adrEntities: path.join(CACHE_DIR, "entities.adr.jsonl"),
   ruleEntities: path.join(CACHE_DIR, "entities.rule.jsonl"),
-  chunkEntities: path.join(CACHE_DIR, "entities.chunk.jsonl"),
-  projectEntities: path.join(CACHE_DIR, "entities.project.jsonl"),
   constrainsRelations: path.join(CACHE_DIR, "relations.constrains.jsonl"),
   implementsRelations: path.join(CACHE_DIR, "relations.implements.jsonl"),
-  supersedesRelations: path.join(CACHE_DIR, "relations.supersedes.jsonl"),
-  callsRelations: path.join(CACHE_DIR, "relations.calls.jsonl"),
-  callsSqlRelations: path.join(CACHE_DIR, "relations.calls_sql.jsonl"),
-  usesConfigKeyRelations: path.join(CACHE_DIR, "relations.uses_config_key.jsonl"),
-  usesResourceKeyRelations: path.join(CACHE_DIR, "relations.uses_resource_key.jsonl"),
-  usesSettingKeyRelations: path.join(CACHE_DIR, "relations.uses_setting_key.jsonl"),
-  definesRelations: path.join(CACHE_DIR, "relations.defines.jsonl"),
-  importsRelations: path.join(CACHE_DIR, "relations.imports.jsonl"),
-  moduleEntities: path.join(CACHE_DIR, "entities.module.jsonl"),
-  containsRelations: path.join(CACHE_DIR, "relations.contains.jsonl"),
-  containsModuleRelations: path.join(CACHE_DIR, "relations.contains_module.jsonl"),
-  exportsRelations: path.join(CACHE_DIR, "relations.exports.jsonl"),
-  includesFileRelations: path.join(CACHE_DIR, "relations.includes_file.jsonl"),
-  referencesProjectRelations: path.join(CACHE_DIR, "relations.references_project.jsonl"),
-  usesResourceRelations: path.join(CACHE_DIR, "relations.uses_resource.jsonl"),
-  usesSettingRelations: path.join(CACHE_DIR, "relations.uses_setting.jsonl"),
-  usesConfigRelations: path.join(CACHE_DIR, "relations.uses_config.jsonl"),
-  transformsConfigRelations: path.join(CACHE_DIR, "relations.transforms_config.jsonl")
+  supersedesRelations: path.join(CACHE_DIR, "relations.supersedes.jsonl")
 };
 
 export const DEFAULT_RANKING: RankingWeights = {

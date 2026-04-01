@@ -20,6 +20,7 @@ Commands:
   plan [show|reset]                Show or reset automatic plan/progress state
   todo [text|list|done <id>|reopen <id>|remove <id>]
                                    Manage TODOs in automatic plan state
+  dashboard [--interval <sec>]     Live TUI showing what Cortex adds to your repo
   status                           Show latest ingest summary
   help                             Show this message
 EOF
@@ -87,6 +88,10 @@ case "$COMMAND" in
       esac
     fi
     TRACK_EVENT="todo"
+    ;;
+  dashboard)
+    "$SCRIPT_DIR/dashboard.sh" "$@"
+    TRACK_EVENT="dashboard"
     ;;
   status)
     "$SCRIPT_DIR/status.sh"

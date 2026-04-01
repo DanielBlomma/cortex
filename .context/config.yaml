@@ -2,7 +2,7 @@ repo_id: cortex
 source_paths:
   - mcp/src
   - scaffold/scripts
-  - scaffold/scripts/parsers
+  - scripts
   - docs
   - bin
   - README.md

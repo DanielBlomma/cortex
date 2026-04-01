@@ -49,26 +49,12 @@ const fs = require("node:fs");
 const embedManifestPath = process.argv[1];
 const data = JSON.parse(fs.readFileSync(embedManifestPath, "utf8"));
 const c = data.counts || {};
-const entities = Number(c.entities ?? 0);
-const output = Number(c.output ?? 0);
-const embedded = Number(c.embedded ?? 0);
-const failed = Number(c.failed ?? 0);
 console.log(`[status] embeddings generated_at=${data.generated_at}`);
 console.log(`[status] embeddings model=${data.model} dim=${data.dimensions ?? 0}`);
-console.log(`[status] embeddings entities=${entities} output=${output} embedded=${embedded} reused=${c.reused ?? 0} failed=${failed}`);
-if (embedded > 0 && output > 0 && failed === 0) {
-  console.log("[status] semantic_search=embedding+lexical (ready)");
-} else if (embedded > 0 && output > 0) {
-  console.log(`[status] semantic_search=embedding+lexical-partial (failed=${failed})`);
-} else if (entities > 0) {
-  console.log("[status] semantic_search=lexical-only (run: ./scripts/context.sh embed)");
-} else {
-  console.log("[status] semantic_search=lexical-only (no indexed entities)");
-}
+console.log(`[status] embeddings entities=${c.entities ?? 0} output=${c.output ?? 0} embedded=${c.embedded ?? 0} reused=${c.reused ?? 0} failed=${c.failed ?? 0}`);
 ' "$EMBED_MANIFEST"
 else
   echo "[status] embeddings manifest missing (run: ./scripts/context.sh embed)"
-  echo "[status] semantic_search=lexical-only (embeddings manifest missing)"
 fi
 
 node -e '
