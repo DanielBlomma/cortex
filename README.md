@@ -18,43 +18,10 @@ It indexes your codebase into structured entities (files, rules, ADRs) and expos
 
 ## Core Features
 
-- Semantic search (files, rules, ADRs).
-- Graph relationships between entities and constraints.
+- Semantic search across files, rules, and ADRs.
+- Graph relationships between entities and architectural constraints.
 - Architectural rules and ADR context for implementation decisions.
-
-## Advanced Features (Experimental)
-
-Cortex can extract function-level chunks and build call graphs in experimental builds:
-
-- `context.find_callers` - what calls this function?
-- `context.trace_calls` - what does this function call?
-- `context.impact_analysis` - what is impacted if this function changes?
-- Requires JavaScript/TypeScript codebase and semantic chunking/call graph indexing enabled.
-
-These APIs are experimental and may not be exposed in every installation.
-
-## Chunking Strategy (Code)
-
-When semantic chunking is enabled, large function/method chunks are split into overlap windows during ingest.
-
-Defaults:
-
-- `CORTEX_CHUNK_WINDOW_LINES=80`
-- `CORTEX_CHUNK_OVERLAP_LINES=16`
-- `CORTEX_CHUNK_SPLIT_MIN_LINES=120`
-- `CORTEX_CHUNK_MAX_WINDOWS=8`
-
-Behavior:
-
-- Chunks are split only when the chunk body exceeds the split threshold.
-- Windows slide forward using configured overlap (`next_start = previous_end - overlap`).
-- The last allowed window always stretches to the end of the chunk body.
-- Window chunks inherit metadata (`status`, `source_of_truth`) from their parent chunk.
-- Window chunks inherit parent graph edges for `CALLS` and `IMPORTS` to keep traversal/ranking consistent.
-
-Verification:
-
-- Overlap and windowing regressions are covered in `tests/context-regressions.test.mjs`.
+- Live TUI dashboard showing what Cortex adds to your repo.
 
 ## Requirements
 
@@ -89,13 +56,11 @@ Disable watcher setup:
 cortex init --bootstrap --no-watch
 ```
 
-Check semantic search readiness:
+Check context status:
 
 ```bash
 cortex status
 ```
-
-Look for `semantic_search=embedding+lexical (ready)` to confirm full semantic mode.
 
 ## Verify MCP Connection
 
@@ -207,6 +172,31 @@ Input:
 - "Show related files for this ADR."
 - "What active architectural rules apply to this API?"
 
+## Dashboard
+
+A live TUI that shows what Cortex adds to your repository at a glance.
+
+```bash
+cortex dashboard
+```
+
+![Cortex dashboard](https://raw.githubusercontent.com/DanielBlomma/cortex/main/docs/dashboard-screenshot.png)
+
+The dashboard displays:
+
+- **WITHOUT vs WITH CORTEX** — side-by-side comparison of raw files versus indexed entities (files, chunks, relations, rules, embeddings, trust signals).
+- **TOKENS** — estimated token cost of dumping all raw source files versus a Cortex search (top 5 results). Shows the reduction ratio, e.g. "172x reduction, 99% less tokens".
+- **CORTEX ADDS** — summary of what Cortex layers on top: chunks, relations, rules, embeddings, and which capabilities are unlocked (semantic search, graph traversal, impact analysis).
+- **RELATIONS** — bar chart of relation types in the graph (CALLS, DEFINES, CONSTRAINS, IMPLEMENTS, IMPORTS, SUPERSEDES) and their counts.
+- **HEALTH** — freshness percentage (how up-to-date the index is relative to uncommitted changes), last sync timestamp, and embedding status with model name.
+- **TOP CONNECTED** — the five most connected entities in the graph by edge count, showing which files or rules are central to the codebase.
+
+Options:
+
+- `--interval <sec>` — auto-refresh interval (default: 2 seconds).
+- Press `r` to force refresh, `q` to quit.
+- Non-TTY output (piped) produces a single snapshot with ANSI stripped.
+
 ## Common Commands
 
 ```text
@@ -216,6 +206,7 @@ cortex mcp
 cortex bootstrap
 cortex update
 cortex status
+cortex dashboard [--interval <sec>]
 cortex watch [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>] [--mode <auto|event|poll>]
 cortex note <title> [text]
 cortex plan
