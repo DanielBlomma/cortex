@@ -24,6 +24,10 @@
     "claude",
     "codex"
   ],
+  "exports": {
+    ".": "./bin/cortex.mjs",
+    "./types": "./mcp/dist/types.js"
+  },
   "bin": {
     "cortex": "bin/cortex.mjs"
   },
