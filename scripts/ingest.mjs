@@ -6,6 +6,23 @@ import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
 import { parseCode } from "./parsers/javascript.mjs";
 
+// Non-JS parsers are loaded lazily to avoid hard failures when parser files
+// are unavailable (e.g. in test fixture directories).
+let parseSql = null;
+let parseCpp = null;
+let parseConfig = null;
+let parseResources = null;
+
+async function loadOptionalParsers() {
+  const loaders = [
+    import("./parsers/sql.mjs").then((m) => { parseSql = m.parseCode; }),
+    import("./parsers/cpp.mjs").then((m) => { parseCpp = m.parseCode; }),
+    import("./parsers/config.mjs").then((m) => { parseConfig = m.parseCode; }),
+    import("./parsers/resources.mjs").then((m) => { parseResources = m.parseCode; })
+  ];
+  await Promise.allSettled(loaders);
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, "..");
@@ -553,13 +570,40 @@ function fileTokenSet(fileRecord) {
   return new Set(tokenizeKeywords(tokenSource));
 }
 
+const JS_EXTENSIONS = new Set([".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx"]);
+const SQL_EXTENSIONS = new Set([".sql"]);
+const CPP_EXTENSIONS = new Set([".c", ".h", ".cpp", ".hpp", ".cc", ".hh"]);
+const CONFIG_EXTENSIONS = new Set([".config"]);
+const RESOURCE_EXTENSIONS = new Set([".resx", ".settings"]);
+
+function getParserForExtension(ext) {
+  if (JS_EXTENSIONS.has(ext)) {
+    const language = ext === ".ts" || ext === ".tsx" ? "typescript" : "javascript";
+    return { parser: parseCode, language };
+  }
+  if (SQL_EXTENSIONS.has(ext) && parseSql) {
+    return { parser: parseSql, language: "sql" };
+  }
+  if (CPP_EXTENSIONS.has(ext) && parseCpp) {
+    return { parser: parseCpp, language: "cpp" };
+  }
+  if (CONFIG_EXTENSIONS.has(ext) && parseConfig) {
+    return { parser: parseConfig, language: "config" };
+  }
+  if (RESOURCE_EXTENSIONS.has(ext) && parseResources) {
+    return { parser: parseResources, language: "resource" };
+  }
+  return null;
+}
+
 function chunkIdFor(filePath, chunk) {
   const startLine = Number.isFinite(chunk.startLine) ? chunk.startLine : 0;
   const endLine = Number.isFinite(chunk.endLine) ? chunk.endLine : startLine;
   return `chunk:${filePath}:${chunk.name}:${startLine}-${endLine}`;
 }
 
-function main() {
+async function main() {
+  await loadOptionalParsers();
   const { mode, verbose } = parseArgs(process.argv);
   const configPath = path.join(CONTEXT_DIR, "config.yaml");
   const rulesPath = path.join(CONTEXT_DIR, "rules.yaml");
@@ -726,12 +770,12 @@ function main() {
     if (fileRecord.kind !== "CODE") continue;
 
     const ext = path.extname(fileRecord.path).toLowerCase();
-    const supportedForChunking = [".js", ".mjs", ".cjs", ".ts"].includes(ext);
-    if (!supportedForChunking) continue;
+    const parserForExt = getParserForExtension(ext);
+    if (!parserForExt) continue;
 
     try {
-      const language = ext === ".ts" ? "typescript" : "javascript";
-      const parseResult = parseCode(fileRecord.content, fileRecord.path, language);
+      const { parser, language } = parserForExt;
+      const parseResult = parser(fileRecord.content, fileRecord.path, language);
 
       if (parseResult.errors.length > 0 && verbose) {
         console.log(`[ingest] parse errors in ${fileRecord.path}:`, parseResult.errors[0].message);
@@ -1115,4 +1159,7 @@ function main() {
   console.log(`[ingest] wrote cache + db import files under .context/`);
 }
 
-main();
+main().catch((error) => {
+  process.stderr.write(`${error instanceof Error ? error.message : "Ingest error"}\n`);
+  process.exit(1);
+});

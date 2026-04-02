@@ -1,18 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import ryugraph, { type Connection, type QueryResult } from "ryugraph";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const REPO_ROOT = path.resolve(__dirname, "../..");
-const CONTEXT_DIR = path.join(REPO_ROOT, ".context");
-const CACHE_DIR = path.join(CONTEXT_DIR, "cache");
-const DB_PATH = path.join(CONTEXT_DIR, "db", "graph.ryu");
-const ONTOLOGY_PATH = path.join(CONTEXT_DIR, "ontology.cypher");
-
-type JsonValue = string | number | boolean | null | JsonObject | JsonValue[];
-type JsonObject = { [key: string]: JsonValue };
+import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
+import { CACHE_DIR, DB_PATH, ONTOLOGY_PATH } from "./paths.js";
+import type { JsonObject, JsonValue } from "./types.js";
 
 type FileEntity = {
   id: string;
@@ -82,38 +73,6 @@ type ImportRelation = {
   to: string;
   import_name: string;
 };
-
-function asString(value: JsonValue | undefined, fallback = ""): string {
-  return typeof value === "string" ? value : fallback;
-}
-
-function asNumber(value: JsonValue | undefined, fallback = 0): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-function asBoolean(value: JsonValue | undefined, fallback = false): boolean {
-  return typeof value === "boolean" ? value : fallback;
-}
-
-function readJsonl(filePath: string): JsonObject[] {
-  if (!fs.existsSync(filePath)) {
-    return [];
-  }
-
-  return fs
-    .readFileSync(filePath, "utf8")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      try {
-        return JSON.parse(line) as JsonObject;
-      } catch {
-        return null;
-      }
-    })
-    .filter((value): value is JsonObject => value !== null);
-}
 
 function readEntityFile(fileName: string): JsonObject[] {
   return readJsonl(path.join(CACHE_DIR, fileName));

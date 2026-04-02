@@ -30,7 +30,17 @@ export async function loadPlugins(server: McpServer): Promise<void> {
       };
       process.stderr.write(`[cortex] Enterprise plugin loaded: ${loadedEdition.version}\n`);
     }
-  } catch {
-    // Enterprise not installed — community mode
+  } catch (error: unknown) {
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      (error as NodeJS.ErrnoException).code === "ERR_MODULE_NOT_FOUND"
+    ) {
+      // Enterprise not installed — community mode
+    } else {
+      process.stderr.write(
+        `[cortex] Enterprise plugin failed to load: ${error instanceof Error ? error.message : "unknown error"}\n`
+      );
+    }
   }
 }
