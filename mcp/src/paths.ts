@@ -13,13 +13,16 @@ export const CONTEXT_DIR = path.join(REPO_ROOT, ".context");
 export const CACHE_DIR = path.join(CONTEXT_DIR, "cache");
 export const DB_PATH = path.join(CONTEXT_DIR, "db", "graph.ryu");
 
+export const EMBEDDINGS_DIR = path.join(CONTEXT_DIR, "embeddings");
+export const ONTOLOGY_PATH = path.join(CONTEXT_DIR, "ontology.cypher");
+
 export const PATHS = {
   config: path.join(CONTEXT_DIR, "config.yaml"),
   rulesYaml: path.join(CONTEXT_DIR, "rules.yaml"),
   graphManifest: path.join(CACHE_DIR, "graph-manifest.json"),
-  embeddingsManifest: path.join(CONTEXT_DIR, "embeddings", "manifest.json"),
-  embeddingsEntities: path.join(CONTEXT_DIR, "embeddings", "entities.jsonl"),
-  embeddingsModelCache: path.join(CONTEXT_DIR, "embeddings", "models"),
+  embeddingsManifest: path.join(EMBEDDINGS_DIR, "manifest.json"),
+  embeddingsEntities: path.join(EMBEDDINGS_DIR, "entities.jsonl"),
+  embeddingsModelCache: path.join(EMBEDDINGS_DIR, "models"),
   documents: path.join(CACHE_DIR, "documents.jsonl"),
   adrEntities: path.join(CACHE_DIR, "entities.adr.jsonl"),
   ruleEntities: path.join(CACHE_DIR, "entities.rule.jsonl"),
