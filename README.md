@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.png" alt="Cortex" width="600" />
+</p>
+
 # Cortex MCP
 
 [![npm version](https://img.shields.io/npm/v/%40danielblomma%2Fcortex-mcp)](https://www.npmjs.com/package/@danielblomma/cortex-mcp)

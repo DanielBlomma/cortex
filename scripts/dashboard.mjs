@@ -387,6 +387,19 @@ function emptyLine(width) {
   return col("│", C.gray) + " ".repeat(width - 2) + col("│", C.gray);
 }
 
+// ── Edition detection ────────────────────────────────────────
+import { createRequire } from "node:module";
+const __require = createRequire(import.meta.url);
+
+function detectEdition() {
+  try {
+    __require.resolve("@danielblomma/cortex-enterprise");
+    return "Enterprise";
+  } catch {
+    return "Community";
+  }
+}
+
 // ── Render sections ──────────────────────────────────────────
 function render(data, isTTY) {
   const termWidth = process.stdout.columns || 80;
@@ -395,7 +408,8 @@ function render(data, isTTY) {
 
   // Header
   const clock = new Date().toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
-  const title = "─ cortex dashboard ";
+  const edition = detectEdition();
+  const title = `─ cortex dashboard [${edition}] `;
   const clockPart = ` ${clock} ─`;
   const fillLen = w - 2 - title.length - clockPart.length;
   lines.push(col(`┌${title}${"─".repeat(Math.max(0, fillLen))}${clockPart}┐`, C.gray));

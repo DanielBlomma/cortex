@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { reloadContextGraph } from "./graph.js";
+import { loadPlugins } from "./plugin.js";
 import { runContextRules } from "./rules.js";
 import { runContextRelated, runContextSearch } from "./search.js";
 
@@ -89,6 +90,7 @@ async function main(): Promise<void> {
   });
 
   registerTools(server);
+  await loadPlugins(server);
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
