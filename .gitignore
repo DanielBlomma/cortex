@@ -1,6 +1,10 @@
 # macOS
 .DS_Store
 
+# Claude Code local config
+.claude/
+AGENTS.md
+
 # Local storage
 .context/db/
 .context/embeddings/
