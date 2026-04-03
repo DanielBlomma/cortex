@@ -36,7 +36,8 @@ const BOLD = `${ESC}[1m`;
 const DIM = `${ESC}[2m`;
 const HIDE_CURSOR = `${ESC}[?25l`;
 const SHOW_CURSOR = `${ESC}[?25h`;
-const CLEAR = `${ESC}[2J${ESC}[H`;
+const HOME = `${ESC}[H`;
+const CLEAR_DOWN = `${ESC}[J`;
 
 const C = {
   gray: `${ESC}[38;5;245m`,
@@ -597,7 +598,7 @@ function main() {
   function renderFrame() {
     const data = gatherData(baselineCache);
     const output = render(data, true);
-    process.stdout.write(CLEAR + output);
+    process.stdout.write(HOME + output + CLEAR_DOWN);
   }
 
   renderFrame();
