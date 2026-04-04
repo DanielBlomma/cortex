@@ -212,9 +212,6 @@ cortex update
 cortex status
 cortex dashboard [--interval <sec>]
 cortex watch [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>] [--mode <auto|event|poll>]
-cortex note <title> [text]
-cortex plan
-cortex todo [text|list|done <id>|reopen <id>|remove <id>]
 cortex help
 ```
 

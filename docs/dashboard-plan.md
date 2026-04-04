@@ -317,13 +317,13 @@ Lägg till `"dashboard"` i passthrough Set:
 // BEFORE (rad 644-656):
 const passthrough = new Set([
   "bootstrap", "update", "status", "ingest", "embed",
-  "graph-load", "watch", "note", "plan", "todo", "refresh"
+  "graph-load", "watch", "refresh"
 ]);
 
 // AFTER:
 const passthrough = new Set([
   "bootstrap", "update", "status", "ingest", "embed",
-  "graph-load", "dashboard", "watch", "note", "plan", "todo", "refresh"
+  "graph-load", "dashboard", "watch", "refresh"
 ]);
 ```
 

@@ -16,7 +16,6 @@ const GITIGNORE_LINES = [
   ".context/db/",
   ".context/embeddings/",
   ".context/cache/",
-  ".context/plan/",
   ".context/hooks/",
   ".npm-cache/",
   "mcp/.npm-cache/",
@@ -56,9 +55,6 @@ function printHelp() {
   console.log("  cortex ingest [--changed] [--verbose]");
   console.log("  cortex embed [--changed]");
   console.log("  cortex graph-load [--no-reset]");
-  console.log("  cortex note <title> [text]");
-  console.log("  cortex plan");
-  console.log("  cortex todo [text|list|done <id>|reopen <id>|remove <id>]");
   console.log("  cortex help");
 }
 
@@ -258,32 +254,6 @@ function upsertSectionByMarkers(targetPath, startMarker, endMarker, sectionConte
 function installClaudeCommands(targetDir) {
   const commandSpecs = [
     {
-      file: "note.md",
-      content: `---
-description: "Save important project context into Cortex notes"
-argument-hint: "<title> [details]"
----
-Execute: cortex note "$ARGUMENTS"
-`
-    },
-    {
-      file: "todo.md",
-      content: `---
-description: "Add or list Cortex TODOs"
-argument-hint: "<text|list|done <id>|reopen <id>|remove <id>>"
----
-Execute: cortex todo "$ARGUMENTS"
-`
-    },
-    {
-      file: "plan.md",
-      content: `---
-description: "Show Cortex auto-plan progress"
----
-Execute: cortex plan
-`
-    },
-    {
       file: "context-update.md",
       content: `---
 description: "Refresh Cortex context for changed files"
@@ -309,10 +279,7 @@ function installCodexAgentsSection(targetDir) {
   const startMarker = "<!-- cortex:auto:start -->";
   const endMarker = "<!-- cortex:auto:end -->";
   const section = `## Cortex Auto Workflow
-- Use \`cortex todo "<task>"\` for every new implementation task.
-- Use \`cortex note "<title>" "<details>"\` when an important decision is made.
 - Run \`cortex update\` before completing substantial code changes.
-- Use \`cortex plan\` to inspect current progress and next command.
 - If background sync is enabled, check with \`cortex watch status\`.`;
   const changed = upsertSectionByMarkers(agentsPath, startMarker, endMarker, section);
   return { path: agentsPath, changed };
@@ -504,7 +471,6 @@ async function ensureProjectInitializedForMcp(targetDir) {
     fs.mkdirSync(targetDir, { recursive: true });
     installScaffold(targetDir, false);
     installAssistantHelpers(targetDir);
-    await markPlanEvent(targetDir, "init");
     console.log(`[cortex] auto-init completed in ${targetDir}`);
   }
 
@@ -520,18 +486,6 @@ async function runContextCommand(cwd, contextArgs) {
     throw new Error(`Missing ${contextScript}. Run 'cortex init' first.`);
   }
   await runCommand("bash", [contextScript, ...contextArgs], cwd);
-}
-
-async function markPlanEvent(targetDir, eventName) {
-  const planScript = path.join(targetDir, "scripts", "plan-state.sh");
-  if (!fs.existsSync(planScript)) {
-    return;
-  }
-
-  const result = await runCommandResult("bash", [planScript, "event", eventName], targetDir, "ignore");
-  if (!result.ok) {
-    console.log(`[cortex] warning: failed to update automatic plan state for event '${eventName}'`);
-  }
 }
 
 async function run() {
@@ -558,11 +512,10 @@ async function run() {
     fs.mkdirSync(target, { recursive: true });
     installScaffold(target, force);
     const helpers = installAssistantHelpers(target);
-    await markPlanEvent(target, "init");
 
     console.log(`[cortex] initialized in ${target}`);
     console.log("[cortex] scaffold copied: .context/, scripts/, mcp/, .githooks/, docs/");
-    console.log(`[cortex] Claude commands ready: /note /todo /plan /context-update (${helpers.claude.total} files)`);
+    console.log(`[cortex] Claude commands ready: /context-update (${helpers.claude.total} files)`);
     if (helpers.codex.changed) {
       console.log("[cortex] Codex workflow instructions added to AGENTS.md");
     } else {
@@ -600,10 +553,7 @@ async function run() {
     }
 
     if (connect) {
-      const connected = await connectMcpClients(target);
-      if (connected > 0) {
-        await markPlanEvent(target, "connect");
-      }
+      await connectMcpClients(target);
     }
 
     if (watch && bootstrap) {
@@ -619,10 +569,7 @@ async function run() {
     if (helpers.claude.changed > 0 || helpers.codex.changed) {
       console.log("[cortex] assistant helpers updated (.claude/commands + AGENTS.md)");
     }
-    const connected = await connectMcpClients(target, { skipBuild });
-    if (connected > 0) {
-      await markPlanEvent(target, "connect");
-    }
+    await connectMcpClients(target, { skipBuild });
     return;
   }
 
@@ -650,9 +597,6 @@ async function run() {
     "graph-load",
     "dashboard",
     "watch",
-    "note",
-    "plan",
-    "todo",
     "refresh"
   ]);
 

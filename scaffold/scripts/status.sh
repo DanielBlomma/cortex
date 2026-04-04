@@ -287,10 +287,3 @@ try {
   console.log(`[status] cortex_update_check=unavailable (${message})`);
 }
 ' "$REPO_ROOT" "$REPO_ROOT/.context/cache" "${CORTEX_CLI_VERSION:-}"
-
-PLAN_SCRIPT="$REPO_ROOT/scripts/plan-state.sh"
-if [[ -x "$PLAN_SCRIPT" ]]; then
-  if ! "$PLAN_SCRIPT" show; then
-    echo "[plan] warning: failed to read plan state"
-  fi
-fi

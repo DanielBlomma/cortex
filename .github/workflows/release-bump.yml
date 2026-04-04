@@ -54,7 +54,6 @@ jobs:
 
       - name: Validate tests
         run: |
-          node tests/plan-state.test.mjs
           node tests/context-regressions.test.mjs
 
       - name: Read release version
