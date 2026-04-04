@@ -428,6 +428,27 @@ async function connectMcpClients(targetDir, options = {}) {
   return connected;
 }
 
+async function maybeInstallGitHooks(targetDir) {
+  const installScript = path.join(targetDir, "scripts", "install-git-hooks.sh");
+  if (!fs.existsSync(installScript)) {
+    return false;
+  }
+
+  const gitRepo = await runCommandResult("git", ["rev-parse", "--show-toplevel"], targetDir, "ignore");
+  if (!gitRepo.ok) {
+    console.log("[cortex] git hooks skipped (not a Git repository)");
+    return false;
+  }
+
+  try {
+    await runCommand("bash", [installScript], targetDir);
+    return true;
+  } catch (error) {
+    console.log(`[cortex] failed to install git hooks: ${toErrorMessage(error)}`);
+    return false;
+  }
+}
+
 function ensureProjectInitialized(targetDir) {
   const mcpPackageJson = path.join(targetDir, "mcp", "package.json");
   if (!fs.existsSync(mcpPackageJson)) {
@@ -471,6 +492,7 @@ async function ensureProjectInitializedForMcp(targetDir) {
     fs.mkdirSync(targetDir, { recursive: true });
     installScaffold(targetDir, false);
     installAssistantHelpers(targetDir);
+    await maybeInstallGitHooks(targetDir);
     console.log(`[cortex] auto-init completed in ${targetDir}`);
   }
 
@@ -512,6 +534,7 @@ async function run() {
     fs.mkdirSync(target, { recursive: true });
     installScaffold(target, force);
     const helpers = installAssistantHelpers(target);
+    await maybeInstallGitHooks(target);
 
     console.log(`[cortex] initialized in ${target}`);
     console.log("[cortex] scaffold copied: .context/, scripts/, mcp/, .githooks/, docs/");

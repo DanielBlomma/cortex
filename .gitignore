@@ -20,6 +20,7 @@ mcp/.npm-cache/
 
 # Build output
 mcp/dist/
+scaffold/mcp/dist/
 
 # Release artifacts and local auth tokens
 *.tgz

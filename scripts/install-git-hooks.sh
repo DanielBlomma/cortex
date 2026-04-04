@@ -10,12 +10,14 @@ if [[ ! -d "$HOOKS_DIR" ]]; then
 fi
 
 chmod +x \
+  "$HOOKS_DIR/post-commit" \
   "$HOOKS_DIR/post-merge" \
   "$HOOKS_DIR/post-checkout" \
+  "$HOOKS_DIR/post-rewrite" \
   "$HOOKS_DIR/_cortex-update-runner.sh"
 
 git -C "$REPO_ROOT" config core.hooksPath .githooks
 
 echo "[hooks] installed core.hooksPath=.githooks"
-echo "[hooks] post-merge + post-checkout now trigger background cortex update"
+echo "[hooks] post-checkout + post-merge + post-commit + post-rewrite now trigger background cortex update"
 echo "[hooks] logs: .context/hooks/update.log"

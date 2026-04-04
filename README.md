@@ -50,6 +50,7 @@ cortex init --bootstrap
 This will:
 
 - scaffold `.context/`, `scripts/`, `mcp/`, `.githooks/`, and docs files
+- activate git hooks for checkout, pull/merge, commit, and rewrite events
 - build and prepare the local MCP server
 - try to auto-register MCP connections for Claude/Codex (if installed)
 - start background sync unless disabled
