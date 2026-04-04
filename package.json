@@ -33,7 +33,15 @@
   },
   "files": [
     "bin",
-    "scaffold",
+    "scaffold/.context",
+    "scaffold/.githooks",
+    "scaffold/docs",
+    "scaffold/scripts",
+    "scaffold/mcp/src",
+    "scaffold/mcp/tests",
+    "scaffold/mcp/package.json",
+    "scaffold/mcp/package-lock.json",
+    "scaffold/mcp/tsconfig.json",
     "README.md",
     "docs/MCP_MARKETPLACE.md"
   ],
