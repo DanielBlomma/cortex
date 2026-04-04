@@ -28,6 +28,8 @@ const SKIP_DIRECTORIES = new Set([
 ]);
 
 const MAX_FILE_BYTES = 1024 * 1024;
+const VERSION_CHECK_TTL_MS = 10 * 60 * 1000;
+const VERSION_INSTALL_HINT = "npm i -g github:DanielBlomma/cortex";
 
 // ── ANSI helpers ──────────────────────────────────────────────
 const ESC = "\x1b";
@@ -236,6 +238,141 @@ function computeFreshness(manifest) {
   };
 }
 
+let versionStatusCache = {
+  expiresAt: 0,
+  value: null,
+};
+
+function parseVersion(value) {
+  const match = String(value || "").trim().match(/^v?(\d+)\.(\d+)\.(\d+)$/);
+  if (!match) return null;
+  return match.slice(1).map((part) => Number(part));
+}
+
+function compareVersions(a, b) {
+  for (let i = 0; i < 3; i += 1) {
+    if (a[i] > b[i]) return 1;
+    if (a[i] < b[i]) return -1;
+  }
+  return 0;
+}
+
+function shorten(text, max = 40) {
+  const value = String(text || "").trim();
+  if (value.length <= max) return value;
+  return `${value.slice(0, max - 1)}…`;
+}
+
+function summarizeError(error) {
+  const raw = error instanceof Error ? error.message : String(error);
+  return shorten(raw.split(/\r?\n/)[0].trim());
+}
+
+function getLocalCliVersion() {
+  const envVersion = String(process.env.CORTEX_CLI_VERSION || "").trim();
+  if (parseVersion(envVersion)) {
+    return envVersion;
+  }
+
+  try {
+    const output = execSync("cortex --version", {
+      cwd: REPO_ROOT,
+      stdio: ["ignore", "pipe", "ignore"],
+      encoding: "utf8",
+      timeout: 1500,
+    }).trim();
+    if (parseVersion(output)) {
+      return output;
+    }
+  } catch {
+    // Ignore and report unavailable below.
+  }
+
+  return "";
+}
+
+function getVersionStatus() {
+  const now = Date.now();
+  if (versionStatusCache.value && versionStatusCache.expiresAt > now) {
+    return versionStatusCache.value;
+  }
+
+  const local = getLocalCliVersion();
+  let value;
+
+  if (!local) {
+    value = {
+      state: "unavailable",
+      local: null,
+      latest: null,
+      message: "local version not detected",
+    };
+  } else {
+    const localParsed = parseVersion(local);
+    if (!localParsed) {
+      value = {
+        state: "unavailable",
+        local,
+        latest: null,
+        message: "unsupported local version format",
+      };
+    } else {
+      try {
+        const npmCache = path.join(CACHE_DIR, "npm-cache");
+        const latestRaw = execSync("npm view github:DanielBlomma/cortex version --json", {
+          cwd: REPO_ROOT,
+          stdio: ["ignore", "pipe", "pipe"],
+          encoding: "utf8",
+          timeout: 2500,
+          env: { ...process.env, NPM_CONFIG_CACHE: npmCache },
+        }).trim();
+        const parsedLatest = JSON.parse(latestRaw);
+        const latest = Array.isArray(parsedLatest)
+          ? parsedLatest[parsedLatest.length - 1]
+          : parsedLatest;
+        const latestParsed = parseVersion(latest);
+
+        if (!latestParsed) {
+          value = {
+            state: "unavailable",
+            local,
+            latest,
+            message: "unsupported latest version format",
+          };
+        } else if (compareVersions(latestParsed, localParsed) > 0) {
+          value = {
+            state: "update-available",
+            local,
+            latest,
+            message: null,
+          };
+        } else {
+          value = {
+            state: "current",
+            local,
+            latest,
+            message: null,
+          };
+        }
+      } catch (error) {
+        value = {
+          state: "unavailable",
+          local,
+          latest: null,
+          message: summarizeError(error),
+        };
+      }
+    }
+  }
+
+  versionStatusCache = {
+    expiresAt: now + VERSION_CHECK_TTL_MS,
+    value,
+  };
+
+  return value;
+}
+
 // ── Data: degree analysis ────────────────────────────────────
 function computeTopConnected() {
   const degree = new Map();
@@ -309,6 +446,7 @@ function gatherData(baselineCache) {
   const embedDim = manifests.embed?.dimensions || 0;
 
   const freshness = computeFreshness(manifests.ingest);
+  const version = getVersionStatus();
   const topConnected = computeTopConnected();
 
   const timeAgo = (isoStr) => {
@@ -335,6 +473,7 @@ function gatherData(baselineCache) {
     tokens: { raw: rawTokens, cortexSearch: cortexTokens, ratio, reduction },
     embeddings: embedModel ? { model: embedModel, count: embedCount, dimensions: embedDim } : null,
     freshness,
+    version,
     topConnected,
     timestamps: {
       lastIngest: timeAgo(manifests.ingest?.generated_at),
@@ -415,6 +554,15 @@ function render(data, isTTY) {
   const fillLen = w - 2 - title.length - clockPart.length;
   lines.push(col(`┌${title}${"─".repeat(Math.max(0, fillLen))}${clockPart}┐`, C.gray));
   lines.push(emptyLine(w));
+
+  if (data.version.state === "update-available") {
+    lines.push(sideBorder(bold(col("VERSION WARNING", C.red)), w));
+    lines.push(sideBorder(
+      `${col("Update available:", C.red)} ${bold(col(`${data.version.local} -> ${data.version.latest}`, C.red))}`, w));
+    lines.push(sideBorder(
+      `${dim("Run:")} ${col(VERSION_INSTALL_HINT, C.yellow)}`, w));
+    lines.push(emptyLine(w));
+  }
 
   // ── WITHOUT vs WITH CORTEX ──
   lines.push(sideBorder(
@@ -506,6 +654,19 @@ function render(data, isTTY) {
       `Freshness ${col("[", C.gray)}${fb}${col("]", C.gray)} ${data.freshness.percent}%  ${dim(`Last sync: ${data.timestamps.lastIngest}`)}`, w));
   } else {
     lines.push(sideBorder(dim("Freshness: unavailable (git not accessible)"), w));
+  }
+  if (data.version.state === "update-available") {
+    lines.push(sideBorder(
+      `Version: ${bold(col("UPDATE AVAILABLE", C.red))} ${col(`${data.version.local} -> ${data.version.latest}`, C.red)}`, w));
+  } else if (data.version.state === "current") {
+    lines.push(sideBorder(
+      `Version: ${col(data.version.local, C.green)} ${dim(`Latest: ${data.version.latest}`)}`, w));
+  } else if (data.version.local) {
+    lines.push(sideBorder(
+      `Version: ${col(data.version.local, C.yellow)}  ${dim(`Check unavailable: ${data.version.message}`)}`, w));
+  } else {
+    lines.push(sideBorder(
+      `Version: ${col("check unavailable", C.yellow)}  ${dim(data.version.message)}`, w));
   }
   if (data.embeddings) {
     const check = data.embeddings.count > 0 ? col("✓", C.green) : col("✗", C.red);
