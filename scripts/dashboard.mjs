@@ -401,21 +401,61 @@ function computeTopConnected() {
     });
 }
 
-// ── Data: estimate Cortex search tokens ──────────────────────
-function estimateCortexSearchTokens() {
-  const entities = readJsonlSafe(path.join(CACHE_DIR, "entities.file.jsonl"));
-  if (entities.length === 0) return { searchTokens: 0, avgExcerptTokens: 0 };
+// ── Data: estimate tokens per task (realistic comparison) ────
+function estimatePerTaskTokens(baseline) {
+  // Read all entity types for accurate excerpt averaging
+  const entityFiles = [
+    "entities.file.jsonl",
+    "entities.chunk.jsonl",
+    "entities.rule.jsonl",
+    "entities.adr.jsonl"
+  ];
 
   let totalExcerptChars = 0;
-  for (const e of entities) {
-    totalExcerptChars += (e.excerpt || "").length;
+  let entityCount = 0;
+
+  for (const file of entityFiles) {
+    const entities = readJsonlSafe(path.join(CACHE_DIR, file));
+    for (const e of entities) {
+      totalExcerptChars += (e.excerpt || e.body || "").slice(0, 500).length;
+      entityCount++;
+    }
   }
 
-  const avgExcerptChars = totalExcerptChars / entities.length;
-  const topK = 5;
-  const searchTokens = Math.round((topK * avgExcerptChars) / 4 + 200);
+  if (entityCount === 0 || baseline.files === 0) {
+    return { codebase: baseline.tokens, baselinePerTask: 0, cortexPerTask: 0,
+             filesPerTask: 0, queriesPerTask: 0, ratio: 0, reduction: 0 };
+  }
 
-  return { searchTokens, avgExcerptTokens: Math.round(avgExcerptChars / 4) };
+  // --- Without Cortex: LLM reads ~12 files per task for exploration + context ---
+  const TYPICAL_FILES_PER_TASK = 12;
+  const filesPerTask = Math.min(TYPICAL_FILES_PER_TASK, baseline.files);
+  const avgFileTokens = Math.round(baseline.tokens / baseline.files);
+  const baselinePerTask = filesPerTask * avgFileTokens;
+
+  // --- With Cortex: ~3 search queries per task, top 5 results each ---
+  const TYPICAL_SEARCHES_PER_TASK = 3;
+  const topK = 5;
+  const avgExcerptChars = totalExcerptChars / entityCount;
+  // Per result: excerpt + JSON metadata (~350 chars for id, type, title, path, scores, etc.)
+  const perResultChars = avgExcerptChars + 350;
+  // Per query: top-K results + response wrapper (~300 chars for query, ranking, counts)
+  const perQueryChars = topK * perResultChars + 300;
+  const perQueryTokens = Math.round(perQueryChars / 4);
+  const cortexPerTask = TYPICAL_SEARCHES_PER_TASK * perQueryTokens;
+
+  const ratio = cortexPerTask > 0 ? Math.round(baselinePerTask / cortexPerTask) : 0;
+  const reduction = baselinePerTask > 0 ? Math.round((1 - cortexPerTask / baselinePerTask) * 100) : 0;
+
+  return {
+    codebase: baseline.tokens,
+    baselinePerTask,
+    cortexPerTask,
+    filesPerTask,
+    queriesPerTask: TYPICAL_SEARCHES_PER_TASK,
+    ratio,
+    reduction: Math.max(0, reduction)
+  };
 }
 
 // ── Data: gather all ─────────────────────────────────────────
@@ -435,11 +475,7 @@ function gatherData(baselineCache) {
   const relSupersedes = gc.supersedes || ic.relations_supersedes || 0;
   const totalRelations = relCalls + relDefines + relConstrains + relImplements + relImports + relSupersedes;
 
-  const tokenEstimate = estimateCortexSearchTokens();
-  const rawTokens = baseline.tokens;
-  const cortexTokens = tokenEstimate.searchTokens;
-  const ratio = cortexTokens > 0 ? Math.round(rawTokens / cortexTokens) : 0;
-  const reduction = rawTokens > 0 ? Math.round((1 - cortexTokens / rawTokens) * 100) : 0;
+  const tokenEstimate = estimatePerTaskTokens(baseline);
 
   const embedCount = ec.embedded ?? ec.output ?? ec.entities ?? 0;
   const embedModel = manifests.embed?.model || null;
@@ -470,7 +506,7 @@ function gatherData(baselineCache) {
       totalEntities,
       relations: { calls: relCalls, defines: relDefines, constrains: relConstrains, implements: relImplements, imports: relImports, supersedes: relSupersedes, total: totalRelations },
     },
-    tokens: { raw: rawTokens, cortexSearch: cortexTokens, ratio, reduction },
+    tokens: tokenEstimate,
     embeddings: embedModel ? { model: embedModel, count: embedCount, dimensions: embedDim } : null,
     freshness,
     version,
@@ -591,14 +627,16 @@ function render(data, isTTY) {
   lines.push(emptyLine(w));
 
   // ── TOKENS ──
-  lines.push(sideBorder(bold("TOKENS"), w));
+  lines.push(sideBorder(bold("TOKENS") + dim("  per task estimate"), w));
   lines.push(sideBorder(
-    `${dim("Raw dump:")}     ${col(`~${formatNum(data.tokens.raw)} tokens`, C.gray)}`, w));
+    `${dim("Codebase:")}       ${col(`~${formatNum(data.tokens.codebase)} tokens`, C.gray)} ${dim(`across ${data.baseline.files} files`)}`, w));
   lines.push(sideBorder(
-    `${dim("Cortex search:")} ${col(`~${formatNum(data.tokens.cortexSearch)} tokens`, C.green)} ${dim("(top 5 results)")}`, w));
+    `${dim("Without Cortex:")} ${col(`~${formatNum(data.tokens.baselinePerTask)} tokens`, C.gray)} ${dim(`(≈${data.tokens.filesPerTask} file reads)`)}`, w));
+  lines.push(sideBorder(
+    `${dim("With Cortex:")}    ${col(`~${formatNum(data.tokens.cortexPerTask)} tokens`, C.green)} ${dim(`(≈${data.tokens.queriesPerTask} searches)`)}`, w));
   if (data.tokens.ratio > 0) {
     lines.push(sideBorder(
-      `${dim("Efficiency:")}   ${bold(col(`${data.tokens.ratio}x`, C.green))} ${dim("reduction")}`, w));
+      `${dim("Efficiency:")}    ${bold(col(`${data.tokens.ratio}x`, C.green))} ${dim("reduction")}`, w));
     const reductionWidth = Math.min(40, w - 16);
     const filled = Math.round((data.tokens.reduction / 100) * reductionWidth);
     const reductionBar = col("█".repeat(filled), C.green) + col("░".repeat(reductionWidth - filled), C.dimGray);

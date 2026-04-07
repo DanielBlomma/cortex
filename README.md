@@ -190,7 +190,7 @@ cortex dashboard
 The dashboard displays:
 
 - **WITHOUT vs WITH CORTEX** — side-by-side comparison of raw files versus indexed entities (files, chunks, relations, rules, embeddings, trust signals).
-- **TOKENS** — estimated token cost of dumping all raw source files versus a Cortex search (top 5 results). Shows the reduction ratio, e.g. "172x reduction, 99% less tokens".
+- **TOKENS** — per-task token estimate comparing typical LLM file reads without Cortex (~12 files) versus Cortex searches (~3 queries). Shows the reduction ratio and percentage.
 - **CORTEX ADDS** — summary of what Cortex layers on top: chunks, relations, rules, embeddings, and which capabilities are unlocked (semantic search, graph traversal, impact analysis).
 - **RELATIONS** — bar chart of relation types in the graph (CALLS, DEFINES, CONSTRAINS, IMPLEMENTS, IMPORTS, SUPERSEDES) and their counts.
 - **HEALTH** — freshness percentage (how up-to-date the index is relative to uncommitted changes), last sync timestamp, and embedding status with model name.
