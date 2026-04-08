@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseFrontmatter, parseStringList } from "../mcp/dist/frontmatter.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,40 +26,6 @@ const ALLOWED_TYPES = new Set([
 const REQUIRED_FIELDS = ["title", "type", "summary"];
 
 const STALE_DAYS = 90;
-
-// ── Frontmatter parsing ────────────────────────────────────
-
-function parseFrontmatter(markdown) {
-  const lines = markdown.split(/\r?\n/);
-  if (lines[0]?.trim() !== "---") {
-    return { fields: new Map(), body: markdown };
-  }
-
-  const fields = new Map();
-  let index = 1;
-  for (; index < lines.length; index++) {
-    const line = lines[index];
-    if (line.trim() === "---") {
-      index++;
-      break;
-    }
-
-    const match = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
-    if (match) {
-      fields.set(match[1].toLowerCase(), match[2].trim());
-    }
-  }
-
-  return {
-    fields,
-    body: lines.slice(index).join("\n").trim()
-  };
-}
-
-function parseStringList(value) {
-  if (!value || !value.trim()) return [];
-  return value.split(",").map((s) => s.trim()).filter(Boolean);
-}
 
 // ── Index loading ─────────────────────────────────────────
 
@@ -133,7 +100,7 @@ function loadCompiledArticles() {
         freshness: fields.get("freshness") || "",
         updatedAt: fields.get("updated_at") || stats.mtime.toISOString(),
         status: fields.get("status") || "active",
-        trustLevel: Number(fields.get("trust_level")) || 0,
+        trustLevel: Number(fields.get("trust_level")) || 70,
         sourceOfTruth: fields.get("source_of_truth")?.toLowerCase() === "true",
         body
       };
@@ -201,14 +168,6 @@ function checkOrphaned(article, knownEntityIds, knownFilePaths) {
         message: `source file not found in index: ${source}`
       });
     }
-  }
-
-  if (article.supersedes) {
-    // supersedes should reference another memory id
-    const supersededId = article.supersedes.startsWith("memory:")
-      ? article.supersedes
-      : `memory:${article.supersedes}`;
-    // We'll check this in the duplicate check where we have all articles
   }
 
   return issues;

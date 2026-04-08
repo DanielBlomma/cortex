@@ -97,43 +97,6 @@ function groupRuleLinks(relations: RelationRecord[]): Map<string, string[]> {
   return links;
 }
 
-function isWindowChunkId(id: string): boolean {
-  return id.includes(":window:");
-}
-
-function baseChunkId(id: string): string {
-  const markerIndex = id.indexOf(":window:");
-  return markerIndex === -1 ? id : id.slice(0, markerIndex);
-}
-
-function buildChunkPartOfRelations(data: ContextData): RelationRecord[] {
-  const relations: RelationRecord[] = [];
-
-  for (const chunk of data.chunks) {
-    if (isWindowChunkId(chunk.id)) {
-      relations.push({
-        from: chunk.id,
-        to: baseChunkId(chunk.id),
-        relation: "PART_OF",
-        note: "Overlap window belongs to base chunk"
-      });
-    }
-
-    if (!chunk.file_id) {
-      continue;
-    }
-
-    relations.push({
-      from: chunk.id,
-      to: chunk.file_id,
-      relation: "PART_OF",
-      note: "Chunk belongs to file"
-    });
-  }
-
-  return relations;
-}
-
 function buildSearchEntities(data: ContextData, includeContent: boolean): SearchEntity[] {
   const entities: SearchEntity[] = [];
   const ruleLinks = groupRuleLinks(data.relations);
@@ -339,11 +302,11 @@ function entityCatalog(data: ContextData): Map<string, JsonObject> {
 
 function chunkSeedIds(entityId: string, data: ContextData): string[] {
   if (entityId.startsWith("chunk:")) {
-    return data.chunks.some((chunk) => chunk.id === entityId) ? [entityId] : [];
+    return data.chunkById.has(entityId) ? [entityId] : [];
   }
 
   if (entityId.startsWith("file:")) {
-    return data.chunks.filter((chunk) => chunk.file_id === entityId).map((chunk) => chunk.id);
+    return (data.chunksByFileId.get(entityId) ?? []).map((chunk) => chunk.id);
   }
 
   return [];
@@ -393,16 +356,16 @@ function buildChunkContextEnvelope(
   data: ContextData,
   catalog: Map<string, JsonObject>
 ): JsonObject | undefined {
-  const chunk = data.chunks.find((candidate) => candidate.id === entityId);
+  const chunk = data.chunkById.get(entityId);
   if (!chunk) {
     return undefined;
   }
 
-  const parentFile = data.documents.find((document) => document.id === chunk.file_id);
-  const siblingChunks = data.chunks
+  const parentFile = data.documentById.get(chunk.file_id);
+  const siblingChunks = (data.chunksByFileId.get(chunk.file_id) ?? [])
     .filter(
       (candidate) =>
-        candidate.file_id === chunk.file_id && candidate.id !== chunk.id && !isWindowChunkId(candidate.id)
+        candidate.id !== chunk.id && !candidate.id.includes(":window:")
     )
     .sort(
       (left, right) =>
@@ -459,7 +422,7 @@ function buildChunkContextEnvelope(
   };
 }
 
-async function resolveImpactSeedId(parsed: ImpactAnalysisParams): Promise<{
+async function resolveImpactSeedId(parsed: ImpactAnalysisParams, data: ContextData): Promise<{
   seedId: string | null;
   queryResults?: JsonObject[];
   warning?: string;
@@ -472,12 +435,12 @@ async function resolveImpactSeedId(parsed: ImpactAnalysisParams): Promise<{
     return { seedId: null, warning: "Either entity_id or query is required." };
   }
 
-  const searchPayload = await runContextSearch({
+  const searchPayload = await runContextSearchWithData({
     query: parsed.query,
     top_k: Math.max(parsed.top_k, 5),
     include_deprecated: false,
     include_content: false
-  });
+  }, data);
   const rawResults = Array.isArray(searchPayload.results) ? searchPayload.results : [];
   const firstResult =
     rawResults.find(
@@ -495,10 +458,8 @@ async function resolveImpactSeedId(parsed: ImpactAnalysisParams): Promise<{
   };
 }
 
-export async function runContextSearch(parsed: SearchParams): Promise<ToolPayload> {
-  const data = await loadContextData();
-  const allRelations = [...data.relations, ...buildChunkPartOfRelations(data)];
-  const degreeByEntity = relationDegree(allRelations);
+async function runContextSearchWithData(parsed: SearchParams, data: ContextData): Promise<ToolPayload> {
+  const degreeByEntity = relationDegree(data.allRelations);
   const catalog = entityCatalog(data);
   const candidates = buildSearchEntities(data, parsed.include_content).filter(
     (entity) => parsed.include_deprecated || entity.status.toLowerCase() !== "deprecated"
@@ -578,10 +539,15 @@ export async function runContextSearch(parsed: SearchParams): Promise<ToolPayloa
   };
 }
 
+export async function runContextSearch(parsed: SearchParams): Promise<ToolPayload> {
+  const data = await loadContextData();
+  return runContextSearchWithData(parsed, data);
+}
+
 export async function runContextRelated(parsed: RelatedParams): Promise<ToolPayload> {
   const data = await loadContextData();
   const catalog = entityCatalog(data);
-  const relations = [...data.relations, ...buildChunkPartOfRelations(data)];
+  const relations = data.allRelations;
 
   if (!catalog.has(parsed.entity_id)) {
     return {
@@ -704,7 +670,7 @@ export async function runContextFindCallers(parsed: FindCallersParams): Promise<
     };
   }
 
-  const relations = [...data.relations, ...buildChunkPartOfRelations(data)];
+  const relations = data.allRelations;
   const { incoming } = buildCallAdjacency(relations);
   const seen = new Set<string>(seedChunkIds);
   const queue = seedChunkIds.map((id) => ({ id, hop: 0 }));
@@ -782,7 +748,7 @@ export async function runContextTraceCalls(parsed: TraceCallsParams): Promise<To
     };
   }
 
-  const relations = [...data.relations, ...buildChunkPartOfRelations(data)];
+  const relations = data.allRelations;
   const { outgoing, incoming } = buildCallAdjacency(relations);
   const seen = new Set<string>(seedChunkIds);
   const queue = seedChunkIds.map((id) => ({ id, hop: 0 }));
@@ -849,8 +815,8 @@ export async function runContextTraceCalls(parsed: TraceCallsParams): Promise<To
 }
 
 export async function runContextImpactAnalysis(parsed: ImpactAnalysisParams): Promise<ToolPayload> {
-  const seedResolution = await resolveImpactSeedId(parsed);
   const data = await loadContextData();
+  const seedResolution = await resolveImpactSeedId(parsed, data);
   const catalog = entityCatalog(data);
 
   if (!seedResolution.seedId) {
@@ -902,7 +868,7 @@ export async function runContextImpactAnalysis(parsed: ImpactAnalysisParams): Pr
     };
   }
 
-  const relations = [...data.relations, ...buildChunkPartOfRelations(data)];
+  const relations = data.allRelations;
   const degreeByEntity = relationDegree(relations);
   const searchEntityById = new Map(buildSearchEntities(data, false).map((entity) => [entity.id, entity]));
   const { outgoing, incoming } = buildCallAdjacency(relations);

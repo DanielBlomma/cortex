@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import ryugraph, { type Connection, type QueryResult } from "ryugraph";
 import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
+import { TRUST_DOCUMENT, TRUST_CHUNK_RYUGRAPH, TRUST_RULE, TRUST_ADR } from "./defaults.js";
 import { CACHE_DIR, DB_PATH, ONTOLOGY_PATH } from "./paths.js";
 import type { JsonObject, JsonValue } from "./types.js";
 
@@ -95,7 +96,7 @@ function parseFiles(raw: JsonObject[]): FileEntity[] {
         checksum: asString(item.checksum),
         updated_at: asString(item.updated_at),
         source_of_truth: asBoolean(item.source_of_truth, false),
-        trust_level: asNumber(item.trust_level, 50),
+        trust_level: asNumber(item.trust_level, TRUST_DOCUMENT),
         status: asString(item.status, "active")
       };
     })
@@ -117,7 +118,7 @@ function parseRules(raw: JsonObject[]): RuleEntity[] {
         scope: asString(item.scope, "global"),
         updated_at: asString(item.updated_at),
         source_of_truth: asBoolean(item.source_of_truth, true),
-        trust_level: asNumber(item.trust_level, 95),
+        trust_level: asNumber(item.trust_level, TRUST_RULE),
         status: asString(item.status, "active"),
         priority: asNumber(item.priority, 0)
       };
@@ -141,7 +142,7 @@ function parseAdrs(raw: JsonObject[]): AdrEntity[] {
         decision_date: asString(item.decision_date),
         supersedes_id: asString(item.supersedes_id),
         source_of_truth: asBoolean(item.source_of_truth, true),
-        trust_level: asNumber(item.trust_level, 95),
+        trust_level: asNumber(item.trust_level, TRUST_ADR),
         status: asString(item.status, "active")
       };
     })
@@ -170,7 +171,7 @@ function parseChunks(raw: JsonObject[]): ChunkEntity[] {
         language: asString(item.language, "javascript"),
         checksum: asString(item.checksum),
         updated_at: asString(item.updated_at),
-        trust_level: asNumber(item.trust_level, 80)
+        trust_level: asNumber(item.trust_level, TRUST_CHUNK_RYUGRAPH)
       };
     })
     .filter((value): value is ChunkEntity => value !== null);

@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import ryugraph, { type Connection, type Database, type QueryResult } from "ryugraph";
 import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
+import { TRUST_DOCUMENT, TRUST_CHUNK, TRUST_MEMORY, TRUST_CHUNK_RYUGRAPH, TRUST_RULE, TRUST_ADR } from "./defaults.js";
+import { parseFrontmatter, parseStringList } from "./frontmatter.js";
 import { DB_PATH, DEFAULT_RANKING, PATHS, REPO_ROOT } from "./paths.js";
 import type {
   AdrRecord,
@@ -87,7 +89,7 @@ function parseDocuments(raw: JsonObject[]): DocumentRecord[] {
         kind,
         updated_at: asString(item.updated_at),
         source_of_truth: asBoolean(item.source_of_truth),
-        trust_level: asNumber(item.trust_level, 50),
+        trust_level: asNumber(item.trust_level, TRUST_DOCUMENT),
         status: asString(item.status, "active"),
         excerpt: asString(item.excerpt),
         content: asString(item.content)
@@ -112,7 +114,7 @@ function parseAdrs(raw: JsonObject[]): AdrRecord[] {
         decision_date: asString(item.decision_date),
         supersedes_id: asString(item.supersedes_id),
         source_of_truth: asBoolean(item.source_of_truth, true),
-        trust_level: asNumber(item.trust_level, 95),
+        trust_level: asNumber(item.trust_level, TRUST_ADR),
         status: asString(item.status, "active")
       };
     })
@@ -134,7 +136,7 @@ function parseRuleEntities(raw: JsonObject[]): RuleRecord[] {
         scope: asString(item.scope, "global"),
         updated_at: asString(item.updated_at, new Date(0).toISOString()),
         source_of_truth: asBoolean(item.source_of_truth, true),
-        trust_level: asNumber(item.trust_level, 95),
+        trust_level: asNumber(item.trust_level, TRUST_RULE),
         status: asString(item.status, "active"),
         priority: asNumber(item.priority, 0)
       };
@@ -162,7 +164,7 @@ function parseChunkEntities(raw: JsonObject[]): ChunkRecord[] {
         language: asString(item.language),
         updated_at: asString(item.updated_at),
         source_of_truth: asBoolean(item.source_of_truth, false),
-        trust_level: asNumber(item.trust_level, 60),
+        trust_level: asNumber(item.trust_level, TRUST_CHUNK),
         status: asString(item.status, "active")
       };
     })
@@ -172,46 +174,6 @@ function parseChunkEntities(raw: JsonObject[]): ChunkRecord[] {
 function normalizeMemoryId(filePath: string): string {
   const base = path.basename(filePath, path.extname(filePath)).toLowerCase();
   return `memory:${base.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}`;
-}
-
-function parseStringList(value: string): string[] {
-  if (!value.trim()) {
-    return [];
-  }
-
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function parseFrontmatter(markdown: string): { fields: Map<string, string>; body: string } {
-  const lines = markdown.split(/\r?\n/);
-  if (lines[0]?.trim() !== "---") {
-    return { fields: new Map(), body: markdown };
-  }
-
-  const fields = new Map<string, string>();
-  let index = 1;
-  for (; index < lines.length; index += 1) {
-    const line = lines[index];
-    if (line.trim() === "---") {
-      index += 1;
-      break;
-    }
-
-    const match = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
-    if (!match) {
-      continue;
-    }
-
-    fields.set(match[1].toLowerCase(), match[2].trim());
-  }
-
-  return {
-    fields,
-    body: lines.slice(index).join("\n").trim()
-  };
 }
 
 function loadCompiledMemory(): MemoryRecord[] {
@@ -241,7 +203,7 @@ function loadCompiledMemory(): MemoryRecord[] {
       const updatedAt = fields.get("updated_at") || stats.mtime.toISOString();
       const status = fields.get("status") || "active";
       const sourceOfTruth = fields.get("source_of_truth")?.toLowerCase() === "true";
-      const trustLevel = asNumber(fields.get("trust_level"), 70);
+      const trustLevel = asNumber(fields.get("trust_level"), TRUST_MEMORY);
 
       return {
         id: fields.get("id") || normalizeMemoryId(entry),
@@ -565,7 +527,7 @@ function parseRyuGraphDocuments(rows: UnknownRow[], contentById: Map<string, str
         kind,
         updated_at: asStringUnknown(row.updated_at),
         source_of_truth: asBooleanUnknown(row.source_of_truth, false),
-        trust_level: asNumberUnknown(row.trust_level, 50),
+        trust_level: asNumberUnknown(row.trust_level, TRUST_DOCUMENT),
         status: asStringUnknown(row.status, "active"),
         excerpt: asStringUnknown(row.excerpt),
         content: contentById.get(id) ?? ""
@@ -589,7 +551,7 @@ function parseRyuGraphRules(rows: UnknownRow[]): RuleRecord[] {
         scope: asStringUnknown(row.scope, "global"),
         updated_at: asStringUnknown(row.updated_at),
         source_of_truth: asBooleanUnknown(row.source_of_truth, true),
-        trust_level: asNumberUnknown(row.trust_level, 95),
+        trust_level: asNumberUnknown(row.trust_level, TRUST_RULE),
         status: asStringUnknown(row.status, "active"),
         priority: asNumberUnknown(row.priority, 0)
       };
@@ -612,7 +574,7 @@ function parseRyuGraphAdrs(rows: UnknownRow[]): AdrRecord[] {
         decision_date: asStringUnknown(row.decision_date),
         supersedes_id: asStringUnknown(row.supersedes_id),
         source_of_truth: asBooleanUnknown(row.source_of_truth, true),
-        trust_level: asNumberUnknown(row.trust_level, 95),
+        trust_level: asNumberUnknown(row.trust_level, TRUST_ADR),
         status: asStringUnknown(row.status, "active")
       };
     })
@@ -639,7 +601,7 @@ function parseRyuGraphChunks(rows: UnknownRow[]): ChunkRecord[] {
         language: asStringUnknown(row.language),
         updated_at: asStringUnknown(row.updated_at),
         source_of_truth: asBooleanUnknown(row.source_of_truth, false),
-        trust_level: asNumberUnknown(row.trust_level, 60),
+        trust_level: asNumberUnknown(row.trust_level, TRUST_CHUNK),
         status: asStringUnknown(row.status, "active")
       };
     })
@@ -666,6 +628,65 @@ function parseRyuGraphRelations(
       };
     })
     .filter((value): value is RelationRecord => value !== null);
+}
+
+function isWindowChunkId(id: string): boolean {
+  return id.includes(":window:");
+}
+
+function baseChunkId(id: string): string {
+  const markerIndex = id.indexOf(":window:");
+  return markerIndex === -1 ? id : id.slice(0, markerIndex);
+}
+
+function buildChunkPartOfRelations(chunks: ChunkRecord[]): RelationRecord[] {
+  const relations: RelationRecord[] = [];
+
+  for (const chunk of chunks) {
+    if (isWindowChunkId(chunk.id)) {
+      relations.push({
+        from: chunk.id,
+        to: baseChunkId(chunk.id),
+        relation: "PART_OF",
+        note: "Overlap window belongs to base chunk"
+      });
+    }
+
+    if (!chunk.file_id) {
+      continue;
+    }
+
+    relations.push({
+      from: chunk.id,
+      to: chunk.file_id,
+      relation: "PART_OF",
+      note: "Chunk belongs to file"
+    });
+  }
+
+  return relations;
+}
+
+function buildContextIndexes(
+  documents: DocumentRecord[],
+  chunks: ChunkRecord[],
+  relations: RelationRecord[]
+): Pick<ContextData, "chunkById" | "documentById" | "chunksByFileId" | "allRelations"> {
+  const chunkById = new Map(chunks.map((c) => [c.id, c]));
+  const documentById = new Map(documents.map((d) => [d.id, d]));
+  const chunksByFileId = new Map<string, ChunkRecord[]>();
+  for (const chunk of chunks) {
+    if (!chunk.file_id) {
+      continue;
+    }
+    const list = chunksByFileId.get(chunk.file_id) ?? [];
+    list.push(chunk);
+    chunksByFileId.set(chunk.file_id, list);
+  }
+  const partOfRelations = buildChunkPartOfRelations(chunks);
+  const allRelations = [...relations, ...partOfRelations];
+
+  return { chunkById, documentById, chunksByFileId, allRelations };
 }
 
 export async function loadContextData(): Promise<ContextData> {
@@ -700,6 +721,7 @@ export async function loadContextData(): Promise<ContextData> {
       chunks: cachedChunks,
       memories: cachedMemories,
       relations: cachedRelations,
+      ...buildContextIndexes(cachedDocuments, cachedChunks, cachedRelations),
       ranking,
       source: "cache",
       warning: ryuInitError ?? "RyuGraph DB is not loaded yet."
@@ -847,13 +869,18 @@ export async function loadContextData(): Promise<ContextData> {
     ];
     const memoryRelations = buildMemoryRelations(cachedMemories);
 
+    const finalDocuments = ryuDocuments.length > 0 ? ryuDocuments : cachedDocuments;
+    const finalChunks = ryuChunks.length > 0 ? ryuChunks : cachedChunks;
+    const finalRelations = [...(ryuRelations.length > 0 ? ryuRelations : cachedRelations), ...memoryRelations];
+
     return {
-      documents: ryuDocuments.length > 0 ? ryuDocuments : cachedDocuments,
+      documents: finalDocuments,
       adrs: ryuAdrs.length > 0 ? ryuAdrs : cachedAdrs,
       rules: ryuRules.length > 0 ? ryuRules : cachedRules,
-      chunks: ryuChunks.length > 0 ? ryuChunks : cachedChunks,
+      chunks: finalChunks,
       memories: cachedMemories,
-      relations: [...(ryuRelations.length > 0 ? ryuRelations : cachedRelations), ...memoryRelations],
+      relations: finalRelations,
+      ...buildContextIndexes(finalDocuments, finalChunks, finalRelations),
       ranking,
       source: "ryu"
     };
@@ -870,6 +897,7 @@ export async function loadContextData(): Promise<ContextData> {
       chunks: cachedChunks,
       memories: cachedMemories,
       relations: cachedRelations,
+      ...buildContextIndexes(cachedDocuments, cachedChunks, cachedRelations),
       ranking,
       source: "cache",
       warning: message

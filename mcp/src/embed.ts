@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import { env, pipeline } from "@xenova/transformers";
 import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
+import { TRUST_DOCUMENT, TRUST_RULE, TRUST_ADR } from "./defaults.js";
 import { EMBEDDINGS_DIR, PATHS } from "./paths.js";
 import type { JsonObject, JsonValue } from "./types.js";
 
@@ -133,7 +134,7 @@ function parseFileEntities(raw: JsonObject[], maxChars: number): FileEntity[] {
         path: filePath,
         status: asString(item.status, "active"),
         source_of_truth: asBoolean(item.source_of_truth, false),
-        trust_level: asNumber(item.trust_level, 50),
+        trust_level: asNumber(item.trust_level, TRUST_DOCUMENT),
         updated_at: updatedAt,
         text,
         signature: hashText(`file|${checksum}|${updatedAt}|${hashText(text)}`)
@@ -163,7 +164,7 @@ function parseRuleEntities(raw: JsonObject[], maxChars: number): RuleEntity[] {
         path: "",
         status: asString(item.status, "active"),
         source_of_truth: asBoolean(item.source_of_truth, true),
-        trust_level: asNumber(item.trust_level, 95),
+        trust_level: asNumber(item.trust_level, TRUST_RULE),
         updated_at: updatedAt,
         text,
         signature: hashText(`rule|${id}|${updatedAt}|${hashText(text)}`)
@@ -194,7 +195,7 @@ function parseAdrEntities(raw: JsonObject[], maxChars: number): AdrEntity[] {
         path: adrPath,
         status: asString(item.status, "active"),
         source_of_truth: asBoolean(item.source_of_truth, true),
-        trust_level: asNumber(item.trust_level, 95),
+        trust_level: asNumber(item.trust_level, TRUST_ADR),
         updated_at: decisionDate,
         text,
         signature: hashText(`adr|${id}|${decisionDate}|${hashText(text)}`)
@@ -229,7 +230,7 @@ function parseExistingEmbeddings(raw: JsonObject[], modelId: string): Map<string
       path: asString(item.path),
       status: asString(item.status, "active"),
       source_of_truth: asBoolean(item.source_of_truth, false),
-      trust_level: asNumber(item.trust_level, 50),
+      trust_level: asNumber(item.trust_level, TRUST_DOCUMENT),
       updated_at: asString(item.updated_at),
       signature: asString(item.signature),
       model: modelId,

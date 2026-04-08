@@ -104,6 +104,10 @@ export type ContextData = {
   chunks: ChunkRecord[];
   memories: MemoryRecord[];
   relations: RelationRecord[];
+  chunkById: Map<string, ChunkRecord>;
+  documentById: Map<string, DocumentRecord>;
+  chunksByFileId: Map<string, ChunkRecord[]>;
+  allRelations: RelationRecord[];
   ranking: RankingWeights;
   source: "cache" | "ryu";
   warning?: string;

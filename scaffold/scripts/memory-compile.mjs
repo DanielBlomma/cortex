@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseFrontmatter, parseStringList } from "../mcp/dist/frontmatter.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,40 +24,6 @@ const ALLOWED_TYPES = new Set([
 ]);
 
 const REQUIRED_FIELDS = ["title", "type", "summary"];
-
-// ── Frontmatter parsing ────────────────────────────────────
-
-function parseFrontmatter(markdown) {
-  const lines = markdown.split(/\r?\n/);
-  if (lines[0]?.trim() !== "---") {
-    return { fields: new Map(), body: markdown };
-  }
-
-  const fields = new Map();
-  let index = 1;
-  for (; index < lines.length; index++) {
-    const line = lines[index];
-    if (line.trim() === "---") {
-      index++;
-      break;
-    }
-
-    const match = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
-    if (match) {
-      fields.set(match[1].toLowerCase(), match[2].trim());
-    }
-  }
-
-  return {
-    fields,
-    body: lines.slice(index).join("\n").trim()
-  };
-}
-
-function parseStringList(value) {
-  if (!value || !value.trim()) return [];
-  return value.split(",").map((s) => s.trim()).filter(Boolean);
-}
 
 // ── ID generation ──────────────────────────────────────────
 
