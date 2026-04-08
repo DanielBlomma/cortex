@@ -477,7 +477,7 @@ function gatherData(baselineCache) {
 
   const tokenEstimate = estimatePerTaskTokens(baseline);
 
-  const embedCount = ec.embedded ?? ec.output ?? ec.entities ?? 0;
+  const embedCount = ec.output ?? ec.entities ?? 0;
   const embedModel = manifests.embed?.model || null;
   const embedDim = manifests.embed?.dimensions || 0;
 
