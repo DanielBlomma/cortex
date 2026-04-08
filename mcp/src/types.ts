@@ -41,13 +41,53 @@ export type AdrRecord = {
 export type RelationType =
   | "CONSTRAINS"
   | "IMPLEMENTS"
-  | "SUPERSEDES";
+  | "SUPERSEDES"
+  | "DEFINES"
+  | "CALLS"
+  | "IMPORTS"
+  | "PART_OF"
+  | "ABOUT"
+  | "REFERENCES";
 
 export type RelationRecord = {
   from: string;
   to: string;
   relation: RelationType;
   note: string;
+};
+
+export type ChunkRecord = {
+  id: string;
+  file_id: string;
+  name: string;
+  kind: string;
+  signature: string;
+  body: string;
+  start_line: number;
+  end_line: number;
+  language: string;
+  updated_at: string;
+  source_of_truth: boolean;
+  trust_level: number;
+  status: string;
+};
+
+export type MemoryRecord = {
+  id: string;
+  path: string;
+  title: string;
+  memory_type: string;
+  summary: string;
+  evidence: string;
+  applies_to: string[];
+  decision_or_gotcha: string;
+  sources: string[];
+  freshness: string;
+  updated_at: string;
+  source_of_truth: boolean;
+  trust_level: number;
+  status: string;
+  body: string;
 };
 
 export type RankingWeights = {
@@ -61,6 +101,8 @@ export type ContextData = {
   documents: DocumentRecord[];
   adrs: AdrRecord[];
   rules: RuleRecord[];
+  chunks: ChunkRecord[];
+  memories: MemoryRecord[];
   relations: RelationRecord[];
   ranking: RankingWeights;
   source: "cache" | "ryu";
@@ -69,10 +111,15 @@ export type ContextData = {
 
 export type SearchEntity = {
   id: string;
-  entity_type: "File" | "Rule" | "ADR";
+  entity_type: "File" | "Rule" | "ADR" | "Chunk" | "Memory";
   kind: string;
   label: string;
   path: string;
+  file_id?: string;
+  signature?: string;
+  start_line?: number;
+  end_line?: number;
+  language?: string;
   text: string;
   status: string;
   source_of_truth: boolean;
@@ -105,6 +152,28 @@ export type RelatedParams = {
   include_edges: boolean;
   response_preset?: "full" | "compact" | "minimal";
   include_entity_metadata?: boolean;
+};
+
+export type FindCallersParams = {
+  entity_id: string;
+  depth: number;
+  include_edges: boolean;
+};
+
+export type TraceCallsParams = {
+  entity_id: string;
+  depth: number;
+  direction: "outgoing" | "incoming" | "both";
+  include_edges: boolean;
+};
+
+export type ImpactAnalysisParams = {
+  entity_id?: string;
+  query?: string;
+  depth: number;
+  top_k: number;
+  direction: "incoming" | "outgoing" | "both";
+  include_edges: boolean;
 };
 
 export type RulesParams = {

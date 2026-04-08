@@ -2,11 +2,14 @@ import { embedQuery, getEmbeddingRuntimeWarning, loadEmbeddingIndex } from "./em
 import { loadContextData } from "./graph.js";
 import type {
   ContextData,
+  FindCallersParams,
+  ImpactAnalysisParams,
   JsonObject,
   RelatedParams,
   RelationRecord,
   SearchEntity,
   SearchParams,
+  TraceCallsParams,
   ToolPayload
 } from "./types.js";
 
@@ -94,6 +97,43 @@ function groupRuleLinks(relations: RelationRecord[]): Map<string, string[]> {
   return links;
 }
 
+function isWindowChunkId(id: string): boolean {
+  return id.includes(":window:");
+}
+
+function baseChunkId(id: string): string {
+  const markerIndex = id.indexOf(":window:");
+  return markerIndex === -1 ? id : id.slice(0, markerIndex);
+}
+
+function buildChunkPartOfRelations(data: ContextData): RelationRecord[] {
+  const relations: RelationRecord[] = [];
+
+  for (const chunk of data.chunks) {
+    if (isWindowChunkId(chunk.id)) {
+      relations.push({
+        from: chunk.id,
+        to: baseChunkId(chunk.id),
+        relation: "PART_OF",
+        note: "Overlap window belongs to base chunk"
+      });
+    }
+
+    if (!chunk.file_id) {
+      continue;
+    }
+
+    relations.push({
+      from: chunk.id,
+      to: chunk.file_id,
+      relation: "PART_OF",
+      note: "Chunk belongs to file"
+    });
+  }
+
+  return relations;
+}
+
 function buildSearchEntities(data: ContextData, includeContent: boolean): SearchEntity[] {
   const entities: SearchEntity[] = [];
   const ruleLinks = groupRuleLinks(data.relations);
@@ -163,6 +203,62 @@ function buildSearchEntities(data: ContextData, includeContent: boolean): Search
     });
   }
 
+  const filePathById = new Map(data.documents.map((document) => [document.id, document.path]));
+
+  for (const chunk of data.chunks) {
+    const filePath = filePathById.get(chunk.file_id) ?? "";
+    entities.push({
+      id: chunk.id,
+      entity_type: "Chunk",
+      kind: chunk.kind || "chunk",
+      label: chunk.name || chunk.id,
+      path: filePath,
+      file_id: chunk.file_id,
+      signature: chunk.signature,
+      start_line: chunk.start_line,
+      end_line: chunk.end_line,
+      language: chunk.language,
+      text: `${filePath}\n${chunk.name}\n${chunk.signature}\n${chunk.body}`,
+      status: chunk.status,
+      source_of_truth: chunk.source_of_truth,
+      trust_level: chunk.trust_level,
+      updated_at: chunk.updated_at,
+      snippet: chunk.signature || chunk.body.slice(0, 500),
+      matched_rules: ruleLinks.get(chunk.file_id) ?? [],
+      content: includeContent ? chunk.body : undefined
+    });
+  }
+
+  for (const memory of data.memories) {
+    entities.push({
+      id: memory.id,
+      entity_type: "Memory",
+      kind: memory.memory_type,
+      label: memory.title,
+      path: memory.path,
+      text: [
+        memory.path,
+        memory.title,
+        memory.memory_type,
+        memory.summary,
+        memory.evidence,
+        memory.decision_or_gotcha,
+        memory.applies_to.join(" "),
+        memory.sources.join(" "),
+        memory.body
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      status: memory.status,
+      source_of_truth: memory.source_of_truth,
+      trust_level: memory.trust_level,
+      updated_at: memory.updated_at,
+      snippet: memory.summary || memory.body.slice(0, 500),
+      matched_rules: [],
+      content: includeContent ? memory.body : undefined
+    });
+  }
+
   return entities;
 }
 
@@ -210,12 +306,200 @@ function entityCatalog(data: ContextData): Map<string, JsonObject> {
     });
   }
 
+  const filePathById = new Map(data.documents.map((document) => [document.id, document.path]));
+
+  for (const chunk of data.chunks) {
+    const chunkEntity: JsonObject = {
+      id: chunk.id,
+      type: "Chunk",
+      label: chunk.name || chunk.id,
+      status: chunk.status,
+      source_of_truth: chunk.source_of_truth
+    };
+    const filePath = filePathById.get(chunk.file_id);
+    if (filePath) {
+      chunkEntity.path = filePath;
+    }
+    catalog.set(chunk.id, chunkEntity);
+  }
+
+  for (const memory of data.memories) {
+    catalog.set(memory.id, {
+      id: memory.id,
+      type: "Memory",
+      label: memory.title,
+      status: memory.status,
+      source_of_truth: memory.source_of_truth,
+      path: memory.path
+    });
+  }
+
   return catalog;
+}
+
+function chunkSeedIds(entityId: string, data: ContextData): string[] {
+  if (entityId.startsWith("chunk:")) {
+    return data.chunks.some((chunk) => chunk.id === entityId) ? [entityId] : [];
+  }
+
+  if (entityId.startsWith("file:")) {
+    return data.chunks.filter((chunk) => chunk.file_id === entityId).map((chunk) => chunk.id);
+  }
+
+  return [];
+}
+
+function buildCallAdjacency(relations: RelationRecord[]): {
+  outgoing: Map<string, RelationRecord[]>;
+  incoming: Map<string, RelationRecord[]>;
+} {
+  const outgoing = new Map<string, RelationRecord[]>();
+  const incoming = new Map<string, RelationRecord[]>();
+
+  for (const relation of relations) {
+    if (relation.relation !== "CALLS") {
+      continue;
+    }
+
+    const outList = outgoing.get(relation.from) ?? [];
+    outList.push(relation);
+    outgoing.set(relation.from, outList);
+
+    const inList = incoming.get(relation.to) ?? [];
+    inList.push(relation);
+    incoming.set(relation.to, inList);
+  }
+
+  return { outgoing, incoming };
+}
+
+function buildCallResultEntity(entityId: string, catalog: Map<string, JsonObject>, hop: number): JsonObject {
+  const entity = catalog.get(entityId) ?? {
+    id: entityId,
+    type: "Unknown",
+    label: entityId,
+    status: "unknown",
+    source_of_truth: false
+  };
+
+  return {
+    ...entity,
+    hops: hop
+  };
+}
+
+function buildChunkContextEnvelope(
+  entityId: string,
+  data: ContextData,
+  catalog: Map<string, JsonObject>
+): JsonObject | undefined {
+  const chunk = data.chunks.find((candidate) => candidate.id === entityId);
+  if (!chunk) {
+    return undefined;
+  }
+
+  const parentFile = data.documents.find((document) => document.id === chunk.file_id);
+  const siblingChunks = data.chunks
+    .filter(
+      (candidate) =>
+        candidate.file_id === chunk.file_id && candidate.id !== chunk.id && !isWindowChunkId(candidate.id)
+    )
+    .sort(
+      (left, right) =>
+        Math.abs(left.start_line - chunk.start_line) - Math.abs(right.start_line - chunk.start_line)
+    )
+    .slice(0, 2)
+    .map((candidate) => ({
+      id: candidate.id,
+      title: candidate.name,
+      kind: candidate.kind,
+      start_line: candidate.start_line,
+      end_line: candidate.end_line
+    }));
+
+  const callers = data.relations
+    .filter((relation) => relation.relation === "CALLS" && relation.to === chunk.id)
+    .slice(0, 2)
+    .map((relation) => {
+      const caller = catalog.get(relation.from);
+      return {
+        id: relation.from,
+        title: String(caller?.label ?? relation.from),
+        path: caller?.path ?? null,
+        relation: relation.relation
+      };
+    });
+
+  const callees = data.relations
+    .filter((relation) => relation.relation === "CALLS" && relation.from === chunk.id)
+    .slice(0, 2)
+    .map((relation) => {
+      const callee = catalog.get(relation.to);
+      return {
+        id: relation.to,
+        title: String(callee?.label ?? relation.to),
+        path: callee?.path ?? null,
+        relation: relation.relation
+      };
+    });
+
+  return {
+    parent_file: parentFile
+      ? {
+          id: parentFile.id,
+          path: parentFile.path,
+          kind: parentFile.kind,
+          source_of_truth: parentFile.source_of_truth,
+          status: parentFile.status
+        }
+      : null,
+    sibling_chunks: siblingChunks,
+    callers,
+    callees
+  };
+}
+
+async function resolveImpactSeedId(parsed: ImpactAnalysisParams): Promise<{
+  seedId: string | null;
+  queryResults?: JsonObject[];
+  warning?: string;
+}> {
+  if (parsed.entity_id) {
+    return { seedId: parsed.entity_id };
+  }
+
+  if (!parsed.query) {
+    return { seedId: null, warning: "Either entity_id or query is required." };
+  }
+
+  const searchPayload = await runContextSearch({
+    query: parsed.query,
+    top_k: Math.max(parsed.top_k, 5),
+    include_deprecated: false,
+    include_content: false
+  });
+  const rawResults = Array.isArray(searchPayload.results) ? searchPayload.results : [];
+  const firstResult =
+    rawResults.find(
+      (result) =>
+        typeof result === "object" &&
+        result !== null &&
+        "entity_type" in result &&
+        result.entity_type === "Chunk"
+    ) ?? rawResults[0];
+
+  return {
+    seedId: typeof firstResult?.id === "string" ? firstResult.id : null,
+    queryResults: rawResults as JsonObject[],
+    warning: typeof firstResult?.id === "string" ? undefined : "No matching seed entity found."
+  };
 }
 
 export async function runContextSearch(parsed: SearchParams): Promise<ToolPayload> {
   const data = await loadContextData();
-  const degreeByEntity = relationDegree(data.relations);
+  const allRelations = [...data.relations, ...buildChunkPartOfRelations(data)];
+  const degreeByEntity = relationDegree(allRelations);
+  const catalog = entityCatalog(data);
   const candidates = buildSearchEntities(data, parsed.include_content).filter(
     (entity) => parsed.include_deprecated || entity.status.toLowerCase() !== "deprecated"
   );
@@ -255,6 +539,11 @@ export async function runContextSearch(parsed: SearchParams): Promise<ToolPayloa
         kind: entity.kind,
         title: entity.label,
         path: entity.path || undefined,
+        file_id: entity.file_id,
+        signature: entity.signature,
+        start_line: entity.start_line,
+        end_line: entity.end_line,
+        language: entity.language,
         score: Number(score.toFixed(4)),
         semantic_score: Number(semantic.toFixed(4)),
         embedding_score: Number(vectorSemantic.toFixed(4)),
@@ -264,6 +553,8 @@ export async function runContextSearch(parsed: SearchParams): Promise<ToolPayloa
         status: entity.status,
         updated_at: entity.updated_at,
         matched_rules: entity.matched_rules,
+        context_envelope:
+          entity.entity_type === "Chunk" ? buildChunkContextEnvelope(entity.id, data, catalog) : undefined,
         excerpt: entity.snippet,
         content: parsed.include_content ? entity.content : undefined
       };
@@ -290,6 +581,7 @@ export async function runContextSearch(parsed: SearchParams): Promise<ToolPayloa
 export async function runContextRelated(parsed: RelatedParams): Promise<ToolPayload> {
   const data = await loadContextData();
   const catalog = entityCatalog(data);
+  const relations = [...data.relations, ...buildChunkPartOfRelations(data)];
 
   if (!catalog.has(parsed.entity_id)) {
     return {
@@ -305,7 +597,7 @@ export async function runContextRelated(parsed: RelatedParams): Promise<ToolPayl
   const outgoing = new Map<string, RelationRecord[]>();
   const incoming = new Map<string, RelationRecord[]>();
 
-  for (const relation of data.relations) {
+  for (const relation of relations) {
     const outList = outgoing.get(relation.from) ?? [];
     outList.push(relation);
     outgoing.set(relation.from, outList);
@@ -385,3 +677,340 @@ export async function runContextRelated(parsed: RelatedParams): Promise<ToolPayl
   };
 }
 
+export async function runContextFindCallers(parsed: FindCallersParams): Promise<ToolPayload> {
+  const data = await loadContextData();
+  const catalog = entityCatalog(data);
+
+  if (!catalog.has(parsed.entity_id)) {
+    return {
+      entity_id: parsed.entity_id,
+      depth: parsed.depth,
+      callers: [],
+      edges: [],
+      context_source: data.source,
+      warning: "Entity not found in indexed context."
+    };
+  }
+
+  const seedChunkIds = chunkSeedIds(parsed.entity_id, data);
+  if (seedChunkIds.length === 0) {
+    return {
+      entity_id: parsed.entity_id,
+      depth: parsed.depth,
+      callers: [],
+      edges: [],
+      context_source: data.source,
+      warning: "Entity has no chunk-level call graph representation."
+    };
+  }
+
+  const relations = [...data.relations, ...buildChunkPartOfRelations(data)];
+  const { incoming } = buildCallAdjacency(relations);
+  const seen = new Set<string>(seedChunkIds);
+  const queue = seedChunkIds.map((id) => ({ id, hop: 0 }));
+  const callers: JsonObject[] = [];
+  const traversedEdges: JsonObject[] = [];
+  const traversedEdgeKeys = new Set<string>();
+
+  while (queue.length > 0) {
+    const current = queue.shift() as { id: string; hop: number };
+    if (current.hop >= parsed.depth) {
+      continue;
+    }
+
+    for (const edge of incoming.get(current.id) ?? []) {
+      const nextId = edge.from;
+      if (!seen.has(nextId)) {
+        seen.add(nextId);
+        queue.push({ id: nextId, hop: current.hop + 1 });
+        callers.push({
+          ...buildCallResultEntity(nextId, catalog, current.hop + 1),
+          via_relation: edge.relation,
+          direction: "incoming"
+        });
+      }
+
+      const edgeKey = `${edge.from}|${edge.relation}|${edge.to}|${edge.note}`;
+      if (!traversedEdgeKeys.has(edgeKey)) {
+        traversedEdgeKeys.add(edgeKey);
+        traversedEdges.push({
+          from: edge.from,
+          to: edge.to,
+          relation: edge.relation,
+          note: edge.note
+        });
+      }
+    }
+  }
+
+  return {
+    entity_id: parsed.entity_id,
+    depth: parsed.depth,
+    context_source: data.source,
+    warning: data.warning,
+    callers,
+    edges: parsed.include_edges ? traversedEdges : []
+  };
+}
+
+export async function runContextTraceCalls(parsed: TraceCallsParams): Promise<ToolPayload> {
+  const data = await loadContextData();
+  const catalog = entityCatalog(data);
+
+  if (!catalog.has(parsed.entity_id)) {
+    return {
+      entity_id: parsed.entity_id,
+      depth: parsed.depth,
+      direction: parsed.direction,
+      trace: [],
+      edges: [],
+      context_source: data.source,
+      warning: "Entity not found in indexed context."
+    };
+  }
+
+  const seedChunkIds = chunkSeedIds(parsed.entity_id, data);
+  if (seedChunkIds.length === 0) {
+    return {
+      entity_id: parsed.entity_id,
+      depth: parsed.depth,
+      direction: parsed.direction,
+      trace: [],
+      edges: [],
+      context_source: data.source,
+      warning: "Entity has no chunk-level call graph representation."
+    };
+  }
+
+  const relations = [...data.relations, ...buildChunkPartOfRelations(data)];
+  const { outgoing, incoming } = buildCallAdjacency(relations);
+  const seen = new Set<string>(seedChunkIds);
+  const queue = seedChunkIds.map((id) => ({ id, hop: 0 }));
+  const trace: JsonObject[] = [];
+  const traversedEdges: JsonObject[] = [];
+  const traversedEdgeKeys = new Set<string>();
+
+  while (queue.length > 0) {
+    const current = queue.shift() as { id: string; hop: number };
+    if (current.hop >= parsed.depth) {
+      continue;
+    }
+
+    const neighbors = [
+      ...(parsed.direction === "outgoing" || parsed.direction === "both"
+        ? (outgoing.get(current.id) ?? []).map((edge) => ({
+            edge,
+            next: edge.to,
+            direction: "outgoing"
+          }))
+        : []),
+      ...(parsed.direction === "incoming" || parsed.direction === "both"
+        ? (incoming.get(current.id) ?? []).map((edge) => ({
+            edge,
+            next: edge.from,
+            direction: "incoming"
+          }))
+        : [])
+    ];
+
+    for (const neighbor of neighbors) {
+      if (!seen.has(neighbor.next)) {
+        seen.add(neighbor.next);
+        queue.push({ id: neighbor.next, hop: current.hop + 1 });
+        trace.push({
+          ...buildCallResultEntity(neighbor.next, catalog, current.hop + 1),
+          via_relation: neighbor.edge.relation,
+          direction: neighbor.direction
+        });
+      }
+
+      const edgeKey = `${neighbor.edge.from}|${neighbor.edge.relation}|${neighbor.edge.to}|${neighbor.edge.note}`;
+      if (!traversedEdgeKeys.has(edgeKey)) {
+        traversedEdgeKeys.add(edgeKey);
+        traversedEdges.push({
+          from: neighbor.edge.from,
+          to: neighbor.edge.to,
+          relation: neighbor.edge.relation,
+          note: neighbor.edge.note
+        });
+      }
+    }
+  }
+
+  return {
+    entity_id: parsed.entity_id,
+    depth: parsed.depth,
+    direction: parsed.direction,
+    context_source: data.source,
+    warning: data.warning,
+    trace,
+    edges: parsed.include_edges ? traversedEdges : []
+  };
+}
+
+export async function runContextImpactAnalysis(parsed: ImpactAnalysisParams): Promise<ToolPayload> {
+  const seedResolution = await resolveImpactSeedId(parsed);
+  const data = await loadContextData();
+  const catalog = entityCatalog(data);
+
+  if (!seedResolution.seedId) {
+    return {
+      entity_id: parsed.entity_id,
+      query: parsed.query,
+      depth: parsed.depth,
+      top_k: parsed.top_k,
+      direction: parsed.direction,
+      context_source: data.source,
+      warning: seedResolution.warning ?? data.warning ?? "No matching seed entity found.",
+      seed: null,
+      query_results: seedResolution.queryResults ?? [],
+      results: [],
+      edges: []
+    };
+  }
+
+  if (!catalog.has(seedResolution.seedId)) {
+    return {
+      entity_id: parsed.entity_id,
+      query: parsed.query,
+      depth: parsed.depth,
+      top_k: parsed.top_k,
+      direction: parsed.direction,
+      context_source: data.source,
+      warning: "Seed entity not found in indexed context.",
+      seed: null,
+      query_results: seedResolution.queryResults ?? [],
+      results: [],
+      edges: []
+    };
+  }
+
+  const seedChunkIds = chunkSeedIds(seedResolution.seedId, data);
+  if (seedChunkIds.length === 0) {
+    return {
+      entity_id: parsed.entity_id,
+      query: parsed.query,
+      depth: parsed.depth,
+      top_k: parsed.top_k,
+      direction: parsed.direction,
+      context_source: data.source,
+      warning: "Seed entity has no chunk-level call graph representation.",
+      seed: catalog.get(seedResolution.seedId),
+      query_results: seedResolution.queryResults ?? [],
+      results: [],
+      edges: []
+    };
+  }
+
+  const relations = [...data.relations, ...buildChunkPartOfRelations(data)];
+  const degreeByEntity = relationDegree(relations);
+  const searchEntityById = new Map(buildSearchEntities(data, false).map((entity) => [entity.id, entity]));
+  const { outgoing, incoming } = buildCallAdjacency(relations);
+  const seen = new Set<string>(seedChunkIds);
+  const queue = seedChunkIds.map((id) => ({ id, hop: 0 }));
+  const visited = new Map<
+    string,
+    { hops: number; via_relation: string; direction: string; via_entity: string; via_note: string }
+  >();
+  const traversedEdges: JsonObject[] = [];
+  const traversedEdgeKeys = new Set<string>();
+
+  while (queue.length > 0) {
+    const current = queue.shift() as { id: string; hop: number };
+    if (current.hop >= parsed.depth) {
+      continue;
+    }
+
+    const neighbors = [
+      ...(parsed.direction === "outgoing" || parsed.direction === "both"
+        ? (outgoing.get(current.id) ?? []).map((edge) => ({
+            edge,
+            next: edge.to,
+            direction: "outgoing"
+          }))
+        : []),
+      ...(parsed.direction === "incoming" || parsed.direction === "both"
+        ? (incoming.get(current.id) ?? []).map((edge) => ({
+            edge,
+            next: edge.from,
+            direction: "incoming"
+          }))
+        : [])
+    ];
+
+    for (const neighbor of neighbors) {
+      if (!seen.has(neighbor.next)) {
+        seen.add(neighbor.next);
+        queue.push({ id: neighbor.next, hop: current.hop + 1 });
+        visited.set(neighbor.next, {
+          hops: current.hop + 1,
+          via_relation: neighbor.edge.relation,
+          direction: neighbor.direction,
+          via_entity: current.id,
+          via_note: neighbor.edge.note
+        });
+      }
+
+      const edgeKey = `${neighbor.edge.from}|${neighbor.edge.relation}|${neighbor.edge.to}|${neighbor.edge.note}`;
+      if (!traversedEdgeKeys.has(edgeKey)) {
+        traversedEdgeKeys.add(edgeKey);
+        traversedEdges.push({
+          from: neighbor.edge.from,
+          to: neighbor.edge.to,
+          relation: neighbor.edge.relation,
+          note: neighbor.edge.note
+        });
+      }
+    }
+  }
+
+  const results = [...visited.entries()]
+    .map(([id, metadata]) => {
+      const entity = searchEntityById.get(id);
+      const graphScore = Math.min(1, (degreeByEntity.get(id) ?? 0) / 4);
+      const trustScore = entity ? Math.max(0, Math.min(1, entity.trust_level / 100)) : 0.5;
+      const impactScore = Number((1 / (metadata.hops + 1) + graphScore * 0.35 + trustScore * 0.25).toFixed(4));
+      const catalogEntry = catalog.get(id) ?? { id, type: "Unknown", label: id, status: "unknown" };
+
+      return {
+        id,
+        entity_type: entity?.entity_type ?? String(catalogEntry.type ?? "Unknown"),
+        kind: entity?.kind ?? "",
+        title: entity?.label ?? String(catalogEntry.label ?? id),
+        path: entity?.path ?? catalogEntry.path ?? undefined,
+        hops: metadata.hops,
+        via_relation: metadata.via_relation,
+        direction: metadata.direction,
+        via_entity: metadata.via_entity,
+        impact_score: impactScore,
+        graph_score: Number(graphScore.toFixed(4)),
+        trust_score: Number(trustScore.toFixed(4)),
+        excerpt: entity?.snippet ?? "",
+        status: entity?.status ?? String(catalogEntry.status ?? "unknown"),
+        source_of_truth: entity?.source_of_truth ?? Boolean(catalogEntry.source_of_truth)
+      };
+    })
+    .sort((a, b) => {
+      if (a.hops !== b.hops) {
+        return a.hops - b.hops;
+      }
+      return b.impact_score - a.impact_score;
+    })
+    .slice(0, parsed.top_k);
+
+  return {
+    entity_id: parsed.entity_id,
+    query: parsed.query,
+    resolved_seed_id: seedResolution.seedId,
+    resolved_from_query: !parsed.entity_id,
+    depth: parsed.depth,
+    top_k: parsed.top_k,
+    direction: parsed.direction,
+    context_source: data.source,
+    warning: data.warning,
+    seed: catalog.get(seedResolution.seedId),
+    query_results: seedResolution.queryResults ?? [],
+    results,
+    edges: parsed.include_edges ? traversedEdges : []
+  };
+}

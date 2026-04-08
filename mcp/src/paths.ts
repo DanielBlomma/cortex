@@ -15,6 +15,7 @@ export const DB_PATH = path.join(CONTEXT_DIR, "db", "graph.ryu");
 
 export const EMBEDDINGS_DIR = path.join(CONTEXT_DIR, "embeddings");
 export const ONTOLOGY_PATH = path.join(CONTEXT_DIR, "ontology.cypher");
+export const MEMORY_DIR = path.join(CONTEXT_DIR, "memory");
 
 export const PATHS = {
   config: path.join(CONTEXT_DIR, "config.yaml"),
@@ -26,9 +27,15 @@ export const PATHS = {
   documents: path.join(CACHE_DIR, "documents.jsonl"),
   adrEntities: path.join(CACHE_DIR, "entities.adr.jsonl"),
   ruleEntities: path.join(CACHE_DIR, "entities.rule.jsonl"),
+  chunkEntities: path.join(CACHE_DIR, "entities.chunk.jsonl"),
   constrainsRelations: path.join(CACHE_DIR, "relations.constrains.jsonl"),
   implementsRelations: path.join(CACHE_DIR, "relations.implements.jsonl"),
-  supersedesRelations: path.join(CACHE_DIR, "relations.supersedes.jsonl")
+  supersedesRelations: path.join(CACHE_DIR, "relations.supersedes.jsonl"),
+  definesRelations: path.join(CACHE_DIR, "relations.defines.jsonl"),
+  callsRelations: path.join(CACHE_DIR, "relations.calls.jsonl"),
+  importsRelations: path.join(CACHE_DIR, "relations.imports.jsonl"),
+  memoryRawDir: path.join(MEMORY_DIR, "raw"),
+  memoryCompiledDir: path.join(MEMORY_DIR, "compiled")
 };
 
 export const DEFAULT_RANKING: RankingWeights = {

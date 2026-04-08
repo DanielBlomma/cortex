@@ -2,11 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import ryugraph, { type Connection, type Database, type QueryResult } from "ryugraph";
 import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
-import { DB_PATH, DEFAULT_RANKING, PATHS } from "./paths.js";
+import { DB_PATH, DEFAULT_RANKING, PATHS, REPO_ROOT } from "./paths.js";
 import type {
   AdrRecord,
+  ChunkRecord,
   ContextData,
   DocumentRecord,
+  MemoryRecord,
   JsonObject,
   JsonValue,
   RankingWeights,
@@ -140,6 +142,158 @@ function parseRuleEntities(raw: JsonObject[]): RuleRecord[] {
     .filter((item): item is RuleRecord => item !== null);
 }
 
+function parseChunkEntities(raw: JsonObject[]): ChunkRecord[] {
+  return raw
+    .map((item) => {
+      const id = asString(item.id);
+      if (!id) {
+        return null;
+      }
+
+      return {
+        id,
+        file_id: asString(item.file_id),
+        name: asString(item.name),
+        kind: asString(item.kind, "chunk"),
+        signature: asString(item.signature),
+        body: asString(item.body),
+        start_line: asNumber(item.start_line, 0),
+        end_line: asNumber(item.end_line, 0),
+        language: asString(item.language),
+        updated_at: asString(item.updated_at),
+        source_of_truth: asBoolean(item.source_of_truth, false),
+        trust_level: asNumber(item.trust_level, 60),
+        status: asString(item.status, "active")
+      };
+    })
+    .filter((item): item is ChunkRecord => item !== null);
+}
+
+function normalizeMemoryId(filePath: string): string {
+  const base = path.basename(filePath, path.extname(filePath)).toLowerCase();
+  return `memory:${base.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}`;
+}
+
+function parseStringList(value: string): string[] {
+  if (!value.trim()) {
+    return [];
+  }
+
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseFrontmatter(markdown: string): { fields: Map<string, string>; body: string } {
+  const lines = markdown.split(/\r?\n/);
+  if (lines[0]?.trim() !== "---") {
+    return { fields: new Map(), body: markdown };
+  }
+
+  const fields = new Map<string, string>();
+  let index = 1;
+  for (; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (line.trim() === "---") {
+      index += 1;
+      break;
+    }
+
+    const match = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
+    if (!match) {
+      continue;
+    }
+
+    fields.set(match[1].toLowerCase(), match[2].trim());
+  }
+
+  return {
+    fields,
+    body: lines.slice(index).join("\n").trim()
+  };
+}
+
+function loadCompiledMemory(): MemoryRecord[] {
+  if (!fs.existsSync(PATHS.memoryCompiledDir)) {
+    return [];
+  }
+
+  const entries = fs
+    .readdirSync(PATHS.memoryCompiledDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".md"))
+    .map((entry) => entry.name)
+    .sort((left, right) => left.localeCompare(right));
+
+  return entries
+    .map((entry) => {
+      const absolutePath = path.join(PATHS.memoryCompiledDir, entry);
+      const relativePath = path.relative(REPO_ROOT, absolutePath).split(path.sep).join("/");
+      const markdown = fs.readFileSync(absolutePath, "utf8");
+      const stats = fs.statSync(absolutePath);
+      const { fields, body } = parseFrontmatter(markdown);
+      const title = fields.get("title") || path.basename(entry, path.extname(entry));
+      const memoryType = fields.get("type") || "note";
+      const summary = fields.get("summary") || body.split(/\r?\n/).find(Boolean) || "";
+      const evidence = fields.get("evidence") || "";
+      const decisionOrGotcha = fields.get("decision_or_gotcha") || fields.get("decision") || "";
+      const freshness = fields.get("freshness") || fields.get("freshness_date") || "";
+      const updatedAt = fields.get("updated_at") || stats.mtime.toISOString();
+      const status = fields.get("status") || "active";
+      const sourceOfTruth = fields.get("source_of_truth")?.toLowerCase() === "true";
+      const trustLevel = asNumber(fields.get("trust_level"), 70);
+
+      return {
+        id: fields.get("id") || normalizeMemoryId(entry),
+        path: relativePath,
+        title,
+        memory_type: memoryType,
+        summary,
+        evidence,
+        applies_to: parseStringList(fields.get("applies_to") || ""),
+        decision_or_gotcha: decisionOrGotcha,
+        sources: parseStringList(fields.get("sources") || ""),
+        freshness,
+        updated_at: updatedAt,
+        source_of_truth: sourceOfTruth,
+        trust_level: trustLevel,
+        status,
+        body
+      };
+    })
+    .filter((item) => item.body || item.summary);
+}
+
+function buildMemoryRelations(memories: MemoryRecord[]): RelationRecord[] {
+  const relations: RelationRecord[] = [];
+
+  for (const memory of memories) {
+    for (const target of memory.applies_to) {
+      if (target) {
+        relations.push({
+          from: memory.id,
+          to: target,
+          relation: "ABOUT",
+          note: memory.title
+        });
+      }
+    }
+
+    for (const source of memory.sources) {
+      if (source) {
+        relations.push({
+          from: memory.id,
+          to: `file:${source}`,
+          relation: "REFERENCES",
+          note: ""
+        });
+      }
+    }
+  }
+
+  return relations;
+}
+
 function parseRulesYaml(yamlText: string | null): RuleRecord[] {
   if (!yamlText) {
     return [];
@@ -212,7 +366,11 @@ function parseRulesYaml(yamlText: string | null): RuleRecord[] {
   return rules;
 }
 
-function parseRelations(raw: JsonObject[], relation: RelationRecord["relation"]): RelationRecord[] {
+function parseRelations(
+  raw: JsonObject[],
+  relation: RelationRecord["relation"],
+  noteFields: string[] = ["note", "reason"]
+): RelationRecord[] {
   return raw
     .map((item) => {
       const from = asString(item.from);
@@ -221,11 +379,20 @@ function parseRelations(raw: JsonObject[], relation: RelationRecord["relation"])
         return null;
       }
 
+      let note = "";
+      for (const fieldName of noteFields) {
+        const candidate = asString(item[fieldName as keyof JsonObject]);
+        if (candidate) {
+          note = candidate;
+          break;
+        }
+      }
+
       return {
         from,
         to,
         relation,
-        note: asString(item.note) || asString(item.reason)
+        note
       };
     })
     .filter((item): item is RelationRecord => item !== null);
@@ -452,6 +619,33 @@ function parseRyuGraphAdrs(rows: UnknownRow[]): AdrRecord[] {
     .filter((value): value is AdrRecord => value !== null);
 }
 
+function parseRyuGraphChunks(rows: UnknownRow[]): ChunkRecord[] {
+  return rows
+    .map((row) => {
+      const id = asStringUnknown(row.id);
+      if (!id) {
+        return null;
+      }
+
+      return {
+        id,
+        file_id: asStringUnknown(row.file_id),
+        name: asStringUnknown(row.name),
+        kind: asStringUnknown(row.kind, "chunk"),
+        signature: asStringUnknown(row.signature),
+        body: asStringUnknown(row.body),
+        start_line: asNumberUnknown(row.start_line),
+        end_line: asNumberUnknown(row.end_line),
+        language: asStringUnknown(row.language),
+        updated_at: asStringUnknown(row.updated_at),
+        source_of_truth: asBooleanUnknown(row.source_of_truth, false),
+        trust_level: asNumberUnknown(row.trust_level, 60),
+        status: asStringUnknown(row.status, "active")
+      };
+    })
+    .filter((value): value is ChunkRecord => value !== null);
+}
+
 function parseRyuGraphRelations(
   rows: UnknownRow[],
   relation: RelationRecord["relation"],
@@ -478,10 +672,19 @@ export async function loadContextData(): Promise<ContextData> {
   const ranking = parseRankingFromConfig(readFileIfExists(PATHS.config));
   const cachedDocuments = parseDocuments(readJsonl(PATHS.documents));
   const cachedAdrs = parseAdrs(readJsonl(PATHS.adrEntities));
+  const cachedChunks = parseChunkEntities(readJsonl(PATHS.chunkEntities));
+  const cachedMemories = loadCompiledMemory();
+  const cachedChunkRelations = [
+    ...parseRelations(readJsonl(PATHS.definesRelations), "DEFINES"),
+    ...parseRelations(readJsonl(PATHS.callsRelations), "CALLS", ["call_type", "note"]),
+    ...parseRelations(readJsonl(PATHS.importsRelations), "IMPORTS", ["import_name", "note"])
+  ];
   const cachedRelations = [
     ...parseRelations(readJsonl(PATHS.constrainsRelations), "CONSTRAINS"),
     ...parseRelations(readJsonl(PATHS.implementsRelations), "IMPLEMENTS"),
-    ...parseRelations(readJsonl(PATHS.supersedesRelations), "SUPERSEDES")
+    ...parseRelations(readJsonl(PATHS.supersedesRelations), "SUPERSEDES"),
+    ...cachedChunkRelations,
+    ...buildMemoryRelations(cachedMemories)
   ];
 
   const yamlRules = parseRulesYaml(readFileIfExists(PATHS.rulesYaml));
@@ -494,6 +697,8 @@ export async function loadContextData(): Promise<ContextData> {
       documents: cachedDocuments,
       adrs: cachedAdrs,
       rules: cachedRules,
+      chunks: cachedChunks,
+      memories: cachedMemories,
       relations: cachedRelations,
       ranking,
       source: "cache",
@@ -502,7 +707,18 @@ export async function loadContextData(): Promise<ContextData> {
   }
 
   try {
-    const [fileRows, ruleRows, adrRows, constrainsRows, implementsRows, supersedesRows] =
+    const [
+      fileRows,
+      ruleRows,
+      adrRows,
+      chunkRows,
+      constrainsRows,
+      implementsRows,
+      supersedesRows,
+      definesRows,
+      callsRows,
+      importsRows
+    ] =
       await Promise.all([
         queryRows(
           connection,
@@ -554,6 +770,26 @@ export async function loadContextData(): Promise<ContextData> {
         queryRows(
           connection,
           `
+          MATCH (c:Chunk)
+          RETURN
+            c.id AS id,
+            c.file_id AS file_id,
+            c.name AS name,
+            c.kind AS kind,
+            c.signature AS signature,
+            c.body AS body,
+            c.start_line AS start_line,
+            c.end_line AS end_line,
+            c.language AS language,
+            c.updated_at AS updated_at,
+            c.source_of_truth AS source_of_truth,
+            c.trust_level AS trust_level,
+            c.status AS status;
+        `
+        ),
+        queryRows(
+          connection,
+          `
           MATCH (r:Rule)-[c:CONSTRAINS]->(f:File)
           RETURN r.id AS from, f.id AS to, c.note AS note;
         `
@@ -571,6 +807,27 @@ export async function loadContextData(): Promise<ContextData> {
           MATCH (a1:ADR)-[s:SUPERSEDES]->(a2:ADR)
           RETURN a1.id AS from, a2.id AS to, s.reason AS note;
         `
+        ),
+        queryRows(
+          connection,
+          `
+          MATCH (f:File)-[:DEFINES]->(c:Chunk)
+          RETURN f.id AS from, c.id AS to;
+        `
+        ),
+        queryRows(
+          connection,
+          `
+          MATCH (c1:Chunk)-[ca:CALLS]->(c2:Chunk)
+          RETURN c1.id AS from, c2.id AS to, ca.call_type AS call_type;
+        `
+        ),
+        queryRows(
+          connection,
+          `
+          MATCH (c:Chunk)-[im:IMPORTS]->(f:File)
+          RETURN c.id AS from, f.id AS to, im.import_name AS import_name;
+        `
         )
       ]);
 
@@ -579,17 +836,24 @@ export async function loadContextData(): Promise<ContextData> {
     const ryuDocuments = parseRyuGraphDocuments(fileRows, contentById);
     const ryuRules = parseRyuGraphRules(ruleRows);
     const ryuAdrs = parseRyuGraphAdrs(adrRows);
+    const ryuChunks = parseRyuGraphChunks(chunkRows);
     const ryuRelations = [
       ...parseRyuGraphRelations(constrainsRows, "CONSTRAINS", "note"),
       ...parseRyuGraphRelations(implementsRows, "IMPLEMENTS", "note"),
-      ...parseRyuGraphRelations(supersedesRows, "SUPERSEDES", "note")
+      ...parseRyuGraphRelations(supersedesRows, "SUPERSEDES", "note"),
+      ...parseRyuGraphRelations(definesRows, "DEFINES", "note"),
+      ...parseRyuGraphRelations(callsRows, "CALLS", "call_type"),
+      ...parseRyuGraphRelations(importsRows, "IMPORTS", "import_name")
     ];
+    const memoryRelations = buildMemoryRelations(cachedMemories);
 
     return {
       documents: ryuDocuments.length > 0 ? ryuDocuments : cachedDocuments,
       adrs: ryuAdrs.length > 0 ? ryuAdrs : cachedAdrs,
       rules: ryuRules.length > 0 ? ryuRules : cachedRules,
-      relations: ryuRelations.length > 0 ? ryuRelations : cachedRelations,
+      chunks: ryuChunks.length > 0 ? ryuChunks : cachedChunks,
+      memories: cachedMemories,
+      relations: [...(ryuRelations.length > 0 ? ryuRelations : cachedRelations), ...memoryRelations],
       ranking,
       source: "ryu"
     };
@@ -603,6 +867,8 @@ export async function loadContextData(): Promise<ContextData> {
       documents: cachedDocuments,
       adrs: cachedAdrs,
       rules: cachedRules,
+      chunks: cachedChunks,
+      memories: cachedMemories,
       relations: cachedRelations,
       ranking,
       source: "cache",

@@ -40,6 +40,7 @@ function buildFixture() {
   const contextDir = path.join(fixtureRoot, ".context");
   const cacheDir = path.join(contextDir, "cache");
   fs.mkdirSync(cacheDir, { recursive: true });
+  fs.mkdirSync(path.join(contextDir, "memory", "compiled"), { recursive: true });
 
   const now = new Date().toISOString();
 
@@ -151,6 +152,98 @@ ranking:
     { from: "file:src/server.ts", to: "rule:naming-convention", note: "server follows naming rules" }
   ]);
   writeJsonl(path.join(cacheDir, "relations.supersedes.jsonl"), []);
+  writeJsonl(path.join(cacheDir, "entities.chunk.jsonl"), [
+    {
+      id: "chunk:src/search.ts:runContextSearch:1-25",
+      file_id: "file:src/search.ts",
+      name: "runContextSearch",
+      kind: "function",
+      signature: "async function runContextSearch(parsed)",
+      body: "export async function runContextSearch(parsed) { return parsed.query; }",
+      start_line: 1,
+      end_line: 25,
+      language: "typescript",
+      updated_at: now,
+      source_of_truth: true,
+      trust_level: 90,
+      status: "active"
+    },
+    {
+      id: "chunk:src/search.ts:tokenize:30-40",
+      file_id: "file:src/search.ts",
+      name: "tokenize",
+      kind: "function",
+      signature: "function tokenize(value)",
+      body: "function tokenize(value) { return value.split(/\\s+/); }",
+      start_line: 30,
+      end_line: 40,
+      language: "typescript",
+      updated_at: now,
+      source_of_truth: true,
+      trust_level: 90,
+      status: "active"
+    },
+    {
+      id: "chunk:src/server.ts:registerTools:1-30",
+      file_id: "file:src/server.ts",
+      name: "registerTools",
+      kind: "function",
+      signature: "function registerTools(server)",
+      body: "function registerTools(server) { return server; }",
+      start_line: 1,
+      end_line: 30,
+      language: "typescript",
+      updated_at: now,
+      source_of_truth: false,
+      trust_level: 80,
+      status: "active"
+    }
+  ]);
+  writeJsonl(path.join(cacheDir, "relations.defines.jsonl"), [
+    { from: "file:src/search.ts", to: "chunk:src/search.ts:runContextSearch:1-25" },
+    { from: "file:src/search.ts", to: "chunk:src/search.ts:tokenize:30-40" },
+    { from: "file:src/server.ts", to: "chunk:src/server.ts:registerTools:1-30" }
+  ]);
+  writeJsonl(path.join(cacheDir, "relations.calls.jsonl"), [
+    {
+      from: "chunk:src/search.ts:runContextSearch:1-25",
+      to: "chunk:src/search.ts:tokenize:30-40",
+      call_type: "direct"
+    },
+    {
+      from: "chunk:src/server.ts:registerTools:1-30",
+      to: "chunk:src/search.ts:runContextSearch:1-25",
+      call_type: "direct"
+    }
+  ]);
+  writeJsonl(path.join(cacheDir, "relations.imports.jsonl"), [
+    {
+      from: "chunk:src/server.ts:registerTools:1-30",
+      to: "file:src/search.ts",
+      import_name: "./search"
+    }
+  ]);
+
+  fs.writeFileSync(
+    path.join(contextDir, "memory", "compiled", "search-ranking-gotcha.md"),
+    `---
+id: memory:search-ranking-gotcha
+title: Search ranking gotcha
+type: gotcha
+summary: Query-seeded impact should prefer chunk hits over file hits for precise code questions.
+evidence: Query-based impact initially resolved to file:src/search.ts instead of the runContextSearch chunk.
+applies_to: chunk:src/search.ts:runContextSearch:1-25, file:src/search.ts
+decision_or_gotcha: Prefer chunk seeds when a chunk exists among the top lexical/semantic matches.
+sources: mcp/tests/server.test.mjs, mcp/src/search.ts
+freshness: current
+updated_at: ${now}
+status: active
+trust_level: 72
+---
+This memory captures a retrieval-quality lesson from implementing impact analysis.
+`,
+    "utf8"
+  );
 
   return { fixtureRoot, now };
 }
@@ -162,7 +255,7 @@ function withFixtureClient(fixtureRoot, fn) {
       args: ["dist/server.js"],
       cwd: MCP_DIR,
       stderr: "pipe",
-      env: { ...process.env, CORTEX_FIXTURE_ROOT: fixtureRoot }
+      env: { ...process.env, CORTEX_PROJECT_ROOT: fixtureRoot }
     });
 
     const client = new Client({ name: "cortex-test-client", version: "0.1.0" });
@@ -200,7 +293,7 @@ test("context.search returns unified entity types", async () => {
   });
 });
 
-test("context.search only returns File, Rule, ADR entity types", async () => {
+test("context.search only returns supported entity types", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
       name: "context.search",
@@ -209,12 +302,160 @@ test("context.search only returns File, Rule, ADR entity types", async () => {
     assert.notEqual(result.isError, true);
     const sc = result.structuredContent;
     assert.ok(sc);
-    const allowedTypes = new Set(["File", "Rule", "ADR"]);
+    const allowedTypes = new Set(["File", "Rule", "ADR", "Chunk", "Memory"]);
     for (const item of sc.results) {
       assert.ok(allowedTypes.has(item.entity_type), `Unexpected entity_type: ${item.entity_type}`);
     }
   });
 });
+
+test(
+  "context.search returns chunk results with chunk metadata",
+  withFixtureClient(buildFixture().fixtureRoot, async (client) => {
+    const result = await client.callTool({
+      name: "context.search",
+      arguments: { query: "runContextSearch", top_k: 5, include_content: true }
+    });
+    assert.notEqual(result.isError, true);
+    const sc = result.structuredContent;
+    assert.ok(sc);
+    const chunk = sc.results.find((item) => item.entity_type === "Chunk");
+    assert.ok(chunk, "Expected a chunk result");
+    assert.equal(chunk.id, "chunk:src/search.ts:runContextSearch:1-25");
+    assert.equal(chunk.file_id, "file:src/search.ts");
+    assert.equal(chunk.signature, "async function runContextSearch(parsed)");
+    assert.equal(chunk.start_line, 1);
+    assert.equal(chunk.end_line, 25);
+    assert.equal(chunk.language, "typescript");
+    assert.equal(chunk.path, "src/search.ts");
+    assert.equal(typeof chunk.content, "string");
+  })
+);
+
+test(
+  "context.search returns a compact context envelope for chunk hits",
+  withFixtureClient(buildFixture().fixtureRoot, async (client) => {
+    const result = await client.callTool({
+      name: "context.search",
+      arguments: { query: "runContextSearch", top_k: 5 }
+    });
+    assert.notEqual(result.isError, true);
+    const sc = result.structuredContent;
+    assert.ok(sc);
+    const chunk = sc.results.find((item) => item.id === "chunk:src/search.ts:runContextSearch:1-25");
+    assert.ok(chunk, "Expected chunk result");
+    assert.ok(chunk.context_envelope);
+    assert.equal(chunk.context_envelope.parent_file.id, "file:src/search.ts");
+    assert.ok(Array.isArray(chunk.context_envelope.sibling_chunks));
+    assert.ok(
+      chunk.context_envelope.sibling_chunks.some((item) => item.id === "chunk:src/search.ts:tokenize:30-40")
+    );
+    assert.ok(Array.isArray(chunk.context_envelope.callers));
+    assert.ok(
+      chunk.context_envelope.callers.some((item) => item.id === "chunk:src/server.ts:registerTools:1-30")
+    );
+    assert.ok(Array.isArray(chunk.context_envelope.callees));
+    assert.ok(
+      chunk.context_envelope.callees.some((item) => item.id === "chunk:src/search.ts:tokenize:30-40")
+    );
+  })
+);
+
+test(
+  "context.search returns compiled memory articles as Memory entities",
+  withFixtureClient(buildFixture().fixtureRoot, async (client) => {
+    const result = await client.callTool({
+      name: "context.search",
+      arguments: { query: "search ranking gotcha", top_k: 5, include_content: true }
+    });
+    assert.notEqual(result.isError, true);
+    const sc = result.structuredContent;
+    assert.ok(sc);
+    const memory = sc.results.find((item) => item.entity_type === "Memory");
+    assert.ok(memory, "Expected a memory result");
+    assert.equal(memory.id, "memory:search-ranking-gotcha");
+    assert.equal(memory.title, "Search ranking gotcha");
+    assert.equal(memory.path, ".context/memory/compiled/search-ranking-gotcha.md");
+    assert.equal(typeof memory.content, "string");
+  })
+);
+
+test(
+  "context.get_related traverses ABOUT relation from chunk to memory",
+  withFixtureClient(buildFixture().fixtureRoot, async (client) => {
+    const result = await client.callTool({
+      name: "context.get_related",
+      arguments: {
+        entity_id: "chunk:src/search.ts:runContextSearch:1-25",
+        depth: 1,
+        include_edges: true
+      }
+    });
+    assert.notEqual(result.isError, true);
+    const sc = result.structuredContent;
+    assert.ok(sc);
+    const relatedIds = new Set(sc.related.map((item) => item.id));
+    assert.ok(relatedIds.has("memory:search-ranking-gotcha"), "Expected memory entity via ABOUT relation");
+    const aboutEdge = sc.edges.find(
+      (edge) => edge.relation === "ABOUT" && edge.to === "chunk:src/search.ts:runContextSearch:1-25"
+    );
+    assert.ok(aboutEdge, "Expected ABOUT edge pointing to the chunk");
+  })
+);
+
+test(
+  "context.get_related traverses REFERENCES relation from memory to source files",
+  withFixtureClient(buildFixture().fixtureRoot, async (client) => {
+    const result = await client.callTool({
+      name: "context.get_related",
+      arguments: {
+        entity_id: "memory:search-ranking-gotcha",
+        depth: 1,
+        include_edges: true
+      }
+    });
+    assert.notEqual(result.isError, true);
+    const sc = result.structuredContent;
+    assert.ok(sc);
+    const relatedIds = new Set(sc.related.map((item) => item.id));
+    // ABOUT targets
+    assert.ok(relatedIds.has("chunk:src/search.ts:runContextSearch:1-25"), "Expected chunk via ABOUT");
+    assert.ok(relatedIds.has("file:src/search.ts"), "Expected file via ABOUT");
+    // REFERENCES targets (sources field becomes file: prefixed)
+    assert.ok(relatedIds.has("file:mcp/tests/server.test.mjs"), "Expected source file via REFERENCES");
+    assert.ok(relatedIds.has("file:mcp/src/search.ts"), "Expected source file via REFERENCES");
+
+    const edgeTypes = new Set(sc.edges.map((edge) => edge.relation));
+    assert.ok(edgeTypes.has("ABOUT"), "Expected ABOUT edges");
+    assert.ok(edgeTypes.has("REFERENCES"), "Expected REFERENCES edges");
+  })
+);
+
+test(
+  "context.get_related traverses chunk edges and synthetic part-of relations",
+  withFixtureClient(buildFixture().fixtureRoot, async (client) => {
+    const result = await client.callTool({
+      name: "context.get_related",
+      arguments: {
+        entity_id: "chunk:src/server.ts:registerTools:1-30",
+        depth: 1,
+        include_edges: true
+      }
+    });
+    assert.notEqual(result.isError, true);
+    const sc = result.structuredContent;
+    assert.ok(sc);
+    const relatedIds = new Set(sc.related.map((item) => item.id));
+    assert.ok(relatedIds.has("file:src/server.ts"));
+    assert.ok(relatedIds.has("chunk:src/search.ts:runContextSearch:1-25"));
+    assert.ok(relatedIds.has("file:src/search.ts"));
+
+    const edgeKinds = new Set(sc.edges.map((edge) => edge.relation));
+    assert.ok(edgeKinds.has("PART_OF"));
+    assert.ok(edgeKinds.has("CALLS"));
+    assert.ok(edgeKinds.has("IMPORTS"));
+  })
+);
 
 test("context.search respects top_k limit", async () => {
   await withClient(async (client) => {
@@ -360,6 +601,103 @@ test("context.get_related include_edges=false returns empty edges", async () => 
   });
 });
 
+test(
+  "context.find_callers returns incoming call graph matches for a chunk",
+  withFixtureClient(buildFixture().fixtureRoot, async (client) => {
+    const result = await client.callTool({
+      name: "context.find_callers",
+      arguments: {
+        entity_id: "chunk:src/search.ts:runContextSearch:1-25",
+        depth: 1,
+        include_edges: true
+      }
+    });
+    assert.notEqual(result.isError, true);
+    const sc = result.structuredContent;
+    assert.ok(sc);
+    assert.equal(sc.entity_id, "chunk:src/search.ts:runContextSearch:1-25");
+    assert.ok(Array.isArray(sc.callers));
+    const callerIds = new Set(sc.callers.map((item) => item.id));
+    assert.ok(callerIds.has("chunk:src/server.ts:registerTools:1-30"));
+    assert.ok(Array.isArray(sc.edges));
+    assert.ok(sc.edges.some((edge) => edge.relation === "CALLS"));
+  })
+);
+
+test(
+  "context.trace_calls walks outgoing call graph for a file entity",
+  withFixtureClient(buildFixture().fixtureRoot, async (client) => {
+    const result = await client.callTool({
+      name: "context.trace_calls",
+      arguments: {
+        entity_id: "file:src/server.ts",
+        depth: 2,
+        direction: "outgoing",
+        include_edges: true
+      }
+    });
+    assert.notEqual(result.isError, true);
+    const sc = result.structuredContent;
+    assert.ok(sc);
+    assert.equal(sc.entity_id, "file:src/server.ts");
+    assert.equal(sc.direction, "outgoing");
+    assert.ok(Array.isArray(sc.trace));
+    const traceIds = new Set(sc.trace.map((item) => item.id));
+    assert.ok(traceIds.has("chunk:src/search.ts:runContextSearch:1-25"));
+    assert.ok(Array.isArray(sc.edges));
+    assert.ok(sc.edges.some((edge) => edge.relation === "CALLS"));
+  })
+);
+
+test(
+  "context.impact_analysis returns impacted callers for a chunk seed",
+  withFixtureClient(buildFixture().fixtureRoot, async (client) => {
+    const result = await client.callTool({
+      name: "context.impact_analysis",
+      arguments: {
+        entity_id: "chunk:src/search.ts:runContextSearch:1-25",
+        depth: 2,
+        top_k: 5,
+        direction: "incoming",
+        include_edges: true
+      }
+    });
+    assert.notEqual(result.isError, true);
+    const sc = result.structuredContent;
+    assert.ok(sc);
+    assert.equal(sc.resolved_seed_id, "chunk:src/search.ts:runContextSearch:1-25");
+    assert.equal(sc.direction, "incoming");
+    assert.ok(Array.isArray(sc.results));
+    assert.ok(sc.results.some((item) => item.id === "chunk:src/server.ts:registerTools:1-30"));
+    assert.ok(Array.isArray(sc.edges));
+    assert.ok(sc.edges.some((edge) => edge.relation === "CALLS"));
+  })
+);
+
+test(
+  "context.impact_analysis resolves a seed from query",
+  withFixtureClient(buildFixture().fixtureRoot, async (client) => {
+    const result = await client.callTool({
+      name: "context.impact_analysis",
+      arguments: {
+        query: "runContextSearch",
+        depth: 2,
+        top_k: 5,
+        direction: "incoming",
+        include_edges: false
+      }
+    });
+    assert.notEqual(result.isError, true);
+    const sc = result.structuredContent;
+    assert.ok(sc);
+    assert.equal(sc.resolved_from_query, true);
+    assert.equal(sc.resolved_seed_id, "chunk:src/search.ts:runContextSearch:1-25");
+    assert.ok(Array.isArray(sc.query_results));
+    assert.ok(Array.isArray(sc.results));
+    assert.deepEqual(sc.edges, []);
+  })
+);
+
 test("context.get_rules filters by scope", async () => {
   await withClient(async (client) => {
     const globalResult = await client.callTool({
@@ -472,15 +810,18 @@ test("context.search include_deprecated shows deprecated entities", async () => 
   });
 });
 
-test("registered tools include exactly 4 tools", async () => {
+test("registered tools include the expected call graph and context tools", async () => {
   await withClient(async (client) => {
     const tools = await client.listTools();
     const toolNames = tools.tools.map((t) => t.name).sort();
     assert.deepEqual(toolNames, [
+      "context.find_callers",
       "context.get_related",
       "context.get_rules",
+      "context.impact_analysis",
       "context.reload",
-      "context.search"
+      "context.search",
+      "context.trace_calls"
     ]);
   });
 });

@@ -4,7 +4,13 @@ import { z } from "zod";
 import { reloadContextGraph } from "./graph.js";
 import { loadPlugins } from "./plugin.js";
 import { runContextRules } from "./rules.js";
-import { runContextRelated, runContextSearch } from "./search.js";
+import {
+  runContextFindCallers,
+  runContextImpactAnalysis,
+  runContextRelated,
+  runContextSearch,
+  runContextTraceCalls
+} from "./search.js";
 
 type ToolPayload = Record<string, unknown>;
 
@@ -20,6 +26,32 @@ const RelatedInput = z.object({
   depth: z.number().int().positive().max(3).default(1),
   include_edges: z.boolean().default(true)
 });
+
+const FindCallersInput = z.object({
+  entity_id: z.string().min(1),
+  depth: z.number().int().positive().max(4).default(1),
+  include_edges: z.boolean().default(true)
+});
+
+const TraceCallsInput = z.object({
+  entity_id: z.string().min(1),
+  depth: z.number().int().positive().max(4).default(2),
+  direction: z.enum(["outgoing", "incoming", "both"]).default("outgoing"),
+  include_edges: z.boolean().default(true)
+});
+
+const ImpactAnalysisInput = z
+  .object({
+    entity_id: z.string().min(1).optional(),
+    query: z.string().min(1).optional(),
+    depth: z.number().int().positive().max(4).default(2),
+    top_k: z.number().int().positive().max(20).default(8),
+    direction: z.enum(["incoming", "outgoing", "both"]).default("incoming"),
+    include_edges: z.boolean().default(true)
+  })
+  .refine((value) => Boolean(value.entity_id || value.query), {
+    message: "Either entity_id or query is required."
+  });
 
 const RulesInput = z.object({
   scope: z.string().optional(),
@@ -59,6 +91,34 @@ function registerTools(server: McpServer): void {
       inputSchema: RelatedInput
     },
     async (input) => buildToolResult(await runContextRelated(RelatedInput.parse(input ?? {})))
+  );
+
+  server.registerTool(
+    "context.find_callers",
+    {
+      description: "Return chunk callers for a chunk or file entity using the indexed call graph.",
+      inputSchema: FindCallersInput
+    },
+    async (input) => buildToolResult(await runContextFindCallers(FindCallersInput.parse(input ?? {})))
+  );
+
+  server.registerTool(
+    "context.trace_calls",
+    {
+      description: "Trace call graph neighbors from a chunk or file entity in the requested direction.",
+      inputSchema: TraceCallsInput
+    },
+    async (input) => buildToolResult(await runContextTraceCalls(TraceCallsInput.parse(input ?? {})))
+  );
+
+  server.registerTool(
+    "context.impact_analysis",
+    {
+      description: "Analyze likely impacted call-graph entities starting from an entity id or search query.",
+      inputSchema: ImpactAnalysisInput
+    },
+    async (input) =>
+      buildToolResult(await runContextImpactAnalysis(ImpactAnalysisInput.parse(input ?? {})))
   );
 
   server.registerTool(
