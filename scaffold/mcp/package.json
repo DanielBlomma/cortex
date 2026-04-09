@@ -20,7 +20,8 @@
   "overrides": {
     "cmake-js": "^8.0.0",
     "express-rate-limit": "^8.3.1",
-    "hono": "^4.12.7",
+    "hono": "^4.12.12",
+    "@hono/node-server": "^1.19.13",
     "tar": "^7.5.11"
   },
   "devDependencies": {
