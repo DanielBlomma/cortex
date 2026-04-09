@@ -40,6 +40,10 @@ jobs:
 
           node scripts/sync-release-version.mjs --check
 
+      - name: Install parser dependencies
+        working-directory: scripts/parsers
+        run: npm ci
+
       - name: Run root tests
         run: |
           node tests/context-regressions.test.mjs
