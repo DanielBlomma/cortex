@@ -1,8 +1,9 @@
+import { createRequire } from "node:module";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { reloadContextGraph } from "./graph.js";
-import { loadPlugins } from "./plugin.js";
+import { getToolCallHook, loadPlugins } from "./plugin.js";
 import { runContextRules } from "./rules.js";
 import {
   runContextFindCallers,
@@ -11,6 +12,13 @@ import {
   runContextSearch,
   runContextTraceCalls
 } from "./search.js";
+
+const require = createRequire(import.meta.url);
+const pkg = require("../../package.json") as { version: string };
+
+// Average file ~1200 tokens; cortex returns ~400 token snippets → savings ~800/result.
+// The enterprise collector adds resultCount * 400 to get the full "without cortex" total.
+const ESTIMATED_TOKENS_SAVED_PER_RESULT = 800;
 
 type ToolPayload = Record<string, unknown>;
 
@@ -102,6 +110,13 @@ function buildToolResult(data: ToolPayload) {
   };
 }
 
+function notifyToolCall(toolName: string, result: ToolPayload): void {
+  const hook = getToolCallHook();
+  if (!hook) return;
+  const resultCount = Array.isArray(result.results) ? result.results.length : 0;
+  hook(toolName, resultCount, resultCount * ESTIMATED_TOKENS_SAVED_PER_RESULT);
+}
+
 function registerTools(server: McpServer): void {
   server.registerTool(
     "context.search",
@@ -109,7 +124,11 @@ function registerTools(server: McpServer): void {
       description: "Search ranked context documents and code using semantic, graph and trust weighting.",
       inputSchema: SearchInput
     },
-    async (input) => buildToolResult(await runContextSearch(SearchInput.parse(input ?? {})))
+    async (input) => {
+      const result = await runContextSearch(SearchInput.parse(input ?? {}));
+      notifyToolCall("context.search", result);
+      return buildToolResult(result);
+    }
   );
 
   server.registerTool(
@@ -118,7 +137,11 @@ function registerTools(server: McpServer): void {
       description: "Return related entities and graph edges for a context entity id.",
       inputSchema: RelatedInput
     },
-    async (input) => buildToolResult(await runContextRelated(RelatedInput.parse(input ?? {})))
+    async (input) => {
+      const result = await runContextRelated(RelatedInput.parse(input ?? {}));
+      notifyToolCall("context.get_related", result);
+      return buildToolResult(result);
+    }
   );
 
   server.registerTool(
@@ -127,7 +150,11 @@ function registerTools(server: McpServer): void {
       description: "Return chunk callers for a chunk or file entity using the indexed call graph.",
       inputSchema: FindCallersInput
     },
-    async (input) => buildToolResult(await runContextFindCallers(FindCallersInput.parse(input ?? {})))
+    async (input) => {
+      const result = await runContextFindCallers(FindCallersInput.parse(input ?? {}));
+      notifyToolCall("context.find_callers", result);
+      return buildToolResult(result);
+    }
   );
 
   server.registerTool(
@@ -136,7 +163,11 @@ function registerTools(server: McpServer): void {
       description: "Trace call graph neighbors from a chunk or file entity in the requested direction.",
       inputSchema: TraceCallsInput
     },
-    async (input) => buildToolResult(await runContextTraceCalls(TraceCallsInput.parse(input ?? {})))
+    async (input) => {
+      const result = await runContextTraceCalls(TraceCallsInput.parse(input ?? {}));
+      notifyToolCall("context.trace_calls", result);
+      return buildToolResult(result);
+    }
   );
 
   server.registerTool(
@@ -145,8 +176,11 @@ function registerTools(server: McpServer): void {
       description: "Analyze likely impacted call-graph entities starting from an entity id or search query.",
       inputSchema: ImpactAnalysisInput
     },
-    async (input) =>
-      buildToolResult(await runContextImpactAnalysis(ImpactAnalysisInput.parse(input ?? {})))
+    async (input) => {
+      const result = await runContextImpactAnalysis(ImpactAnalysisInput.parse(input ?? {}));
+      notifyToolCall("context.impact_analysis", result);
+      return buildToolResult(result);
+    }
   );
 
   server.registerTool(
@@ -155,7 +189,11 @@ function registerTools(server: McpServer): void {
       description: "List indexed rules filtered by scope and active status.",
       inputSchema: RulesInput.optional()
     },
-    async (input) => buildToolResult(await runContextRules(RulesInput.parse(input ?? {})))
+    async (input) => {
+      const result = await runContextRules(RulesInput.parse(input ?? {}));
+      notifyToolCall("context.get_rules", result);
+      return buildToolResult(result);
+    }
   );
 
   server.registerTool(
@@ -166,7 +204,9 @@ function registerTools(server: McpServer): void {
     },
     async (input) => {
       const parsed = ReloadInput.parse(input ?? {});
-      return buildToolResult(await reloadContextGraph(parsed.force));
+      const result = await reloadContextGraph(parsed.force);
+      notifyToolCall("context.reload", result);
+      return buildToolResult(result);
     }
   );
 }
@@ -174,7 +214,7 @@ function registerTools(server: McpServer): void {
 async function main(): Promise<void> {
   const server = new McpServer({
     name: "cortex-context",
-    version: "0.1.0"
+    version: pkg.version
   });
 
   registerTools(server);

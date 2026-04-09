@@ -3,4 +3,5 @@ declare module "@danielblomma/cortex-enterprise" {
   export const name: string;
   export const version: string;
   export function register(server: McpServer): void | Promise<void>;
+  export function onToolCall(toolName: string, resultCount: number, tokensSaved: number): void;
 }
