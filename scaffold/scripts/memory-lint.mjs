@@ -6,8 +6,17 @@ import { parseFrontmatter, parseStringList } from "../mcp/dist/frontmatter.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+function normalizeForWsl(rawPath) {
+  const m = rawPath.match(/^([A-Za-z]):[/\\](.*)/);
+  if (!m) return rawPath;
+  try { if (!/microsoft|wsl/i.test(fs.readFileSync("/proc/version", "utf8"))) return rawPath; }
+  catch { return rawPath; }
+  return `/mnt/${m[1].toLowerCase()}/${m[2].replace(/\\/g, "/").replace(/\/+$/, "")}`;
+}
+
 const REPO_ROOT = process.env.CORTEX_PROJECT_ROOT
-  ? path.resolve(process.env.CORTEX_PROJECT_ROOT)
+  ? path.resolve(normalizeForWsl(process.env.CORTEX_PROJECT_ROOT))
   : path.resolve(__dirname, "..");
 const CONTEXT_DIR = path.join(REPO_ROOT, ".context");
 const MEMORY_DIR = path.join(CONTEXT_DIR, "memory");

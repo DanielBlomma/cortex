@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import { normalizeProjectRoot } from "./wsl.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -599,9 +600,9 @@ async function run() {
   }
 
   if (command === "mcp") {
-    const target = process.env.CORTEX_PROJECT_ROOT
-      ? path.resolve(process.env.CORTEX_PROJECT_ROOT)
-      : process.cwd();
+    const rawTarget = process.env.CORTEX_PROJECT_ROOT || process.cwd();
+    const target = path.resolve(normalizeProjectRoot(rawTarget));
+    process.env.CORTEX_PROJECT_ROOT = target;
     await ensureProjectInitializedForMcp(target);
     ensureProjectInitialized(target);
     const serverEntry = path.join(target, "mcp", "dist", "server.js");

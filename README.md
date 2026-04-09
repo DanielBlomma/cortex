@@ -131,6 +131,59 @@ Codex (`~/.config/codex/mcp-config.json`):
 }
 ```
 
+## WSL Mode (Windows)
+
+If you run Node.js inside WSL but use Claude Desktop or another MCP client on Windows:
+
+1. Install Cortex inside WSL:
+
+```bash
+# In a WSL terminal
+npm i -g @danielblomma/cortex-mcp
+cd /mnt/c/Users/yourname/your-project
+cortex init --bootstrap
+```
+
+2. Configure Claude Desktop (`%APPDATA%\Claude\claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "cortex": {
+      "command": "wsl.exe",
+      "args": ["--distribution", "Ubuntu", "--exec", "cortex", "mcp"],
+      "env": {
+        "CORTEX_PROJECT_ROOT": "C:\\Users\\yourname\\your-project",
+        "CORTEX_AUTO_BOOTSTRAP_ON_MCP": "1"
+      }
+    }
+  }
+}
+```
+
+Cortex automatically converts Windows paths (e.g. `C:\Users\...`) to WSL paths (`/mnt/c/Users/...`).
+
+For projects on the WSL filesystem (e.g. `~/projects/myapp`), use the WSL path directly:
+
+```json
+{
+  "mcpServers": {
+    "cortex": {
+      "command": "wsl.exe",
+      "args": ["--distribution", "Ubuntu", "--exec", "cortex", "mcp"],
+      "env": {
+        "CORTEX_PROJECT_ROOT": "/home/yourname/projects/myapp",
+        "CORTEX_AUTO_BOOTSTRAP_ON_MCP": "1"
+      }
+    }
+  }
+}
+```
+
+**Notes:**
+- File watching on `/mnt/` paths (Windows filesystem) automatically uses poll mode since `inotify` is unreliable across filesystem boundaries.
+- For best performance, keep projects on the WSL filesystem (`~/...`) rather than `/mnt/c/...`.
+
 ## MCP Tools
 
 ### `context.search`
@@ -152,6 +205,40 @@ Input:
 
 - `entity_id` (string, required)
 - `depth` (int, 1-3, default `1`)
+- `include_edges` (bool, default `true`)
+
+### `context.find_callers`
+
+Return chunk callers for a chunk or file entity using the indexed call graph.
+
+Input:
+
+- `entity_id` (string, required)
+- `depth` (int, 1-4, default `1`)
+- `include_edges` (bool, default `true`)
+
+### `context.trace_calls`
+
+Trace call graph neighbors from a chunk or file entity in the requested direction.
+
+Input:
+
+- `entity_id` (string, required)
+- `depth` (int, 1-4, default `2`)
+- `direction` (`"outgoing"` | `"incoming"` | `"both"`, default `"outgoing"`)
+- `include_edges` (bool, default `true`)
+
+### `context.impact_analysis`
+
+Analyze likely impacted call-graph entities starting from an entity id or search query.
+
+Input:
+
+- `entity_id` (string, optional) — either `entity_id` or `query` is required
+- `query` (string, optional)
+- `depth` (int, 1-4, default `2`)
+- `top_k` (int, 1-20, default `8`)
+- `direction` (`"incoming"` | `"outgoing"` | `"both"`, default `"incoming"`)
 - `include_edges` (bool, default `true`)
 
 ### `context.get_rules`
