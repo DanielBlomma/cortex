@@ -16,6 +16,7 @@ import {
 import { parseCode as parseConfigCode } from "./parsers/config.mjs";
 import { parseCode as parseResourcesCode } from "./parsers/resources.mjs";
 import { parseCode as parseSqlCode } from "./parsers/sql.mjs";
+import { parseCode as parseRustCode } from "./parsers/rust.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -272,6 +273,13 @@ const CHUNK_PARSERS = new Map([
       language: "cpp",
       parse: parseCppCode,
       isAvailable: isCppParserAvailable
+    }
+  ],
+  [
+    ".rs",
+    {
+      language: "rust",
+      parse: parseRustCode
     }
   ]
 ]);
