@@ -264,6 +264,53 @@ test("rust parser does not duplicate methods as top-level functions", () => {
   assert.ok(names.includes("standalone"));
 });
 
+test("rust parser handles impl inside mod without duplication", () => {
+  const source = [
+    "mod inner {",
+    "    struct Widget {",
+    "        id: u32,",
+    "    }",
+    "",
+    "    impl Widget {",
+    "        fn new(id: u32) -> Self {",
+    "            Widget { id }",
+    "        }",
+    "    }",
+    "}",
+    "",
+    "fn top_level() {",
+    "    other()",
+    "}"
+  ].join("\n");
+
+  const result = parseCode(source, "lib.rs", "rust");
+  const names = result.chunks.map((c) => c.name);
+
+  assert.ok(names.includes("inner"), "should have module");
+  assert.ok(names.includes("Widget"), "should have struct");
+  assert.ok(names.includes("Widget::new"), "should have method");
+  assert.ok(names.includes("top_level"), "should have top-level fn");
+  // "new" should not appear as a bare top-level function
+  assert.ok(!names.includes("new"), "bare 'new' should not appear as top-level function");
+});
+
+test("rust parser skips braces in comments when finding open brace", () => {
+  const source = [
+    "fn foo() // { not this brace",
+    "{",
+    "    bar()",
+    "}"
+  ].join("\n");
+
+  const result = parseCode(source, "lib.rs", "rust");
+  const fn_chunk = result.chunks.find((c) => c.name === "foo");
+
+  assert.ok(fn_chunk);
+  assert.equal(fn_chunk.kind, "function");
+  assert.equal(fn_chunk.startLine, 1);
+  assert.equal(fn_chunk.endLine, 4);
+});
+
 test("rust parser returns empty for non-Rust content", () => {
   const source = "This is just a plain text file with no Rust code.";
   const result = parseCode(source, "readme.txt", "rust");

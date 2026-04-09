@@ -9,13 +9,6 @@
  * No external dependencies — pure regex, always available.
  */
 
-import path from "node:path";
-
-const CONTROL_KEYWORDS = new Set([
-  "if", "for", "while", "loop", "match", "return", "sizeof",
-  "unsafe", "async", "move", "box"
-]);
-
 const CALL_KEYWORDS = new Set([
   "if", "for", "while", "loop", "match", "return",
   "Some", "None", "Ok", "Err", "Box", "Vec", "String",
@@ -200,8 +193,32 @@ function findMatchingBrace(text, openBraceIndex) {
 }
 
 function findOpenBraceAfterMatch(code, matchEnd) {
+  let inLineComment = false;
+  let inBlockComment = false;
+  let inString = false;
+  let stringChar = "";
+
   for (let i = matchEnd; i < code.length; i += 1) {
     const ch = code[i];
+    const next = code[i + 1];
+
+    if (inLineComment) {
+      if (ch === "\n") inLineComment = false;
+      continue;
+    }
+    if (inBlockComment) {
+      if (ch === "*" && next === "/") { inBlockComment = false; i += 1; }
+      continue;
+    }
+    if (inString) {
+      if (ch === "\\" && next) { i += 1; continue; }
+      if (ch === stringChar) { inString = false; stringChar = ""; }
+      continue;
+    }
+    if (ch === "/" && next === "/") { inLineComment = true; i += 1; continue; }
+    if (ch === "/" && next === "*") { inBlockComment = true; i += 1; continue; }
+    if (ch === '"' || ch === "'") { inString = true; stringChar = ch; continue; }
+
     if (ch === "{") return i;
     if (ch === ";") return -1; // Declaration without body
   }
