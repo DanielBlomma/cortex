@@ -45,12 +45,16 @@ CREATE NODE TABLE IF NOT EXISTS Chunk(
   kind STRING,
   signature STRING,
   body STRING,
+  description STRING,
   start_line INT64,
   end_line INT64,
   language STRING,
+  exported BOOL,
   checksum STRING,
   updated_at STRING,
+  source_of_truth BOOL,
   trust_level INT64,
+  status STRING,
   PRIMARY KEY(id)
 );
 

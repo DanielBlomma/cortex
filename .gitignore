@@ -11,6 +11,7 @@ AGENTS.md
 .context/cache/
 .context/plan/
 .context/hooks/
+.context/enterprise.yml
 .npm-cache/
 
 # Node
@@ -28,4 +29,3 @@ scaffold/mcp/dist/
 .mcpregistry_registry_token
 # Cortex local storage
 mcp/node_modules/
-

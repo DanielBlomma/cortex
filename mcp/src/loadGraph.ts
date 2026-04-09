@@ -49,12 +49,16 @@ type ChunkEntity = {
   kind: string;
   signature: string;
   body: string;
+  description: string;
   start_line: number;
   end_line: number;
   language: string;
+  exported: boolean;
   checksum: string;
   updated_at: string;
+  source_of_truth: boolean;
   trust_level: number;
+  status: string;
 };
 
 type Relation = {
@@ -166,12 +170,16 @@ function parseChunks(raw: JsonObject[]): ChunkEntity[] {
         kind: asString(item.kind, "function"),
         signature: asString(item.signature),
         body: asString(item.body),
+        description: asString(item.description),
         start_line: asNumber(item.start_line, 0),
         end_line: asNumber(item.end_line, 0),
         language: asString(item.language, "javascript"),
+        exported: asBoolean(item.exported, false),
         checksum: asString(item.checksum),
         updated_at: asString(item.updated_at),
-        trust_level: asNumber(item.trust_level, TRUST_CHUNK_RYUGRAPH)
+        source_of_truth: asBoolean(item.source_of_truth, false),
+        trust_level: asNumber(item.trust_level, TRUST_CHUNK_RYUGRAPH),
+        status: asString(item.status, "active")
       };
     })
     .filter((value): value is ChunkEntity => value !== null);
@@ -403,12 +411,16 @@ async function main(): Promise<void> {
       kind: $kind,
       signature: $signature,
       body: $body,
+      description: $description,
       start_line: $start_line,
       end_line: $end_line,
       language: $language,
+      exported: $exported,
       checksum: $checksum,
       updated_at: $updated_at,
-      trust_level: $trust_level
+      source_of_truth: $source_of_truth,
+      trust_level: $trust_level,
+      status: $status
     });
   `);
 
