@@ -84,10 +84,18 @@ detect_event_backend() {
   return 1
 }
 
+is_wsl_mnt_path() {
+  grep -qi microsoft /proc/version 2>/dev/null && [[ "$REPO_ROOT" == /mnt/* ]]
+}
+
 resolve_mode() {
   case "$WATCH_MODE" in
     auto)
-      if EVENT_BACKEND="$(detect_event_backend)"; then
+      if is_wsl_mnt_path; then
+        echo "[watch] WSL detected with /mnt/ path, using poll mode (inotify unreliable on Windows mounts)"
+        WATCH_MODE="poll"
+        EVENT_BACKEND=""
+      elif EVENT_BACKEND="$(detect_event_backend)"; then
         WATCH_MODE="event"
       else
         WATCH_MODE="poll"
