@@ -12,6 +12,7 @@ let parseCppCode = null;
 let parseConfigCode = null;
 let parseResourcesCode = null;
 let parseSqlCode = null;
+let parseRustCode = null;
 let isVbNetParserAvailable = () => false;
 let isCppParserAvailable = () => false;
 
@@ -39,6 +40,9 @@ async function loadOptionalParsers() {
     }),
     import("./parsers/sql.mjs").then((module) => {
       parseSqlCode = module.parseCode;
+    }),
+    import("./parsers/rust.mjs").then((module) => {
+      parseRustCode = module.parseCode;
     })
   ];
 
@@ -311,6 +315,14 @@ const CHUNK_PARSERS = new Map([
       parse: (...args) => parseCppCode(...args),
       isAvailable: () =>
         typeof parseCppCode === "function" && isCppParserAvailable()
+    }
+  ],
+  [
+    ".rs",
+    {
+      language: "rust",
+      parse: (...args) => parseRustCode(...args),
+      isAvailable: () => typeof parseRustCode === "function"
     }
   ]
 ]);
