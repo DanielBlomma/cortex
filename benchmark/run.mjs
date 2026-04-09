@@ -17,7 +17,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { execSync, spawn } from 'child_process';
+import { execSync, execFileSync, spawn } from 'child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -119,18 +119,16 @@ function getCortexContext(repoPath, question) {
     // Try MCP query via cortex CLI
     const cortexBin = join(repoPath, 'bin', 'cortex.mjs');
     if (existsSync(cortexBin)) {
-      const result = execSync(
-        `node ${cortexBin} query "${question.replace(/"/g, '\\"')}"`,
-        { cwd: repoPath, timeout: 30000, encoding: 'utf-8' }
-      );
+      const result = execFileSync('node', [cortexBin, 'query', question], {
+        cwd: repoPath, timeout: 30000, encoding: 'utf-8'
+      });
       return result.trim();
     }
-    
+
     // Fallback: try cortex MCP server search
-    const result = execSync(
-      `mcporter call cortex search query="${question.replace(/"/g, '\\"')}" 2>/dev/null`,
-      { cwd: repoPath, timeout: 30000, encoding: 'utf-8' }
-    );
+    const result = execFileSync('mcporter', ['call', 'cortex', 'search', `query=${question}`], {
+      cwd: repoPath, timeout: 30000, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore']
+    });
     return result.trim();
   } catch (e) {
     console.warn(`  ⚠️  Could not get Cortex context: ${e.message}`);

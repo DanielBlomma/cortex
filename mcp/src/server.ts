@@ -62,15 +62,43 @@ const ReloadInput = z.object({
   force: z.boolean().default(true)
 });
 
+const MAX_RESULT_CHARS = 80_000;
+
+function truncateResults(data: ToolPayload): ToolPayload {
+  const json = JSON.stringify(data);
+  if (json.length <= MAX_RESULT_CHARS) return data;
+
+  const results = data.results;
+  if (!Array.isArray(results) || results.length === 0) return data;
+
+  // First pass: strip content fields from results
+  const stripped = results.map((r: Record<string, unknown>) => {
+    const { content, context_envelope, ...rest } = r;
+    void content;
+    void context_envelope;
+    return rest;
+  });
+  const pass1 = { ...data, results: stripped, truncated: true };
+  if (JSON.stringify(pass1).length <= MAX_RESULT_CHARS) return pass1;
+
+  // Second pass: reduce result count until it fits
+  let trimmed = stripped;
+  while (trimmed.length > 1 && JSON.stringify({ ...pass1, results: trimmed }).length > MAX_RESULT_CHARS) {
+    trimmed = trimmed.slice(0, trimmed.length - 1);
+  }
+  return { ...pass1, results: trimmed, truncated: true, original_count: results.length };
+}
+
 function buildToolResult(data: ToolPayload) {
+  const safeData = truncateResults(data);
   return {
     content: [
       {
         type: "text" as const,
-        text: JSON.stringify(data, null, 2)
+        text: JSON.stringify(safeData, null, 2)
       }
     ],
-    structuredContent: data
+    structuredContent: safeData
   };
 }
 

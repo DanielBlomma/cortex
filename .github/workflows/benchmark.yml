@@ -63,13 +63,16 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           BENCH_MODEL: claude-sonnet-4-20250514
           BENCH_JUDGE_MODEL: claude-sonnet-4-20250514
+          INPUT_THRESHOLD: ${{ inputs.threshold || '70' }}
+          INPUT_TASKS: ${{ inputs.tasks }}
+          INPUT_RUNS: ${{ inputs.runs || '1' }}
         run: |
-          ARGS="--repo . --ci --threshold ${{ inputs.threshold || '70' }} --with-cortex-only"
-          if [ -n "${{ inputs.tasks }}" ]; then
-            ARGS="$ARGS --tasks ${{ inputs.tasks }}"
+          ARGS="--repo . --ci --threshold ${INPUT_THRESHOLD} --with-cortex-only"
+          if [ -n "${INPUT_TASKS}" ]; then
+            ARGS="$ARGS --tasks ${INPUT_TASKS}"
           fi
-          if [ -n "${{ inputs.runs }}" ]; then
-            ARGS="$ARGS --runs ${{ inputs.runs || '1' }}"
+          if [ -n "${INPUT_RUNS}" ]; then
+            ARGS="$ARGS --runs ${INPUT_RUNS}"
           fi
           node benchmark/run.mjs $ARGS
 
