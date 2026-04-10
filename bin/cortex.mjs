@@ -56,6 +56,7 @@ function printHelp() {
   console.log("  cortex ingest [--changed] [--verbose]");
   console.log("  cortex embed [--changed]");
   console.log("  cortex graph-load [--no-reset]");
+  console.log("  cortex dashboard [--interval <sec>]");
   console.log("  cortex memory-compile [--dry-run] [--verbose]");
   console.log("  cortex memory-lint [--verbose] [--json]");
   console.log("  cortex help");
