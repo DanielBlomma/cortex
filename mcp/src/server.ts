@@ -3,7 +3,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { reloadContextGraph } from "./graph.js";
-import { getToolCallHook, loadPlugins } from "./plugin.js";
+import { getToolCallHook, getSessionEndHook, loadPlugins } from "./plugin.js";
+import type { SessionCallRecord } from "./plugin.js";
+import { captureSession } from "./session-capture.js";
 import { runContextRules } from "./rules.js";
 import {
   runContextFindCallers,
@@ -21,6 +23,8 @@ const pkg = require("../../package.json") as { version: string };
 const ESTIMATED_TOKENS_SAVED_PER_RESULT = 800;
 
 type ToolPayload = Record<string, unknown>;
+
+const sessionCalls: SessionCallRecord[] = [];
 
 const SearchInput = z.object({
   query: z.string().min(1),
@@ -143,10 +147,17 @@ function summarizeSearchResults(query: string, results: SearchResultItem[]): str
 }
 
 function notifyToolCall(toolName: string, result: ToolPayload): void {
-  const hook = getToolCallHook();
-  if (!hook) return;
   const resultCount = Array.isArray(result.results) ? result.results.length : 0;
-  hook(toolName, resultCount, resultCount * ESTIMATED_TOKENS_SAVED_PER_RESULT);
+  sessionCalls.push({
+    tool: toolName,
+    query: typeof result.query === "string" ? result.query : undefined,
+    resultCount,
+    time: new Date().toISOString()
+  });
+  const hook = getToolCallHook();
+  if (hook) {
+    hook(toolName, resultCount, resultCount * ESTIMATED_TOKENS_SAVED_PER_RESULT);
+  }
 }
 
 function registerTools(server: McpServer): void {
@@ -247,6 +258,25 @@ function registerTools(server: McpServer): void {
   );
 }
 
+async function onShutdown(): Promise<void> {
+  const contextDir = process.env.CORTEX_PROJECT_ROOT
+    ? `${process.env.CORTEX_PROJECT_ROOT}/.context`
+    : `${process.cwd()}/.context`;
+  try {
+    captureSession(sessionCalls, contextDir);
+  } catch {
+    // Best effort — don't block shutdown
+  }
+  const hook = getSessionEndHook();
+  if (hook) {
+    try {
+      await hook(sessionCalls);
+    } catch {
+      // Best effort
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const server = new McpServer({
     name: "cortex-context",
@@ -255,6 +285,11 @@ async function main(): Promise<void> {
 
   registerTools(server);
   await loadPlugins(server);
+
+  process.on("beforeExit", () => { onShutdown().catch(() => {}); });
+  process.once("SIGTERM", () => { onShutdown().catch(() => {}); });
+  process.once("SIGINT", () => { onShutdown().catch(() => {}); });
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
