@@ -250,7 +250,7 @@ async function onShutdown(): Promise<void> {
   if (hook) {
     try {
       await Promise.race([
-        hook(sessionCalls),
+        hook([...sessionCalls]),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error("shutdown hook timeout")), SHUTDOWN_TIMEOUT_MS))
       ]);
     } catch {
@@ -268,7 +268,6 @@ async function main(): Promise<void> {
   registerTools(server);
   await loadPlugins(server);
 
-  process.on("beforeExit", () => { onShutdown().catch(() => {}); });
   process.once("SIGTERM", () => { onShutdown().then(() => process.exit(0)).catch(() => process.exit(1)); });
   process.once("SIGINT", () => { onShutdown().then(() => process.exit(0)).catch(() => process.exit(1)); });
 
