@@ -3,7 +3,10 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { reloadContextGraph } from "./graph.js";
-import { getToolCallHook, loadPlugins } from "./plugin.js";
+import { getToolCallHook, getSessionEndHook, loadPlugins } from "./plugin.js";
+import type { SessionCallRecord } from "./plugin.js";
+import { captureSession } from "./session-capture.js";
+import { summarizeSearchResults, isSearchResultItem } from "./search-summary.js";
 import { runContextRules } from "./rules.js";
 import {
   runContextFindCallers,
@@ -22,11 +25,15 @@ const ESTIMATED_TOKENS_SAVED_PER_RESULT = 800;
 
 type ToolPayload = Record<string, unknown>;
 
+const MAX_SESSION_CALLS = 500;
+const sessionCalls: SessionCallRecord[] = [];
+
 const SearchInput = z.object({
   query: z.string().min(1),
   top_k: z.number().int().positive().max(20).default(5),
   include_deprecated: z.boolean().default(false),
-  include_content: z.boolean().default(false)
+  include_content: z.boolean().default(false),
+  summarize: z.boolean().default(false)
 });
 
 const RelatedInput = z.object({
@@ -111,10 +118,19 @@ function buildToolResult(data: ToolPayload) {
 }
 
 function notifyToolCall(toolName: string, result: ToolPayload): void {
-  const hook = getToolCallHook();
-  if (!hook) return;
   const resultCount = Array.isArray(result.results) ? result.results.length : 0;
-  hook(toolName, resultCount, resultCount * ESTIMATED_TOKENS_SAVED_PER_RESULT);
+  if (sessionCalls.length < MAX_SESSION_CALLS) {
+    sessionCalls.push({
+      tool: toolName,
+      query: typeof result.query === "string" ? result.query : undefined,
+      resultCount,
+      time: new Date().toISOString()
+    });
+  }
+  const hook = getToolCallHook();
+  if (hook) {
+    hook(toolName, resultCount, resultCount * ESTIMATED_TOKENS_SAVED_PER_RESULT);
+  }
 }
 
 function registerTools(server: McpServer): void {
@@ -125,9 +141,13 @@ function registerTools(server: McpServer): void {
       inputSchema: SearchInput
     },
     async (input) => {
-      const result = await runContextSearch(SearchInput.parse(input ?? {}));
-      notifyToolCall("context.search", result);
-      return buildToolResult(result);
+      const parsed = SearchInput.parse(input ?? {});
+      const result = await runContextSearch(parsed);
+      const finalResult = parsed.summarize && Array.isArray(result.results) && result.results.length > 0
+        ? { ...result, summary: summarizeSearchResults(parsed.query, result.results.filter(isSearchResultItem)) }
+        : result;
+      notifyToolCall("context.search", finalResult);
+      return buildToolResult(finalResult);
     }
   );
 
@@ -211,6 +231,34 @@ function registerTools(server: McpServer): void {
   );
 }
 
+let shutdownCalled = false;
+
+const SHUTDOWN_TIMEOUT_MS = 3000;
+
+async function onShutdown(): Promise<void> {
+  if (shutdownCalled) return;
+  shutdownCalled = true;
+  const contextDir = process.env.CORTEX_PROJECT_ROOT
+    ? `${process.env.CORTEX_PROJECT_ROOT}/.context`
+    : `${process.cwd()}/.context`;
+  try {
+    await captureSession(sessionCalls, contextDir);
+  } catch {
+    // Best effort — don't block shutdown
+  }
+  const hook = getSessionEndHook();
+  if (hook) {
+    try {
+      await Promise.race([
+        hook([...sessionCalls]),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("shutdown hook timeout")), SHUTDOWN_TIMEOUT_MS))
+      ]);
+    } catch {
+      // Best effort — don't block shutdown
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const server = new McpServer({
     name: "cortex-context",
@@ -219,6 +267,10 @@ async function main(): Promise<void> {
 
   registerTools(server);
   await loadPlugins(server);
+
+  process.once("SIGTERM", () => { onShutdown().then(() => process.exit(0)).catch(() => process.exit(1)); });
+  process.once("SIGINT", () => { onShutdown().then(() => process.exit(0)).catch(() => process.exit(1)); });
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
