@@ -26,7 +26,8 @@ const SearchInput = z.object({
   query: z.string().min(1),
   top_k: z.number().int().positive().max(20).default(5),
   include_deprecated: z.boolean().default(false),
-  include_content: z.boolean().default(false)
+  include_content: z.boolean().default(false),
+  summarize: z.boolean().default(false)
 });
 
 const RelatedInput = z.object({
@@ -110,6 +111,37 @@ function buildToolResult(data: ToolPayload) {
   };
 }
 
+type SearchResultItem = {
+  id?: string;
+  entity_type?: string;
+  title?: string;
+  path?: string;
+  score?: number;
+  excerpt?: string;
+  matched_rules?: string[];
+};
+
+function summarizeSearchResults(query: string, results: SearchResultItem[]): string {
+  const lines: string[] = [`Found ${results.length} result${results.length === 1 ? "" : "s"} for "${query}":\n`];
+
+  for (let i = 0; i < Math.min(results.length, 10); i++) {
+    const r = results[i];
+    const type = r.entity_type ?? "Unknown";
+    const label = r.title ?? r.path ?? r.id ?? "untitled";
+    const score = typeof r.score === "number" ? ` (score: ${r.score.toFixed(2)})` : "";
+    const excerpt = typeof r.excerpt === "string" ? r.excerpt.slice(0, 150).replace(/\n/g, " ").trim() : "";
+    lines.push(`${i + 1}. [${type}] ${label}${score}`);
+    if (excerpt) {
+      lines.push(`   ${excerpt}${r.excerpt && r.excerpt.length > 150 ? "..." : ""}`);
+    }
+    if (r.matched_rules && r.matched_rules.length > 0) {
+      lines.push(`   Rules: ${r.matched_rules.join(", ")}`);
+    }
+  }
+
+  return lines.join("\n").slice(0, 2000);
+}
+
 function notifyToolCall(toolName: string, result: ToolPayload): void {
   const hook = getToolCallHook();
   if (!hook) return;
@@ -125,7 +157,11 @@ function registerTools(server: McpServer): void {
       inputSchema: SearchInput
     },
     async (input) => {
-      const result = await runContextSearch(SearchInput.parse(input ?? {}));
+      const parsed = SearchInput.parse(input ?? {});
+      const result = await runContextSearch(parsed);
+      if (parsed.summarize && Array.isArray(result.results) && result.results.length > 0) {
+        result.summary = summarizeSearchResults(parsed.query, result.results as SearchResultItem[]);
+      }
       notifyToolCall("context.search", result);
       return buildToolResult(result);
     }
