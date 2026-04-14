@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MCP_DIR="$REPO_ROOT/mcp"
-TOTAL_STEPS=5
+TOTAL_STEPS=6
 STEP_INDEX=0
 
 print_logo() {
@@ -37,6 +37,22 @@ step "Installing MCP dependencies"
 info "note: upstream RyuGraph dependencies may print deprecation warnings during install"
 NPM_CONFIG_CACHE="$MCP_DIR/.npm-cache" npm --prefix "$MCP_DIR" install --no-fund --no-update-notifier --loglevel=warn
 NPM_CONFIG_CACHE="$REPO_ROOT/scripts/parsers/.npm-cache" npm --prefix "$REPO_ROOT/scripts/parsers" install --no-fund --no-update-notifier --loglevel=warn
+
+step "Checking for enterprise plugin"
+ENTERPRISE_CONFIG="$REPO_ROOT/.context/enterprise.yml"
+if [[ ! -f "$ENTERPRISE_CONFIG" ]]; then
+  ENTERPRISE_CONFIG="$REPO_ROOT/.context/enterprise.yaml"
+fi
+if [[ -f "$ENTERPRISE_CONFIG" ]]; then
+  info "detected enterprise config; installing @danielblomma/cortex-enterprise"
+  if NPM_CONFIG_CACHE="$MCP_DIR/.npm-cache" npm --prefix "$MCP_DIR" install --no-fund --no-update-notifier --loglevel=warn "@danielblomma/cortex-enterprise@latest" 2>/dev/null; then
+    info "enterprise plugin installed"
+  else
+    info "warning: failed to install enterprise plugin; continuing in community mode"
+  fi
+else
+  info "no enterprise config found; community mode"
+fi
 
 step "Indexing repository context"
 "$REPO_ROOT/scripts/ingest.sh"
