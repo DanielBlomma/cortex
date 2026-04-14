@@ -29,22 +29,22 @@ test.afterEach(() => {
 
 // --- captureSession ---
 
-test("captureSession returns false for fewer than 3 calls", () => {
-  assert.equal(captureSession(makeCalls(2), tmpDir), false);
-  assert.equal(captureSession([], tmpDir), false);
-  assert.equal(captureSession(makeCalls(1), tmpDir), false);
+test("captureSession returns false for fewer than 3 calls", async () => {
+  assert.equal(await captureSession(makeCalls(2), tmpDir), false);
+  assert.equal(await captureSession([], tmpDir), false);
+  assert.equal(await captureSession(makeCalls(1), tmpDir), false);
 });
 
-test("captureSession returns true and creates file for >= 3 calls", () => {
-  assert.equal(captureSession(makeCalls(3), tmpDir), true);
+test("captureSession returns true and creates file for >= 3 calls", async () => {
+  assert.equal(await captureSession(makeCalls(3), tmpDir), true);
   const rawDir = path.join(tmpDir, "memory", "raw");
   const files = fs.readdirSync(rawDir);
   assert.equal(files.length, 1);
   assert.match(files[0], /^auto-session-.*\.md$/);
 });
 
-test("captureSession writes correct YAML frontmatter", () => {
-  captureSession(makeCalls(4), tmpDir);
+test("captureSession writes correct YAML frontmatter", async () => {
+  await captureSession(makeCalls(4), tmpDir);
   const rawDir = path.join(tmpDir, "memory", "raw");
   const file = fs.readdirSync(rawDir)[0];
   const content = fs.readFileSync(path.join(rawDir, file), "utf8");
@@ -58,12 +58,12 @@ test("captureSession writes correct YAML frontmatter", () => {
   assert.match(content, /updated_at: /);
 });
 
-test("captureSession includes top queries in output", () => {
+test("captureSession includes top queries in output", async () => {
   const calls = [
     ...makeCalls(2, { query: "repeated query" }),
     ...makeCalls(2, { query: "another query" })
   ];
-  captureSession(calls, tmpDir);
+  await captureSession(calls, tmpDir);
   const rawDir = path.join(tmpDir, "memory", "raw");
   const file = fs.readdirSync(rawDir)[0];
   const content = fs.readFileSync(path.join(rawDir, file), "utf8");
@@ -72,12 +72,12 @@ test("captureSession includes top queries in output", () => {
   assert.match(content, /another query/);
 });
 
-test("captureSession includes tool summary", () => {
+test("captureSession includes tool summary", async () => {
   const calls = [
     ...makeCalls(2, { tool: "context.search" }),
     ...makeCalls(1, { tool: "context.get_related" })
   ];
-  captureSession(calls, tmpDir);
+  await captureSession(calls, tmpDir);
   const rawDir = path.join(tmpDir, "memory", "raw");
   const file = fs.readdirSync(rawDir)[0];
   const content = fs.readFileSync(path.join(rawDir, file), "utf8");
@@ -86,9 +86,9 @@ test("captureSession includes tool summary", () => {
   assert.match(content, /context\.get_related: 1/);
 });
 
-test("captureSession computes duration from first to last call", () => {
+test("captureSession computes duration from first to last call", async () => {
   const calls = makeCalls(4); // 1 min apart → 3 min total
-  captureSession(calls, tmpDir);
+  await captureSession(calls, tmpDir);
   const rawDir = path.join(tmpDir, "memory", "raw");
   const file = fs.readdirSync(rawDir)[0];
   const content = fs.readFileSync(path.join(rawDir, file), "utf8");
@@ -96,9 +96,9 @@ test("captureSession computes duration from first to last call", () => {
   assert.match(content, /3 min/);
 });
 
-test("captureSession handles YAML-special characters in queries via single-quote escaping", () => {
+test("captureSession handles YAML-special characters in queries via single-quote escaping", async () => {
   const calls = makeCalls(3, { query: "key: value # comment {arr: [1]}" });
-  captureSession(calls, tmpDir);
+  await captureSession(calls, tmpDir);
   const rawDir = path.join(tmpDir, "memory", "raw");
   const file = fs.readdirSync(rawDir)[0];
   const content = fs.readFileSync(path.join(rawDir, file), "utf8");
@@ -110,9 +110,9 @@ test("captureSession handles YAML-special characters in queries via single-quote
   assert.match(content, /key: value # comment/);
 });
 
-test("captureSession escapes single quotes in topic", () => {
+test("captureSession escapes single quotes in topic", async () => {
   const calls = makeCalls(3, { query: "it's a test" });
-  captureSession(calls, tmpDir);
+  await captureSession(calls, tmpDir);
   const rawDir = path.join(tmpDir, "memory", "raw");
   const file = fs.readdirSync(rawDir)[0];
   const content = fs.readFileSync(path.join(rawDir, file), "utf8");

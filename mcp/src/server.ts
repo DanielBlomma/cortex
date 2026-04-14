@@ -233,6 +233,8 @@ function registerTools(server: McpServer): void {
 
 let shutdownCalled = false;
 
+const SHUTDOWN_TIMEOUT_MS = 3000;
+
 async function onShutdown(): Promise<void> {
   if (shutdownCalled) return;
   shutdownCalled = true;
@@ -240,16 +242,19 @@ async function onShutdown(): Promise<void> {
     ? `${process.env.CORTEX_PROJECT_ROOT}/.context`
     : `${process.cwd()}/.context`;
   try {
-    captureSession(sessionCalls, contextDir);
+    await captureSession(sessionCalls, contextDir);
   } catch {
     // Best effort — don't block shutdown
   }
   const hook = getSessionEndHook();
   if (hook) {
     try {
-      await hook(sessionCalls);
+      await Promise.race([
+        hook(sessionCalls),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("shutdown hook timeout")), SHUTDOWN_TIMEOUT_MS))
+      ]);
     } catch {
-      // Best effort
+      // Best effort — don't block shutdown
     }
   }
 }

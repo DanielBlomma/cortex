@@ -1,4 +1,4 @@
-import fs from "node:fs";
+import fs from "node:fs/promises";
 import path from "node:path";
 import type { SessionCallRecord } from "./plugin.js";
 
@@ -34,7 +34,7 @@ function primaryTopic(calls: SessionCallRecord[]): string {
   return topTool ? topTool[0] : "general exploration";
 }
 
-export function captureSession(calls: SessionCallRecord[], contextDir: string): boolean {
+export async function captureSession(calls: SessionCallRecord[], contextDir: string): Promise<boolean> {
   if (calls.length < MIN_CALLS_FOR_CAPTURE) {
     return false;
   }
@@ -83,9 +83,9 @@ ${queryLines || "No text queries recorded."}
 `;
 
   const rawDir = path.join(contextDir, "memory", "raw");
-  fs.mkdirSync(rawDir, { recursive: true });
+  await fs.mkdir(rawDir, { recursive: true });
   const filePath = path.join(rawDir, `auto-session-${timestamp}.md`);
-  fs.writeFileSync(filePath, content, "utf8");
+  await fs.writeFile(filePath, content, "utf8");
   return true;
 }
 

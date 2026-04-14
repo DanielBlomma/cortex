@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Keep in sync with scripts/bootstrap.sh
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MCP_DIR="$REPO_ROOT/mcp"
@@ -39,21 +38,7 @@ info "note: upstream RyuGraph dependencies may print deprecation warnings during
 NPM_CONFIG_CACHE="$MCP_DIR/.npm-cache" npm --prefix "$MCP_DIR" install --no-fund --no-update-notifier --loglevel=warn
 NPM_CONFIG_CACHE="$REPO_ROOT/scripts/parsers/.npm-cache" npm --prefix "$REPO_ROOT/scripts/parsers" install --no-fund --no-update-notifier --loglevel=warn
 
-step "Checking for enterprise plugin"
-ENTERPRISE_CONFIG="$REPO_ROOT/.context/enterprise.yml"
-if [[ ! -f "$ENTERPRISE_CONFIG" ]]; then
-  ENTERPRISE_CONFIG="$REPO_ROOT/.context/enterprise.yaml"
-fi
-if [[ -f "$ENTERPRISE_CONFIG" ]]; then
-  info "detected enterprise config; installing @danielblomma/cortex-enterprise"
-  if NPM_CONFIG_CACHE="$MCP_DIR/.npm-cache" npm --prefix "$MCP_DIR" install --no-fund --no-update-notifier --loglevel=warn "@danielblomma/cortex-enterprise@^1"; then
-    info "enterprise plugin installed"
-  else
-    info "warning: failed to install enterprise plugin; continuing in community mode"
-  fi
-else
-  info "no enterprise config found; community mode"
-fi
+source "$REPO_ROOT/scripts/lib/enterprise-check.sh"
 
 step "Indexing repository context"
 "$REPO_ROOT/scripts/ingest.sh"
