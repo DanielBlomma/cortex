@@ -403,26 +403,7 @@ function computeTopConnected() {
 
 // ── Data: estimate tokens per task (realistic comparison) ────
 function estimatePerTaskTokens(baseline) {
-  // Read all entity types for accurate excerpt averaging
-  const entityFiles = [
-    "entities.file.jsonl",
-    "entities.chunk.jsonl",
-    "entities.rule.jsonl",
-    "entities.adr.jsonl"
-  ];
-
-  let totalExcerptChars = 0;
-  let entityCount = 0;
-
-  for (const file of entityFiles) {
-    const entities = readJsonlSafe(path.join(CACHE_DIR, file));
-    for (const e of entities) {
-      totalExcerptChars += (e.excerpt || e.body || "").slice(0, 500).length;
-      entityCount++;
-    }
-  }
-
-  if (entityCount === 0 || baseline.files === 0) {
+  if (baseline.files === 0) {
     return { codebase: baseline.tokens, baselinePerTask: 0, cortexPerTask: 0,
              filesPerTask: 0, queriesPerTask: 0, ratio: 0, reduction: 0 };
   }
@@ -434,14 +415,13 @@ function estimatePerTaskTokens(baseline) {
   const baselinePerTask = filesPerTask * avgFileTokens;
 
   // --- With Cortex: ~3 search queries per task, top 5 results each ---
+  // Fixed cost per result: search returns truncated snippets + metadata.
+  // More entities in the index = better precision, NOT more tokens per query.
   const TYPICAL_SEARCHES_PER_TASK = 3;
   const topK = 5;
-  const avgExcerptChars = totalExcerptChars / entityCount;
-  // Per result: excerpt + JSON metadata (~350 chars for id, type, title, path, scores, etc.)
-  const perResultChars = avgExcerptChars + 350;
-  // Per query: top-K results + response wrapper (~300 chars for query, ranking, counts)
-  const perQueryChars = topK * perResultChars + 300;
-  const perQueryTokens = Math.round(perQueryChars / 4);
+  const PER_RESULT_CHARS = 850; // ~500 char snippet + ~350 char metadata
+  const PER_QUERY_OVERHEAD = 300; // query wrapper, ranking, counts
+  const perQueryTokens = Math.round((topK * PER_RESULT_CHARS + PER_QUERY_OVERHEAD) / 4);
   const cortexPerTask = TYPICAL_SEARCHES_PER_TASK * perQueryTokens;
 
   const ratio = cortexPerTask > 0 ? Math.round(baselinePerTask / cortexPerTask) : 0;
