@@ -258,7 +258,11 @@ function registerTools(server: McpServer): void {
   );
 }
 
+let shutdownCalled = false;
+
 async function onShutdown(): Promise<void> {
+  if (shutdownCalled) return;
+  shutdownCalled = true;
   const contextDir = process.env.CORTEX_PROJECT_ROOT
     ? `${process.env.CORTEX_PROJECT_ROOT}/.context`
     : `${process.cwd()}/.context`;
@@ -287,8 +291,8 @@ async function main(): Promise<void> {
   await loadPlugins(server);
 
   process.on("beforeExit", () => { onShutdown().catch(() => {}); });
-  process.once("SIGTERM", () => { onShutdown().catch(() => {}); });
-  process.once("SIGINT", () => { onShutdown().catch(() => {}); });
+  process.once("SIGTERM", () => { onShutdown().catch(() => {}).finally(() => process.exit(0)); });
+  process.once("SIGINT", () => { onShutdown().catch(() => {}).finally(() => process.exit(0)); });
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

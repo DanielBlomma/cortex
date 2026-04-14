@@ -4,17 +4,6 @@ import type { SessionCallRecord } from "./plugin.js";
 
 const MIN_CALLS_FOR_CAPTURE = 3;
 
-function groupByQuery(calls: SessionCallRecord[]): Map<string, SessionCallRecord[]> {
-  const groups = new Map<string, SessionCallRecord[]>();
-  for (const call of calls) {
-    const key = call.query ?? call.tool;
-    const group = groups.get(key) ?? [];
-    group.push(call);
-    groups.set(key, group);
-  }
-  return groups;
-}
-
 function topQueries(calls: SessionCallRecord[], limit: number): string[] {
   const queryCount = new Map<string, number>();
   for (const call of calls) {
