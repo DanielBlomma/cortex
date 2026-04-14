@@ -4,6 +4,10 @@ import type { SessionCallRecord } from "./plugin.js";
 
 const MIN_CALLS_FOR_CAPTURE = 3;
 
+function sanitizeYamlString(value: string): string {
+  return value.replace(/["\\]/g, "\\$&").replace(/\n/g, " ");
+}
+
 function topQueries(calls: SessionCallRecord[], limit: number): string[] {
   const queryCount = new Map<string, number>();
   for (const call of calls) {
@@ -55,10 +59,12 @@ export function captureSession(calls: SessionCallRecord[], contextDir: string): 
     .map((q, i) => `${i + 1}. ${q}`)
     .join("\n");
 
+  const safeTopic = sanitizeYamlString(topic);
+
   const content = `---
-title: "Session ${dateLabel} — ${topic}"
+title: "Session ${dateLabel} — ${safeTopic}"
 type: note
-summary: "${calls.length} tool calls, ${totalResults} results returned. Primary focus: ${topic}"
+summary: "${calls.length} tool calls, ${totalResults} results returned. Primary focus: ${safeTopic}"
 status: draft
 trust_level: 40
 updated_at: ${now.toISOString()}

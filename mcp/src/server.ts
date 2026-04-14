@@ -24,6 +24,7 @@ const ESTIMATED_TOKENS_SAVED_PER_RESULT = 800;
 
 type ToolPayload = Record<string, unknown>;
 
+const MAX_SESSION_CALLS = 500;
 const sessionCalls: SessionCallRecord[] = [];
 
 const SearchInput = z.object({
@@ -148,12 +149,14 @@ function summarizeSearchResults(query: string, results: SearchResultItem[]): str
 
 function notifyToolCall(toolName: string, result: ToolPayload): void {
   const resultCount = Array.isArray(result.results) ? result.results.length : 0;
-  sessionCalls.push({
-    tool: toolName,
-    query: typeof result.query === "string" ? result.query : undefined,
-    resultCount,
-    time: new Date().toISOString()
-  });
+  if (sessionCalls.length < MAX_SESSION_CALLS) {
+    sessionCalls.push({
+      tool: toolName,
+      query: typeof result.query === "string" ? result.query : undefined,
+      resultCount,
+      time: new Date().toISOString()
+    });
+  }
   const hook = getToolCallHook();
   if (hook) {
     hook(toolName, resultCount, resultCount * ESTIMATED_TOKENS_SAVED_PER_RESULT);
@@ -291,8 +294,8 @@ async function main(): Promise<void> {
   await loadPlugins(server);
 
   process.on("beforeExit", () => { onShutdown().catch(() => {}); });
-  process.once("SIGTERM", () => { onShutdown().catch(() => {}).finally(() => process.exit(0)); });
-  process.once("SIGINT", () => { onShutdown().catch(() => {}).finally(() => process.exit(0)); });
+  process.once("SIGTERM", () => { onShutdown().then(() => process.exit(0)).catch(() => process.exit(1)); });
+  process.once("SIGINT", () => { onShutdown().then(() => process.exit(0)).catch(() => process.exit(1)); });
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
