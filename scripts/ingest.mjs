@@ -8,12 +8,14 @@ import { parseCode } from "./parsers/javascript.mjs";
 
 const parseJavaScriptCode = parseCode;
 let parseVbNetCode = null;
+let parseCSharpCode = null;
 let parseCppCode = null;
 let parseConfigCode = null;
 let parseResourcesCode = null;
 let parseSqlCode = null;
 let parseRustCode = null;
 let isVbNetParserAvailable = () => false;
+let isCSharpParserAvailable = () => false;
 let isCppParserAvailable = () => false;
 
 async function loadOptionalParsers() {
@@ -23,6 +25,13 @@ async function loadOptionalParsers() {
       isVbNetParserAvailable =
         typeof module.isVbNetParserAvailable === "function"
           ? module.isVbNetParserAvailable
+          : () => typeof module.parseCode === "function";
+    }),
+    import("./parsers/csharp.mjs").then((module) => {
+      parseCSharpCode = module.parseCode;
+      isCSharpParserAvailable =
+        typeof module.isCSharpParserAvailable === "function"
+          ? module.isCSharpParserAvailable
           : () => typeof module.parseCode === "function";
     }),
     import("./parsers/cpp.mjs").then((module) => {
@@ -229,6 +238,15 @@ const CHUNK_PARSERS = new Map([
       parse: (...args) => parseVbNetCode(...args),
       isAvailable: () =>
         typeof parseVbNetCode === "function" && isVbNetParserAvailable()
+    }
+  ],
+  [
+    ".cs",
+    {
+      language: "csharp",
+      parse: (...args) => parseCSharpCode(...args),
+      isAvailable: () =>
+        typeof parseCSharpCode === "function" && isCSharpParserAvailable()
     }
   ],
   [

@@ -10,6 +10,10 @@ import {
   parseCode as parseVbNetCode
 } from "./parsers/vbnet.mjs";
 import {
+  isCSharpParserAvailable,
+  parseCode as parseCSharpCode
+} from "./parsers/csharp.mjs";
+import {
   isCppParserAvailable,
   parseCode as parseCppCode
 } from "./parsers/cpp.mjs";
@@ -197,6 +201,14 @@ const CHUNK_PARSERS = new Map([
       language: "vbnet",
       parse: parseVbNetCode,
       isAvailable: isVbNetParserAvailable
+    }
+  ],
+  [
+    ".cs",
+    {
+      language: "csharp",
+      parse: parseCSharpCode,
+      isAvailable: isCSharpParserAvailable
     }
   ],
   [
