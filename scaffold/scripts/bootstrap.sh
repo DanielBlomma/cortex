@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Keep in sync with scripts/bootstrap.sh
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MCP_DIR="$REPO_ROOT/mcp"
@@ -45,7 +46,7 @@ if [[ ! -f "$ENTERPRISE_CONFIG" ]]; then
 fi
 if [[ -f "$ENTERPRISE_CONFIG" ]]; then
   info "detected enterprise config; installing @danielblomma/cortex-enterprise"
-  if NPM_CONFIG_CACHE="$MCP_DIR/.npm-cache" npm --prefix "$MCP_DIR" install --no-fund --no-update-notifier --loglevel=warn "@danielblomma/cortex-enterprise@latest" 2>/dev/null; then
+  if NPM_CONFIG_CACHE="$MCP_DIR/.npm-cache" npm --prefix "$MCP_DIR" install --no-fund --no-update-notifier --loglevel=warn "@danielblomma/cortex-enterprise@^1"; then
     info "enterprise plugin installed"
   else
     info "warning: failed to install enterprise plugin; continuing in community mode"

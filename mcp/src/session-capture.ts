@@ -5,7 +5,7 @@ import type { SessionCallRecord } from "./plugin.js";
 const MIN_CALLS_FOR_CAPTURE = 3;
 
 function sanitizeYamlString(value: string): string {
-  return value.replace(/["\\]/g, "\\$&").replace(/\n/g, " ");
+  return value.replace(/'/g, "''").replace(/\n/g, " ");
 }
 
 function topQueries(calls: SessionCallRecord[], limit: number): string[] {
@@ -62,9 +62,9 @@ export function captureSession(calls: SessionCallRecord[], contextDir: string): 
   const safeTopic = sanitizeYamlString(topic);
 
   const content = `---
-title: "Session ${dateLabel} — ${safeTopic}"
+title: 'Session ${dateLabel} — ${safeTopic}'
 type: note
-summary: "${calls.length} tool calls, ${totalResults} results returned. Primary focus: ${safeTopic}"
+summary: '${calls.length} tool calls, ${totalResults} results returned. Primary focus: ${safeTopic}'
 status: draft
 trust_level: 40
 updated_at: ${now.toISOString()}

@@ -6,6 +6,7 @@ import { reloadContextGraph } from "./graph.js";
 import { getToolCallHook, getSessionEndHook, loadPlugins } from "./plugin.js";
 import type { SessionCallRecord } from "./plugin.js";
 import { captureSession } from "./session-capture.js";
+import { summarizeSearchResults, isSearchResultItem } from "./search-summary.js";
 import { runContextRules } from "./rules.js";
 import {
   runContextFindCallers,
@@ -116,37 +117,6 @@ function buildToolResult(data: ToolPayload) {
   };
 }
 
-type SearchResultItem = {
-  id?: string;
-  entity_type?: string;
-  title?: string;
-  path?: string;
-  score?: number;
-  excerpt?: string;
-  matched_rules?: string[];
-};
-
-function summarizeSearchResults(query: string, results: SearchResultItem[]): string {
-  const lines: string[] = [`Found ${results.length} result${results.length === 1 ? "" : "s"} for "${query}":\n`];
-
-  for (let i = 0; i < Math.min(results.length, 10); i++) {
-    const r = results[i];
-    const type = r.entity_type ?? "Unknown";
-    const label = r.title ?? r.path ?? r.id ?? "untitled";
-    const score = typeof r.score === "number" ? ` (score: ${r.score.toFixed(2)})` : "";
-    const excerpt = typeof r.excerpt === "string" ? r.excerpt.slice(0, 150).replace(/\n/g, " ").trim() : "";
-    lines.push(`${i + 1}. [${type}] ${label}${score}`);
-    if (excerpt) {
-      lines.push(`   ${excerpt}${r.excerpt && r.excerpt.length > 150 ? "..." : ""}`);
-    }
-    if (r.matched_rules && r.matched_rules.length > 0) {
-      lines.push(`   Rules: ${r.matched_rules.join(", ")}`);
-    }
-  }
-
-  return lines.join("\n").slice(0, 2000);
-}
-
 function notifyToolCall(toolName: string, result: ToolPayload): void {
   const resultCount = Array.isArray(result.results) ? result.results.length : 0;
   if (sessionCalls.length < MAX_SESSION_CALLS) {
@@ -173,11 +143,11 @@ function registerTools(server: McpServer): void {
     async (input) => {
       const parsed = SearchInput.parse(input ?? {});
       const result = await runContextSearch(parsed);
-      if (parsed.summarize && Array.isArray(result.results) && result.results.length > 0) {
-        result.summary = summarizeSearchResults(parsed.query, result.results as SearchResultItem[]);
-      }
-      notifyToolCall("context.search", result);
-      return buildToolResult(result);
+      const finalResult = parsed.summarize && Array.isArray(result.results) && result.results.length > 0
+        ? { ...result, summary: summarizeSearchResults(parsed.query, result.results.filter(isSearchResultItem)) }
+        : result;
+      notifyToolCall("context.search", finalResult);
+      return buildToolResult(finalResult);
     }
   );
 
