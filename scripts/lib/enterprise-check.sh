@@ -11,7 +11,7 @@ if [[ ! -f "$ENTERPRISE_CONFIG" ]]; then
 fi
 if [[ -f "$ENTERPRISE_CONFIG" ]]; then
   info "detected enterprise config; installing @danielblomma/cortex-enterprise"
-  if NPM_CONFIG_CACHE="$MCP_DIR/.npm-cache" npm --prefix "$MCP_DIR" install --no-fund --no-update-notifier --loglevel=warn "@danielblomma/cortex-enterprise@^1"; then
+  if NPM_CONFIG_CACHE="$MCP_DIR/.npm-cache" npm --prefix "$MCP_DIR" install --no-fund --no-update-notifier --loglevel=warn "@danielblomma/cortex-enterprise@latest"; then
     info "enterprise plugin installed"
   else
     info "warning: failed to install enterprise plugin; continuing in community mode"
