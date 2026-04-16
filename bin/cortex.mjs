@@ -145,6 +145,10 @@ function ensureScaffoldExists() {
   }
 }
 
+// Files that should never be overwritten if they already exist in the target.
+// These contain user-specific configuration that would be lost on re-init.
+const PRESERVE_FILES = new Set(["config.yaml", "enterprise.yml", "enterprise.yaml"]);
+
 function copyDirectory(sourceDir, targetDir) {
   fs.mkdirSync(targetDir, { recursive: true });
   const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
@@ -155,6 +159,11 @@ function copyDirectory(sourceDir, targetDir) {
 
     if (entry.isDirectory()) {
       copyDirectory(sourcePath, targetPath);
+      continue;
+    }
+
+    // Skip user-config files that already exist to avoid overwriting custom settings
+    if (PRESERVE_FILES.has(entry.name) && fs.existsSync(targetPath)) {
       continue;
     }
 
