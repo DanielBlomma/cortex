@@ -1,7 +1,7 @@
 {
   "name": "@danielblomma/cortex-mcp",
   "mcpName": "io.github.DanielBlomma/cortex",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Local, repo-scoped context platform for coding assistants. Semantic search, graph relationships, and architectural rule context.",
   "type": "module",
   "author": "Daniel Blomma",
