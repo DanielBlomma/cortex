@@ -4,6 +4,7 @@ import {
   getCSharpParserRuntime,
   isCSharpParserAvailable,
   parseCode,
+  parseProject,
   resetCSharpParserRuntimeCache
 } from "../scripts/parsers/csharp.mjs";
 import {
@@ -230,3 +231,111 @@ liveTest("scaffold csharp parser produces same results as main parser", () => {
 
   assert.deepEqual(main, scaffold);
 });
+
+// parseProject — batch mode with Roslyn SemanticModel
+
+liveTest("parseProject resolves cross-file calls to fully-qualified names", () => {
+  const result = parseProject([
+    {
+      path: "Helper.cs",
+      content: "namespace Demo; public class Helper { public int Compute(int x) => x * 2; }"
+    },
+    {
+      path: "App.cs",
+      content: "namespace Demo; public class App { public int Run(Helper h) => h.Compute(21); }"
+    }
+  ]);
+
+  const appChunks = result.get("App.cs").chunks;
+  const runChunk = appChunks.find((c) => c.name === "App.Run");
+  assert.ok(runChunk);
+  assert.ok(
+    runChunk.calls.includes("Demo.Helper.Compute"),
+    `expected fq-name "Demo.Helper.Compute" in calls, got: ${JSON.stringify(runChunk.calls)}`
+  );
+});
+
+liveTest("parseProject resolves BCL calls via loaded reference assemblies", () => {
+  const result = parseProject([
+    {
+      path: "Reader.cs",
+      content: "using System.IO; namespace Demo; public class Reader { public string Load(string p) => File.ReadAllText(p); }"
+    }
+  ]);
+
+  const loadChunk = result.get("Reader.cs").chunks.find((c) => c.name === "Reader.Load");
+  assert.ok(loadChunk);
+  assert.ok(
+    loadChunk.calls.includes("System.IO.File.ReadAllText"),
+    `expected fq BCL call, got: ${JSON.stringify(loadChunk.calls)}`
+  );
+});
+
+liveTest("parseProject disambiguates same-named methods in different types", () => {
+  const result = parseProject([
+    {
+      path: "Save.cs",
+      content: [
+        "namespace Demo;",
+        "public class UserRepo { public void Save(string u) { } }",
+        "public class OrderRepo { public void Save(string o) { } }",
+        "public class Caller {",
+        "  public void Run(UserRepo u, OrderRepo o) { u.Save(\"a\"); o.Save(\"b\"); }",
+        "}"
+      ].join("\n")
+    }
+  ]);
+
+  const runChunk = result.get("Save.cs").chunks.find((c) => c.name === "Caller.Run");
+  assert.ok(runChunk);
+  assert.ok(runChunk.calls.includes("Demo.UserRepo.Save"));
+  assert.ok(runChunk.calls.includes("Demo.OrderRepo.Save"));
+});
+
+liveTest("parseProject falls back to syntax name when symbol unresolved", () => {
+  const result = parseProject([
+    {
+      path: "Unknown.cs",
+      content: "namespace Demo; public class App { public void Run(dynamic x) { x.UnknownMethod(); } }"
+    }
+  ]);
+
+  const runChunk = result.get("Unknown.cs").chunks.find((c) => c.name === "App.Run");
+  assert.ok(runChunk);
+  assert.ok(
+    runChunk.calls.includes("UnknownMethod"),
+    `expected syntax fallback "UnknownMethod", got: ${JSON.stringify(runChunk.calls)}`
+  );
+});
+
+liveTest("parseProject returns empty map entries for empty file list", () => {
+  const result = parseProject([]);
+  assert.equal(result.size, 0);
+});
+
+liveTest("parseProject preserves per-file errors without aborting batch", () => {
+  const result = parseProject([
+    {
+      path: "Bad.cs",
+      content: "namespace Demo; public class Broken { public void Bad( { } }"
+    },
+    {
+      path: "Good.cs",
+      content: "namespace Demo; public class Good { public int Ok() => 1; }"
+    }
+  ]);
+
+  assert.ok(result.get("Bad.cs").errors.length > 0);
+  assert.equal(result.get("Bad.cs").chunks.length, 0);
+  const goodChunks = result.get("Good.cs").chunks;
+  assert.ok(goodChunks.find((c) => c.name === "Good"));
+  assert.ok(goodChunks.find((c) => c.name === "Good.Ok"));
+});
+
+test("parseProject falls back to empty results when dotnet runtime is missing", withMissingDotnetRuntime(() => {
+  const result = parseProject([
+    { path: "A.cs", content: "namespace X; public class A { }" }
+  ]);
+  assert.equal(result.size, 1);
+  assert.deepEqual(result.get("A.cs"), { chunks: [], errors: [] });
+}));

@@ -11,7 +11,8 @@ import {
 } from "./parsers/vbnet.mjs";
 import {
   isCSharpParserAvailable,
-  parseCode as parseCSharpCode
+  parseCode as parseCSharpCode,
+  parseProject as parseCSharpProject
 } from "./parsers/csharp.mjs";
 import {
   isCppParserAvailable,
@@ -2496,6 +2497,37 @@ function main() {
   const settingChunkIdsByAlias = new Map();
   const deferredSqlCallEdges = [];
 
+  // C# project-wide batch parse: compile all .cs files together via
+  // CSharpCompilation for SemanticModel-resolved calls. Falls back to
+  // per-file parse silently if batch isn't usable.
+  const csharpBatchCache = new Map();
+  if (
+    typeof parseCSharpProject === "function" &&
+    isCSharpParserAvailable() &&
+    process.env.CORTEX_CSHARP_BATCH !== "never"
+  ) {
+    const csharpFilesForBatch = fileRecords.filter((r) => {
+      if (r.kind !== "CODE") return false;
+      if (path.extname(r.path).toLowerCase() !== ".cs") return false;
+      return !incrementalMode || changedFileIds.has(r.id) || !cachedChunkFileIds.has(r.id);
+    });
+    if (csharpFilesForBatch.length > 0) {
+      const allCsharpInputs = fileRecords
+        .filter((r) => r.kind === "CODE" && path.extname(r.path).toLowerCase() === ".cs")
+        .map((r) => ({ path: r.path, content: r.content }));
+      try {
+        const batchResult = parseCSharpProject(allCsharpInputs);
+        for (const [filePath, result] of batchResult) {
+          csharpBatchCache.set(filePath, result);
+        }
+      } catch (error) {
+        if (verbose) {
+          console.log(`[ingest] C# batch parse failed, falling back per-file: ${error.message}`);
+        }
+      }
+    }
+  }
+
   for (const fileRecord of fileRecords) {
     const ext = path.extname(fileRecord.path).toLowerCase();
     const parser = getChunkParserForExtension(ext);
@@ -2520,7 +2552,9 @@ function main() {
     );
 
     try {
-      const parseResult = parser.parse(fileRecord.content, fileRecord.path, parser.language);
+      const parseResult = parser.language === "csharp" && csharpBatchCache.has(fileRecord.path)
+        ? csharpBatchCache.get(fileRecord.path)
+        : parser.parse(fileRecord.content, fileRecord.path, parser.language);
 
       if (parseResult.errors.length > 0 && verbose) {
         console.log(`[ingest] parse errors in ${fileRecord.path}:`, parseResult.errors[0].message);

@@ -4,9 +4,16 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 var options = ParseArgs(args);
+
+if (options.Batch)
+{
+    RunBatchMode();
+    return;
+}
+
 if (string.IsNullOrWhiteSpace(options.FilePath))
 {
-    Console.Error.WriteLine("Missing required --file argument.");
+    Console.Error.WriteLine("Missing required --file argument (or use --batch for project-wide mode).");
     Environment.Exit(1);
 }
 
@@ -14,12 +21,8 @@ var source = options.UseStdin
     ? Console.In.ReadToEnd()
     : File.ReadAllText(options.FilePath);
 
-var parseResult = ParseCSharp(source, options.FilePath, options.Language);
-var json = JsonSerializer.Serialize(parseResult, new JsonSerializerOptions
-{
-    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    WriteIndented = false
-});
+var parseResult = ParseCSharp(source, options.FilePath, options.Language, semanticModel: null);
+var json = JsonSerializer.Serialize(parseResult, JsonOut());
 
 Console.WriteLine(json);
 
@@ -48,16 +51,31 @@ static ParseOptions ParseArgs(string[] args)
                     options.Language = args[++index];
                 }
                 break;
+            case "--batch":
+                options.Batch = true;
+                break;
         }
     }
 
     return options;
 }
 
-static ParserOutput ParseCSharp(string source, string filePath, string language)
+static JsonSerializerOptions JsonOut() => new()
 {
-    var tree = CSharpSyntaxTree.ParseText(source, path: filePath);
-    var root = tree.GetCompilationUnitRoot();
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    WriteIndented = false
+};
+
+static JsonSerializerOptions JsonIn() => new()
+{
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    PropertyNameCaseInsensitive = true
+};
+
+static ParserOutput ParseCSharp(string source, string filePath, string language, SemanticModel? semanticModel)
+{
+    var tree = semanticModel?.SyntaxTree ?? CSharpSyntaxTree.ParseText(source, path: filePath);
+    var root = (CompilationUnitSyntax)tree.GetRoot();
     var diagnostics = tree.GetDiagnostics()
         .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
         .Select(diagnostic => new ParserError(
@@ -72,8 +90,55 @@ static ParserOutput ParseCSharp(string source, string filePath, string language)
         return new ParserOutput(new List<ChunkOutput>(), diagnostics);
     }
 
-    var collector = new CSharpChunkCollector(tree, root, source, language);
+    var collector = new CSharpChunkCollector(tree, root, source, language, semanticModel);
     return new ParserOutput(collector.Collect(), diagnostics);
+}
+
+static void RunBatchMode()
+{
+    var input = Console.In.ReadToEnd();
+    BatchInput? batch;
+    try
+    {
+        batch = JsonSerializer.Deserialize<BatchInput>(input, JsonIn());
+    }
+    catch (JsonException ex)
+    {
+        Console.Error.WriteLine($"Invalid batch JSON: {ex.Message}");
+        Environment.Exit(1);
+        return;
+    }
+
+    if (batch?.Files == null || batch.Files.Count == 0)
+    {
+        var empty = new BatchOutput { Files = new Dictionary<string, ParserOutput>() };
+        Console.WriteLine(JsonSerializer.Serialize(empty, JsonOut()));
+        return;
+    }
+
+    var trees = batch.Files
+        .Where(f => !string.IsNullOrEmpty(f.Path))
+        .Select(f => CSharpSyntaxTree.ParseText(f.Source ?? string.Empty, path: f.Path!))
+        .ToList();
+
+    var references = Basic.Reference.Assemblies.Net100.References.All.ToList();
+    var compilation = CSharpCompilation.Create(
+        "Cortex",
+        trees,
+        references,
+        new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
+    );
+
+    var result = new BatchOutput { Files = new Dictionary<string, ParserOutput>() };
+    foreach (var tree in trees)
+    {
+        var model = compilation.GetSemanticModel(tree);
+        var file = batch.Files.First(f => f.Path == tree.FilePath);
+        var parseResult = ParseCSharp(file.Source ?? string.Empty, tree.FilePath, "csharp", model);
+        result.Files[tree.FilePath] = parseResult;
+    }
+
+    Console.WriteLine(JsonSerializer.Serialize(result, JsonOut()));
 }
 
 sealed class CSharpChunkCollector
@@ -82,14 +147,16 @@ sealed class CSharpChunkCollector
     private readonly CompilationUnitSyntax _root;
     private readonly string _source;
     private readonly string _language;
+    private readonly SemanticModel? _model;
     private readonly string[] _imports;
 
-    public CSharpChunkCollector(SyntaxTree tree, CompilationUnitSyntax root, string source, string language)
+    public CSharpChunkCollector(SyntaxTree tree, CompilationUnitSyntax root, string source, string language, SemanticModel? model)
     {
         _tree = tree;
         _root = root;
         _source = source;
         _language = language;
+        _model = model;
         _imports = CollectUsings(root);
     }
 
@@ -97,7 +164,6 @@ sealed class CSharpChunkCollector
     {
         var usings = new List<string>();
 
-        // Top-level using directives (including global using)
         foreach (var directive in root.Usings)
         {
             var name = directive.Name?.ToString();
@@ -107,7 +173,6 @@ sealed class CSharpChunkCollector
             }
         }
 
-        // Namespace-scoped using directives
         foreach (var member in root.Members)
         {
             if (member is BaseNamespaceDeclarationSyntax ns)
@@ -129,12 +194,10 @@ sealed class CSharpChunkCollector
     public List<ChunkOutput> Collect()
     {
         var chunks = new List<ChunkOutput>();
-
         foreach (var member in _root.Members)
         {
             CollectMember(chunks, member, null);
         }
-
         return chunks;
     }
 
@@ -357,25 +420,50 @@ sealed class CSharpChunkCollector
         return modifiers.Any(modifier => modifier.IsKind(SyntaxKind.PublicKeyword));
     }
 
-    private static IReadOnlyCollection<string> GetCalls(SyntaxNode node)
+    private IReadOnlyCollection<string> GetCalls(SyntaxNode node)
     {
         return node.DescendantNodes()
             .OfType<InvocationExpressionSyntax>()
-            .Select(invocation => invocation.Expression)
-            .Select(GetInvocationName)
+            .Select(ResolveCallName)
             .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name!)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
     }
 
-    private static string? GetInvocationName(ExpressionSyntax expression)
+    private string? ResolveCallName(InvocationExpressionSyntax invocation)
+    {
+        if (_model != null)
+        {
+            var info = _model.GetSymbolInfo(invocation);
+            var method = info.Symbol as IMethodSymbol
+                ?? info.CandidateSymbols.OfType<IMethodSymbol>().FirstOrDefault();
+            if (method != null)
+            {
+                return FullyQualifiedMethodName(method);
+            }
+        }
+        return GetInvocationSyntaxName(invocation.Expression);
+    }
+
+    private static string FullyQualifiedMethodName(IMethodSymbol method)
+    {
+        var container = method.ContainingType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "";
+        if (container.StartsWith("global::", StringComparison.Ordinal))
+        {
+            container = container.Substring("global::".Length);
+        }
+        return string.IsNullOrEmpty(container) ? method.Name : $"{container}.{method.Name}";
+    }
+
+    private static string? GetInvocationSyntaxName(ExpressionSyntax expression)
     {
         return expression switch
         {
             IdentifierNameSyntax identifier => identifier.Identifier.Text,
             GenericNameSyntax genericName => genericName.Identifier.Text,
             MemberAccessExpressionSyntax memberAccess => memberAccess.Name.Identifier.Text,
-            InvocationExpressionSyntax nestedInvocation => GetInvocationName(nestedInvocation.Expression),
+            InvocationExpressionSyntax nestedInvocation => GetInvocationSyntaxName(nestedInvocation.Expression),
             _ => null
         };
     }
@@ -384,6 +472,7 @@ sealed class CSharpChunkCollector
 sealed record ParseOptions
 {
     public bool UseStdin { get; set; }
+    public bool Batch { get; set; }
     public string FilePath { get; set; } = "";
     public string Language { get; set; } = "csharp";
 }
@@ -404,3 +493,19 @@ sealed record ChunkOutput(
 sealed record ParserError(string Message, int Line, int Column);
 
 sealed record ParserOutput(List<ChunkOutput> Chunks, List<ParserError> Errors);
+
+sealed class BatchInput
+{
+    public List<BatchFile> Files { get; set; } = new();
+}
+
+sealed class BatchFile
+{
+    public string? Path { get; set; }
+    public string? Source { get; set; }
+}
+
+sealed class BatchOutput
+{
+    public Dictionary<string, ParserOutput> Files { get; set; } = new();
+}
