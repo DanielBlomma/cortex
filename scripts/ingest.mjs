@@ -18,6 +18,7 @@ let parseRustCode = null;
 let parsePythonCode = null;
 let parseGoCode = null;
 let parseJavaCode = null;
+let parseRubyCode = null;
 let isVbNetParserAvailable = () => false;
 let isCSharpParserAvailable = () => false;
 let isCppParserAvailable = () => false;
@@ -66,6 +67,9 @@ async function loadOptionalParsers() {
     }),
     import("./parsers/java-treesitter.mjs").then((module) => {
       parseJavaCode = module.parseCode;
+    }),
+    import("./parsers/ruby-treesitter.mjs").then((module) => {
+      parseRubyCode = module.parseCode;
     })
   ];
 
@@ -379,6 +383,14 @@ const CHUNK_PARSERS = new Map([
       language: "java",
       parse: (...args) => parseJavaCode(...args),
       isAvailable: () => typeof parseJavaCode === "function"
+    }
+  ],
+  [
+    ".rb",
+    {
+      language: "ruby",
+      parse: (...args) => parseRubyCode(...args),
+      isAvailable: () => typeof parseRubyCode === "function"
     }
   ]
 ]);

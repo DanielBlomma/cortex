@@ -25,6 +25,7 @@ import { parseCode as parseRustCode } from "./parsers/rust-dispatch.mjs";
 import { parseCode as parsePythonCode } from "./parsers/python-treesitter.mjs";
 import { parseCode as parseGoCode } from "./parsers/go-treesitter.mjs";
 import { parseCode as parseJavaCode } from "./parsers/java-treesitter.mjs";
+import { parseCode as parseRubyCode } from "./parsers/ruby-treesitter.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -317,6 +318,13 @@ const CHUNK_PARSERS = new Map([
     {
       language: "java",
       parse: parseJavaCode
+    }
+  ],
+  [
+    ".rb",
+    {
+      language: "ruby",
+      parse: parseRubyCode
     }
   ]
 ]);
