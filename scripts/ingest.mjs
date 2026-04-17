@@ -19,6 +19,7 @@ let parsePythonCode = null;
 let parseGoCode = null;
 let parseJavaCode = null;
 let parseRubyCode = null;
+let parseBashCode = null;
 let isVbNetParserAvailable = () => false;
 let isCSharpParserAvailable = () => false;
 let isCppParserAvailable = () => false;
@@ -70,6 +71,9 @@ async function loadOptionalParsers() {
     }),
     import("./parsers/ruby-treesitter.mjs").then((module) => {
       parseRubyCode = module.parseCode;
+    }),
+    import("./parsers/bash-treesitter.mjs").then((module) => {
+      parseBashCode = module.parseCode;
     })
   ];
 
@@ -391,6 +395,30 @@ const CHUNK_PARSERS = new Map([
       language: "ruby",
       parse: (...args) => parseRubyCode(...args),
       isAvailable: () => typeof parseRubyCode === "function"
+    }
+  ],
+  [
+    ".sh",
+    {
+      language: "bash",
+      parse: (...args) => parseBashCode(...args),
+      isAvailable: () => typeof parseBashCode === "function"
+    }
+  ],
+  [
+    ".bash",
+    {
+      language: "bash",
+      parse: (...args) => parseBashCode(...args),
+      isAvailable: () => typeof parseBashCode === "function"
+    }
+  ],
+  [
+    ".zsh",
+    {
+      language: "bash",
+      parse: (...args) => parseBashCode(...args),
+      isAvailable: () => typeof parseBashCode === "function"
     }
   ]
 ]);

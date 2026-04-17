@@ -26,6 +26,7 @@ import { parseCode as parsePythonCode } from "./parsers/python-treesitter.mjs";
 import { parseCode as parseGoCode } from "./parsers/go-treesitter.mjs";
 import { parseCode as parseJavaCode } from "./parsers/java-treesitter.mjs";
 import { parseCode as parseRubyCode } from "./parsers/ruby-treesitter.mjs";
+import { parseCode as parseBashCode } from "./parsers/bash-treesitter.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -325,6 +326,27 @@ const CHUNK_PARSERS = new Map([
     {
       language: "ruby",
       parse: parseRubyCode
+    }
+  ],
+  [
+    ".sh",
+    {
+      language: "bash",
+      parse: parseBashCode
+    }
+  ],
+  [
+    ".bash",
+    {
+      language: "bash",
+      parse: parseBashCode
+    }
+  ],
+  [
+    ".zsh",
+    {
+      language: "bash",
+      parse: parseBashCode
     }
   ]
 ]);
