@@ -17,7 +17,7 @@ import {
 import {
   isCppParserAvailable,
   parseCode as parseCppCode
-} from "./parsers/cpp.mjs";
+} from "./parsers/cpp-dispatch.mjs";
 import { parseCode as parseConfigCode } from "./parsers/config.mjs";
 import { parseCode as parseResourcesCode } from "./parsers/resources.mjs";
 import { parseCode as parseSqlCode } from "./parsers/sql.mjs";

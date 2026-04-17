@@ -40,7 +40,7 @@ async function loadOptionalParsers() {
           ? module.isCSharpParserAvailable
           : () => typeof module.parseCode === "function";
     }),
-    import("./parsers/cpp.mjs").then((module) => {
+    import("./parsers/cpp-dispatch.mjs").then((module) => {
       parseCppCode = module.parseCode;
       isCppParserAvailable =
         typeof module.isCppParserAvailable === "function"
