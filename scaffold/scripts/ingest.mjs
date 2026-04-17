@@ -27,6 +27,7 @@ import { parseCode as parseGoCode } from "./parsers/go-treesitter.mjs";
 import { parseCode as parseJavaCode } from "./parsers/java-treesitter.mjs";
 import { parseCode as parseRubyCode } from "./parsers/ruby-treesitter.mjs";
 import { parseCode as parseBashCode } from "./parsers/bash-treesitter.mjs";
+import { parseCode as parseVb6Code } from "./parsers/vb6.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -81,7 +82,11 @@ const SUPPORTED_TEXT_EXTENSIONS = new Set([
   ".cpp",
   ".hpp",
   ".cc",
-  ".hh"
+  ".hh",
+  ".bas",
+  ".cls",
+  ".frm",
+  ".ctl"
 ]);
 
 const LEGACY_DOTNET_METADATA_EXTENSIONS = new Set([
@@ -126,7 +131,11 @@ const CODE_FILE_EXTENSIONS = new Set([
   ".cpp",
   ".hpp",
   ".cc",
-  ".hh"
+  ".hh",
+  ".bas",
+  ".cls",
+  ".frm",
+  ".ctl"
 ]);
 
 const SQL_REFERENCE_SOURCE_EXTENSIONS = new Set([
@@ -347,6 +356,34 @@ const CHUNK_PARSERS = new Map([
     {
       language: "bash",
       parse: parseBashCode
+    }
+  ],
+  [
+    ".bas",
+    {
+      language: "vb6",
+      parse: parseVb6Code
+    }
+  ],
+  [
+    ".cls",
+    {
+      language: "vb6",
+      parse: parseVb6Code
+    }
+  ],
+  [
+    ".frm",
+    {
+      language: "vb6",
+      parse: parseVb6Code
+    }
+  ],
+  [
+    ".ctl",
+    {
+      language: "vb6",
+      parse: parseVb6Code
     }
   ]
 ]);

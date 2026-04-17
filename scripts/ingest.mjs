@@ -20,6 +20,7 @@ let parseGoCode = null;
 let parseJavaCode = null;
 let parseRubyCode = null;
 let parseBashCode = null;
+let parseVb6Code = null;
 let isVbNetParserAvailable = () => false;
 let isCSharpParserAvailable = () => false;
 let isCppParserAvailable = () => false;
@@ -74,6 +75,9 @@ async function loadOptionalParsers() {
     }),
     import("./parsers/bash-treesitter.mjs").then((module) => {
       parseBashCode = module.parseCode;
+    }),
+    import("./parsers/vb6.mjs").then((module) => {
+      parseVb6Code = module.parseCode;
     })
   ];
 
@@ -133,7 +137,11 @@ const SUPPORTED_TEXT_EXTENSIONS = new Set([
   ".cpp",
   ".hpp",
   ".cc",
-  ".hh"
+  ".hh",
+  ".bas",
+  ".cls",
+  ".frm",
+  ".ctl"
 ]);
 
 const LEGACY_DOTNET_METADATA_EXTENSIONS = new Set([
@@ -178,7 +186,11 @@ const CODE_FILE_EXTENSIONS = new Set([
   ".cpp",
   ".hpp",
   ".cc",
-  ".hh"
+  ".hh",
+  ".bas",
+  ".cls",
+  ".frm",
+  ".ctl"
 ]);
 
 const SQL_REFERENCE_SOURCE_EXTENSIONS = new Set([
@@ -419,6 +431,38 @@ const CHUNK_PARSERS = new Map([
       language: "bash",
       parse: (...args) => parseBashCode(...args),
       isAvailable: () => typeof parseBashCode === "function"
+    }
+  ],
+  [
+    ".bas",
+    {
+      language: "vb6",
+      parse: (...args) => parseVb6Code(...args),
+      isAvailable: () => typeof parseVb6Code === "function"
+    }
+  ],
+  [
+    ".cls",
+    {
+      language: "vb6",
+      parse: (...args) => parseVb6Code(...args),
+      isAvailable: () => typeof parseVb6Code === "function"
+    }
+  ],
+  [
+    ".frm",
+    {
+      language: "vb6",
+      parse: (...args) => parseVb6Code(...args),
+      isAvailable: () => typeof parseVb6Code === "function"
+    }
+  ],
+  [
+    ".ctl",
+    {
+      language: "vb6",
+      parse: (...args) => parseVb6Code(...args),
+      isAvailable: () => typeof parseVb6Code === "function"
     }
   ]
 ]);
