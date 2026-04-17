@@ -1,0 +1,3 @@
+{"from":"rule.source_of_truth","to":"file:docs/architecture.md","note":"Keyword match entities, retrieval, source, truth"}
+{"from":"rule.deprecated_filter","to":"file:docs/architecture.md","note":"Keyword match deprecated, entities, excluded, filter"}
+{"from":"rule.context_budget","to":"file:docs/architecture.md","note":"Keyword match blocks, evidence, runtime, signal, top"}

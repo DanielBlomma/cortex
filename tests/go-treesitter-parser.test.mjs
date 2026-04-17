@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCode } from "../scripts/parsers/go-treesitter.mjs";
+import { parseCode } from "../scaffold/scripts/parsers/go-treesitter.mjs";
 
 test("go parser extracts a top-level function", async () => {
   const source = [

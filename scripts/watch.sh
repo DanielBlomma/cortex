@@ -151,8 +151,8 @@ status_digest() {
     ! -path "$REPO_ROOT/mcp/node_modules/*" \
     ! -path "$REPO_ROOT/mcp/dist/*" \
     ! -path "$REPO_ROOT/mcp/.npm-cache/*" \
-    ! -path "$REPO_ROOT/scripts/parsers/node_modules/*" \
-    ! -path "$REPO_ROOT/scripts/parsers/.npm-cache/*" \
+    ! -path "$REPO_ROOT/scaffold/scripts/parsers/node_modules/*" \
+    ! -path "$REPO_ROOT/scaffold/scripts/parsers/.npm-cache/*" \
     -print \
     | LC_ALL=C sort \
     | shasum -a 1 \
@@ -201,7 +201,7 @@ wait_for_change_event() {
     inotifywait)
       inotifywait -q -r \
         -e modify,create,delete,move \
-        --exclude '(^|/)\\.git(/|$)|(^|/)\\.context(/|$)|(^|/)mcp/(node_modules|dist|\\.npm-cache)(/|$)|(^|/)scripts/parsers/(node_modules|\\.npm-cache)(/|$)' \
+        --exclude '(^|/)\\.git(/|$)|(^|/)\\.context(/|$)|(^|/)mcp/(node_modules|dist|\\.npm-cache)(/|$)|(^|/)scaffold/scripts/parsers/(node_modules|\\.npm-cache)(/|$)' \
         "$REPO_ROOT" >/dev/null 2>&1 || true
       ;;
     fswatch)
@@ -211,8 +211,8 @@ wait_for_change_event() {
         --exclude '(^|/)mcp/node_modules(/|$)' \
         --exclude '(^|/)mcp/dist(/|$)' \
         --exclude '(^|/)mcp/\\.npm-cache(/|$)' \
-        --exclude '(^|/)scripts/parsers/node_modules(/|$)' \
-        --exclude '(^|/)scripts/parsers/\\.npm-cache(/|$)' \
+        --exclude '(^|/)scaffold/scripts/parsers/node_modules(/|$)' \
+        --exclude '(^|/)scaffold/scripts/parsers/\\.npm-cache(/|$)' \
         "$REPO_ROOT" >/dev/null 2>&1 || true
       ;;
     *)

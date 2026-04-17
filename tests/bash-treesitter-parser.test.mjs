@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCode } from "../scripts/parsers/bash-treesitter.mjs";
+import { parseCode } from "../scaffold/scripts/parsers/bash-treesitter.mjs";
 
 test("bash parser extracts a function declared with function keyword", async () => {
   const source = [

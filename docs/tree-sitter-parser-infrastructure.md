@@ -29,13 +29,13 @@ Adopt **tree-sitter** (via `web-tree-sitter` WASM) as the shared infrastructure 
 
 - **Runtime:** `web-tree-sitter@0.22.6` (WASM runtime for tree-sitter). No native compilation on install — same binary works on Linux/macOS/Windows/WSL.
 - **Grammars:** `tree-sitter-wasms@0.1.13` ships pre-built WASM grammars for 40+ languages including all target languages (Rust, Python, Go, Java, Ruby, PHP, Kotlin, Swift, Bash).
-- **Base infrastructure:** `scripts/parsers/tree-sitter/base.mjs` — shared loader (cached per grammar), parser factory, query runner, and helpers (`groupByAnchor`, `lineRangeOf`, `bodyOf`, `dedupe`).
-- **Query format:** S-expression `.scm` files under `scripts/parsers/tree-sitter/queries/`, one per language per concern (`rust.chunks.scm`, `rust.calls.scm`, `rust.imports.scm`).
-- **Language modules:** thin adapters like `rust-treesitter.mjs` that pre-initialize the grammar via top-level `await` at module evaluation time. This lets `parseCode()` remain **synchronous**, matching the contract expected by `scripts/ingest.mjs` (which calls parsers inside its file loop).
+- **Base infrastructure:** `scaffold/scripts/parsers/tree-sitter/base.mjs` — shared loader (cached per grammar), parser factory, query runner, and helpers (`groupByAnchor`, `lineRangeOf`, `bodyOf`, `dedupe`).
+- **Query format:** S-expression `.scm` files under `scaffold/scripts/parsers/tree-sitter/queries/`, one per language per concern (`rust.chunks.scm`, `rust.calls.scm`, `rust.imports.scm`).
+- **Language modules:** thin adapters like `rust-treesitter.mjs` that pre-initialize the grammar via top-level `await` at module evaluation time. This lets `parseCode()` remain **synchronous**, matching the contract expected by `scaffold/scripts/ingest.mjs` (which calls parsers inside its file loop).
 
 ### Dispatch and fallback
 
-`scripts/parsers/rust-dispatch.mjs` selects the active parser via `CORTEX_RUST_PARSER`:
+`scaffold/scripts/parsers/rust-dispatch.mjs` selects the active parser via `CORTEX_RUST_PARSER`:
 
 | Env value | Behavior |
 |---|---|
@@ -43,7 +43,7 @@ Adopt **tree-sitter** (via `web-tree-sitter` WASM) as the shared infrastructure 
 | `tree-sitter` | force tree-sitter (error if WASM unavailable) |
 | `regex` | force regex parser |
 
-Both `scripts/ingest.mjs` and `scaffold/scripts/ingest.mjs` import `rust-dispatch.mjs` — single source of truth for the selection logic.
+`scaffold/scripts/ingest.mjs` imports `rust-dispatch.mjs` — single source of truth for the selection logic.
 
 ## Consequences
 
@@ -101,14 +101,14 @@ Run with a real corpus via `node benchmark/rust-parser-compare.mjs --corpus /pat
 
 ## Files
 
-- `scripts/parsers/tree-sitter/base.mjs` — runtime + helpers.
-- `scripts/parsers/tree-sitter/queries/rust.{chunks,calls,imports}.scm` — Rust queries.
-- `scripts/parsers/rust-treesitter.mjs` — adapter producing Cortex chunk shape.
-- `scripts/parsers/rust-dispatch.mjs` — env-based selector with auto-fallback.
-- `scripts/parsers/rust.mjs` — legacy regex parser (retained as fallback).
-- `scripts/ingest.mjs` — imports `rust-dispatch.mjs` instead of `rust.mjs` directly.
+- `scaffold/scripts/parsers/tree-sitter/base.mjs` — runtime + helpers.
+- `scaffold/scripts/parsers/tree-sitter/queries/rust.{chunks,calls,imports}.scm` — Rust queries.
+- `scaffold/scripts/parsers/rust-treesitter.mjs` — adapter producing Cortex chunk shape.
+- `scaffold/scripts/parsers/rust-dispatch.mjs` — env-based selector with auto-fallback.
+- `scaffold/scripts/parsers/rust.mjs` — legacy regex parser (retained as fallback).
+- `scaffold/scripts/ingest.mjs` — imports `rust-dispatch.mjs` instead of `rust.mjs` directly.
 - `scaffold/` — same three files mirrored; `ingest.mjs` mirrored.
-- `scripts/parsers/package.json` + lockfile — adds `web-tree-sitter` and `tree-sitter-wasms`.
+- `scaffold/scripts/parsers/package.json` + lockfile — adds `web-tree-sitter` and `tree-sitter-wasms`.
 
 ## Language-specific notes
 

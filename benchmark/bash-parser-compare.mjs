@@ -11,7 +11,7 @@
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, extname } from "node:path";
 import { performance } from "node:perf_hooks";
-import { parseCode as parseBash } from "../scripts/parsers/bash-treesitter.mjs";
+import { parseCode as parseBash } from "../scaffold/scripts/parsers/bash-treesitter.mjs";
 
 function parseArgs() {
   const args = process.argv.slice(2);

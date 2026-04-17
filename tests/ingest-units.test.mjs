@@ -26,7 +26,7 @@ import {
   generateSectionHandlerRelations,
   getChunkParserForExtension,
   resolveRelativeImportTargetId
-} from "../scripts/ingest.mjs";
+} from "../scaffold/scripts/ingest.mjs";
 
 // ─── detectKind / parser dispatch ────────────────────────────────────────────
 

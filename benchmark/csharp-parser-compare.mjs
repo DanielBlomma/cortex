@@ -17,7 +17,7 @@
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, extname } from "node:path";
 import { performance } from "node:perf_hooks";
-import { parseCode, parseProject, isCSharpParserAvailable } from "../scripts/parsers/csharp.mjs";
+import { parseCode, parseProject, isCSharpParserAvailable } from "../scaffold/scripts/parsers/csharp.mjs";
 
 function parseArgs() {
   const args = process.argv.slice(2);

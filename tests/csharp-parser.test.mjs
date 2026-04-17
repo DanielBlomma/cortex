@@ -6,11 +6,6 @@ import {
   parseCode,
   parseProject,
   resetCSharpParserRuntimeCache
-} from "../scripts/parsers/csharp.mjs";
-import {
-  getCSharpParserRuntime as getScaffoldCSharpParserRuntime,
-  parseCode as parseScaffoldCSharpCode,
-  resetCSharpParserRuntimeCache as resetScaffoldCSharpParserRuntimeCache
 } from "../scaffold/scripts/parsers/csharp.mjs";
 
 function withMissingDotnetRuntime(testFn) {
@@ -18,7 +13,6 @@ function withMissingDotnetRuntime(testFn) {
     const previous = process.env.CORTEX_DOTNET_CMD;
     process.env.CORTEX_DOTNET_CMD = "definitely-not-a-real-dotnet-command";
     resetCSharpParserRuntimeCache();
-    resetScaffoldCSharpParserRuntimeCache();
     try {
       await testFn();
     } finally {
@@ -28,7 +22,6 @@ function withMissingDotnetRuntime(testFn) {
         process.env.CORTEX_DOTNET_CMD = previous;
       }
       resetCSharpParserRuntimeCache();
-      resetScaffoldCSharpParserRuntimeCache();
     }
   };
 }
@@ -42,12 +35,6 @@ test("csharp parser runtime reports unavailable when dotnet is missing", withMis
   assert.match(runtime.reason ?? "", /not|spawn|command/i);
 }));
 
-test("scaffold csharp parser runtime reports unavailable when dotnet is missing", withMissingDotnetRuntime(() => {
-  const runtime = getScaffoldCSharpParserRuntime();
-  assert.equal(runtime.available, false);
-  assert.match(runtime.reason ?? "", /not|spawn|command/i);
-}));
-
 test("csharp parser falls back to empty structured output when runtime is unavailable", withMissingDotnetRuntime(() => {
   const source = [
     "public class Worker {",
@@ -56,17 +43,6 @@ test("csharp parser falls back to empty structured output when runtime is unavai
   ].join("\n");
 
   const result = parseCode(source, "Worker.cs", "csharp");
-  assert.deepEqual(result, { chunks: [], errors: [] });
-}));
-
-test("scaffold csharp parser falls back to empty structured output when runtime is unavailable", withMissingDotnetRuntime(() => {
-  const source = [
-    "public class Worker {",
-    "  public void Run() { }",
-    "}"
-  ].join("\n");
-
-  const result = parseScaffoldCSharpCode(source, "Worker.cs", "csharp");
   assert.deepEqual(result, { chunks: [], errors: [] });
 }));
 
@@ -214,22 +190,6 @@ liveTest("csharp parser reports syntax errors with line/column", () => {
   assert.ok(typeof result.errors[0].line === "number");
   assert.ok(typeof result.errors[0].column === "number");
   assert.equal(typeof result.errors[0].message, "string");
-});
-
-liveTest("scaffold csharp parser produces same results as main parser", () => {
-  const source = [
-    "using System;",
-    "namespace Demo {",
-    "  public class Greeter {",
-    "    public string Hi(string name) => $\"Hello {name}\";",
-    "  }",
-    "}"
-  ].join("\n");
-
-  const main = parseCode(source, "Greeter.cs", "csharp");
-  const scaffold = parseScaffoldCSharpCode(source, "Greeter.cs", "csharp");
-
-  assert.deepEqual(main, scaffold);
 });
 
 // parseProject — batch mode with Roslyn SemanticModel

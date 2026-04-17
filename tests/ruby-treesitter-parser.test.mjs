@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCode } from "../scripts/parsers/ruby-treesitter.mjs";
+import { parseCode } from "../scaffold/scripts/parsers/ruby-treesitter.mjs";
 
 test("ruby parser extracts a top-level method", async () => {
   const source = [

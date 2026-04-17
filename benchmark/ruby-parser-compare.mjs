@@ -11,7 +11,7 @@
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, extname } from "node:path";
 import { performance } from "node:perf_hooks";
-import { parseCode as parseRuby } from "../scripts/parsers/ruby-treesitter.mjs";
+import { parseCode as parseRuby } from "../scaffold/scripts/parsers/ruby-treesitter.mjs";
 
 function parseArgs() {
   const args = process.argv.slice(2);

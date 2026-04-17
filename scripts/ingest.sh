@@ -17,4 +17,4 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
-node "$REPO_ROOT/scripts/ingest.mjs" "$@"
+node "$REPO_ROOT/scaffold/scripts/ingest.mjs" "$@"

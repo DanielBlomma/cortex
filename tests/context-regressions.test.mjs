@@ -3,12 +3,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseCode as parseJavascriptCode } from "../scripts/parsers/javascript.mjs";
+import { parseCode as parseJavascriptCode } from "../scaffold/scripts/parsers/javascript.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(__dirname, "..");
 const WATCH_PATH = path.join(REPO_ROOT, "scripts", "watch.sh");
-const INGEST_PATH = path.join(REPO_ROOT, "scripts", "ingest.mjs");
+const INGEST_PATH = path.join(REPO_ROOT, "scaffold", "scripts", "ingest.mjs");
 const STATUS_PATH = path.join(REPO_ROOT, "scripts", "status.sh");
 
 let passed = 0;
@@ -971,7 +971,7 @@ function testIngestIncrementalPreservesStructuredTargetRelations() {
     fs.mkdirSync(path.join(fixtureRoot, "legacy"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "db"), { recursive: true });
     fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
-    fs.cpSync(path.join(REPO_ROOT, "scripts", "parsers"), path.join(fixtureRoot, "scripts", "parsers"), {
+    fs.cpSync(path.join(REPO_ROOT, "scaffold", "scripts", "parsers"), path.join(fixtureRoot, "scripts", "parsers"), {
       recursive: true
     });
 
@@ -1349,7 +1349,7 @@ function testIngestPersistsImportEdgesForDeclarationHeaders() {
     fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
     fs.writeFileSync(
       path.join(fixtureRoot, "scripts", "parsers", "javascript.mjs"),
-      `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scripts", "parsers", "javascript.mjs"))};\n`,
+      `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scaffold", "scripts", "parsers", "javascript.mjs"))};\n`,
       "utf8"
     );
 
@@ -1464,7 +1464,7 @@ function testIngestPersistsImportEdgesForTypes() {
     fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
     fs.writeFileSync(
       path.join(fixtureRoot, "scripts", "parsers", "javascript.mjs"),
-      `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scripts", "parsers", "javascript.mjs"))};\n`,
+      `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scaffold", "scripts", "parsers", "javascript.mjs"))};\n`,
       "utf8"
     );
 
@@ -1540,7 +1540,7 @@ function testIngestDoesNotPersistTypeImportEdgesForGenericParameters() {
     fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
     fs.writeFileSync(
       path.join(fixtureRoot, "scripts", "parsers", "javascript.mjs"),
-      `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scripts", "parsers", "javascript.mjs"))};\n`,
+      `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scaffold", "scripts", "parsers", "javascript.mjs"))};\n`,
       "utf8"
     );
 
@@ -1610,7 +1610,7 @@ function testIngestResolvesNodeNextJsSpecifiersToTypescriptSources() {
     fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
     fs.writeFileSync(
       path.join(fixtureRoot, "scripts", "parsers", "javascript.mjs"),
-      `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scripts", "parsers", "javascript.mjs"))};\n`,
+      `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scaffold", "scripts", "parsers", "javascript.mjs"))};\n`,
       "utf8"
     );
 
@@ -1687,7 +1687,7 @@ function testIngestDoesNotResolveExplicitJsSpecifiersToJsonFiles() {
     fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
     fs.writeFileSync(
       path.join(fixtureRoot, "scripts", "parsers", "javascript.mjs"),
-      `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scripts", "parsers", "javascript.mjs"))};\n`,
+      `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scaffold", "scripts", "parsers", "javascript.mjs"))};\n`,
       "utf8"
     );
 
@@ -1757,7 +1757,7 @@ function testIngestPersistsImportEdgesForModuleScopeRequireBindings() {
     fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
     fs.writeFileSync(
       path.join(fixtureRoot, "scripts", "parsers", "javascript.mjs"),
-      `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scripts", "parsers", "javascript.mjs"))};\n`,
+      `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scaffold", "scripts", "parsers", "javascript.mjs"))};\n`,
       "utf8"
     );
 

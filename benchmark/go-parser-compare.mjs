@@ -15,7 +15,7 @@
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, extname } from "node:path";
 import { performance } from "node:perf_hooks";
-import { parseCode as parseGo } from "../scripts/parsers/go-treesitter.mjs";
+import { parseCode as parseGo } from "../scaffold/scripts/parsers/go-treesitter.mjs";
 
 function parseArgs() {
   const args = process.argv.slice(2);

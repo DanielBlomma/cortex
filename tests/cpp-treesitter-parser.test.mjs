@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCode } from "../scripts/parsers/cpp-treesitter.mjs";
+import { parseCode } from "../scaffold/scripts/parsers/cpp-treesitter.mjs";
 
 test("cpp parser extracts a top-level C function", async () => {
   const source = "int add(int a, int b) { return a + b; }";
