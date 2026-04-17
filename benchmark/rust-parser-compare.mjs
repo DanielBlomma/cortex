@@ -263,7 +263,7 @@ function loadCorpus(corpusDir) {
 }
 
 function summarize(chunks) {
-  const kindCounts = {};
+  const kindCounts = Object.create(null);
   const allCalls = new Set();
   const allImports = new Set();
   for (const chunk of chunks) {

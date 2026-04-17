@@ -17,6 +17,7 @@ let parseSqlCode = null;
 let parseRustCode = null;
 let parsePythonCode = null;
 let parseGoCode = null;
+let parseJavaCode = null;
 let isVbNetParserAvailable = () => false;
 let isCSharpParserAvailable = () => false;
 let isCppParserAvailable = () => false;
@@ -62,6 +63,9 @@ async function loadOptionalParsers() {
     }),
     import("./parsers/go-treesitter.mjs").then((module) => {
       parseGoCode = module.parseCode;
+    }),
+    import("./parsers/java-treesitter.mjs").then((module) => {
+      parseJavaCode = module.parseCode;
     })
   ];
 
@@ -367,6 +371,14 @@ const CHUNK_PARSERS = new Map([
       language: "go",
       parse: (...args) => parseGoCode(...args),
       isAvailable: () => typeof parseGoCode === "function"
+    }
+  ],
+  [
+    ".java",
+    {
+      language: "java",
+      parse: (...args) => parseJavaCode(...args),
+      isAvailable: () => typeof parseJavaCode === "function"
     }
   ]
 ]);

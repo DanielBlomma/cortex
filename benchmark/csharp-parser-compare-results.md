@@ -1,6 +1,6 @@
 # C# parser benchmark — syntax-only per-file vs batch+SemanticModel
 
-Generated: 2026-04-17T12:53:55.130Z
+Generated: 2026-04-17T13:11:29.444Z
 Corpus: synthetic — 5 files, 2500 bytes
 
 ## Summary
@@ -11,8 +11,8 @@ Corpus: synthetic — 5 files, 2500 bytes
 | Unique call edges | 26 | 26 | +0 |
 | Fully-qualified calls | 0 | 26 | +26 |
 | Bare-name calls | 26 | 0 | -26 |
-| Total ingest time (ms) | 3221 | 1057 | -2164 |
-| Time per file (ms) | 644 | 211 | — |
+| Total ingest time (ms) | 3252 | 962 | -2290 |
+| Time per file (ms) | 650 | 192 | — |
 
 FQ-ratio of batch-resolved calls: **100.0%**
 
