@@ -53,7 +53,7 @@ jobs:
           node scripts/sync-release-version.mjs --check
 
       - name: Install parser dependencies
-        run: npm install --prefix scripts/parsers
+        run: npm install --prefix scaffold/scripts/parsers
 
       - name: Validate tests
         run: |

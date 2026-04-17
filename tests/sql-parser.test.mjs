@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCode } from "../scripts/parsers/sql.mjs";
-import { parseCode as parseScaffoldCode } from "../scaffold/scripts/parsers/sql.mjs";
+import { parseCode } from "../scaffold/scripts/parsers/sql.mjs";
 
 test("sql parser extracts procedures, views, and tables as chunks", () => {
   const source = [
@@ -27,7 +26,7 @@ test("sql parser extracts procedures, views, and tables as chunks", () => {
   assert.ok(chunkByName.get("dbo.activeusers")?.calls.includes("dbo.users"));
 });
 
-test("scaffold sql parser extracts function calls and normalizes names", () => {
+test("sql parser extracts function calls and normalizes names", () => {
   const source = [
     "CREATE FUNCTION [sales].[ComputeScore] ()",
     "RETURNS INT",
@@ -43,7 +42,7 @@ test("scaffold sql parser extracts function calls and normalizes names", () => {
     "END"
   ].join("\n");
 
-  const result = parseScaffoldCode(source, "fixture.sql", "sql");
+  const result = parseCode(source, "fixture.sql", "sql");
   const runReport = result.chunks.find((chunk) => chunk.name === "sales.runreport");
 
   assert.equal(result.chunks.find((chunk) => chunk.name === "sales.computescore")?.kind, "function");

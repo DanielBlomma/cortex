@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCode } from "../scripts/parsers/resources.mjs";
-import { parseCode as parseScaffoldCode } from "../scaffold/scripts/parsers/resources.mjs";
+import { parseCode } from "../scaffold/scripts/parsers/resources.mjs";
 
 test("resources parser extracts resx entries and SQL references", () => {
   const source = [
@@ -21,7 +20,7 @@ test("resources parser extracts resx entries and SQL references", () => {
   assert.deepEqual(chunk.calls, ["dbo.activeusers"]);
 });
 
-test("scaffold resources parser extracts settings entries", () => {
+test("resources parser extracts settings entries", () => {
   const source = [
     "<SettingsFile>",
     "  <Settings>",
@@ -32,7 +31,7 @@ test("scaffold resources parser extracts settings entries", () => {
     "</SettingsFile>"
   ].join("\n");
 
-  const result = parseScaffoldCode(source, "App.settings", "settings");
+  const result = parseCode(source, "App.settings", "settings");
   const chunk = result.chunks[0];
 
   assert.equal(chunk.name, "setting.runreportproc");

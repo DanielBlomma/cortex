@@ -5,12 +5,6 @@ import {
   isCppParserAvailable,
   parseCode,
   resetCppParserRuntimeCache
-} from "../scripts/parsers/cpp.mjs";
-import {
-  getCppParserRuntime as getScaffoldCppParserRuntime,
-  isCppParserAvailable as isScaffoldCppParserAvailable,
-  parseCode as parseScaffoldCode,
-  resetCppParserRuntimeCache as resetScaffoldCppParserRuntimeCache
 } from "../scaffold/scripts/parsers/cpp.mjs";
 
 function withMissingClangRuntime(testFn) {
@@ -18,7 +12,6 @@ function withMissingClangRuntime(testFn) {
     const previous = process.env.CORTEX_CLANG_CMD;
     process.env.CORTEX_CLANG_CMD = "definitely-not-a-real-clang-command";
     resetCppParserRuntimeCache();
-    resetScaffoldCppParserRuntimeCache();
     try {
       await testFn();
     } finally {
@@ -28,7 +21,6 @@ function withMissingClangRuntime(testFn) {
         process.env.CORTEX_CLANG_CMD = previous;
       }
       resetCppParserRuntimeCache();
-      resetScaffoldCppParserRuntimeCache();
     }
   };
 }
@@ -39,21 +31,9 @@ test("cpp parser runtime reports unavailable when clang is missing", withMissing
   assert.match(runtime.reason ?? "", /clang runtime not available/i);
 }));
 
-test("scaffold cpp parser runtime reports unavailable when clang is missing", withMissingClangRuntime(() => {
-  const runtime = getScaffoldCppParserRuntime();
-  assert.equal(runtime.available, false);
-  assert.match(runtime.reason ?? "", /clang runtime not available/i);
-}));
-
 test("cpp parser falls back to empty structured output when runtime is unavailable", withMissingClangRuntime(() => {
   const source = "int add(int a, int b) { return a + b; }";
   const result = parseCode(source, "add.cpp", "cpp");
-  assert.deepEqual(result, { chunks: [], errors: [] });
-}));
-
-test("scaffold cpp parser falls back to empty structured output when runtime is unavailable", withMissingClangRuntime(() => {
-  const source = "int add(int a, int b) { return a + b; }";
-  const result = parseScaffoldCode(source, "add.cpp", "cpp");
   assert.deepEqual(result, { chunks: [], errors: [] });
 }));
 
@@ -87,25 +67,3 @@ test("cpp parser extracts includes, records, and functions when clang is availab
   assert.deepEqual(chunkByName.get("add")?.imports, ["widget.h"]);
 });
 
-test("scaffold cpp parser extracts struct and function chunks when clang is available", () => {
-  if (!isScaffoldCppParserAvailable()) {
-    return;
-  }
-
-  const source = [
-    "struct Point {",
-    "  int x;",
-    "  int y;",
-    "};",
-    "",
-    "static int magnitude(Point p) {",
-    "  return p.x + p.y;",
-    "}"
-  ].join("\n");
-
-  const result = parseScaffoldCode(source, "Point.c", "c");
-  const chunkByName = new Map(result.chunks.map((chunk) => [chunk.name, chunk]));
-
-  assert.equal(chunkByName.get("Point")?.kind, "struct");
-  assert.equal(chunkByName.get("magnitude")?.kind, "function");
-});

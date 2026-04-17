@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCode } from "../scripts/parsers/java-treesitter.mjs";
+import { parseCode } from "../scaffold/scripts/parsers/java-treesitter.mjs";
 
 test("java parser extracts a public class and its methods qualified as Class.method", async () => {
   const source = [

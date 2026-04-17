@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCode } from "../scripts/parsers/config.mjs";
-import { parseCode as parseScaffoldCode } from "../scaffold/scripts/parsers/config.mjs";
+import { parseCode } from "../scaffold/scripts/parsers/config.mjs";
 
 test("config parser extracts connection strings and app settings as chunks", () => {
   const source = [
@@ -37,7 +36,7 @@ test("config parser extracts connection strings and app settings as chunks", () 
   );
 });
 
-test("scaffold config parser extracts config entries", () => {
+test("config parser extracts minimal appSettings", () => {
   const source = [
     "<configuration>",
     "  <appSettings>",
@@ -46,7 +45,7 @@ test("scaffold config parser extracts config entries", () => {
     "</configuration>"
   ].join("\n");
 
-  const result = parseScaffoldCode(source, "Web.config", "config");
+  const result = parseCode(source, "Web.config", "config");
   assert.deepEqual(
     result.chunks.map((chunk) => chunk.name),
     ["app_setting.theme"]

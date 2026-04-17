@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(__dirname, "..");
 const CACHE_DIR = path.join(REPO_ROOT, ".context", "cache");
-const INGEST_PATH = path.join(REPO_ROOT, "scripts", "ingest.mjs");
+const INGEST_PATH = path.join(REPO_ROOT, "scaffold", "scripts", "ingest.mjs");
 
 function readJsonl(filePath) {
   if (!fs.existsSync(filePath)) return [];

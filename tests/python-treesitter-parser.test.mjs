@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCode } from "../scripts/parsers/python-treesitter.mjs";
+import { parseCode } from "../scaffold/scripts/parsers/python-treesitter.mjs";
 
 test("python parser extracts a simple function", async () => {
   const source = [

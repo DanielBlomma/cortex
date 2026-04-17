@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCode } from "../scripts/parsers/rust-treesitter.mjs";
-import { parseCode as parseRegexCode } from "../scripts/parsers/rust.mjs";
+import { parseCode } from "../scaffold/scripts/parsers/rust-treesitter.mjs";
+import { parseCode as parseRegexCode } from "../scaffold/scripts/parsers/rust.mjs";
 
 test("tree-sitter rust parser extracts a simple function", async () => {
   const source = [

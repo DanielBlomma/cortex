@@ -16,7 +16,7 @@
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, extname } from "node:path";
 import { performance } from "node:perf_hooks";
-import { parseCode as parseVb6 } from "../scripts/parsers/vb6.mjs";
+import { parseCode as parseVb6 } from "../scaffold/scripts/parsers/vb6.mjs";
 
 function parseArgs() {
   const args = process.argv.slice(2);

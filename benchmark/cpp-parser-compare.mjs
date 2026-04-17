@@ -17,8 +17,8 @@
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, extname } from "node:path";
 import { performance } from "node:perf_hooks";
-import { parseCode as parseClang, isCppParserAvailable as clangAvailable } from "../scripts/parsers/cpp.mjs";
-import { parseCode as parseTs } from "../scripts/parsers/cpp-treesitter.mjs";
+import { parseCode as parseClang, isCppParserAvailable as clangAvailable } from "../scaffold/scripts/parsers/cpp.mjs";
+import { parseCode as parseTs } from "../scaffold/scripts/parsers/cpp-treesitter.mjs";
 
 function parseArgs() {
   const args = process.argv.slice(2);

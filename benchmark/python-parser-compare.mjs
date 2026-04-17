@@ -21,7 +21,7 @@ import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
-import { parseCode as parsePython } from "../scripts/parsers/python-treesitter.mjs";
+import { parseCode as parsePython } from "../scaffold/scripts/parsers/python-treesitter.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

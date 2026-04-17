@@ -12,6 +12,11 @@ AGENTS.md
 .context/plan/
 .context/hooks/
 .context/enterprise.yml
+scaffold/.context/db/
+scaffold/.context/embeddings/
+scaffold/.context/cache/
+scaffold/.context/plan/
+scaffold/.context/hooks/
 .npm-cache/
 
 # Node
@@ -22,8 +27,6 @@ mcp/.npm-cache/
 # Build output
 mcp/dist/
 scaffold/mcp/dist/
-scripts/parsers/dotnet/**/bin/
-scripts/parsers/dotnet/**/obj/
 scaffold/scripts/parsers/dotnet/**/bin/
 scaffold/scripts/parsers/dotnet/**/obj/
 

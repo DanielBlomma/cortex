@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCode } from "../scripts/parsers/rust.mjs";
-import { parseCode as parseScaffoldCode } from "../scaffold/scripts/parsers/rust.mjs";
+import { parseCode } from "../scaffold/scripts/parsers/rust.mjs";
 
 test("rust parser extracts a simple function", () => {
   const source = [
@@ -319,29 +318,3 @@ test("rust parser returns empty for non-Rust content", () => {
   assert.equal(result.chunks.length, 0);
 });
 
-test("scaffold rust parser produces same results as main parser", () => {
-  const source = [
-    "pub fn greet(name: &str) -> String {",
-    '    format!("Hello, {}!", name)',
-    "}",
-    "",
-    "struct Person {",
-    "    name: String,",
-    "}",
-    "",
-    "impl Person {",
-    "    fn new(name: String) -> Self {",
-    "        Person { name }",
-    "    }",
-    "}"
-  ].join("\n");
-
-  const mainResult = parseCode(source, "lib.rs", "rust");
-  const scaffoldResult = parseScaffoldCode(source, "lib.rs", "rust");
-
-  assert.deepEqual(mainResult.chunks.length, scaffoldResult.chunks.length);
-  assert.deepEqual(
-    mainResult.chunks.map((c) => c.name).sort(),
-    scaffoldResult.chunks.map((c) => c.name).sort()
-  );
-});

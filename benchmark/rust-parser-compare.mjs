@@ -2,8 +2,8 @@
 /**
  * Rust parser comparison benchmark.
  *
- * Runs the regex parser (scripts/parsers/rust.mjs) and the tree-sitter
- * parser (scripts/parsers/rust-treesitter.mjs) against the same corpus
+ * Runs the regex parser (scaffold/scripts/parsers/rust.mjs) and the tree-sitter
+ * parser (scaffold/scripts/parsers/rust-treesitter.mjs) against the same corpus
  * and reports structural deltas:
  *
  *   - chunks extracted (total, by kind)
@@ -26,8 +26,8 @@ import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
-import { parseCode as parseRegex } from "../scripts/parsers/rust.mjs";
-import { parseCode as parseTreeSitter } from "../scripts/parsers/rust-treesitter.mjs";
+import { parseCode as parseRegex } from "../scaffold/scripts/parsers/rust.mjs";
+import { parseCode as parseTreeSitter } from "../scaffold/scripts/parsers/rust-treesitter.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

@@ -5,7 +5,7 @@
 
 ## Context
 
-The C# parser (`scripts/parsers/dotnet/CSharpParser`) was built as a Roslyn-based sidecar invoked once per file via `dotnet run --stdin --file X.cs`. Two structural limitations:
+The C# parser (`scaffold/scripts/parsers/dotnet/CSharpParser`) was built as a Roslyn-based sidecar invoked once per file via `dotnet run --stdin --file X.cs`. Two structural limitations:
 
 1. **Syntax-only extraction.** The parser used `CSharpSyntaxTree.ParseText` and collected `InvocationExpressionSyntax` descendants, but produced *bare identifier names* for calls (`"Save"`, `"ReadAllText"`). Two different types exposing `Save(string)` produced the same edge in the call graph, making "find callers of UserRepo.Save" indistinguishable from "find callers of OrderRepo.Save".
 
@@ -60,7 +60,7 @@ Unresolved calls (e.g. via `dynamic`, or when referenced type isn't in the compi
 
 ### Ingest integration
 
-In both `scripts/ingest.mjs` and `scaffold/scripts/ingest.mjs`:
+In `scaffold/scripts/ingest.mjs`:
 
 1. Before the main file-parsing loop, collect all `.cs` files from `fileRecords`.
 2. If the C# runtime is available and at least one `.cs` file needs parsing (respecting incremental mode), call `parseCSharpProject(allCsharpInputs)` once with **all** project `.cs` files (changed + unchanged — needed for cross-file resolution). Cache results per file path.

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCode } from "../scripts/parsers/vb6.mjs";
+import { parseCode } from "../scaffold/scripts/parsers/vb6.mjs";
 
 test("vb6 parser extracts a Sub in a .bas module", () => {
   const source = [

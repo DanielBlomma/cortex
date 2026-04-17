@@ -12,7 +12,7 @@ import {
   prepareLanguage,
   resetGrammarCache,
   runQuery
-} from "../scripts/parsers/tree-sitter/base.mjs";
+} from "../scaffold/scripts/parsers/tree-sitter/base.mjs";
 
 test("initTreeSitter is idempotent and returns the tree-sitter module", async () => {
   const a = await initTreeSitter();
