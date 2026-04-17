@@ -4,6 +4,9 @@ export function collectPatternIdentifiers(pattern, visit) {
   }
 
   switch (pattern.type) {
+    case "TSParameterProperty":
+      collectPatternIdentifiers(pattern.parameter, visit);
+      break;
     case "Identifier":
       visit(pattern.name);
       break;
@@ -44,6 +47,9 @@ export function walkPatternExpressions(pattern, visit) {
   }
 
   switch (pattern.type) {
+    case "TSParameterProperty":
+      walkPatternExpressions(pattern.parameter, visit);
+      break;
     case "AssignmentPattern":
       walkPatternExpressions(pattern.left, visit);
       if (pattern.right) {

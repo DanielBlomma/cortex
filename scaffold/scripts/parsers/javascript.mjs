@@ -4,21 +4,10 @@
  * Extracts functions, methods, classes and call relationships
  */
 
-let parseAst;
-let discoverChunks;
-let extractCalls;
-let collectStaticImports;
-let extractImportsForChunk;
-let fallbackParseCode = null;
-
-try {
-  ({ parseAst } = await import("./javascript/ast.mjs"));
-  ({ discoverChunks } = await import("./javascript/chunks.mjs"));
-  ({ extractCalls } = await import("./javascript/calls.mjs"));
-  ({ collectStaticImports, extractImportsForChunk } = await import("./javascript/imports.mjs"));
-} catch {
-  ({ parseCode: fallbackParseCode } = await import("../../../scripts/parsers/javascript.mjs"));
-}
+import { parseAst } from "./javascript/ast.mjs";
+import { discoverChunks } from "./javascript/chunks.mjs";
+import { extractCalls } from "./javascript/calls.mjs";
+import { collectStaticImports, extractImportsForChunk } from "./javascript/imports.mjs";
 
 /**
  * Parse JavaScript/TypeScript code and extract chunks + calls
@@ -28,10 +17,6 @@ try {
  * @returns {Object} { chunks: Array, errors: Array }
  */
 export function parseCode(code, filePath, language = "javascript") {
-  if (fallbackParseCode) {
-    return fallbackParseCode(code, filePath, language);
-  }
-
   const { ast, errors } = parseAst(code, filePath);
   if (!ast) {
     return { chunks: [], errors };

@@ -4,30 +4,85 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
-import { parseCode as parseJavaScriptCode } from "./parsers/javascript.mjs";
-import {
-  isVbNetParserAvailable,
-  parseCode as parseVbNetCode
-} from "./parsers/vbnet.mjs";
-import {
-  isCSharpParserAvailable,
-  parseCode as parseCSharpCode,
-  parseProject as parseCSharpProject
-} from "./parsers/csharp.mjs";
-import {
-  isCppParserAvailable,
-  parseCode as parseCppCode
-} from "./parsers/cpp-dispatch.mjs";
-import { parseCode as parseConfigCode } from "./parsers/config.mjs";
-import { parseCode as parseResourcesCode } from "./parsers/resources.mjs";
-import { parseCode as parseSqlCode } from "./parsers/sql.mjs";
-import { parseCode as parseRustCode } from "./parsers/rust-dispatch.mjs";
-import { parseCode as parsePythonCode } from "./parsers/python-treesitter.mjs";
-import { parseCode as parseGoCode } from "./parsers/go-treesitter.mjs";
-import { parseCode as parseJavaCode } from "./parsers/java-treesitter.mjs";
-import { parseCode as parseRubyCode } from "./parsers/ruby-treesitter.mjs";
-import { parseCode as parseBashCode } from "./parsers/bash-treesitter.mjs";
-import { parseCode as parseVb6Code } from "./parsers/vb6.mjs";
+import { parseCode } from "./parsers/javascript.mjs";
+
+const parseJavaScriptCode = parseCode;
+let parseVbNetCode = null;
+let parseCSharpCode = null;
+let parseCSharpProject = null;
+let parseCppCode = null;
+let parseConfigCode = null;
+let parseResourcesCode = null;
+let parseSqlCode = null;
+let parseRustCode = null;
+let parsePythonCode = null;
+let parseGoCode = null;
+let parseJavaCode = null;
+let parseRubyCode = null;
+let parseBashCode = null;
+let parseVb6Code = null;
+let isVbNetParserAvailable = () => false;
+let isCSharpParserAvailable = () => false;
+let isCppParserAvailable = () => false;
+
+async function loadOptionalParsers() {
+  const loaders = [
+    import("./parsers/vbnet.mjs").then((module) => {
+      parseVbNetCode = module.parseCode;
+      isVbNetParserAvailable =
+        typeof module.isVbNetParserAvailable === "function"
+          ? module.isVbNetParserAvailable
+          : () => typeof module.parseCode === "function";
+    }),
+    import("./parsers/csharp.mjs").then((module) => {
+      parseCSharpCode = module.parseCode;
+      parseCSharpProject = module.parseProject ?? null;
+      isCSharpParserAvailable =
+        typeof module.isCSharpParserAvailable === "function"
+          ? module.isCSharpParserAvailable
+          : () => typeof module.parseCode === "function";
+    }),
+    import("./parsers/cpp-dispatch.mjs").then((module) => {
+      parseCppCode = module.parseCode;
+      isCppParserAvailable =
+        typeof module.isCppParserAvailable === "function"
+          ? module.isCppParserAvailable
+          : () => typeof module.parseCode === "function";
+    }),
+    import("./parsers/config.mjs").then((module) => {
+      parseConfigCode = module.parseCode;
+    }),
+    import("./parsers/resources.mjs").then((module) => {
+      parseResourcesCode = module.parseCode;
+    }),
+    import("./parsers/sql.mjs").then((module) => {
+      parseSqlCode = module.parseCode;
+    }),
+    import("./parsers/rust-dispatch.mjs").then((module) => {
+      parseRustCode = module.parseCode;
+    }),
+    import("./parsers/python-treesitter.mjs").then((module) => {
+      parsePythonCode = module.parseCode;
+    }),
+    import("./parsers/go-treesitter.mjs").then((module) => {
+      parseGoCode = module.parseCode;
+    }),
+    import("./parsers/java-treesitter.mjs").then((module) => {
+      parseJavaCode = module.parseCode;
+    }),
+    import("./parsers/ruby-treesitter.mjs").then((module) => {
+      parseRubyCode = module.parseCode;
+    }),
+    import("./parsers/bash-treesitter.mjs").then((module) => {
+      parseBashCode = module.parseCode;
+    }),
+    import("./parsers/vb6.mjs").then((module) => {
+      parseVb6Code = module.parseCode;
+    })
+  ];
+
+  await Promise.allSettled(loaders);
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -101,7 +156,7 @@ const LEGACY_DOTNET_METADATA_EXTENSIONS = new Set([
   ".settings"
 ]);
 
-const PROJECT_DEFINITION_EXTENSIONS = new Set([".sln", ".vbproj", ".csproj", ".fsproj"]);
+const PROJECT_DEFINITION_EXTENSIONS = new Set([".sln", ".vbproj", ".csproj", ".fsproj", ".vcxproj"]);
 const STRUCTURED_NON_CODE_CHUNK_EXTENSIONS = new Set([".config", ".resx", ".settings"]);
 
 const CODE_FILE_EXTENSIONS = new Set([
@@ -214,176 +269,200 @@ const CHUNK_PARSERS = new Map([
     ".vb",
     {
       language: "vbnet",
-      parse: parseVbNetCode,
-      isAvailable: isVbNetParserAvailable
+      parse: (...args) => parseVbNetCode(...args),
+      isAvailable: () =>
+        typeof parseVbNetCode === "function" && isVbNetParserAvailable()
     }
   ],
   [
     ".cs",
     {
       language: "csharp",
-      parse: parseCSharpCode,
-      isAvailable: isCSharpParserAvailable
+      parse: (...args) => parseCSharpCode(...args),
+      isAvailable: () =>
+        typeof parseCSharpCode === "function" && isCSharpParserAvailable()
     }
   ],
   [
     ".sql",
     {
       language: "sql",
-      parse: parseSqlCode
+      parse: (...args) => parseSqlCode(...args),
+      isAvailable: () => typeof parseSqlCode === "function"
     }
   ],
   [
     ".config",
     {
       language: "config",
-      parse: parseConfigCode
+      parse: (...args) => parseConfigCode(...args),
+      isAvailable: () => typeof parseConfigCode === "function"
     }
   ],
   [
     ".resx",
     {
       language: "resource",
-      parse: parseResourcesCode
+      parse: (...args) => parseResourcesCode(...args),
+      isAvailable: () => typeof parseResourcesCode === "function"
     }
   ],
   [
     ".settings",
     {
       language: "settings",
-      parse: parseResourcesCode
+      parse: (...args) => parseResourcesCode(...args),
+      isAvailable: () => typeof parseResourcesCode === "function"
     }
   ],
   [
     ".c",
     {
       language: "c",
-      parse: parseCppCode,
-      isAvailable: isCppParserAvailable
+      parse: (...args) => parseCppCode(...args),
+      isAvailable: () =>
+        typeof parseCppCode === "function" && isCppParserAvailable()
     }
   ],
   [
     ".h",
     {
       language: "c",
-      parse: parseCppCode,
-      isAvailable: isCppParserAvailable
+      parse: (...args) => parseCppCode(...args),
+      isAvailable: () =>
+        typeof parseCppCode === "function" && isCppParserAvailable()
     }
   ],
   [
     ".cpp",
     {
       language: "cpp",
-      parse: parseCppCode,
-      isAvailable: isCppParserAvailable
+      parse: (...args) => parseCppCode(...args),
+      isAvailable: () =>
+        typeof parseCppCode === "function" && isCppParserAvailable()
     }
   ],
   [
     ".cc",
     {
       language: "cpp",
-      parse: parseCppCode,
-      isAvailable: isCppParserAvailable
+      parse: (...args) => parseCppCode(...args),
+      isAvailable: () =>
+        typeof parseCppCode === "function" && isCppParserAvailable()
     }
   ],
   [
     ".hpp",
     {
       language: "cpp",
-      parse: parseCppCode,
-      isAvailable: isCppParserAvailable
+      parse: (...args) => parseCppCode(...args),
+      isAvailable: () =>
+        typeof parseCppCode === "function" && isCppParserAvailable()
     }
   ],
   [
     ".hh",
     {
       language: "cpp",
-      parse: parseCppCode,
-      isAvailable: isCppParserAvailable
+      parse: (...args) => parseCppCode(...args),
+      isAvailable: () =>
+        typeof parseCppCode === "function" && isCppParserAvailable()
     }
   ],
   [
     ".rs",
     {
       language: "rust",
-      parse: parseRustCode
+      parse: (...args) => parseRustCode(...args),
+      isAvailable: () => typeof parseRustCode === "function"
     }
   ],
   [
     ".py",
     {
       language: "python",
-      parse: parsePythonCode
+      parse: (...args) => parsePythonCode(...args),
+      isAvailable: () => typeof parsePythonCode === "function"
     }
   ],
   [
     ".go",
     {
       language: "go",
-      parse: parseGoCode
+      parse: (...args) => parseGoCode(...args),
+      isAvailable: () => typeof parseGoCode === "function"
     }
   ],
   [
     ".java",
     {
       language: "java",
-      parse: parseJavaCode
+      parse: (...args) => parseJavaCode(...args),
+      isAvailable: () => typeof parseJavaCode === "function"
     }
   ],
   [
     ".rb",
     {
       language: "ruby",
-      parse: parseRubyCode
+      parse: (...args) => parseRubyCode(...args),
+      isAvailable: () => typeof parseRubyCode === "function"
     }
   ],
   [
     ".sh",
     {
       language: "bash",
-      parse: parseBashCode
+      parse: (...args) => parseBashCode(...args),
+      isAvailable: () => typeof parseBashCode === "function"
     }
   ],
   [
     ".bash",
     {
       language: "bash",
-      parse: parseBashCode
+      parse: (...args) => parseBashCode(...args),
+      isAvailable: () => typeof parseBashCode === "function"
     }
   ],
   [
     ".zsh",
     {
       language: "bash",
-      parse: parseBashCode
+      parse: (...args) => parseBashCode(...args),
+      isAvailable: () => typeof parseBashCode === "function"
     }
   ],
   [
     ".bas",
     {
       language: "vb6",
-      parse: parseVb6Code
+      parse: (...args) => parseVb6Code(...args),
+      isAvailable: () => typeof parseVb6Code === "function"
     }
   ],
   [
     ".cls",
     {
       language: "vb6",
-      parse: parseVb6Code
+      parse: (...args) => parseVb6Code(...args),
+      isAvailable: () => typeof parseVb6Code === "function"
     }
   ],
   [
     ".frm",
     {
       language: "vb6",
-      parse: parseVb6Code
+      parse: (...args) => parseVb6Code(...args),
+      isAvailable: () => typeof parseVb6Code === "function"
     }
   ],
   [
     ".ctl",
     {
       language: "vb6",
-      parse: parseVb6Code
+      parse: (...args) => parseVb6Code(...args),
+      isAvailable: () => typeof parseVb6Code === "function"
     }
   ]
 ]);
@@ -1043,6 +1122,58 @@ function namedEntryChunkAliases(chunk) {
     aliases.add(normalizedTail);
   }
   return [...aliases];
+}
+
+function buildChunkAliasIndexes(chunkRecords) {
+  const sqlChunkIdsByAlias = new Map();
+  const configChunkIdsByAlias = new Map();
+  const resourceChunkIdsByAlias = new Map();
+  const settingChunkIdsByAlias = new Map();
+
+  for (const chunk of chunkRecords) {
+    if (isWindowChunkId(chunk?.id)) {
+      continue;
+    }
+
+    const language = String(chunk?.language ?? "").toLowerCase();
+    if (language === "sql") {
+      for (const alias of sqlChunkAliases(chunk.name)) {
+        const existing = sqlChunkIdsByAlias.get(alias) ?? [];
+        sqlChunkIdsByAlias.set(alias, [...existing, chunk.id]);
+      }
+      continue;
+    }
+
+    if (language === "config") {
+      for (const alias of configChunkAliases(chunk)) {
+        const existing = configChunkIdsByAlias.get(alias) ?? [];
+        configChunkIdsByAlias.set(alias, [...existing, chunk.id]);
+      }
+      continue;
+    }
+
+    if (language === "resource") {
+      for (const alias of namedEntryChunkAliases(chunk)) {
+        const existing = resourceChunkIdsByAlias.get(alias) ?? [];
+        resourceChunkIdsByAlias.set(alias, [...existing, chunk.id]);
+      }
+      continue;
+    }
+
+    if (language === "settings") {
+      for (const alias of namedEntryChunkAliases(chunk)) {
+        const existing = settingChunkIdsByAlias.get(alias) ?? [];
+        settingChunkIdsByAlias.set(alias, [...existing, chunk.id]);
+      }
+    }
+  }
+
+  return {
+    sqlChunkIdsByAlias,
+    configChunkIdsByAlias,
+    resourceChunkIdsByAlias,
+    settingChunkIdsByAlias
+  };
 }
 
 function extractSqlReferenceNamesFromString(text) {
@@ -1793,6 +1924,8 @@ function projectLanguageForExtension(ext) {
       return "csharp";
     case ".fsproj":
       return "fsharp";
+    case ".vcxproj":
+      return "cpp";
     case ".sln":
       return "solution";
     default:
@@ -1826,7 +1959,7 @@ function parseSolutionProject(fileRecord, indexedFileIds) {
   const ext = path.extname(fileRecord.path).toLowerCase();
   const fallbackName = path.basename(fileRecord.path, ext);
   const projectPattern =
-    /^Project\([^)]*\)\s*=\s*"([^"]+)",\s*"([^"]+\.(?:vbproj|csproj|fsproj))",\s*"\{[^"]+\}"$/gim;
+    /^Project\([^)]*\)\s*=\s*"([^"]+)",\s*"([^"]+\.(?:vbproj|csproj|fsproj|vcxproj))",\s*"\{[^"]+\}"$/gim;
 
   let match;
   while ((match = projectPattern.exec(fileRecord.content)) !== null) {
@@ -2366,7 +2499,8 @@ function splitChunkIntoWindows(chunkRecord, options) {
   return windows;
 }
 
-function main() {
+async function main() {
+  await loadOptionalParsers();
   const { mode, verbose } = parseArgs(process.argv);
   const configPath = path.join(CONTEXT_DIR, "config.yaml");
   const rulesPath = path.join(CONTEXT_DIR, "rules.yaml");
@@ -2574,15 +2708,19 @@ function main() {
 
   // Extract chunks from changed or uncached code files
   let windowedChunkCount = 0;
-  const sqlChunkIdsByAlias = new Map();
-  const configChunkIdsByAlias = new Map();
-  const resourceChunkIdsByAlias = new Map();
-  const settingChunkIdsByAlias = new Map();
+  let {
+    sqlChunkIdsByAlias,
+    configChunkIdsByAlias,
+    resourceChunkIdsByAlias,
+    settingChunkIdsByAlias
+  } = buildChunkAliasIndexes([...chunkRecordMap.values()]);
   const deferredSqlCallEdges = [];
 
-  // C# project-wide batch parse: compile all .cs files together via
-  // CSharpCompilation for SemanticModel-resolved calls. Falls back to
-  // per-file parse silently if batch isn't usable.
+  // C# project-wide batch parse: when Roslyn is available and batching
+  // isn't disabled, compile all .cs files together via CSharpCompilation
+  // to enable SemanticModel-resolved calls (e.g. "System.IO.File.ReadAllText"
+  // instead of bare "ReadAllText"). Falls back silently to per-file parse
+  // if batch isn't usable.
   const csharpBatchCache = new Map();
   if (
     typeof parseCSharpProject === "function" &&
@@ -2788,6 +2926,12 @@ function main() {
   }
 
   const chunkRecords = [...chunkRecordMap.values()].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  ({
+    sqlChunkIdsByAlias,
+    configChunkIdsByAlias,
+    resourceChunkIdsByAlias,
+    settingChunkIdsByAlias
+  } = buildChunkAliasIndexes(chunkRecords));
 
   // Filter CALLS relations to only valid targets (chunks that actually exist)
   const chunkIdSet = new Set(chunkRecords.map(c => c.id));
@@ -3401,10 +3545,14 @@ function main() {
 
 const isMainModule = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename);
 if (isMainModule) {
-  main();
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
 }
 
 export {
+  buildChunkAliasIndexes,
   buildSqlResourceReferenceMap,
   detectKind,
   extractSqlObjectReferencesFromContent,
