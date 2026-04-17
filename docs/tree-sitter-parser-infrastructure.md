@@ -109,3 +109,26 @@ Run with a real corpus via `node benchmark/rust-parser-compare.mjs --corpus /pat
 - `scripts/ingest.mjs` — imports `rust-dispatch.mjs` instead of `rust.mjs` directly.
 - `scaffold/` — same three files mirrored; `ingest.mjs` mirrored.
 - `scripts/parsers/package.json` + lockfile — adds `web-tree-sitter` and `tree-sitter-wasms`.
+
+## Language-specific notes
+
+### Swift — not currently supported
+
+An attempt was made to add Swift support via `tree-sitter-swift.wasm`. The grammar parses correctly but the WASM module is very large (~6MB, far larger than Python/Go/Java/Ruby combined). V8's TurboFan WASM optimizer exhausts its compile-time memory zone on default Node.js heap sizes, producing a `Fatal process out of memory: Zone` crash during background tiered compilation. The failure happens *after* parsing completes — chunks extract correctly before the optimizer blows up — but it crashes the host process.
+
+Workarounds tried, none sufficient:
+
+- `NODE_OPTIONS=--liftoff-only` (disable TurboFan WASM tier) — still OOMs in `node --test`
+- `--max-old-space-size=8192` — still OOMs
+- `--no-wasm-tier-up` — same
+- Combination of the above — same
+
+The problem is intrinsic to V8's WASM compilation pipeline with grammars of this size, not our parser adapter.
+
+Future options:
+
+- Wait for a lighter Swift tree-sitter grammar or an official update that reduces module size
+- Use native `tree-sitter-swift` (requires node-gyp compilation on install — reintroduces the platform friction we removed by switching to WASM)
+- Build a regex-based Swift parser (fast but shallow, like the original Rust regex parser)
+
+Until then, `.swift` files fall through to `CONTENT_SOURCE_EXTENSIONS` (file-level indexing with no structural chunks, calls, or imports).
