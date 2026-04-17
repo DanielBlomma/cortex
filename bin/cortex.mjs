@@ -734,8 +734,17 @@ async function run() {
   await runContextCommand(process.cwd(), [command, ...rest]);
 }
 
+function resolveArgv1() {
+  if (!process.argv[1]) return null;
+  try {
+    return fs.realpathSync(process.argv[1]);
+  } catch {
+    return process.argv[1];
+  }
+}
+
 const invokedAsScript =
-  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+  process.argv[1] && import.meta.url === pathToFileURL(resolveArgv1()).href;
 
 if (invokedAsScript) {
   run().catch((error) => {
