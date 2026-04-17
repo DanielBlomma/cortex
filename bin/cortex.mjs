@@ -53,6 +53,7 @@ function printHelp() {
   console.log("  cortex bootstrap");
   console.log("  cortex update");
   console.log("  cortex status");
+  console.log("  cortex doctor");
   console.log("  cortex ingest [--changed] [--verbose]");
   console.log("  cortex embed [--changed]");
   console.log("  cortex graph-load [--no-reset]");
@@ -147,7 +148,7 @@ function ensureScaffoldExists() {
 
 // Files that should never be overwritten if they already exist in the target.
 // These contain user-specific configuration that would be lost on re-init.
-const PRESERVE_FILES = new Set(["config.yaml", "enterprise.yml", "enterprise.yaml"]);
+const PRESERVE_FILES = new Set(["config.yaml", "enterprise.yml", "enterprise.yaml", "CLAUDE.md"]);
 
 function copyDirectory(sourceDir, targetDir) {
   fs.mkdirSync(targetDir, { recursive: true });
@@ -204,6 +205,13 @@ function installScaffold(targetDir, force) {
   for (const [sourcePath, targetPath] of copyMap) {
     ensurePathWritable(targetPath, force);
     copyDirectory(sourcePath, targetPath);
+  }
+
+  // Copy CLAUDE.md (skip if already exists to preserve user edits)
+  const claudeMdSource = path.join(SCAFFOLD_ROOT, "CLAUDE.md");
+  const claudeMdTarget = path.join(targetDir, "CLAUDE.md");
+  if (fs.existsSync(claudeMdSource) && !fs.existsSync(claudeMdTarget)) {
+    fs.copyFileSync(claudeMdSource, claudeMdTarget);
   }
 
   const docsDir = path.join(targetDir, "docs");
@@ -635,7 +643,8 @@ async function run() {
     "watch",
     "refresh",
     "memory-compile",
-    "memory-lint"
+    "memory-lint",
+    "doctor"
   ]);
 
   if (!passthrough.has(command)) {

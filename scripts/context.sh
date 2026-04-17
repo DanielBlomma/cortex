@@ -18,6 +18,7 @@ Commands:
   graph-load [--no-reset]          Build RyuGraph DB from indexed context
   dashboard [--interval <sec>]     Live TUI showing what Cortex adds to your repo
   status                           Show latest ingest summary
+  doctor                           Health check — verify config, index, MCP, and enterprise
   memory-compile [--dry-run] [--verbose]
                                     Compile raw memory notes into structured articles
   memory-lint [--verbose] [--json]  Lint compiled memory articles for issues
@@ -57,6 +58,9 @@ case "$COMMAND" in
     ;;
   status)
     "$SCRIPT_DIR/status.sh"
+    ;;
+  doctor)
+    "$SCRIPT_DIR/doctor.sh"
     ;;
   memory-compile)
     "$SCRIPT_DIR/memory-compile.sh" "$@"
