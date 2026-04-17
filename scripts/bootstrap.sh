@@ -37,6 +37,7 @@ step "Installing MCP dependencies"
 info "note: upstream RyuGraph dependencies may print deprecation warnings during install"
 NPM_CONFIG_CACHE="$MCP_DIR/.npm-cache" npm --prefix "$MCP_DIR" install --no-fund --no-update-notifier --loglevel=warn
 NPM_CONFIG_CACHE="$REPO_ROOT/scripts/parsers/.npm-cache" npm --prefix "$REPO_ROOT/scripts/parsers" install --no-fund --no-update-notifier --loglevel=warn
+NPM_CONFIG_CACHE="$REPO_ROOT/scaffold/scripts/parsers/.npm-cache" npm --prefix "$REPO_ROOT/scaffold/scripts/parsers" install --no-fund --no-update-notifier --loglevel=warn
 
 source "$REPO_ROOT/scripts/lib/enterprise-check.sh"
 
