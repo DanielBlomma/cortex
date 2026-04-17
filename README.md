@@ -2,30 +2,78 @@
   <img src="docs/logo.png" alt="Cortex" width="600" />
 </p>
 
-# Cortex MCP
+# Cortex
+
+**The context layer for AI-assisted software engineering.**
 
 [![npm version](https://img.shields.io/npm/v/%40danielblomma%2Fcortex-mcp)](https://www.npmjs.com/package/@danielblomma/cortex-mcp)
 [![npm downloads](https://img.shields.io/npm/dw/%40danielblomma%2Fcortex-mcp)](https://www.npmjs.com/package/@danielblomma/cortex-mcp)
+[![license](https://img.shields.io/npm/l/%40danielblomma%2Fcortex-mcp)](./LICENSE)
 
-`@danielblomma/cortex-mcp` is a local, repo-scoped context platform for coding assistants.
-It indexes your codebase into structured entities (files, rules, ADRs) and exposes that context over MCP (JSON-RPC over stdio).
+---
+
+## What Cortex is
+
+Cortex is a local, repository-scoped context engine for coding assistants. It parses your source code with tree-sitter, indexes it into a structured knowledge graph of entities (files, symbols, rules, ADRs) and their relationships (calls, defines, constrains, implements, supersedes), and serves that context to AI assistants over the Model Context Protocol (MCP).
+
+Where a general-purpose AI assistant sees your codebase as a pile of text files, Cortex gives it a precise map: what exists, how it is connected, which rules govern it, and which parts are source-of-truth versus deprecated.
+
+Cortex runs entirely on the developer's machine. Source code never leaves the host.
+
+## When to use Cortex
+
+Cortex is designed for engineering teams that rely on AI assistants for non-trivial work on real codebases. Use it when:
+
+- Your codebase is large or fragmented enough that assistants waste context window on irrelevant files.
+- You need assistants to respect architectural rules, deprecations, and source-of-truth decisions already made by the team.
+- You work across multiple languages and want consistent, structured retrieval across all of them.
+- Security or compliance requires that source code stay on-premise and that all AI interactions remain auditable.
+- You want retrieval to surface *existing* functionality before an assistant proposes new code — reducing duplication and drift.
+
+Cortex is not a replacement for your editor, your version control, or your coding assistant. It is the grounding layer that makes those assistants act with knowledge of your specific repository.
+
+## Benefits
+
+- **Higher-quality suggestions.** Assistants see the right files and rules instead of guessing from filenames.
+- **Lower token cost.** Targeted retrieval replaces broad file reads. Typical sessions use a fraction of the context a raw assistant would consume.
+- **Architectural governance.** Rules and ADRs are surfaced with every answer, so assistants follow the team's established patterns rather than generic best practices.
+- **Multi-language coverage.** A single engine indexes multiple languages through tree-sitter grammars, giving polyglot teams consistent tooling.
+- **Privacy by design.** Your code and its derived index stay on your machine. No upload, no cloud dependency for the core product.
+- **Low friction.** One command (`cortex init --bootstrap`) scaffolds everything: indexing, git hooks, MCP registration for Claude Code, Claude Desktop, and Codex.
+
+## How it works
+
+Cortex operates as a five-stage pipeline between your repository and your AI assistant.
+
+1. **Ingestion.** Source files are parsed with tree-sitter, producing structured entities (files, functions, classes, rules, ADRs) and relations (`CALLS`, `DEFINES`, `CONSTRAINS`, `IMPLEMENTS`, `IMPORTS`, `SUPERSEDES`).
+2. **Storage.** Entities and relations are persisted to a local graph database (RyuGraph). An optional vector index provides semantic search across entity content.
+3. **Retrieval.** MCP tools combine semantic search with graph traversal to assemble the smallest context package that answers the task.
+4. **Policy.** Architectural rules and source-of-truth markers filter conflicting or deprecated content before it reaches the assistant.
+5. **Assembly.** Results are delivered to the assistant as a compact, ranked context package over MCP.
+
+Git hooks keep the index fresh on every checkout, pull, commit, and rewrite. A live TUI dashboard (`cortex dashboard`) shows what Cortex adds to the repository in real time.
+
+## Why it works
+
+Modern coding assistants are bottlenecked by context, not by model capability. Feeding a model more files rarely helps; feeding it the *right* files almost always does.
+
+Cortex is built on one principle: **prefer retrieval quality over analysis completeness.** A smaller, sharper context package outperforms a broad dump of files. Every component — from tree-sitter parsing to graph traversal to rule filtering — exists to raise the signal-to-noise ratio of what the assistant sees.
+
+The result is an assistant that behaves as if it already knows your codebase, because — through Cortex — it does.
+
+## Quick demo
 
 ![Cortex install and bootstrap demo](https://raw.githubusercontent.com/DanielBlomma/cortex/main/docs/install-demo.gif)
 
-## Why Use Cortex
+## Core capabilities
 
-- Semantic search across code and documentation.
+- Semantic search across code, rules, and ADRs.
 - Graph relationships between entities and architectural constraints.
-- Local-first: your code and context stay on your machine.
-- Incremental updates keep context fresh as the repo changes.
-- Works with Claude Code/Desktop and Codex MCP clients.
-
-## Core Features
-
-- Semantic search across files, rules, and ADRs.
-- Graph relationships between entities and architectural constraints.
-- Architectural rules and ADR context for implementation decisions.
-- Live TUI dashboard showing what Cortex adds to your repo.
+- Call-graph traversal, caller lookup, and impact analysis.
+- Architectural rules and ADR enforcement at retrieval time.
+- Incremental index updates driven by git hooks.
+- Live TUI dashboard showing what Cortex adds to your repository.
+- First-class integrations with Claude Code, Claude Desktop, and Codex.
 
 ## Requirements
 
