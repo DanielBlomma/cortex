@@ -54,8 +54,9 @@ Unresolved calls (e.g. via `dynamic`, or when referenced type isn't in the compi
 
 ### Bridge (`csharp.mjs`)
 
-- `parseCode(code, filePath, language)` — unchanged. Per-file, syntax-only.
-- `parseProject(files: [{path, content}])` — new. Spawns one `dotnet run -- --batch`, streams JSON in/out, returns `Map<path, {chunks, errors}>`. Shares the same `getCSharpParserRuntime` probe cache.
+- `parseCode(code, filePath, language)` — per-file, syntax-only. Invokes the pre-published `CSharpParser.dll` via `dotnet <dll> --stdin --file X.cs`.
+- `parseProject(files: [{path, content}])` — batch. Invokes `dotnet <dll> --batch`, streams JSON in/out, returns `Map<path, {chunks, errors}>`.
+- `ensureCSharpParserPublished()` — on first use, runs `dotnet publish -c Release` once to `bin/Release/<tfm>/publish/` and caches the DLL path. Subsequent calls skip the msbuild cycle (~10× speedup per single-file call).
 
 ### Ingest integration
 
