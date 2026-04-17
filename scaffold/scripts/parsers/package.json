@@ -12,6 +12,8 @@
   "dependencies": {
     "acorn": "^8.16.0",
     "acorn-typescript": "^1.4.13",
-    "acorn-walk": "^8.3.5"
+    "acorn-walk": "^8.3.5",
+    "tree-sitter-wasms": "^0.1.13",
+    "web-tree-sitter": "^0.22.6"
   }
 }

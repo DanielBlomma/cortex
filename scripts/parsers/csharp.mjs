@@ -128,6 +128,92 @@ export function parseCode(code, filePath, language = "csharp") {
   }
 }
 
+/**
+ * Batch-parse an entire C# project as one CSharpCompilation, enabling
+ * SemanticModel-based call resolution. Calls are emitted as fully-
+ * qualified names (e.g. "System.IO.File.ReadAllText") instead of
+ * short names. Unresolved calls fall back to the syntax name.
+ *
+ * @param {Array<{path: string, content: string}>} files
+ * @returns {Map<string, {chunks: Array, errors: Array}>}
+ */
+export function parseProject(files) {
+  const runtime = getCSharpParserRuntime();
+  if (!runtime.available) {
+    const empty = new Map();
+    for (const file of files) {
+      empty.set(file.path, { chunks: [], errors: [] });
+    }
+    return empty;
+  }
+
+  const args = [
+    "run",
+    "--project",
+    runtime.projectPath,
+    "--configuration",
+    "Release",
+    "--",
+    "--batch"
+  ];
+
+  const payload = JSON.stringify({
+    files: files.map((f) => ({ path: f.path, source: f.content }))
+  });
+
+  const result = spawnSync(runtime.command, args, {
+    input: payload,
+    encoding: "utf8",
+    timeout: 120000,
+    maxBuffer: 256 * 1024 * 1024
+  });
+
+  if (result.error || result.status !== 0) {
+    const errors = [
+      {
+        message:
+          result.error?.message ||
+          result.stderr?.trim() ||
+          `C# batch parser failed with exit code ${result.status ?? "unknown"}`
+      }
+    ];
+    const fallback = new Map();
+    for (const file of files) {
+      fallback.set(file.path, { chunks: [], errors });
+    }
+    return fallback;
+  }
+
+  try {
+    const parsed = JSON.parse(result.stdout);
+    const out = new Map();
+    const perFile = parsed.files ?? {};
+    for (const file of files) {
+      const entry = perFile[file.path];
+      if (entry) {
+        out.set(file.path, {
+          chunks: Array.isArray(entry.chunks) ? entry.chunks : [],
+          errors: Array.isArray(entry.errors) ? entry.errors : []
+        });
+      } else {
+        out.set(file.path, { chunks: [], errors: [] });
+      }
+    }
+    return out;
+  } catch (error) {
+    const errors = [
+      {
+        message: `C# batch parser returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`
+      }
+    ];
+    const fallback = new Map();
+    for (const file of files) {
+      fallback.set(file.path, { chunks: [], errors });
+    }
+    return fallback;
+  }
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const fs = await import("node:fs");
   const filePath = process.argv[2];

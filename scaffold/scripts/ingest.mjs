@@ -11,16 +11,23 @@ import {
 } from "./parsers/vbnet.mjs";
 import {
   isCSharpParserAvailable,
-  parseCode as parseCSharpCode
+  parseCode as parseCSharpCode,
+  parseProject as parseCSharpProject
 } from "./parsers/csharp.mjs";
 import {
   isCppParserAvailable,
   parseCode as parseCppCode
-} from "./parsers/cpp.mjs";
+} from "./parsers/cpp-dispatch.mjs";
 import { parseCode as parseConfigCode } from "./parsers/config.mjs";
 import { parseCode as parseResourcesCode } from "./parsers/resources.mjs";
 import { parseCode as parseSqlCode } from "./parsers/sql.mjs";
-import { parseCode as parseRustCode } from "./parsers/rust.mjs";
+import { parseCode as parseRustCode } from "./parsers/rust-dispatch.mjs";
+import { parseCode as parsePythonCode } from "./parsers/python-treesitter.mjs";
+import { parseCode as parseGoCode } from "./parsers/go-treesitter.mjs";
+import { parseCode as parseJavaCode } from "./parsers/java-treesitter.mjs";
+import { parseCode as parseRubyCode } from "./parsers/ruby-treesitter.mjs";
+import { parseCode as parseBashCode } from "./parsers/bash-treesitter.mjs";
+import { parseCode as parseVb6Code } from "./parsers/vb6.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -75,7 +82,11 @@ const SUPPORTED_TEXT_EXTENSIONS = new Set([
   ".cpp",
   ".hpp",
   ".cc",
-  ".hh"
+  ".hh",
+  ".bas",
+  ".cls",
+  ".frm",
+  ".ctl"
 ]);
 
 const LEGACY_DOTNET_METADATA_EXTENSIONS = new Set([
@@ -120,7 +131,11 @@ const CODE_FILE_EXTENSIONS = new Set([
   ".cpp",
   ".hpp",
   ".cc",
-  ".hh"
+  ".hh",
+  ".bas",
+  ".cls",
+  ".frm",
+  ".ctl"
 ]);
 
 const SQL_REFERENCE_SOURCE_EXTENSIONS = new Set([
@@ -292,6 +307,83 @@ const CHUNK_PARSERS = new Map([
     {
       language: "rust",
       parse: parseRustCode
+    }
+  ],
+  [
+    ".py",
+    {
+      language: "python",
+      parse: parsePythonCode
+    }
+  ],
+  [
+    ".go",
+    {
+      language: "go",
+      parse: parseGoCode
+    }
+  ],
+  [
+    ".java",
+    {
+      language: "java",
+      parse: parseJavaCode
+    }
+  ],
+  [
+    ".rb",
+    {
+      language: "ruby",
+      parse: parseRubyCode
+    }
+  ],
+  [
+    ".sh",
+    {
+      language: "bash",
+      parse: parseBashCode
+    }
+  ],
+  [
+    ".bash",
+    {
+      language: "bash",
+      parse: parseBashCode
+    }
+  ],
+  [
+    ".zsh",
+    {
+      language: "bash",
+      parse: parseBashCode
+    }
+  ],
+  [
+    ".bas",
+    {
+      language: "vb6",
+      parse: parseVb6Code
+    }
+  ],
+  [
+    ".cls",
+    {
+      language: "vb6",
+      parse: parseVb6Code
+    }
+  ],
+  [
+    ".frm",
+    {
+      language: "vb6",
+      parse: parseVb6Code
+    }
+  ],
+  [
+    ".ctl",
+    {
+      language: "vb6",
+      parse: parseVb6Code
     }
   ]
 ]);
@@ -2488,13 +2580,44 @@ function main() {
   const settingChunkIdsByAlias = new Map();
   const deferredSqlCallEdges = [];
 
+  // C# project-wide batch parse: compile all .cs files together via
+  // CSharpCompilation for SemanticModel-resolved calls. Falls back to
+  // per-file parse silently if batch isn't usable.
+  const csharpBatchCache = new Map();
+  if (
+    typeof parseCSharpProject === "function" &&
+    isCSharpParserAvailable() &&
+    process.env.CORTEX_CSHARP_BATCH !== "never"
+  ) {
+    const csharpFilesForBatch = fileRecords.filter((r) => {
+      if (r.kind !== "CODE") return false;
+      if (path.extname(r.path).toLowerCase() !== ".cs") return false;
+      return !incrementalMode || changedFileIds.has(r.id) || !cachedChunkFileIds.has(r.id);
+    });
+    if (csharpFilesForBatch.length > 0) {
+      const allCsharpInputs = fileRecords
+        .filter((r) => r.kind === "CODE" && path.extname(r.path).toLowerCase() === ".cs")
+        .map((r) => ({ path: r.path, content: r.content }));
+      try {
+        const batchResult = parseCSharpProject(allCsharpInputs);
+        for (const [filePath, result] of batchResult) {
+          csharpBatchCache.set(filePath, result);
+        }
+      } catch (error) {
+        if (verbose) {
+          console.log(`[ingest] C# batch parse failed, falling back per-file: ${error.message}`);
+        }
+      }
+    }
+  }
+
   for (const fileRecord of fileRecords) {
     const ext = path.extname(fileRecord.path).toLowerCase();
     const parser = getChunkParserForExtension(ext);
     const isStructuredNonCodeChunk = STRUCTURED_NON_CODE_CHUNK_EXTENSIONS.has(ext);
     if (fileRecord.kind !== "CODE" && !isStructuredNonCodeChunk) continue;
     if (!parser) continue;
-    if (typeof parser.isAvailable === "function" && !parser.isAvailable()) continue;
+    if (typeof parser.isAvailable === "function" && !(await parser.isAvailable())) continue;
 
     const shouldParseFile =
       !incrementalMode || changedFileIds.has(fileRecord.id) || !cachedChunkFileIds.has(fileRecord.id);
@@ -2512,7 +2635,9 @@ function main() {
     );
 
     try {
-      const parseResult = parser.parse(fileRecord.content, fileRecord.path, parser.language);
+      const parseResult = parser.language === "csharp" && csharpBatchCache.has(fileRecord.path)
+        ? csharpBatchCache.get(fileRecord.path)
+        : await parser.parse(fileRecord.content, fileRecord.path, parser.language);
 
       if (parseResult.errors.length > 0 && verbose) {
         console.log(`[ingest] parse errors in ${fileRecord.path}:`, parseResult.errors[0].message);
