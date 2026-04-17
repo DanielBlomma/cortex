@@ -50,7 +50,7 @@ async function loadOptionalParsers() {
     import("./parsers/sql.mjs").then((module) => {
       parseSqlCode = module.parseCode;
     }),
-    import("./parsers/rust.mjs").then((module) => {
+    import("./parsers/rust-dispatch.mjs").then((module) => {
       parseRustCode = module.parseCode;
     })
   ];

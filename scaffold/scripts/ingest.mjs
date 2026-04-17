@@ -20,7 +20,7 @@ import {
 import { parseCode as parseConfigCode } from "./parsers/config.mjs";
 import { parseCode as parseResourcesCode } from "./parsers/resources.mjs";
 import { parseCode as parseSqlCode } from "./parsers/sql.mjs";
-import { parseCode as parseRustCode } from "./parsers/rust.mjs";
+import { parseCode as parseRustCode } from "./parsers/rust-dispatch.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
