@@ -221,19 +221,59 @@ if [[ -n "$ENTERPRISE_CONFIG" ]]; then
     console.log(fields["policy.endpoint"] || "");
   ' "$ENTERPRISE_CONFIG" 2>/dev/null || echo "")
 
+  TELEMETRY_API_KEY=$(node -e '
+    const fs = require("node:fs");
+    const raw = fs.readFileSync(process.argv[1], "utf8");
+    let section = "", fields = {};
+    for (const line of raw.split("\n")) {
+      const t = line.trimEnd();
+      if (!t || t.startsWith("#")) continue;
+      const sm = t.match(/^(\w+):\s*$/);
+      if (sm) { section = sm[1]; continue; }
+      const kv = t.match(/^\s+(\w+):\s*(.+?)\s*$/);
+      if (kv && section) fields[section + "." + kv[1]] = kv[2].replace(/^["\x27]|["\x27]$/g, "");
+    }
+    console.log(fields["telemetry.api_key"] || "");
+  ' "$ENTERPRISE_CONFIG" 2>/dev/null || echo "")
+
+  POLICY_API_KEY=$(node -e '
+    const fs = require("node:fs");
+    const raw = fs.readFileSync(process.argv[1], "utf8");
+    let section = "", fields = {};
+    for (const line of raw.split("\n")) {
+      const t = line.trimEnd();
+      if (!t || t.startsWith("#")) continue;
+      const sm = t.match(/^(\w+):\s*$/);
+      if (sm) { section = sm[1]; continue; }
+      const kv = t.match(/^\s+(\w+):\s*(.+?)\s*$/);
+      if (kv && section) fields[section + "." + kv[1]] = kv[2].replace(/^["\x27]|["\x27]$/g, "");
+    }
+    console.log(fields["policy.api_key"] || "");
+  ' "$ENTERPRISE_CONFIG" 2>/dev/null || echo "")
+
   # Telemetry
   if [[ -n "$TELEMETRY_ENDPOINT" ]]; then
     pass "Telemetry: endpoint configured"
-    HTTP_CODE=$(curl -so /dev/null -w '%{http_code}' --max-time 5 -X POST \
-      -H "Content-Type: application/json" \
-      -d '{}' \
-      "$TELEMETRY_ENDPOINT" 2>/dev/null | tail -c 3 || echo "000")
+    TELEMETRY_CURL_ARGS=(-so /dev/null -w '%{http_code}' --max-time 5 -X POST \
+      -H "Content-Type: application/json" -d '{}')
+    if [[ -n "$TELEMETRY_API_KEY" ]]; then
+      TELEMETRY_CURL_ARGS+=(-H "Authorization: Bearer ${TELEMETRY_API_KEY}")
+    fi
+    HTTP_CODE=$(curl "${TELEMETRY_CURL_ARGS[@]}" "$TELEMETRY_ENDPOINT" 2>/dev/null | tail -c 3 || echo "000")
     if [[ "$HTTP_CODE" == "000" ]]; then
       fail "Telemetry: endpoint not reachable (timeout/DNS)"
     elif [[ "$HTTP_CODE" =~ ^[23] ]]; then
-      pass "Telemetry: endpoint reachable (HTTP ${HTTP_CODE})"
-    elif [[ "$HTTP_CODE" == "401" ]]; then
-      pass "Telemetry: endpoint reachable (auth required — expected)"
+      if [[ -n "$TELEMETRY_API_KEY" ]]; then
+        pass "Telemetry: endpoint authenticated (HTTP ${HTTP_CODE})"
+      else
+        pass "Telemetry: endpoint reachable (HTTP ${HTTP_CODE})"
+      fi
+    elif [[ "$HTTP_CODE" == "401" || "$HTTP_CODE" == "403" ]]; then
+      if [[ -n "$TELEMETRY_API_KEY" ]]; then
+        fail "Telemetry: auth rejected (HTTP ${HTTP_CODE}) — check telemetry.api_key in enterprise.yaml"
+      else
+        pass "Telemetry: endpoint reachable (auth required — expected)"
+      fi
     else
       warn "Telemetry: endpoint returned HTTP ${HTTP_CODE}"
     fi
@@ -258,11 +298,25 @@ if [[ -n "$ENTERPRISE_CONFIG" ]]; then
   fi
 
   if [[ -n "$POLICY_ENDPOINT" ]]; then
-    POLICY_HTTP=$(curl -so /dev/null -w '%{http_code}' --max-time 5 "$POLICY_ENDPOINT" 2>/dev/null | tail -c 3 || echo "000")
+    POLICY_CURL_ARGS=(-so /dev/null -w '%{http_code}' --max-time 5)
+    if [[ -n "$POLICY_API_KEY" ]]; then
+      POLICY_CURL_ARGS+=(-H "Authorization: Bearer ${POLICY_API_KEY}")
+    fi
+    POLICY_HTTP=$(curl "${POLICY_CURL_ARGS[@]}" "$POLICY_ENDPOINT" 2>/dev/null | tail -c 3 || echo "000")
     if [[ "$POLICY_HTTP" == "000" ]]; then
       fail "Policy: endpoint not reachable (timeout/DNS)"
-    elif [[ "$POLICY_HTTP" =~ ^[23] ]] || [[ "$POLICY_HTTP" == "401" ]]; then
-      pass "Policy: endpoint reachable (HTTP ${POLICY_HTTP})"
+    elif [[ "$POLICY_HTTP" =~ ^[23] ]]; then
+      if [[ -n "$POLICY_API_KEY" ]]; then
+        pass "Policy: endpoint authenticated (HTTP ${POLICY_HTTP})"
+      else
+        pass "Policy: endpoint reachable (HTTP ${POLICY_HTTP})"
+      fi
+    elif [[ "$POLICY_HTTP" == "401" || "$POLICY_HTTP" == "403" ]]; then
+      if [[ -n "$POLICY_API_KEY" ]]; then
+        fail "Policy: auth rejected (HTTP ${POLICY_HTTP}) — check policy.api_key in enterprise.yaml"
+      else
+        pass "Policy: endpoint reachable (auth required — expected)"
+      fi
     else
       warn "Policy: endpoint returned HTTP ${POLICY_HTTP}"
     fi
