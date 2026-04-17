@@ -2,14 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { parseCode } from "../scripts/parsers/ruby-treesitter.mjs";
 
-test("ruby parser extracts a top-level method", () => {
+test("ruby parser extracts a top-level method", async () => {
   const source = [
     "def add(a, b)",
     "  a + b",
     "end"
   ].join("\n");
 
-  const result = parseCode(source, "math.rb", "ruby");
+  const result = await parseCode(source, "math.rb", "ruby");
   const chunk = result.chunks.find((c) => c.name === "add");
 
   assert.ok(chunk);
@@ -17,7 +17,7 @@ test("ruby parser extracts a top-level method", () => {
   assert.equal(chunk.language, "ruby");
 });
 
-test("ruby parser qualifies instance methods with Class#method", () => {
+test("ruby parser qualifies instance methods with Class#method", async () => {
   const source = [
     "class Dog",
     "  def bark",
@@ -26,7 +26,7 @@ test("ruby parser qualifies instance methods with Class#method", () => {
     "end"
   ].join("\n");
 
-  const result = parseCode(source, "dog.rb", "ruby");
+  const result = await parseCode(source, "dog.rb", "ruby");
   const names = result.chunks.map((c) => c.name);
 
   assert.ok(names.includes("Dog"));
@@ -35,7 +35,7 @@ test("ruby parser qualifies instance methods with Class#method", () => {
   assert.equal(method.kind, "method");
 });
 
-test("ruby parser qualifies singleton methods with Class.method", () => {
+test("ruby parser qualifies singleton methods with Class.method", async () => {
   const source = [
     "class Config",
     "  def self.load(path)",
@@ -44,7 +44,7 @@ test("ruby parser qualifies singleton methods with Class.method", () => {
     "end"
   ].join("\n");
 
-  const result = parseCode(source, "config.rb", "ruby");
+  const result = await parseCode(source, "config.rb", "ruby");
   const names = result.chunks.map((c) => c.name);
 
   assert.ok(names.includes("Config"));
@@ -53,7 +53,7 @@ test("ruby parser qualifies singleton methods with Class.method", () => {
   assert.equal(singleton.kind, "class_method");
 });
 
-test("ruby parser distinguishes instance and singleton methods by separator", () => {
+test("ruby parser distinguishes instance and singleton methods by separator", async () => {
   const source = [
     "class User",
     "  def name",
@@ -65,14 +65,14 @@ test("ruby parser distinguishes instance and singleton methods by separator", ()
     "end"
   ].join("\n");
 
-  const result = parseCode(source, "user.rb", "ruby");
+  const result = await parseCode(source, "user.rb", "ruby");
   const names = new Set(result.chunks.map((c) => c.name));
 
   assert.ok(names.has("User#name"), "instance method should use #");
   assert.ok(names.has("User.create"), "singleton method should use .");
 });
 
-test("ruby parser qualifies nested module and class with ::", () => {
+test("ruby parser qualifies nested module and class with ::", async () => {
   const source = [
     "module App",
     "  class User",
@@ -83,7 +83,7 @@ test("ruby parser qualifies nested module and class with ::", () => {
     "end"
   ].join("\n");
 
-  const result = parseCode(source, "app.rb", "ruby");
+  const result = await parseCode(source, "app.rb", "ruby");
   const names = new Set(result.chunks.map((c) => c.name));
 
   assert.ok(names.has("App"));
@@ -91,7 +91,7 @@ test("ruby parser qualifies nested module and class with ::", () => {
   assert.ok(names.has("App::User#full_name"));
 });
 
-test("ruby parser extracts calls and filters out stdlib noise", () => {
+test("ruby parser extracts calls and filters out stdlib noise", async () => {
   const source = [
     "class Runner",
     "  def go",
@@ -103,7 +103,7 @@ test("ruby parser extracts calls and filters out stdlib noise", () => {
     "end"
   ].join("\n");
 
-  const result = parseCode(source, "r.rb", "ruby");
+  const result = await parseCode(source, "r.rb", "ruby");
   const go = result.chunks.find((c) => c.name === "Runner#go");
 
   assert.ok(go);
@@ -113,7 +113,7 @@ test("ruby parser extracts calls and filters out stdlib noise", () => {
   assert.ok(!go.calls.includes("puts"), "puts should be filtered as stdlib noise");
 });
 
-test("ruby parser extracts require, require_relative, and autoload paths", () => {
+test("ruby parser extracts require, require_relative, and autoload paths", async () => {
   const source = [
     "require 'json'",
     "require_relative './util'",
@@ -127,7 +127,7 @@ test("ruby parser extracts require, require_relative, and autoload paths", () =>
     "end"
   ].join("\n");
 
-  const result = parseCode(source, "app.rb", "ruby");
+  const result = await parseCode(source, "app.rb", "ruby");
   const run = result.chunks.find((c) => c.name === "App#run");
 
   assert.ok(run);
@@ -137,7 +137,7 @@ test("ruby parser extracts require, require_relative, and autoload paths", () =>
   assert.ok(run.imports.includes("logger"));
 });
 
-test("ruby parser ignores require calls made inside method bodies", () => {
+test("ruby parser ignores require calls made inside method bodies", async () => {
   const source = [
     "class Lazy",
     "  def load_json",
@@ -147,7 +147,7 @@ test("ruby parser ignores require calls made inside method bodies", () => {
     "end"
   ].join("\n");
 
-  const result = parseCode(source, "lazy.rb", "ruby");
+  const result = await parseCode(source, "lazy.rb", "ruby");
   const run = result.chunks.find((c) => c.name === "Lazy#load_json");
 
   assert.ok(run);
@@ -157,7 +157,7 @@ test("ruby parser ignores require calls made inside method bodies", () => {
   assert.ok(!run.calls.includes("require"));
 });
 
-test("ruby parser marks _-prefixed method names as not exported", () => {
+test("ruby parser marks _-prefixed method names as not exported", async () => {
   const source = [
     "class Svc",
     "  def public_api; end",
@@ -165,7 +165,7 @@ test("ruby parser marks _-prefixed method names as not exported", () => {
     "end"
   ].join("\n");
 
-  const result = parseCode(source, "svc.rb", "ruby");
+  const result = await parseCode(source, "svc.rb", "ruby");
   const api = result.chunks.find((c) => c.name === "Svc#public_api");
   const internal = result.chunks.find((c) => c.name === "Svc#_internal");
 
@@ -173,7 +173,7 @@ test("ruby parser marks _-prefixed method names as not exported", () => {
   assert.equal(internal.exported, false);
 });
 
-test("ruby parser handles class inheritance", () => {
+test("ruby parser handles class inheritance", async () => {
   const source = [
     "class Dog < Animal",
     "  def bark",
@@ -182,14 +182,14 @@ test("ruby parser handles class inheritance", () => {
     "end"
   ].join("\n");
 
-  const result = parseCode(source, "dog.rb", "ruby");
+  const result = await parseCode(source, "dog.rb", "ruby");
   const cls = result.chunks.find((c) => c.name === "Dog");
 
   assert.ok(cls);
   assert.equal(cls.kind, "class");
 });
 
-test("ruby parser handles modules with both instance and singleton methods", () => {
+test("ruby parser handles modules with both instance and singleton methods", async () => {
   const source = [
     "module Utils",
     "  def self.helper",
@@ -201,7 +201,7 @@ test("ruby parser handles modules with both instance and singleton methods", () 
     "end"
   ].join("\n");
 
-  const result = parseCode(source, "utils.rb", "ruby");
+  const result = await parseCode(source, "utils.rb", "ruby");
   const names = new Set(result.chunks.map((c) => c.name));
 
   assert.ok(names.has("Utils"));
@@ -209,8 +209,8 @@ test("ruby parser handles modules with both instance and singleton methods", () 
   assert.ok(names.has("Utils#instance_m"));
 });
 
-test("ruby parser handles empty input without errors", () => {
-  const result = parseCode("", "empty.rb", "ruby");
+test("ruby parser handles empty input without errors", async () => {
+  const result = await parseCode("", "empty.rb", "ruby");
   assert.deepEqual(result.errors, []);
   assert.equal(result.chunks.length, 0);
 });

@@ -2,10 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { parseCode } from "../scripts/parsers/cpp-treesitter.mjs";
 
-test("cpp parser extracts a top-level C function", () => {
+test("cpp parser extracts a top-level C function", async () => {
   const source = "int add(int a, int b) { return a + b; }";
 
-  const result = parseCode(source, "math.c", "c");
+  const result = await parseCode(source, "math.c", "c");
   const chunk = result.chunks.find((c) => c.name === "add");
 
   assert.ok(chunk);
@@ -13,7 +13,7 @@ test("cpp parser extracts a top-level C function", () => {
   assert.equal(chunk.language, "c");
 });
 
-test("cpp parser extracts a C++ class with inline method qualified as Class::method", () => {
+test("cpp parser extracts a C++ class with inline method qualified as Class::method", async () => {
   const source = [
     "class Foo {",
     "public:",
@@ -21,7 +21,7 @@ test("cpp parser extracts a C++ class with inline method qualified as Class::met
     "};"
   ].join("\n");
 
-  const result = parseCode(source, "foo.cpp", "cpp");
+  const result = await parseCode(source, "foo.cpp", "cpp");
   const names = new Set(result.chunks.map((c) => c.name));
 
   assert.ok(names.has("Foo"));
@@ -30,7 +30,7 @@ test("cpp parser extracts a C++ class with inline method qualified as Class::met
   assert.equal(method.kind, "method");
 });
 
-test("cpp parser extracts out-of-class method definitions", () => {
+test("cpp parser extracts out-of-class method definitions", async () => {
   const source = [
     "class Foo {",
     "public:",
@@ -39,14 +39,14 @@ test("cpp parser extracts out-of-class method definitions", () => {
     "int Foo::bar() { return 42; }"
   ].join("\n");
 
-  const result = parseCode(source, "foo.cpp", "cpp");
+  const result = await parseCode(source, "foo.cpp", "cpp");
   const names = result.chunks.map((c) => c.name);
 
   assert.ok(names.includes("Foo"));
   assert.ok(names.includes("Foo::bar"));
 });
 
-test("cpp parser extracts struct, union, and enum types", () => {
+test("cpp parser extracts struct, union, and enum types", async () => {
   const source = [
     "struct Point { int x; int y; };",
     "union Data { int i; float f; };",
@@ -54,7 +54,7 @@ test("cpp parser extracts struct, union, and enum types", () => {
     "enum class Color { RED, GREEN };"
   ].join("\n");
 
-  const result = parseCode(source, "types.cpp", "cpp");
+  const result = await parseCode(source, "types.cpp", "cpp");
   const byName = new Map(result.chunks.map((c) => [c.name, c]));
 
   assert.equal(byName.get("Point").kind, "struct");
@@ -63,7 +63,7 @@ test("cpp parser extracts struct, union, and enum types", () => {
   assert.equal(byName.get("Color").kind, "enum");
 });
 
-test("cpp parser qualifies methods inside namespaces", () => {
+test("cpp parser qualifies methods inside namespaces", async () => {
   const source = [
     "namespace app {",
     "  int handler(int x) { return x; }",
@@ -74,7 +74,7 @@ test("cpp parser qualifies methods inside namespaces", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "app.cpp", "cpp");
+  const result = await parseCode(source, "app.cpp", "cpp");
   const names = new Set(result.chunks.map((c) => c.name));
 
   assert.ok(names.has("app"));
@@ -83,21 +83,21 @@ test("cpp parser qualifies methods inside namespaces", () => {
   assert.ok(names.has("app::Service::run"));
 });
 
-test("cpp parser handles nested namespace declarations (namespace a::b)", () => {
+test("cpp parser handles nested namespace declarations (namespace a::b)", async () => {
   const source = [
     "namespace a::b {",
     "  void f() { }",
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "ns.cpp", "cpp");
+  const result = await parseCode(source, "ns.cpp", "cpp");
   const names = new Set(result.chunks.map((c) => c.name));
 
   assert.ok(names.has("a::b"), "nested namespace should be captured as a::b");
   assert.ok(names.has("a::b::f"));
 });
 
-test("cpp parser extracts template class and its methods", () => {
+test("cpp parser extracts template class and its methods", async () => {
   const source = [
     "template<typename T>",
     "class Wrapper {",
@@ -108,14 +108,14 @@ test("cpp parser extracts template class and its methods", () => {
     "};"
   ].join("\n");
 
-  const result = parseCode(source, "wrapper.cpp", "cpp");
+  const result = await parseCode(source, "wrapper.cpp", "cpp");
   const names = new Set(result.chunks.map((c) => c.name));
 
   assert.ok(names.has("Wrapper"));
   assert.ok(names.has("Wrapper::get"));
 });
 
-test("cpp parser extracts nested class qualified as Outer::Inner", () => {
+test("cpp parser extracts nested class qualified as Outer::Inner", async () => {
   const source = [
     "class Outer {",
     "public:",
@@ -126,7 +126,7 @@ test("cpp parser extracts nested class qualified as Outer::Inner", () => {
     "};"
   ].join("\n");
 
-  const result = parseCode(source, "nested.cpp", "cpp");
+  const result = await parseCode(source, "nested.cpp", "cpp");
   const names = new Set(result.chunks.map((c) => c.name));
 
   assert.ok(names.has("Outer"));
@@ -134,7 +134,7 @@ test("cpp parser extracts nested class qualified as Outer::Inner", () => {
   assert.ok(names.has("Outer::Inner::deep"));
 });
 
-test("cpp parser extracts includes (system and local)", () => {
+test("cpp parser extracts includes (system and local)", async () => {
   const source = [
     "#include <vector>",
     "#include <string>",
@@ -144,7 +144,7 @@ test("cpp parser extracts includes (system and local)", () => {
     "void run() { }"
   ].join("\n");
 
-  const result = parseCode(source, "m.cpp", "cpp");
+  const result = await parseCode(source, "m.cpp", "cpp");
   const chunk = result.chunks.find((c) => c.name === "run");
 
   assert.ok(chunk);
@@ -154,7 +154,7 @@ test("cpp parser extracts includes (system and local)", () => {
   assert.ok(chunk.imports.includes("../util/helper.hpp"));
 });
 
-test("cpp parser extracts direct, member, pointer, and qualified calls", () => {
+test("cpp parser extracts direct, member, pointer, and qualified calls", async () => {
   const source = [
     "void run() {",
     "  helper();",
@@ -165,7 +165,7 @@ test("cpp parser extracts direct, member, pointer, and qualified calls", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "r.cpp", "cpp");
+  const result = await parseCode(source, "r.cpp", "cpp");
   const chunk = result.chunks.find((c) => c.name === "run");
 
   assert.ok(chunk);
@@ -175,7 +175,7 @@ test("cpp parser extracts direct, member, pointer, and qualified calls", () => {
   assert.ok(chunk.calls.includes("staticMethod"));
 });
 
-test("cpp parser filters out builtins like sizeof, static_cast, malloc, printf", () => {
+test("cpp parser filters out builtins like sizeof, static_cast, malloc, printf", async () => {
   const source = [
     "int compute() {",
     "  void* p = malloc(sizeof(int));",
@@ -187,7 +187,7 @@ test("cpp parser filters out builtins like sizeof, static_cast, malloc, printf",
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "c.cpp", "cpp");
+  const result = await parseCode(source, "c.cpp", "cpp");
   const chunk = result.chunks.find((c) => c.name === "compute");
 
   assert.ok(chunk);
@@ -199,13 +199,13 @@ test("cpp parser filters out builtins like sizeof, static_cast, malloc, printf",
   assert.ok(!chunk.calls.includes("printf"));
 });
 
-test("cpp parser handles empty input without errors", () => {
-  const result = parseCode("", "empty.cpp", "cpp");
+test("cpp parser handles empty input without errors", async () => {
+  const result = await parseCode("", "empty.cpp", "cpp");
   assert.deepEqual(result.errors, []);
   assert.equal(result.chunks.length, 0);
 });
 
-test("cpp parser handles header-only C code (no classes, no namespaces)", () => {
+test("cpp parser handles header-only C code (no classes, no namespaces)", async () => {
   const source = [
     "#ifndef UTIL_H",
     "#define UTIL_H",
@@ -214,7 +214,7 @@ test("cpp parser handles header-only C code (no classes, no namespaces)", () => 
     "#endif"
   ].join("\n");
 
-  const result = parseCode(source, "util.h", "c");
+  const result = await parseCode(source, "util.h", "c");
   // Declarations only (no definitions) — should produce zero chunks
   // but also no errors.
   assert.deepEqual(result.errors, []);

@@ -2755,7 +2755,7 @@ async function main() {
     const isStructuredNonCodeChunk = STRUCTURED_NON_CODE_CHUNK_EXTENSIONS.has(ext);
     if (fileRecord.kind !== "CODE" && !isStructuredNonCodeChunk) continue;
     if (!parser) continue;
-    if (typeof parser.isAvailable === "function" && !parser.isAvailable()) continue;
+    if (typeof parser.isAvailable === "function" && !(await parser.isAvailable())) continue;
 
     const shouldParseFile =
       !incrementalMode || changedFileIds.has(fileRecord.id) || !cachedChunkFileIds.has(fileRecord.id);
@@ -2775,7 +2775,7 @@ async function main() {
     try {
       const parseResult = parser.language === "csharp" && csharpBatchCache.has(fileRecord.path)
         ? csharpBatchCache.get(fileRecord.path)
-        : parser.parse(fileRecord.content, fileRecord.path, parser.language);
+        : await parser.parse(fileRecord.content, fileRecord.path, parser.language);
 
       if (parseResult.errors.length > 0 && verbose) {
         console.log(`[ingest] parse errors in ${fileRecord.path}:`, parseResult.errors[0].message);

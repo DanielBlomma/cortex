@@ -14,7 +14,8 @@
  *
  * Exported: true when the name starts with an upper-case letter (Go convention).
  *
- * parseCode is synchronous; grammar pre-initializes via top-level await.
+ * parseCode is async; the WASM grammar is lazily loaded on first call
+ * and cached for subsequent calls.
  */
 
 import path from "node:path";
@@ -33,8 +34,30 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const QUERY_DIR = path.join(__dirname, "tree-sitter", "queries");
 
-await initTreeSitter();
-const GO_LANG = await loadGrammar("go");
+let GO_LANG = null;
+let langPromise = null;
+
+async function ensureLanguage() {
+  if (GO_LANG) return GO_LANG;
+  if (!langPromise) {
+    langPromise = (async () => {
+      await initTreeSitter();
+      GO_LANG = await loadGrammar("go");
+      return GO_LANG;
+    })();
+  }
+  await langPromise;
+  return GO_LANG;
+}
+
+export async function isAvailable() {
+  try {
+    await ensureLanguage();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const CHUNK_QUERY = fs.readFileSync(path.join(QUERY_DIR, "go.chunks.scm"), "utf8");
 const CALL_QUERY = fs.readFileSync(path.join(QUERY_DIR, "go.calls.scm"), "utf8");
@@ -198,7 +221,8 @@ function buildTypeChunk(node, nameNode, language) {
   };
 }
 
-export function parseCode(code, filePath, language = "go") {
+export async function parseCode(code, filePath, language = "go") {
+  await ensureLanguage();
   const { tree } = parseSource(GO_LANG, code);
   const root = tree.rootNode;
   const imports = collectImports(root);
@@ -254,6 +278,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.exit(1);
   }
   const code = fs.readFileSync(target, "utf8");
-  const result = parseCode(code, target, "go");
+  const result = await parseCode(code, target, "go");
   console.log(JSON.stringify(result, null, 2));
 }

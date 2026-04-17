@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { parseCode } from "../scripts/parsers/go-treesitter.mjs";
 
-test("go parser extracts a top-level function", () => {
+test("go parser extracts a top-level function", async () => {
   const source = [
     "package main",
     "",
@@ -11,7 +11,7 @@ test("go parser extracts a top-level function", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "math.go", "go");
+  const result = await parseCode(source, "math.go", "go");
   const chunk = result.chunks.find((c) => c.name === "Add");
 
   assert.ok(chunk);
@@ -20,14 +20,14 @@ test("go parser extracts a top-level function", () => {
   assert.equal(chunk.exported, true);
 });
 
-test("go parser marks lowercase-first-letter names as not exported", () => {
+test("go parser marks lowercase-first-letter names as not exported", async () => {
   const source = [
     "package m",
     "func helper() int { return 1 }",
     "func Exported() int { return 2 }"
   ].join("\n");
 
-  const result = parseCode(source, "m.go", "go");
+  const result = await parseCode(source, "m.go", "go");
   const helper = result.chunks.find((c) => c.name === "helper");
   const exported = result.chunks.find((c) => c.name === "Exported");
 
@@ -35,14 +35,14 @@ test("go parser marks lowercase-first-letter names as not exported", () => {
   assert.equal(exported.exported, true);
 });
 
-test("go parser extracts methods qualified by value receiver type", () => {
+test("go parser extracts methods qualified by value receiver type", async () => {
   const source = [
     "package m",
     "type S struct{}",
     "func (s S) Name() string { return \"s\" }"
   ].join("\n");
 
-  const result = parseCode(source, "s.go", "go");
+  const result = await parseCode(source, "s.go", "go");
   const names = result.chunks.map((c) => c.name);
 
   assert.ok(names.includes("S"));
@@ -51,7 +51,7 @@ test("go parser extracts methods qualified by value receiver type", () => {
   assert.equal(method.kind, "method");
 });
 
-test("go parser unifies pointer and value receivers under the same type name", () => {
+test("go parser unifies pointer and value receivers under the same type name", async () => {
   const source = [
     "package m",
     "type Box struct{ v int }",
@@ -59,14 +59,14 @@ test("go parser unifies pointer and value receivers under the same type name", (
     "func (b Box) Get() int { return b.v }"
   ].join("\n");
 
-  const result = parseCode(source, "box.go", "go");
+  const result = await parseCode(source, "box.go", "go");
   const names = result.chunks.map((c) => c.name);
 
   assert.ok(names.includes("Box.Set"));
   assert.ok(names.includes("Box.Get"));
 });
 
-test("go parser extracts struct and interface types", () => {
+test("go parser extracts struct and interface types", async () => {
   const source = [
     "package m",
     "type Config struct {",
@@ -78,7 +78,7 @@ test("go parser extracts struct and interface types", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "types.go", "go");
+  const result = await parseCode(source, "types.go", "go");
   const byName = new Map(result.chunks.map((c) => [c.name, c]));
 
   assert.ok(byName.has("Config"));
@@ -87,14 +87,14 @@ test("go parser extracts struct and interface types", () => {
   assert.equal(byName.get("Handler").kind, "interface");
 });
 
-test("go parser extracts type aliases", () => {
+test("go parser extracts type aliases", async () => {
   const source = [
     "package m",
     "type UserID int64",
     "type StringMap = map[string]string"
   ].join("\n");
 
-  const result = parseCode(source, "types.go", "go");
+  const result = await parseCode(source, "types.go", "go");
   const byName = new Map(result.chunks.map((c) => [c.name, c]));
 
   assert.ok(byName.has("UserID"));
@@ -103,7 +103,7 @@ test("go parser extracts type aliases", () => {
   assert.equal(byName.get("StringMap").kind, "type");
 });
 
-test("go parser extracts imports including aliased and grouped", () => {
+test("go parser extracts imports including aliased and grouped", async () => {
   const source = [
     "package m",
     "",
@@ -119,7 +119,7 @@ test("go parser extracts imports including aliased and grouped", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "m.go", "go");
+  const result = await parseCode(source, "m.go", "go");
   const chunk = result.chunks.find((c) => c.name === "Run");
 
   assert.ok(chunk);
@@ -129,7 +129,7 @@ test("go parser extracts imports including aliased and grouped", () => {
   assert.ok(chunk.imports.includes("github.com/foo/bar"));
 });
 
-test("go parser extracts direct and selector calls", () => {
+test("go parser extracts direct and selector calls", async () => {
   const source = [
     "package m",
     "func Run() {",
@@ -140,7 +140,7 @@ test("go parser extracts direct and selector calls", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "r.go", "go");
+  const result = await parseCode(source, "r.go", "go");
   const chunk = result.chunks.find((c) => c.name === "Run");
 
   assert.ok(chunk);
@@ -150,7 +150,7 @@ test("go parser extracts direct and selector calls", () => {
   assert.ok(chunk.calls.includes("Method"));
 });
 
-test("go parser filters out builtins like make, new, len, append", () => {
+test("go parser filters out builtins like make, new, len, append", async () => {
   const source = [
     "package m",
     "func Build() []int {",
@@ -162,7 +162,7 @@ test("go parser filters out builtins like make, new, len, append", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "b.go", "go");
+  const result = await parseCode(source, "b.go", "go");
   const chunk = result.chunks.find((c) => c.name === "Build");
 
   assert.ok(chunk);
@@ -172,7 +172,7 @@ test("go parser filters out builtins like make, new, len, append", () => {
   assert.ok(!chunk.calls.includes("len"));
 });
 
-test("go parser handles generic functions", () => {
+test("go parser handles generic functions", async () => {
   const source = [
     "package m",
     "func Map[T, U any](items []T, fn func(T) U) []U {",
@@ -184,7 +184,7 @@ test("go parser handles generic functions", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "m.go", "go");
+  const result = await parseCode(source, "m.go", "go");
   const chunk = result.chunks.find((c) => c.name === "Map");
 
   assert.ok(chunk);
@@ -192,7 +192,7 @@ test("go parser handles generic functions", () => {
   assert.equal(chunk.exported, true);
 });
 
-test("go parser extracts call edges for methods", () => {
+test("go parser extracts call edges for methods", async () => {
   const source = [
     "package m",
     "type S struct{ delegate *Delegate }",
@@ -202,7 +202,7 @@ test("go parser extracts call edges for methods", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "s.go", "go");
+  const result = await parseCode(source, "s.go", "go");
   const method = result.chunks.find((c) => c.name === "S.Do");
 
   assert.ok(method);
@@ -210,14 +210,14 @@ test("go parser extracts call edges for methods", () => {
   assert.ok(method.calls.includes("logOperation"));
 });
 
-test("go parser handles empty input without errors", () => {
-  const result = parseCode("", "empty.go", "go");
+test("go parser handles empty input without errors", async () => {
+  const result = await parseCode("", "empty.go", "go");
   assert.deepEqual(result.errors, []);
   assert.equal(result.chunks.length, 0);
 });
 
-test("go parser handles package-only input", () => {
-  const result = parseCode("package empty", "e.go", "go");
+test("go parser handles package-only input", async () => {
+  const result = await parseCode("package empty", "e.go", "go");
   assert.deepEqual(result.errors, []);
   assert.equal(result.chunks.length, 0);
 });

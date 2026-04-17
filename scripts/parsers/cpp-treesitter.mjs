@@ -17,7 +17,8 @@
  *   namespace function:    name = "app::handler"
  *   namespace class:       name = "app::Service"
  *
- * parseCode is synchronous via top-level await init.
+ * parseCode is async; the WASM grammar is lazily loaded on first call
+ * and cached for subsequent calls.
  */
 
 import path from "node:path";
@@ -36,8 +37,21 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const QUERY_DIR = path.join(__dirname, "tree-sitter", "queries");
 
-await initTreeSitter();
-const CPP_LANG = await loadGrammar("cpp");
+let CPP_LANG = null;
+let langPromise = null;
+
+async function ensureLanguage() {
+  if (CPP_LANG) return CPP_LANG;
+  if (!langPromise) {
+    langPromise = (async () => {
+      await initTreeSitter();
+      CPP_LANG = await loadGrammar("cpp");
+      return CPP_LANG;
+    })();
+  }
+  await langPromise;
+  return CPP_LANG;
+}
 
 const CHUNK_QUERY = fs.readFileSync(path.join(QUERY_DIR, "cpp.chunks.scm"), "utf8");
 const CALL_QUERY = fs.readFileSync(path.join(QUERY_DIR, "cpp.calls.scm"), "utf8");
@@ -265,7 +279,8 @@ function buildNamespaceChunk(node, language) {
   };
 }
 
-export function parseCode(code, filePath, language = "cpp") {
+export async function parseCode(code, filePath, language = "cpp") {
+  await ensureLanguage();
   const { tree } = parseSource(CPP_LANG, code);
   const root = tree.rootNode;
   const imports = collectImports(root);
@@ -297,8 +312,13 @@ export function parseCode(code, filePath, language = "cpp") {
   return { chunks: deduped, errors: [] };
 }
 
-export function isAvailable() {
-  return true;
+export async function isAvailable() {
+  try {
+    await ensureLanguage();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -308,6 +328,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.exit(1);
   }
   const code = fs.readFileSync(target, "utf8");
-  const result = parseCode(code, target, target.endsWith(".c") || target.endsWith(".h") ? "c" : "cpp");
+  const result = await parseCode(code, target, target.endsWith(".c") || target.endsWith(".h") ? "c" : "cpp");
   console.log(JSON.stringify(result, null, 2));
 }

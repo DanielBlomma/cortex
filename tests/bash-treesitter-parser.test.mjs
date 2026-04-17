@@ -2,14 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { parseCode } from "../scripts/parsers/bash-treesitter.mjs";
 
-test("bash parser extracts a function declared with function keyword", () => {
+test("bash parser extracts a function declared with function keyword", async () => {
   const source = [
     "function add() {",
     "  echo $(($1 + $2))",
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "add.sh", "bash");
+  const result = await parseCode(source, "add.sh", "bash");
   const chunk = result.chunks.find((c) => c.name === "add");
 
   assert.ok(chunk);
@@ -17,21 +17,21 @@ test("bash parser extracts a function declared with function keyword", () => {
   assert.equal(chunk.language, "bash");
 });
 
-test("bash parser extracts a function declared with alternate syntax", () => {
+test("bash parser extracts a function declared with alternate syntax", async () => {
   const source = [
     "greet() {",
     "  echo \"hello $1\"",
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "greet.sh", "bash");
+  const result = await parseCode(source, "greet.sh", "bash");
   const chunk = result.chunks.find((c) => c.name === "greet");
 
   assert.ok(chunk);
   assert.equal(chunk.kind, "function");
 });
 
-test("bash parser extracts nested functions as separate chunks", () => {
+test("bash parser extracts nested functions as separate chunks", async () => {
   const source = [
     "outer() {",
     "  inner() {",
@@ -41,14 +41,14 @@ test("bash parser extracts nested functions as separate chunks", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "nested.sh", "bash");
+  const result = await parseCode(source, "nested.sh", "bash");
   const names = new Set(result.chunks.map((c) => c.name));
 
   assert.ok(names.has("outer"));
   assert.ok(names.has("inner"));
 });
 
-test("bash parser extracts user-defined calls and filters shell builtins", () => {
+test("bash parser extracts user-defined calls and filters shell builtins", async () => {
   const source = [
     "run() {",
     "  helper",
@@ -59,7 +59,7 @@ test("bash parser extracts user-defined calls and filters shell builtins", () =>
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "r.sh", "bash");
+  const result = await parseCode(source, "r.sh", "bash");
   const chunk = result.chunks.find((c) => c.name === "run");
 
   assert.ok(chunk);
@@ -70,7 +70,7 @@ test("bash parser extracts user-defined calls and filters shell builtins", () =>
   assert.ok(!chunk.calls.includes("cat"), "cat should be filtered as common system command");
 });
 
-test("bash parser strips absolute paths when filtering commands", () => {
+test("bash parser strips absolute paths when filtering commands", async () => {
   const source = [
     "check() {",
     "  /usr/bin/which bash",
@@ -79,7 +79,7 @@ test("bash parser strips absolute paths when filtering commands", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "c.sh", "bash");
+  const result = await parseCode(source, "c.sh", "bash");
   const chunk = result.chunks.find((c) => c.name === "check");
 
   assert.ok(chunk);
@@ -88,7 +88,7 @@ test("bash parser strips absolute paths when filtering commands", () => {
   assert.ok(!chunk.calls.some((c) => c.includes("ls")), "ls with path should be filtered");
 });
 
-test("bash parser extracts top-level source and . imports", () => {
+test("bash parser extracts top-level source and . imports", async () => {
   const source = [
     "source ./util.sh",
     ". ./helpers.sh",
@@ -98,7 +98,7 @@ test("bash parser extracts top-level source and . imports", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "app.sh", "bash");
+  const result = await parseCode(source, "app.sh", "bash");
   const chunk = result.chunks.find((c) => c.name === "run");
 
   assert.ok(chunk);
@@ -106,7 +106,7 @@ test("bash parser extracts top-level source and . imports", () => {
   assert.ok(chunk.imports.includes("./helpers.sh"));
 });
 
-test("bash parser ignores dynamic source paths with substitutions", () => {
+test("bash parser ignores dynamic source paths with substitutions", async () => {
   const source = [
     ". \"$(dirname \"$0\")/lib.sh\"",
     "source ./static.sh",
@@ -114,7 +114,7 @@ test("bash parser ignores dynamic source paths with substitutions", () => {
     "use() { echo ok; }"
   ].join("\n");
 
-  const result = parseCode(source, "dyn.sh", "bash");
+  const result = await parseCode(source, "dyn.sh", "bash");
   const chunk = result.chunks.find((c) => c.name === "use");
 
   assert.ok(chunk);
@@ -123,7 +123,7 @@ test("bash parser ignores dynamic source paths with substitutions", () => {
   assert.ok(!chunk.imports.some((i) => i.includes("dirname")));
 });
 
-test("bash parser ignores source calls nested inside function bodies", () => {
+test("bash parser ignores source calls nested inside function bodies", async () => {
   const source = [
     "lazy() {",
     "  source ./dynamic.sh",
@@ -131,7 +131,7 @@ test("bash parser ignores source calls nested inside function bodies", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "lazy.sh", "bash");
+  const result = await parseCode(source, "lazy.sh", "bash");
   const chunk = result.chunks.find((c) => c.name === "lazy");
 
   assert.ok(chunk);
@@ -139,13 +139,13 @@ test("bash parser ignores source calls nested inside function bodies", () => {
   assert.ok(!chunk.imports.includes("./dynamic.sh"));
 });
 
-test("bash parser marks _-prefixed function names as not exported", () => {
+test("bash parser marks _-prefixed function names as not exported", async () => {
   const source = [
     "_internal() { return 0; }",
     "public_api() { return 0; }"
   ].join("\n");
 
-  const result = parseCode(source, "s.sh", "bash");
+  const result = await parseCode(source, "s.sh", "bash");
   const internal = result.chunks.find((c) => c.name === "_internal");
   const api = result.chunks.find((c) => c.name === "public_api");
 
@@ -153,7 +153,7 @@ test("bash parser marks _-prefixed function names as not exported", () => {
   assert.equal(api.exported, true);
 });
 
-test("bash parser handles heredocs without breaking", () => {
+test("bash parser handles heredocs without breaking", async () => {
   const source = [
     "write_config() {",
     "  cat > /tmp/x <<EOF",
@@ -163,20 +163,20 @@ test("bash parser handles heredocs without breaking", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "w.sh", "bash");
+  const result = await parseCode(source, "w.sh", "bash");
   const chunk = result.chunks.find((c) => c.name === "write_config");
 
   assert.ok(chunk);
   assert.equal(chunk.kind, "function");
 });
 
-test("bash parser handles empty input without errors", () => {
-  const result = parseCode("", "empty.sh", "bash");
+test("bash parser handles empty input without errors", async () => {
+  const result = await parseCode("", "empty.sh", "bash");
   assert.deepEqual(result.errors, []);
   assert.equal(result.chunks.length, 0);
 });
 
-test("bash parser returns empty for top-level scripts without functions", () => {
+test("bash parser returns empty for top-level scripts without functions", async () => {
   const source = [
     "#!/usr/bin/env bash",
     "echo 'running'",
@@ -184,7 +184,7 @@ test("bash parser returns empty for top-level scripts without functions", () => 
     "ls"
   ].join("\n");
 
-  const result = parseCode(source, "script.sh", "bash");
+  const result = await parseCode(source, "script.sh", "bash");
   assert.deepEqual(result.errors, []);
   assert.equal(result.chunks.length, 0);
 });

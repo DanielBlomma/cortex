@@ -16,7 +16,8 @@
  * exported: true when modifiers include `public`. Package-private and
  * protected count as not-exported for Cortex's find-callers purposes.
  *
- * parseCode is synchronous via top-level await init.
+ * parseCode is async; the WASM grammar is lazily loaded on first call
+ * and cached for subsequent calls.
  */
 
 import path from "node:path";
@@ -35,8 +36,30 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const QUERY_DIR = path.join(__dirname, "tree-sitter", "queries");
 
-await initTreeSitter();
-const JAVA_LANG = await loadGrammar("java");
+let JAVA_LANG = null;
+let langPromise = null;
+
+async function ensureLanguage() {
+  if (JAVA_LANG) return JAVA_LANG;
+  if (!langPromise) {
+    langPromise = (async () => {
+      await initTreeSitter();
+      JAVA_LANG = await loadGrammar("java");
+      return JAVA_LANG;
+    })();
+  }
+  await langPromise;
+  return JAVA_LANG;
+}
+
+export async function isAvailable() {
+  try {
+    await ensureLanguage();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const CHUNK_QUERY = fs.readFileSync(path.join(QUERY_DIR, "java.chunks.scm"), "utf8");
 const CALL_QUERY = fs.readFileSync(path.join(QUERY_DIR, "java.calls.scm"), "utf8");
@@ -182,7 +205,8 @@ function buildConstructorChunk(node, imports, language) {
   };
 }
 
-export function parseCode(code, filePath, language = "java") {
+export async function parseCode(code, filePath, language = "java") {
+  await ensureLanguage();
   const { tree } = parseSource(JAVA_LANG, code);
   const root = tree.rootNode;
   const imports = collectImports(root);
@@ -221,6 +245,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.exit(1);
   }
   const code = fs.readFileSync(target, "utf8");
-  const result = parseCode(code, target, "java");
+  const result = await parseCode(code, target, "java");
   console.log(JSON.stringify(result, null, 2));
 }

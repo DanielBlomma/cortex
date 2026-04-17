@@ -2,13 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { parseCode } from "../scripts/parsers/python-treesitter.mjs";
 
-test("python parser extracts a simple function", () => {
+test("python parser extracts a simple function", async () => {
   const source = [
     "def add(a, b):",
     "    return a + b"
   ].join("\n");
 
-  const result = parseCode(source, "math.py", "python");
+  const result = await parseCode(source, "math.py", "python");
   const byName = new Map(result.chunks.map((c) => [c.name, c]));
 
   assert.ok(byName.has("add"));
@@ -18,13 +18,13 @@ test("python parser extracts a simple function", () => {
   assert.equal(byName.get("add").startLine, 1);
 });
 
-test("python parser extracts async def as function", () => {
+test("python parser extracts async def as function", async () => {
   const source = [
     "async def fetch():",
     "    await http_get()"
   ].join("\n");
 
-  const result = parseCode(source, "async.py", "python");
+  const result = await parseCode(source, "async.py", "python");
   const chunk = result.chunks.find((c) => c.name === "fetch");
 
   assert.ok(chunk);
@@ -32,7 +32,7 @@ test("python parser extracts async def as function", () => {
   assert.ok(chunk.signature.startsWith("async def"));
 });
 
-test("python parser extracts class and its methods qualified as Class.method", () => {
+test("python parser extracts class and its methods qualified as Class.method", async () => {
   const source = [
     "class Service:",
     "    def run(self):",
@@ -41,7 +41,7 @@ test("python parser extracts class and its methods qualified as Class.method", (
     "        return await self.client.get()"
   ].join("\n");
 
-  const result = parseCode(source, "service.py", "python");
+  const result = await parseCode(source, "service.py", "python");
   const names = new Set(result.chunks.map((c) => c.name));
 
   assert.ok(names.has("Service"));
@@ -55,7 +55,7 @@ test("python parser extracts class and its methods qualified as Class.method", (
   assert.equal(cls.kind, "class");
 });
 
-test("python parser qualifies nested classes and methods", () => {
+test("python parser qualifies nested classes and methods", async () => {
   const source = [
     "class Outer:",
     "    class Inner:",
@@ -63,7 +63,7 @@ test("python parser qualifies nested classes and methods", () => {
     "            return 1"
   ].join("\n");
 
-  const result = parseCode(source, "nested.py", "python");
+  const result = await parseCode(source, "nested.py", "python");
   const names = new Set(result.chunks.map((c) => c.name));
 
   assert.ok(names.has("Outer"));
@@ -71,7 +71,7 @@ test("python parser qualifies nested classes and methods", () => {
   assert.ok(names.has("Outer.Inner.deep"));
 });
 
-test("python parser marks underscore-prefixed names as not exported", () => {
+test("python parser marks underscore-prefixed names as not exported", async () => {
   const source = [
     "def _private_helper():",
     "    return 1",
@@ -80,7 +80,7 @@ test("python parser marks underscore-prefixed names as not exported", () => {
     "    return _private_helper()"
   ].join("\n");
 
-  const result = parseCode(source, "mod.py", "python");
+  const result = await parseCode(source, "mod.py", "python");
   const priv = result.chunks.find((c) => c.name === "_private_helper");
   const pub = result.chunks.find((c) => c.name === "public_fn");
 
@@ -88,7 +88,7 @@ test("python parser marks underscore-prefixed names as not exported", () => {
   assert.equal(pub.exported, true);
 });
 
-test("python parser extracts direct and attribute calls", () => {
+test("python parser extracts direct and attribute calls", async () => {
   const source = [
     "def main():",
     "    helper()",
@@ -96,7 +96,7 @@ test("python parser extracts direct and attribute calls", () => {
     "    mod.submod.call()"
   ].join("\n");
 
-  const result = parseCode(source, "main.py", "python");
+  const result = await parseCode(source, "main.py", "python");
   const main = result.chunks.find((c) => c.name === "main");
 
   assert.ok(main);
@@ -105,7 +105,7 @@ test("python parser extracts direct and attribute calls", () => {
   assert.ok(main.calls.includes("call"));
 });
 
-test("python parser filters out common builtins from call edges", () => {
+test("python parser filters out common builtins from call edges", async () => {
   const source = [
     "def wrapper():",
     "    print('hi')",
@@ -113,7 +113,7 @@ test("python parser filters out common builtins from call edges", () => {
     "    real_call(items)"
   ].join("\n");
 
-  const result = parseCode(source, "mod.py", "python");
+  const result = await parseCode(source, "mod.py", "python");
   const chunk = result.chunks.find((c) => c.name === "wrapper");
 
   assert.ok(chunk);
@@ -123,7 +123,7 @@ test("python parser filters out common builtins from call edges", () => {
   assert.ok(!chunk.calls.includes("range"));
 });
 
-test("python parser extracts plain and aliased import statements", () => {
+test("python parser extracts plain and aliased import statements", async () => {
   const source = [
     "import os",
     "import json as j",
@@ -132,7 +132,7 @@ test("python parser extracts plain and aliased import statements", () => {
     "    return os.getcwd()"
   ].join("\n");
 
-  const result = parseCode(source, "mod.py", "python");
+  const result = await parseCode(source, "mod.py", "python");
   const chunk = result.chunks.find((c) => c.name === "use");
 
   assert.ok(chunk);
@@ -140,7 +140,7 @@ test("python parser extracts plain and aliased import statements", () => {
   assert.ok(chunk.imports.includes("json"));
 });
 
-test("python parser extracts from-import statements", () => {
+test("python parser extracts from-import statements", async () => {
   const source = [
     "from pathlib import Path",
     "from collections import OrderedDict as ODict",
@@ -149,7 +149,7 @@ test("python parser extracts from-import statements", () => {
     "    return Path('.')"
   ].join("\n");
 
-  const result = parseCode(source, "mod.py", "python");
+  const result = await parseCode(source, "mod.py", "python");
   const chunk = result.chunks.find((c) => c.name === "use");
 
   assert.ok(chunk);
@@ -157,7 +157,7 @@ test("python parser extracts from-import statements", () => {
   assert.ok(chunk.imports.includes("collections.OrderedDict"));
 });
 
-test("python parser extracts relative from-imports with leading dots", () => {
+test("python parser extracts relative from-imports with leading dots", async () => {
   const source = [
     "from .util import helper",
     "from ..pkg import foo",
@@ -166,7 +166,7 @@ test("python parser extracts relative from-imports with leading dots", () => {
     "    helper()"
   ].join("\n");
 
-  const result = parseCode(source, "sub/mod.py", "python");
+  const result = await parseCode(source, "sub/mod.py", "python");
   const chunk = result.chunks.find((c) => c.name === "use");
 
   assert.ok(chunk);
@@ -174,7 +174,7 @@ test("python parser extracts relative from-imports with leading dots", () => {
   assert.ok(chunk.imports.some((i) => i.includes("..pkg") && i.includes("foo")));
 });
 
-test("python parser handles decorated functions", () => {
+test("python parser handles decorated functions", async () => {
   const source = [
     "@property",
     "@staticmethod",
@@ -182,7 +182,7 @@ test("python parser handles decorated functions", () => {
     "    return compute()"
   ].join("\n");
 
-  const result = parseCode(source, "mod.py", "python");
+  const result = await parseCode(source, "mod.py", "python");
   const chunk = result.chunks.find((c) => c.name === "cached_value");
 
   assert.ok(chunk);
@@ -190,13 +190,13 @@ test("python parser handles decorated functions", () => {
   assert.ok(chunk.calls.includes("compute"));
 });
 
-test("python parser handles empty input without errors", () => {
-  const result = parseCode("", "empty.py", "python");
+test("python parser handles empty input without errors", async () => {
+  const result = await parseCode("", "empty.py", "python");
   assert.deepEqual(result.errors, []);
   assert.equal(result.chunks.length, 0);
 });
 
-test("python parser handles non-Python text without chunks", () => {
-  const result = parseCode("just some plain text here", "notes.txt", "python");
+test("python parser handles non-Python text without chunks", async () => {
+  const result = await parseCode("just some plain text here", "notes.txt", "python");
   assert.equal(result.chunks.length, 0);
 });

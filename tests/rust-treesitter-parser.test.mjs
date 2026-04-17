@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import { parseCode } from "../scripts/parsers/rust-treesitter.mjs";
 import { parseCode as parseRegexCode } from "../scripts/parsers/rust.mjs";
 
-test("tree-sitter rust parser extracts a simple function", () => {
+test("tree-sitter rust parser extracts a simple function", async () => {
   const source = [
     "fn add(a: i32, b: i32) -> i32 {",
     "    a + b",
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "lib.rs", "rust");
+  const result = await parseCode(source, "lib.rs", "rust");
   const chunkByName = new Map(result.chunks.map((c) => [c.name, c]));
 
   assert.ok(chunkByName.has("add"));
@@ -20,7 +20,7 @@ test("tree-sitter rust parser extracts a simple function", () => {
   assert.equal(chunkByName.get("add").endLine, 3);
 });
 
-test("tree-sitter rust parser extracts pub async unsafe const fn modifiers", () => {
+test("tree-sitter rust parser extracts pub async unsafe const fn modifiers", async () => {
   const source = [
     "pub async fn fetch_data() {",
     "    todo!()",
@@ -35,7 +35,7 @@ test("tree-sitter rust parser extracts pub async unsafe const fn modifiers", () 
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "lib.rs", "rust");
+  const result = await parseCode(source, "lib.rs", "rust");
   const names = result.chunks.map((c) => c.name);
 
   assert.ok(names.includes("fetch_data"));
@@ -43,7 +43,7 @@ test("tree-sitter rust parser extracts pub async unsafe const fn modifiers", () 
   assert.ok(names.includes("max_size"));
 });
 
-test("tree-sitter rust parser extracts struct definitions including unit struct", () => {
+test("tree-sitter rust parser extracts struct definitions including unit struct", async () => {
   const source = [
     "pub struct Config {",
     "    pub host: String,",
@@ -53,7 +53,7 @@ test("tree-sitter rust parser extracts struct definitions including unit struct"
     "struct UnitStruct;"
   ].join("\n");
 
-  const result = parseCode(source, "config.rs", "rust");
+  const result = await parseCode(source, "config.rs", "rust");
   const chunkByName = new Map(result.chunks.map((c) => [c.name, c]));
 
   assert.ok(chunkByName.has("Config"));
@@ -62,7 +62,7 @@ test("tree-sitter rust parser extracts struct definitions including unit struct"
   assert.equal(chunkByName.get("UnitStruct").kind, "struct");
 });
 
-test("tree-sitter rust parser extracts enum definitions", () => {
+test("tree-sitter rust parser extracts enum definitions", async () => {
   const source = [
     "pub enum State {",
     "    Running,",
@@ -71,14 +71,14 @@ test("tree-sitter rust parser extracts enum definitions", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "state.rs", "rust");
+  const result = await parseCode(source, "state.rs", "rust");
   const chunkByName = new Map(result.chunks.map((c) => [c.name, c]));
 
   assert.ok(chunkByName.has("State"));
   assert.equal(chunkByName.get("State").kind, "enum");
 });
 
-test("tree-sitter rust parser extracts trait definitions", () => {
+test("tree-sitter rust parser extracts trait definitions", async () => {
   const source = [
     "pub trait Handler {",
     "    fn handle(&self, request: Request) -> Response;",
@@ -88,14 +88,14 @@ test("tree-sitter rust parser extracts trait definitions", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "handler.rs", "rust");
+  const result = await parseCode(source, "handler.rs", "rust");
   const chunkByName = new Map(result.chunks.map((c) => [c.name, c]));
 
   assert.ok(chunkByName.has("Handler"));
   assert.equal(chunkByName.get("Handler").kind, "trait");
 });
 
-test("tree-sitter rust parser extracts impl blocks with methods as Type::method", () => {
+test("tree-sitter rust parser extracts impl blocks with methods as Type::method", async () => {
   const source = [
     "struct Foo {",
     "    value: i32,",
@@ -112,7 +112,7 @@ test("tree-sitter rust parser extracts impl blocks with methods as Type::method"
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "foo.rs", "rust");
+  const result = await parseCode(source, "foo.rs", "rust");
   const chunkByName = new Map(result.chunks.map((c) => [c.name, c]));
 
   assert.ok(chunkByName.has("Foo"), "should have struct Foo");
@@ -122,7 +122,7 @@ test("tree-sitter rust parser extracts impl blocks with methods as Type::method"
   assert.equal(chunkByName.get("Foo::get_value").kind, "method");
 });
 
-test("tree-sitter rust parser extracts trait impl blocks", () => {
+test("tree-sitter rust parser extracts trait impl blocks", async () => {
   const source = [
     "impl Display for Foo {",
     "    fn fmt(&self, f: &mut Formatter) -> Result {",
@@ -131,7 +131,7 @@ test("tree-sitter rust parser extracts trait impl blocks", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "foo.rs", "rust");
+  const result = await parseCode(source, "foo.rs", "rust");
   const chunkByName = new Map(result.chunks.map((c) => [c.name, c]));
 
   assert.ok(chunkByName.has("Display for Foo"), "should have impl block");
@@ -140,7 +140,7 @@ test("tree-sitter rust parser extracts trait impl blocks", () => {
   assert.equal(chunkByName.get("Foo::fmt").kind, "method");
 });
 
-test("tree-sitter rust parser extracts use imports", () => {
+test("tree-sitter rust parser extracts use imports", async () => {
   const source = [
     "use std::collections::HashMap;",
     "use std::io::{self, Read, Write};",
@@ -151,7 +151,7 @@ test("tree-sitter rust parser extracts use imports", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "main.rs", "rust");
+  const result = await parseCode(source, "main.rs", "rust");
   const fn_chunk = result.chunks.find((c) => c.name === "process");
 
   assert.ok(fn_chunk);
@@ -160,7 +160,7 @@ test("tree-sitter rust parser extracts use imports", () => {
   assert.ok(fn_chunk.imports.includes("crate::config::Config"));
 });
 
-test("tree-sitter rust parser extracts macro_rules definitions", () => {
+test("tree-sitter rust parser extracts macro_rules definitions", async () => {
   const source = [
     "macro_rules! my_vec {",
     "    ( $( $x:expr ),* ) => {",
@@ -173,14 +173,14 @@ test("tree-sitter rust parser extracts macro_rules definitions", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "macros.rs", "rust");
+  const result = await parseCode(source, "macros.rs", "rust");
   const chunkByName = new Map(result.chunks.map((c) => [c.name, c]));
 
   assert.ok(chunkByName.has("my_vec"));
   assert.equal(chunkByName.get("my_vec").kind, "macro");
 });
 
-test("tree-sitter rust parser extracts inline mod blocks", () => {
+test("tree-sitter rust parser extracts inline mod blocks", async () => {
   const source = [
     "mod tests {",
     "    use super::*;",
@@ -191,14 +191,14 @@ test("tree-sitter rust parser extracts inline mod blocks", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "lib.rs", "rust");
+  const result = await parseCode(source, "lib.rs", "rust");
   const chunkByName = new Map(result.chunks.map((c) => [c.name, c]));
 
   assert.ok(chunkByName.has("tests"));
   assert.equal(chunkByName.get("tests").kind, "module");
 });
 
-test("tree-sitter rust parser extracts call relationships", () => {
+test("tree-sitter rust parser extracts call relationships", async () => {
   const source = [
     "fn helper() -> i32 {",
     "    42",
@@ -211,7 +211,7 @@ test("tree-sitter rust parser extracts call relationships", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "main.rs", "rust");
+  const result = await parseCode(source, "main.rs", "rust");
   const main_chunk = result.chunks.find((c) => c.name === "main");
 
   assert.ok(main_chunk);
@@ -220,7 +220,7 @@ test("tree-sitter rust parser extracts call relationships", () => {
   assert.ok(main_chunk.calls.includes("process_result"));
 });
 
-test("tree-sitter rust parser handles nested braces in closures and match", () => {
+test("tree-sitter rust parser handles nested braces in closures and match", async () => {
   const source = [
     "fn complex() {",
     "    let items = vec![1, 2, 3];",
@@ -233,7 +233,7 @@ test("tree-sitter rust parser handles nested braces in closures and match", () =
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "lib.rs", "rust");
+  const result = await parseCode(source, "lib.rs", "rust");
   const fn_chunk = result.chunks.find((c) => c.name === "complex");
 
   assert.ok(fn_chunk);
@@ -242,7 +242,7 @@ test("tree-sitter rust parser handles nested braces in closures and match", () =
   assert.equal(fn_chunk.endLine, 9);
 });
 
-test("tree-sitter rust parser does not duplicate methods as top-level functions", () => {
+test("tree-sitter rust parser does not duplicate methods as top-level functions", async () => {
   const source = [
     "impl Bar {",
     "    fn baz() {",
@@ -255,7 +255,7 @@ test("tree-sitter rust parser does not duplicate methods as top-level functions"
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "bar.rs", "rust");
+  const result = await parseCode(source, "bar.rs", "rust");
   const names = result.chunks.map((c) => c.name);
 
   assert.ok(names.includes("Bar::baz"));
@@ -263,7 +263,7 @@ test("tree-sitter rust parser does not duplicate methods as top-level functions"
   assert.ok(names.includes("standalone"));
 });
 
-test("tree-sitter rust parser handles impl inside mod without duplication", () => {
+test("tree-sitter rust parser handles impl inside mod without duplication", async () => {
   const source = [
     "mod inner {",
     "    struct Widget {",
@@ -282,7 +282,7 @@ test("tree-sitter rust parser handles impl inside mod without duplication", () =
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "lib.rs", "rust");
+  const result = await parseCode(source, "lib.rs", "rust");
   const names = result.chunks.map((c) => c.name);
 
   assert.ok(names.includes("inner"), "should have module");
@@ -292,7 +292,7 @@ test("tree-sitter rust parser handles impl inside mod without duplication", () =
   assert.ok(!names.includes("new"), "bare 'new' should not appear as top-level function");
 });
 
-test("tree-sitter rust parser skips braces in comments when finding function body", () => {
+test("tree-sitter rust parser skips braces in comments when finding function body", async () => {
   const source = [
     "fn foo() // { not this brace",
     "{",
@@ -300,7 +300,7 @@ test("tree-sitter rust parser skips braces in comments when finding function bod
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "lib.rs", "rust");
+  const result = await parseCode(source, "lib.rs", "rust");
   const fn_chunk = result.chunks.find((c) => c.name === "foo");
 
   assert.ok(fn_chunk);
@@ -309,9 +309,9 @@ test("tree-sitter rust parser skips braces in comments when finding function bod
   assert.equal(fn_chunk.endLine, 4);
 });
 
-test("tree-sitter rust parser returns empty chunks for non-Rust content", () => {
+test("tree-sitter rust parser returns empty chunks for non-Rust content", async () => {
   const source = "This is just a plain text file with no Rust code.";
-  const result = parseCode(source, "readme.txt", "rust");
+  const result = await parseCode(source, "readme.txt", "rust");
 
   assert.deepEqual(result.errors, []);
   assert.equal(result.chunks.length, 0);
@@ -319,7 +319,7 @@ test("tree-sitter rust parser returns empty chunks for non-Rust content", () => 
 
 // New tests — cases the regex parser struggles with or misses.
 
-test("tree-sitter rust parser handles generic impl blocks with bounds", () => {
+test("tree-sitter rust parser handles generic impl blocks with bounds", async () => {
   const source = [
     "impl<T: Clone + Send> Wrapper<T> {",
     "    pub fn new(value: T) -> Self {",
@@ -331,7 +331,7 @@ test("tree-sitter rust parser handles generic impl blocks with bounds", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "wrapper.rs", "rust");
+  const result = await parseCode(source, "wrapper.rs", "rust");
   const names = result.chunks.map((c) => c.name);
 
   assert.ok(names.includes("Wrapper"), "impl block should be keyed by type name Wrapper");
@@ -339,7 +339,7 @@ test("tree-sitter rust parser handles generic impl blocks with bounds", () => {
   assert.ok(names.includes("Wrapper::get"));
 });
 
-test("tree-sitter rust parser handles cfg-gated items", () => {
+test("tree-sitter rust parser handles cfg-gated items", async () => {
   const source = [
     '#[cfg(target_os = "linux")]',
     "fn linux_only() -> u32 {",
@@ -352,14 +352,14 @@ test("tree-sitter rust parser handles cfg-gated items", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "platform.rs", "rust");
+  const result = await parseCode(source, "platform.rs", "rust");
   const names = result.chunks.map((c) => c.name);
 
   assert.ok(names.includes("linux_only"));
   assert.ok(names.includes("other_platform"));
 });
 
-test("tree-sitter rust parser handles nested modules", () => {
+test("tree-sitter rust parser handles nested modules", async () => {
   const source = [
     "mod outer {",
     "    mod middle {",
@@ -370,7 +370,7 @@ test("tree-sitter rust parser handles nested modules", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "nested.rs", "rust");
+  const result = await parseCode(source, "nested.rs", "rust");
   const names = result.chunks.map((c) => c.name);
 
   assert.ok(names.includes("outer"));
@@ -378,7 +378,7 @@ test("tree-sitter rust parser handles nested modules", () => {
   assert.ok(names.includes("inner"));
 });
 
-test("tree-sitter rust parser handles generic trait impl", () => {
+test("tree-sitter rust parser handles generic trait impl", async () => {
   const source = [
     "impl<T> Iterator for Counter<T> {",
     "    type Item = T;",
@@ -388,7 +388,7 @@ test("tree-sitter rust parser handles generic trait impl", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "counter.rs", "rust");
+  const result = await parseCode(source, "counter.rs", "rust");
   const chunkByName = new Map(result.chunks.map((c) => [c.name, c]));
 
   assert.ok(chunkByName.has("Iterator for Counter"));
@@ -396,7 +396,7 @@ test("tree-sitter rust parser handles generic trait impl", () => {
   assert.ok(chunkByName.has("Counter::next"));
 });
 
-test("tree-sitter rust parser matches regex parser on shared-surface input", () => {
+test("tree-sitter rust parser matches regex parser on shared-surface input", async () => {
   const source = [
     "use std::collections::HashMap;",
     "",
@@ -414,7 +414,7 @@ test("tree-sitter rust parser matches regex parser on shared-surface input", () 
     "}"
   ].join("\n");
 
-  const tsResult = parseCode(source, "cache.rs", "rust");
+  const tsResult = await parseCode(source, "cache.rs", "rust");
   const regexResult = parseRegexCode(source, "cache.rs", "rust");
 
   const tsNames = new Set(tsResult.chunks.map((c) => c.name));

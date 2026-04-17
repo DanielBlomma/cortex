@@ -3,9 +3,8 @@
  *
  * Selects between the tree-sitter parser (default, richer output) and
  * the regex parser (fallback, zero deps) based on the CORTEX_RUST_PARSER
- * environment variable. If the tree-sitter parser fails to load (e.g.
- * WASM unavailable), automatically falls back to the regex parser so
- * ingestion keeps working.
+ * environment variable. Selection is deferred until the first parseCode
+ * call so no WASM is loaded if the project contains no .rs files.
  *
  *   CORTEX_RUST_PARSER=regex       → always use regex parser
  *   CORTEX_RUST_PARSER=tree-sitter → force tree-sitter (error if unavailable)
@@ -14,17 +13,31 @@
 
 const choice = process.env.CORTEX_RUST_PARSER;
 
-let parser;
-if (choice === "regex") {
-  parser = await import("./rust.mjs");
-} else if (choice === "tree-sitter") {
-  parser = await import("./rust-treesitter.mjs");
-} else {
-  try {
-    parser = await import("./rust-treesitter.mjs");
-  } catch {
-    parser = await import("./rust.mjs");
-  }
+let activeParser = null;
+let resolvePromise = null;
+
+async function resolveParser() {
+  if (activeParser) return activeParser;
+  if (resolvePromise) return resolvePromise;
+  resolvePromise = (async () => {
+    if (choice === "regex") {
+      activeParser = await import("./rust.mjs");
+    } else if (choice === "tree-sitter") {
+      activeParser = await import("./rust-treesitter.mjs");
+    } else {
+      const ts = await import("./rust-treesitter.mjs");
+      if (await ts.isAvailable()) {
+        activeParser = ts;
+      } else {
+        activeParser = await import("./rust.mjs");
+      }
+    }
+    return activeParser;
+  })();
+  return resolvePromise;
 }
 
-export const parseCode = parser.parseCode;
+export async function parseCode(code, filePath, language = "rust") {
+  const parser = await resolveParser();
+  return parser.parseCode(code, filePath, language);
+}

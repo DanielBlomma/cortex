@@ -7,9 +7,8 @@
  * parity with the regex parser is verified by the existing rust-parser
  * test suite run against this module.
  *
- * parseCode remains synchronous by pre-initializing the grammar via
- * top-level await at module evaluation time. scripts/ingest.mjs calls
- * parseCode synchronously inside its file loop.
+ * parseCode is async; the WASM grammar is lazily loaded on first call
+ * and cached for subsequent calls. Callers must `await parseCode(...)`.
  */
 
 import path from "node:path";
@@ -28,8 +27,30 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const QUERY_DIR = path.join(__dirname, "tree-sitter", "queries");
 
-await initTreeSitter();
-const RUST_LANG = await loadGrammar("rust");
+let RUST_LANG = null;
+let langPromise = null;
+
+async function ensureLanguage() {
+  if (RUST_LANG) return RUST_LANG;
+  if (!langPromise) {
+    langPromise = (async () => {
+      await initTreeSitter();
+      RUST_LANG = await loadGrammar("rust");
+      return RUST_LANG;
+    })();
+  }
+  await langPromise;
+  return RUST_LANG;
+}
+
+export async function isAvailable() {
+  try {
+    await ensureLanguage();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const CHUNK_QUERY = fs.readFileSync(path.join(QUERY_DIR, "rust.chunks.scm"), "utf8");
 const CALL_QUERY = fs.readFileSync(path.join(QUERY_DIR, "rust.calls.scm"), "utf8");
@@ -168,7 +189,8 @@ function extractFunctionCalls(functionNode) {
   return collectCallsInNode(bodyNode);
 }
 
-export function parseCode(code, filePath, language = "rust") {
+export async function parseCode(code, filePath, language = "rust") {
+  await ensureLanguage();
   const { tree } = parseSource(RUST_LANG, code);
   const root = tree.rootNode;
 
@@ -264,6 +286,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.exit(1);
   }
   const code = fs.readFileSync(filePath, "utf8");
-  const result = parseCode(code, filePath, "rust");
+  const result = await parseCode(code, filePath, "rust");
   console.log(JSON.stringify(result, null, 2));
 }

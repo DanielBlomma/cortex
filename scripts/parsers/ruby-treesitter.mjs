@@ -21,7 +21,8 @@
  * name and extracts the string path argument (autoload takes the
  * path as second arg).
  *
- * parseCode is synchronous via top-level await init.
+ * parseCode is async; the WASM grammar is lazily loaded on first call
+ * and cached for subsequent calls.
  */
 
 import path from "node:path";
@@ -40,8 +41,30 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const QUERY_DIR = path.join(__dirname, "tree-sitter", "queries");
 
-await initTreeSitter();
-const RUBY_LANG = await loadGrammar("ruby");
+let RUBY_LANG = null;
+let langPromise = null;
+
+async function ensureLanguage() {
+  if (RUBY_LANG) return RUBY_LANG;
+  if (!langPromise) {
+    langPromise = (async () => {
+      await initTreeSitter();
+      RUBY_LANG = await loadGrammar("ruby");
+      return RUBY_LANG;
+    })();
+  }
+  await langPromise;
+  return RUBY_LANG;
+}
+
+export async function isAvailable() {
+  try {
+    await ensureLanguage();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const CHUNK_QUERY = fs.readFileSync(path.join(QUERY_DIR, "ruby.chunks.scm"), "utf8");
 const CALL_QUERY = fs.readFileSync(path.join(QUERY_DIR, "ruby.calls.scm"), "utf8");
@@ -205,7 +228,8 @@ function buildMethodChunk(node, imports, language, isSingleton) {
   };
 }
 
-export function parseCode(code, filePath, language = "ruby") {
+export async function parseCode(code, filePath, language = "ruby") {
+  await ensureLanguage();
   const { tree } = parseSource(RUBY_LANG, code);
   const root = tree.rootNode;
   const imports = collectImports(root);
@@ -242,6 +266,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.exit(1);
   }
   const code = fs.readFileSync(target, "utf8");
-  const result = parseCode(code, target, "ruby");
+  const result = await parseCode(code, target, "ruby");
   console.log(JSON.stringify(result, null, 2));
 }

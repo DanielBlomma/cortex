@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { parseCode } from "../scripts/parsers/java-treesitter.mjs";
 
-test("java parser extracts a public class and its methods qualified as Class.method", () => {
+test("java parser extracts a public class and its methods qualified as Class.method", async () => {
   const source = [
     "package com.app;",
     "public class Foo {",
@@ -11,7 +11,7 @@ test("java parser extracts a public class and its methods qualified as Class.met
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "Foo.java", "java");
+  const result = await parseCode(source, "Foo.java", "java");
   const byName = new Map(result.chunks.map((c) => [c.name, c]));
 
   assert.ok(byName.has("Foo"));
@@ -22,7 +22,7 @@ test("java parser extracts a public class and its methods qualified as Class.met
   assert.ok(byName.has("Foo.baz"));
 });
 
-test("java parser extracts interface and its abstract methods", () => {
+test("java parser extracts interface and its abstract methods", async () => {
   const source = [
     "package com.app;",
     "public interface Handler {",
@@ -31,7 +31,7 @@ test("java parser extracts interface and its abstract methods", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "Handler.java", "java");
+  const result = await parseCode(source, "Handler.java", "java");
   const byName = new Map(result.chunks.map((c) => [c.name, c]));
 
   assert.ok(byName.has("Handler"));
@@ -40,21 +40,21 @@ test("java parser extracts interface and its abstract methods", () => {
   assert.ok(byName.has("Handler.name"));
 });
 
-test("java parser extracts enum and record kinds", () => {
+test("java parser extracts enum and record kinds", async () => {
   const source = [
     "package com.app;",
     "public enum State { IDLE, RUNNING, ERROR }",
     "public record Point(int x, int y) { }"
   ].join("\n");
 
-  const result = parseCode(source, "Types.java", "java");
+  const result = await parseCode(source, "Types.java", "java");
   const byName = new Map(result.chunks.map((c) => [c.name, c]));
 
   assert.equal(byName.get("State").kind, "enum");
   assert.equal(byName.get("Point").kind, "record");
 });
 
-test("java parser qualifies nested classes and methods", () => {
+test("java parser qualifies nested classes and methods", async () => {
   const source = [
     "package com.app;",
     "public class Outer {",
@@ -64,7 +64,7 @@ test("java parser qualifies nested classes and methods", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "Outer.java", "java");
+  const result = await parseCode(source, "Outer.java", "java");
   const names = new Set(result.chunks.map((c) => c.name));
 
   assert.ok(names.has("Outer"));
@@ -72,7 +72,7 @@ test("java parser qualifies nested classes and methods", () => {
   assert.ok(names.has("Outer.Inner.deep"));
 });
 
-test("java parser labels constructors with .ctor suffix", () => {
+test("java parser labels constructors with .ctor suffix", async () => {
   const source = [
     "package com.app;",
     "public class Svc {",
@@ -81,7 +81,7 @@ test("java parser labels constructors with .ctor suffix", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "Svc.java", "java");
+  const result = await parseCode(source, "Svc.java", "java");
   const ctor = result.chunks.find((c) => c.name === "Svc.ctor");
 
   assert.ok(ctor);
@@ -89,7 +89,7 @@ test("java parser labels constructors with .ctor suffix", () => {
   assert.equal(ctor.exported, true);
 });
 
-test("java parser marks package-private and protected as not exported", () => {
+test("java parser marks package-private and protected as not exported", async () => {
   const source = [
     "package com.app;",
     "class Internal {",
@@ -99,7 +99,7 @@ test("java parser marks package-private and protected as not exported", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "Internal.java", "java");
+  const result = await parseCode(source, "Internal.java", "java");
   const byName = new Map(result.chunks.map((c) => [c.name, c]));
 
   assert.equal(byName.get("Internal").exported, false);
@@ -108,7 +108,7 @@ test("java parser marks package-private and protected as not exported", () => {
   assert.equal(byName.get("Internal.apiMethod").exported, true);
 });
 
-test("java parser extracts method calls including selector chains", () => {
+test("java parser extracts method calls including selector chains", async () => {
   const source = [
     "package com.app;",
     "public class Runner {",
@@ -122,7 +122,7 @@ test("java parser extracts method calls including selector chains", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "Runner.java", "java");
+  const result = await parseCode(source, "Runner.java", "java");
   const go = result.chunks.find((c) => c.name === "Runner.go");
 
   assert.ok(go);
@@ -132,7 +132,7 @@ test("java parser extracts method calls including selector chains", () => {
   assert.ok(go.calls.includes("println"));
 });
 
-test("java parser filters super() and this() from call edges", () => {
+test("java parser filters super() and this() from call edges", async () => {
   const source = [
     "package com.app;",
     "public class Child extends Parent {",
@@ -144,7 +144,7 @@ test("java parser filters super() and this() from call edges", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "Child.java", "java");
+  const result = await parseCode(source, "Child.java", "java");
   const ctor = result.chunks.find((c) => c.name === "Child.ctor");
 
   assert.ok(ctor);
@@ -153,7 +153,7 @@ test("java parser filters super() and this() from call edges", () => {
   assert.ok(!ctor.calls.includes("this"));
 });
 
-test("java parser extracts plain and wildcard imports", () => {
+test("java parser extracts plain and wildcard imports", async () => {
   const source = [
     "package com.app;",
     "import java.util.List;",
@@ -166,7 +166,7 @@ test("java parser extracts plain and wildcard imports", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "Use.java", "java");
+  const result = await parseCode(source, "Use.java", "java");
   const chunk = result.chunks.find((c) => c.name === "Use.compute");
 
   assert.ok(chunk);
@@ -176,7 +176,7 @@ test("java parser extracts plain and wildcard imports", () => {
   assert.ok(chunk.imports.includes("java.lang.Math.max"));
 });
 
-test("java parser handles generic class with bounded type parameter", () => {
+test("java parser handles generic class with bounded type parameter", async () => {
   const source = [
     "package com.app;",
     "public class Wrapper<T extends Comparable<T>> {",
@@ -186,7 +186,7 @@ test("java parser handles generic class with bounded type parameter", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "Wrapper.java", "java");
+  const result = await parseCode(source, "Wrapper.java", "java");
   const names = new Set(result.chunks.map((c) => c.name));
 
   assert.ok(names.has("Wrapper"));
@@ -194,7 +194,7 @@ test("java parser handles generic class with bounded type parameter", () => {
   assert.ok(names.has("Wrapper.get"));
 });
 
-test("java parser handles annotated declarations", () => {
+test("java parser handles annotated declarations", async () => {
   const source = [
     "package com.app;",
     "@Deprecated",
@@ -204,15 +204,15 @@ test("java parser handles annotated declarations", () => {
     "}"
   ].join("\n");
 
-  const result = parseCode(source, "Old.java", "java");
+  const result = await parseCode(source, "Old.java", "java");
   const names = new Set(result.chunks.map((c) => c.name));
 
   assert.ok(names.has("Old"));
   assert.ok(names.has("Old.toString"));
 });
 
-test("java parser handles empty input without errors", () => {
-  const result = parseCode("", "empty.java", "java");
+test("java parser handles empty input without errors", async () => {
+  const result = await parseCode("", "empty.java", "java");
   assert.deepEqual(result.errors, []);
   assert.equal(result.chunks.length, 0);
 });
