@@ -12,6 +12,11 @@ AGENTS.md
 .context/plan/
 .context/hooks/
 .context/enterprise.yml
+scaffold/.context/db/
+scaffold/.context/embeddings/
+scaffold/.context/cache/
+scaffold/.context/plan/
+scaffold/.context/hooks/
 .npm-cache/
 
 # Node

@@ -1,4 +1,0 @@
-from	to	note
-rule.source_of_truth	file:docs/architecture.md	Keyword match entities, retrieval, source, truth
-rule.deprecated_filter	file:docs/architecture.md	Keyword match deprecated, entities, excluded, filter
-rule.context_budget	file:docs/architecture.md	Keyword match blocks, evidence, runtime, signal, top

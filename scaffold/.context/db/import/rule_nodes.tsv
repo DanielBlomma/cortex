@@ -1,6 +1,0 @@
-id	title	body	scope	priority	updated_at	source_of_truth	trust_level	status
-rule.source_of_truth	rule.source_of_truth	Source-of-truth entities must be prioritized in retrieval and final context.	global	100	2026-04-17T20:51:03.747Z	true	95	active
-rule.deprecated_filter	rule.deprecated_filter	Deprecated entities must be excluded unless explicitly requested.	global	95	2026-04-17T20:51:03.747Z	true	95	active
-rule.adr_recency	rule.adr_recency	Newer ADR supersedes older ADR when both address the same decision.	global	90	2026-04-17T20:51:03.747Z	true	95	active
-rule.conflict_flag	rule.conflict_flag	If two active sources conflict, return both and flag a conflict instead of guessing.	global	90	2026-04-17T20:51:03.747Z	true	95	active
-rule.context_budget	rule.context_budget	Limit runtime context to highest-signal evidence blocks (top_k).	global	80	2026-04-17T20:51:03.747Z	true	95	active
