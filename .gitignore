@@ -22,6 +22,10 @@ mcp/.npm-cache/
 # Build output
 mcp/dist/
 scaffold/mcp/dist/
+scripts/parsers/dotnet/**/bin/
+scripts/parsers/dotnet/**/obj/
+scaffold/scripts/parsers/dotnet/**/bin/
+scaffold/scripts/parsers/dotnet/**/obj/
 
 # Release artifacts and local auth tokens
 *.tgz
