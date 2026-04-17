@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawn } from "node:child_process";
 import { normalizeProjectRoot } from "./wsl.mjs";
 
@@ -490,12 +490,91 @@ function canAutoInitialize(targetDir) {
   return scaffoldPaths.every((entryPath) => !fs.existsSync(entryPath));
 }
 
+function isScaffoldOutOfDate(targetDir) {
+  const contextScript = path.join(targetDir, "scripts", "context.sh");
+  if (!fs.existsSync(contextScript)) {
+    return false;
+  }
+  const doctorScript = path.join(targetDir, "scripts", "doctor.sh");
+  if (!fs.existsSync(doctorScript)) {
+    return true;
+  }
+  const mcpPackage = path.join(targetDir, "mcp", "package.json");
+  if (!fs.existsSync(mcpPackage)) {
+    return true;
+  }
+  try {
+    const contents = fs.readFileSync(contextScript, "utf8");
+    if (!/\bdoctor\)\s*\n/.test(contents)) {
+      return true;
+    }
+  } catch {
+    return true;
+  }
+  return false;
+}
+
+async function confirmPrompt(message) {
+  const { createInterface } = await import("node:readline/promises");
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    const answer = (await rl.question(message)).trim().toLowerCase();
+    return answer === "y" || answer === "yes";
+  } finally {
+    rl.close();
+  }
+}
+
+async function maybeMigrateScaffold(targetDir, command) {
+  if (!isScaffoldOutOfDate(targetDir)) {
+    return;
+  }
+
+  const autoYes = isTruthyEnv(process.env.CORTEX_AUTO_MIGRATE);
+  const interactive = Boolean(process.stdin.isTTY && process.stderr.isTTY);
+
+  console.error(
+    `[cortex] scaffold in ${targetDir} is out of date ` +
+      `(missing scripts/doctor.sh, mcp/package.json, or doctor subcommand in context.sh).`
+  );
+
+  let proceed = autoYes;
+  if (!autoYes) {
+    if (!interactive) {
+      throw new Error(
+        `Cortex CLI ${process.env.CORTEX_CLI_VERSION ?? ""} needs an updated scaffold to run '${command}'. ` +
+          `Run 'cortex init --bootstrap' to upgrade, or re-run with CORTEX_AUTO_MIGRATE=true.`
+      );
+    }
+    proceed = await confirmPrompt("[cortex] Upgrade scaffold now (runs 'cortex init --bootstrap')? [y/N] ");
+  }
+
+  if (!proceed) {
+    throw new Error("Scaffold upgrade declined. Run 'cortex init --bootstrap' manually to continue.");
+  }
+
+  console.error(`[cortex] migrating scaffold in ${targetDir}`);
+  ensureScaffoldExists();
+  installScaffold(targetDir, true);
+  installAssistantHelpers(targetDir);
+  await maybeInstallGitHooks(targetDir);
+  await runContextCommand(targetDir, ["bootstrap"]);
+  console.error(`[cortex] scaffold upgraded; continuing with '${command}'`);
+}
+
 async function ensureProjectInitializedForMcp(targetDir) {
   const mcpPackageJson = path.join(targetDir, "mcp", "package.json");
   const serverEntry = path.join(targetDir, "mcp", "dist", "server.js");
 
   if (fs.existsSync(mcpPackageJson) && fs.existsSync(serverEntry)) {
     return;
+  }
+
+  if (isScaffoldOutOfDate(targetDir)) {
+    await maybeMigrateScaffold(targetDir, "mcp");
+    if (fs.existsSync(mcpPackageJson) && fs.existsSync(serverEntry)) {
+      return;
+    }
   }
 
   if (!isTruthyEnv(process.env.CORTEX_AUTO_BOOTSTRAP_ON_MCP)) {
@@ -651,10 +730,18 @@ async function run() {
     throw new Error(`Unknown command: ${command}`);
   }
 
+  await maybeMigrateScaffold(process.cwd(), command);
   await runContextCommand(process.cwd(), [command, ...rest]);
 }
 
-run().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-  process.exit(1);
-});
+const invokedAsScript =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (invokedAsScript) {
+  run().catch((error) => {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    process.exit(1);
+  });
+}
+
+export { isScaffoldOutOfDate };
