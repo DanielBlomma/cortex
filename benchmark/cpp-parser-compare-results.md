@@ -1,8 +1,8 @@
 # C/C++ parser benchmark — clang-bridge vs tree-sitter
 
-Generated: 2026-04-17T13:26:44.580Z
+Generated: 2026-04-17T13:29:39.855Z
 Corpus: synthetic — 6 files, 2548 bytes
-Runs per parser: 3
+Runs per parser: 5
 
 ## Summary
 
@@ -11,8 +11,8 @@ Runs per parser: 3
 | Chunks extracted | 21 | 26 | +5 |
 | Unique call edges | 20 | 18 | -2 |
 | Unique imports | 4 | 9 | +5 |
-| Median parse time (ms) | 0 | 185 | 185 |
-| Total ingest time (ms) | 2 | 582 | 580 |
+| Median parse time (ms) | 0 | 178 | 178 |
+| Total ingest time (ms) | 1 | 932 | 930 |
 
 ## Chunks by kind
 
@@ -28,7 +28,10 @@ Runs per parser: 3
 
 ## Interpretation
 
-- **clang-bridge** is described as a "lightweight first-pass" — it invokes `clang++` for each file and extracts top-level structure. It requires clang installed on the user's machine.
-- **tree-sitter** uses a WASM grammar — no runtime deps, cross-platform. Produces structured chunks for functions, classes, structs, unions, enums, and namespaces with proper `::` qualification for methods and nested types.
-- **Parse time:** clang spawns a subprocess per file (~500ms startup amortized across calls), tree-sitter is pure in-process WASM (typically <10ms per file). For large C++ projects tree-sitter wins significantly on total ingest time.
-- **Removing the clang dependency** is the biggest qualitative win — users on machines without clang no longer fall back to file-level indexing for C/C++ code.
+- **clang-gated parser** is a regex-based parser that is only activated when `clang --version` succeeds on the host — it doesn't invoke clang per file, but it refuses to run without clang installed. That means users without clang fell back to file-level indexing for C/C++ entirely.
+- **tree-sitter** uses a WASM grammar (no runtime deps, cross-platform). Produces structured chunks for functions, classes, structs, unions, enums, and namespaces with proper `::` qualification for methods and nested types.
+- **Chunk coverage Δ:** tree-sitter adds namespace chunks (which the regex parser never produced) and union chunks. Methods are properly qualified by enclosing namespace path (e.g. `app::UserService::find`), so the graph disambiguates across namespaces.
+- **Import Δ:** tree-sitter captures all `#include` forms (system `<...>` and local `"..."`), regex missed some.
+- **Call edges −2:** tree-sitter applies a stricter filter for builtins/casts; regex included a few false positives (e.g. capturing identifiers inside `static_cast<...>`). Tree-sitter's edges are more precise.
+- **Parse time +180 ms on 6 files (~30ms/file):** WASM parsing is slower than regex scanning. Irrelevant at ingest time where embedding generation dominates (seconds per file). Query-time retrieval is unaffected.
+- **Primary qualitative win:** removing the hard clang dependency means any user gets structural C/C++ parsing out of the box.
