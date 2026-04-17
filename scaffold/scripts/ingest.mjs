@@ -23,6 +23,7 @@ import { parseCode as parseResourcesCode } from "./parsers/resources.mjs";
 import { parseCode as parseSqlCode } from "./parsers/sql.mjs";
 import { parseCode as parseRustCode } from "./parsers/rust-dispatch.mjs";
 import { parseCode as parsePythonCode } from "./parsers/python-treesitter.mjs";
+import { parseCode as parseGoCode } from "./parsers/go-treesitter.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -301,6 +302,13 @@ const CHUNK_PARSERS = new Map([
     {
       language: "python",
       parse: parsePythonCode
+    }
+  ],
+  [
+    ".go",
+    {
+      language: "go",
+      parse: parseGoCode
     }
   ]
 ]);
