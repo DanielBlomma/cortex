@@ -46,7 +46,7 @@
     "docs/MCP_MARKETPLACE.md"
   ],
   "scripts": {
-    "test": "node tests/context-regressions.test.mjs && node --test tests/ingest-units.test.mjs tests/javascript-parser.test.mjs tests/sql-parser.test.mjs tests/config-parser.test.mjs tests/resources-parser.test.mjs tests/vbnet-parser.test.mjs tests/cpp-parser.test.mjs tests/multi-level.test.mjs tests/no-legacy-paths.test.mjs tests/tree-sitter-error-reporting.test.mjs tests/tree-sitter-body-cap.test.mjs tests/tree-sitter-exported.test.mjs",
+    "test": "node tests/context-regressions.test.mjs && node --test tests/ingest-units.test.mjs tests/javascript-parser.test.mjs tests/sql-parser.test.mjs tests/config-parser.test.mjs tests/resources-parser.test.mjs tests/vbnet-parser.test.mjs tests/cpp-parser.test.mjs tests/multi-level.test.mjs tests/no-legacy-paths.test.mjs tests/tree-sitter-error-reporting.test.mjs tests/tree-sitter-body-cap.test.mjs tests/tree-sitter-exported.test.mjs tests/tree-sitter-robustness.test.mjs",
     "release:sync-version": "node scripts/sync-release-version.mjs",
     "release:check-version-sync": "node scripts/sync-release-version.mjs --check",
     "prepublishOnly": "echo 'Ready to publish to npm'"

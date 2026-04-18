@@ -201,7 +201,8 @@ function extractFunctionCalls(functionNode) {
 
 export async function parseCode(code, filePath, language = "rust") {
   await ensureLanguage();
-  const { tree } = parseSource(RUST_LANG, code);
+  const { tree, reason } = parseSource(RUST_LANG, code);
+  if (!tree) return { chunks: [], errors: [{ message: reason }] };
   const root = tree.rootNode;
 
   const imports = collectImports(root);

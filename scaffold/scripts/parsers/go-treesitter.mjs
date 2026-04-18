@@ -225,7 +225,8 @@ function buildTypeChunk(node, nameNode, language) {
 
 export async function parseCode(code, filePath, language = "go") {
   await ensureLanguage();
-  const { tree } = parseSource(GO_LANG, code);
+  const { tree, reason } = parseSource(GO_LANG, code);
+  if (!tree) return { chunks: [], errors: [{ message: reason }] };
   const root = tree.rootNode;
   const imports = collectImports(root);
 
