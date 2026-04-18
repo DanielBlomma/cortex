@@ -20,7 +20,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DEFAULT_DOTNET_COMMAND = "dotnet";
 const DEFAULT_PROJECT_PATH = path.join(__dirname, "dotnet", "VbNetParser", "VbNetParser.csproj");
-const DEFAULT_TARGET_FRAMEWORK = "net10.0";
+const DEFAULT_TARGET_FRAMEWORK = "net8.0";
 
 let runtimeCache = null;
 let publishCache = null;
