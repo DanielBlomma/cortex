@@ -13,7 +13,7 @@
       "name": "cortex",
       "source": "./plugins/cortex",
       "description": "Cortex MCP server for repo-scoped semantic context",
-      "version": "1.4.1",
+      "version": "1.5.0",
       "author": {
         "name": "Daniel Blomma",
         "email": "daniel.blomma@gmail.com"
