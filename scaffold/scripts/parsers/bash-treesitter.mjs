@@ -35,6 +35,7 @@ import {
   initTreeSitter,
   lineRangeOf,
   loadGrammar,
+  bodyOf,
   collectErrors,
   parseSource,
   runQuery
@@ -182,7 +183,7 @@ function buildFunctionChunk(node, imports, language) {
     name,
     kind: "function",
     signature: signatureOfDecl(node),
-    body: node.text,
+    body: bodyOf(node),
     startLine,
     endLine,
     language,
