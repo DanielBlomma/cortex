@@ -72,6 +72,52 @@ function normalizeWhitespace(value) {
   return String(value).replace(/\s+/g, " ").trim();
 }
 
+/**
+ * Determine whether a declaration is visible from outside its
+ * enclosing class/struct. Walks up the AST and, when the nearest
+ * class_specifier/struct_specifier ancestor is found, inspects the
+ * preceding access_specifier sibling inside the class body. Defaults:
+ * `class` members are private until an `access_specifier` says
+ * otherwise; `struct`/`union` members are public.
+ *
+ * Returns true when the declaration is at namespace scope or under
+ * a `public:` access specifier.
+ */
+function isCppVisible(node) {
+  let current = node;
+  while (current?.parent) {
+    const parent = current.parent;
+    const parentType = parent.type;
+
+    if (parentType === "field_declaration_list") {
+      // web-tree-sitter returns fresh wrapper objects per call, so compare
+      // by source position rather than identity.
+      let access = null;
+      for (let i = 0; i < parent.namedChildCount; i += 1) {
+        const sib = parent.namedChild(i);
+        if (sib.startIndex === current.startIndex && sib.endIndex === current.endIndex) break;
+        if (sib.type === "access_specifier") access = sib.text.trim();
+      }
+      const enclosing = parent.parent?.type;
+      if (access == null) {
+        // No access_specifier yet — use the enclosing type's default.
+        return enclosing === "struct_specifier" || enclosing === "union_specifier";
+      }
+      return access === "public";
+    }
+
+    if (parentType === "class_specifier" || parentType === "struct_specifier" || parentType === "union_specifier") {
+      // Direct member of a named type body not wrapped in a field list (rare).
+      // Treat as if under the default access.
+      return parentType !== "class_specifier";
+    }
+
+    current = parent;
+  }
+  // No enclosing class/struct body — namespace or file scope: always visible.
+  return true;
+}
+
 function signatureOfDecl(node) {
   const braceIndex = node.text.indexOf("{");
   const semiIndex = node.text.indexOf(";");
@@ -234,7 +280,7 @@ function buildFunctionChunk(node, imports, language) {
     startLine,
     endLine,
     language,
-    exported: true,
+    exported: isCppVisible(node),
     calls: collectCallsInNode(node),
     imports
   };
@@ -255,7 +301,7 @@ function buildTypeChunk(node, kind, language) {
     startLine,
     endLine,
     language,
-    exported: true,
+    exported: isCppVisible(node),
     calls: [],
     imports: []
   };
@@ -275,7 +321,7 @@ function buildNamespaceChunk(node, language) {
     startLine,
     endLine,
     language,
-    exported: true,
+    exported: isCppVisible(node),
     calls: [],
     imports: []
   };

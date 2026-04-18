@@ -161,6 +161,13 @@ function groupDeclarations(rootNode) {
   return entries;
 }
 
+function isRustPublic(node) {
+  for (let i = 0; i < node.namedChildCount; i += 1) {
+    if (node.namedChild(i).type === "visibility_modifier") return true;
+  }
+  return false;
+}
+
 function chunkFrom(kind, node, name, signatureOverride, calls, imports, language) {
   const { startLine, endLine } = lineRangeOf(node);
   return {
@@ -171,6 +178,7 @@ function chunkFrom(kind, node, name, signatureOverride, calls, imports, language
     startLine,
     endLine,
     language,
+    exported: isRustPublic(node),
     calls,
     imports
   };
@@ -259,10 +267,11 @@ export async function parseCode(code, filePath, language = "rust") {
           name: qualifiedName,
           kind: "method",
           signature: buildSignature(child.text),
-          body: child.text,
+          body: bodyOf(child),
           startLine,
           endLine,
           language,
+          exported: isRustPublic(child),
           calls: extractFunctionCalls(child),
           imports
         });
