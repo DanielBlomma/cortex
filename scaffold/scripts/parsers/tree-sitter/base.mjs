@@ -179,7 +179,8 @@ export function dedupe(items) {
  * and ERROR nodes during parsing; a clean parse has none. Returns
  * `{message, line, column}` entries compatible with Cortex's existing
  * parser error shape. Limits output to `maxErrors` to keep DB rows
- * small on pathological input.
+ * small on pathological input. Descends into ERROR subtrees so nested
+ * errors are also reported (capped by maxErrors).
  */
 export function collectErrors(tree, { maxErrors = 32 } = {}) {
   const errors = [];
@@ -193,17 +194,17 @@ export function collectErrors(tree, { maxErrors = 32 } = {}) {
         line: node.startPosition.row + 1,
         column: node.startPosition.column + 1
       });
-      return;
-    }
-    if (node.isMissing) {
+      // fall through — ERROR nodes can contain nested errors we still want to report
+    } else if (node.isMissing) {
       errors.push({
         message: `Missing ${node.type || "token"}`,
         line: node.startPosition.row + 1,
         column: node.startPosition.column + 1
       });
       return;
+    } else if (!node.hasError) {
+      return;
     }
-    if (!node.hasError) return;
     for (let i = 0; i < node.childCount; i++) {
       visit(node.child(i));
     }

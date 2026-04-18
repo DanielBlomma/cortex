@@ -12,7 +12,7 @@ When the language has explicit visibility keywords (`public`, `pub`, `export`), 
 
 | Language | Rule | Source |
 |---|---|---|
-| **C#** | `public` or `internal` modifier on member | `IsExported()` in CSharpParser/Program.cs |
+| **C#** | `public` modifier on member | `IsExported()` in CSharpParser/Program.cs |
 | **VB.NET** | `Public` modifier on member | `IsExported()` in VbNetParser/Program.cs |
 | **Java** | `public` modifier on member | `hasPublicModifier()` in java-treesitter.mjs |
 | **Rust** | `pub` visibility modifier on declaration | `isRustPublic()` in rust-treesitter.mjs |
