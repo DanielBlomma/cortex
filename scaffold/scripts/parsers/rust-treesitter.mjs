@@ -19,6 +19,7 @@ import {
   initTreeSitter,
   lineRangeOf,
   loadGrammar,
+  bodyOf,
   collectErrors,
   parseSource,
   runQuery
@@ -166,7 +167,7 @@ function chunkFrom(kind, node, name, signatureOverride, calls, imports, language
     name,
     kind,
     signature: signatureOverride ?? buildSignature(node.text),
-    body: node.text,
+    body: bodyOf(node),
     startLine,
     endLine,
     language,
