@@ -143,6 +143,45 @@ export function dedupe(items) {
 }
 
 /**
+ * Walk the tree collecting syntax errors. Tree-sitter flags MISSING
+ * and ERROR nodes during parsing; a clean parse has none. Returns
+ * `{message, line, column}` entries compatible with Cortex's existing
+ * parser error shape. Limits output to `maxErrors` to keep DB rows
+ * small on pathological input.
+ */
+export function collectErrors(tree, { maxErrors = 32 } = {}) {
+  const errors = [];
+  if (!tree?.rootNode?.hasError) return errors;
+
+  const visit = (node) => {
+    if (errors.length >= maxErrors) return;
+    if (node.isError || node.type === "ERROR") {
+      errors.push({
+        message: "Syntax error",
+        line: node.startPosition.row + 1,
+        column: node.startPosition.column + 1
+      });
+      return;
+    }
+    if (node.isMissing) {
+      errors.push({
+        message: `Missing ${node.type || "token"}`,
+        line: node.startPosition.row + 1,
+        column: node.startPosition.column + 1
+      });
+      return;
+    }
+    if (!node.hasError) return;
+    for (let i = 0; i < node.childCount; i++) {
+      visit(node.child(i));
+    }
+  };
+
+  visit(tree.rootNode);
+  return errors;
+}
+
+/**
  * Convenience loader for language modules — initializes tree-sitter and
  * pre-loads a grammar. Returns an object with the grammar handle and
  * shared helpers so language modules don't need to reimport base.mjs.

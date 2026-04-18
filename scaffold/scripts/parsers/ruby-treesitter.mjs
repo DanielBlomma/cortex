@@ -33,6 +33,7 @@ import {
   initTreeSitter,
   lineRangeOf,
   loadGrammar,
+  collectErrors,
   parseSource,
   runQuery
 } from "./tree-sitter/base.mjs";
@@ -256,7 +257,7 @@ export async function parseCode(code, filePath, language = "ruby") {
     return true;
   });
 
-  return { chunks: deduped, errors: [] };
+  return { chunks: deduped, errors: collectErrors(tree) };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
