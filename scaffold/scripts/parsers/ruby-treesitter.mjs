@@ -232,7 +232,8 @@ function buildMethodChunk(node, imports, language, isSingleton) {
 
 export async function parseCode(code, filePath, language = "ruby") {
   await ensureLanguage();
-  const { tree } = parseSource(RUBY_LANG, code);
+  const { tree, reason } = parseSource(RUBY_LANG, code);
+  if (!tree) return { chunks: [], errors: [{ message: reason }] };
   const root = tree.rootNode;
   const imports = collectImports(root);
 

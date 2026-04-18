@@ -195,7 +195,8 @@ function buildFunctionChunk(node, imports, language) {
 
 export async function parseCode(code, filePath, language = "bash") {
   await ensureLanguage();
-  const { tree } = parseSource(BASH_LANG, code);
+  const { tree, reason } = parseSource(BASH_LANG, code);
+  if (!tree) return { chunks: [], errors: [{ message: reason }] };
   const root = tree.rootNode;
   const imports = collectImports(root);
 

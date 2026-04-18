@@ -329,7 +329,8 @@ function buildNamespaceChunk(node, language) {
 
 export async function parseCode(code, filePath, language = "cpp") {
   await ensureLanguage();
-  const { tree } = parseSource(CPP_LANG, code);
+  const { tree, reason } = parseSource(CPP_LANG, code);
+  if (!tree) return { chunks: [], errors: [{ message: reason }] };
   const root = tree.rootNode;
   const imports = collectImports(root);
 

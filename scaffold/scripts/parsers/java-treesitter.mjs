@@ -209,7 +209,8 @@ function buildConstructorChunk(node, imports, language) {
 
 export async function parseCode(code, filePath, language = "java") {
   await ensureLanguage();
-  const { tree } = parseSource(JAVA_LANG, code);
+  const { tree, reason } = parseSource(JAVA_LANG, code);
+  if (!tree) return { chunks: [], errors: [{ message: reason }] };
   const root = tree.rootNode;
   const imports = collectImports(root);
 

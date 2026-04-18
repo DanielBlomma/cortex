@@ -234,7 +234,8 @@ function buildClassChunk(node, language) {
 
 export async function parseCode(code, filePath, language = "python") {
   await ensureLanguage();
-  const { tree } = parseSource(PY_LANG, code);
+  const { tree, reason } = parseSource(PY_LANG, code);
+  if (!tree) return { chunks: [], errors: [{ message: reason }] };
   const root = tree.rootNode;
   const imports = collectImports(root);
 

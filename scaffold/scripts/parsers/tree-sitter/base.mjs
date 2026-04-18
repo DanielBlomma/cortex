@@ -77,10 +77,42 @@ export function createParser(language) {
   return parser;
 }
 
+/**
+ * Hard size limit on input passed to tree-sitter. Swift was dropped
+ * because its grammar OOM'd on large files (see aa52c93); even
+ * supported grammars can exhaust WASM memory on adversarial input.
+ * Callers receive { tree: null, reason } when the limit is hit.
+ * Override via CORTEX_TREE_SITTER_MAX_BYTES.
+ */
+const DEFAULT_MAX_SOURCE_BYTES = 4 * 1024 * 1024; // 4 MiB
+
+function getMaxSourceBytes() {
+  const override = process.env.CORTEX_TREE_SITTER_MAX_BYTES;
+  if (!override) return DEFAULT_MAX_SOURCE_BYTES;
+  const n = Number.parseInt(override, 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_SOURCE_BYTES;
+}
+
 export function parseSource(language, code) {
+  const max = getMaxSourceBytes();
+  if (typeof code === "string" && code.length > max) {
+    return {
+      tree: null,
+      parser: null,
+      reason: `source exceeds CORTEX_TREE_SITTER_MAX_BYTES (${code.length} > ${max})`
+    };
+  }
   const parser = createParser(language);
-  const tree = parser.parse(code);
-  return { tree, parser };
+  try {
+    const tree = parser.parse(code);
+    return { tree, parser };
+  } catch (error) {
+    return {
+      tree: null,
+      parser,
+      reason: `tree-sitter parse threw: ${error instanceof Error ? error.message : String(error)}`
+    };
+  }
 }
 
 export function runQuery(language, queryString, node) {
