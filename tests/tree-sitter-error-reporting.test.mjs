@@ -88,3 +88,30 @@ for (const { name, parse, file, valid, malformed } of CASES) {
     assert.ok(first.column >= 1, `${name}: error.column should be 1-based`);
   });
 }
+
+// Multiple disjoint syntax errors should produce multiple error entries,
+// not collapse to a single top-level ERROR report. Uses Python since its
+// grammar reliably produces distinct errors at distinct locations.
+test("tree-sitter parser reports multiple errors for multiple disjoint problems", async () => {
+  const { parse, file, name } = CASES.find((c) => c.name === "python");
+  const source = [
+    "def broken1(a, b:",     // missing paren
+    "    return a",
+    "",
+    "def broken2(x, y:",     // another missing paren, different location
+    "    return x",
+    ""
+  ].join("\n");
+
+  const result = await parse(source, file, name);
+  assert.ok(
+    result.errors.length >= 2,
+    `${name}: expected ≥ 2 errors for 2 distinct syntax problems, got ${result.errors.length}: ${JSON.stringify(result.errors)}`
+  );
+
+  const uniqueLines = new Set(result.errors.map((e) => e.line));
+  assert.ok(
+    uniqueLines.size >= 2,
+    `${name}: expected errors on at least 2 distinct lines, got lines ${JSON.stringify([...uniqueLines])}`
+  );
+});
