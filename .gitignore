@@ -36,3 +36,4 @@ scaffold/scripts/parsers/dotnet/**/obj/
 .mcpregistry_registry_token
 # Cortex local storage
 mcp/node_modules/
+mcp/.context/

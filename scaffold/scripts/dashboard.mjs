@@ -199,6 +199,7 @@ function computeFreshness(manifest) {
   try {
     const output = execSync("git status --porcelain", {
       cwd: REPO_ROOT, stdio: ["ignore", "pipe", "ignore"], encoding: "utf8", timeout: 3000,
+      shell: true,
     });
 
     for (const rawLine of output.split(/\r?\n/)) {
@@ -280,6 +281,7 @@ function getLocalCliVersion() {
       stdio: ["ignore", "pipe", "ignore"],
       encoding: "utf8",
       timeout: 1500,
+      shell: true,
     }).trim();
     if (parseVersion(output)) {
       return output;
@@ -325,6 +327,7 @@ function getVersionStatus() {
           encoding: "utf8",
           timeout: 2500,
           env: { ...process.env, NPM_CONFIG_CACHE: npmCache },
+          shell: true,
         }).trim();
         const parsedLatest = JSON.parse(latestRaw);
         const latest = Array.isArray(parsedLatest)

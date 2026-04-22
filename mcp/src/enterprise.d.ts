@@ -4,5 +4,7 @@ declare module "@danielblomma/cortex-enterprise" {
   export const version: string;
   export function register(server: McpServer): void | Promise<void>;
   export function onToolCall(toolName: string, resultCount: number, tokensSaved: number): void;
+  export function onToolEvent(event: import("./plugin.js").ToolExecutionEvent): void | Promise<void>;
   export function onSessionEnd(calls: import("./plugin.js").SessionCallRecord[]): Promise<void>;
+  export function onSessionEvent(event: import("./plugin.js").SessionEvent): void | Promise<void>;
 }
