@@ -149,6 +149,80 @@ function ensureScaffoldExists() {
 // Files that should never be overwritten if they already exist in the target.
 // These contain user-specific configuration that would be lost on re-init.
 const PRESERVE_FILES = new Set(["config.yaml", "enterprise.yml", "enterprise.yaml", "CLAUDE.md"]);
+const DEFAULT_SOURCE_PATHS = [
+  "src",
+  "docs",
+  "design",
+  ".context/notes",
+  ".context/decisions",
+  "README.md"
+];
+const INIT_SKIP_DIRECTORIES = new Set([
+  ".git",
+  ".idea",
+  ".vscode",
+  "node_modules",
+  "dist",
+  "build",
+  "coverage",
+  ".next",
+  ".cache",
+  ".context",
+  "scripts",
+  "mcp",
+  ".githooks",
+  "bin",
+  "obj"
+]);
+const INIT_SOURCE_EXTENSIONS = new Set([
+  ".md",
+  ".mdx",
+  ".txt",
+  ".adoc",
+  ".rst",
+  ".yaml",
+  ".yml",
+  ".json",
+  ".toml",
+  ".csv",
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+  ".py",
+  ".go",
+  ".java",
+  ".cs",
+  ".vb",
+  ".sln",
+  ".vbproj",
+  ".csproj",
+  ".fsproj",
+  ".props",
+  ".targets",
+  ".config",
+  ".resx",
+  ".settings",
+  ".rb",
+  ".rs",
+  ".php",
+  ".swift",
+  ".kt",
+  ".sql",
+  ".sh",
+  ".bash",
+  ".zsh",
+  ".ps1",
+  ".c",
+  ".h",
+  ".cpp",
+  ".hpp",
+  ".cc",
+  ".hh"
+]);
+const ROOT_DOC_PATHS = new Set(["docs", "design"]);
 
 function copyDirectory(sourceDir, targetDir) {
   fs.mkdirSync(targetDir, { recursive: true });
@@ -172,6 +246,147 @@ function copyDirectory(sourceDir, targetDir) {
     fs.copyFileSync(sourcePath, targetPath);
     const sourceMode = fs.statSync(sourcePath).mode;
     fs.chmodSync(targetPath, sourceMode);
+  }
+}
+
+function toPosixPath(value) {
+  return value.split(path.sep).join("/");
+}
+
+function yamlScalar(value) {
+  return /^[A-Za-z0-9._/-]+$/.test(value) ? value : JSON.stringify(value);
+}
+
+function slugifyRepoId(value) {
+  const dashed = String(value || "")
+    .trim()
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2")
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/[^A-Za-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+  return dashed || "cortex";
+}
+
+function isInterestingSourceFile(fileName) {
+  const base = fileName.toLowerCase();
+  const ext = path.extname(fileName).toLowerCase();
+  return INIT_SOURCE_EXTENSIONS.has(ext) || base === "readme" || base.startsWith("readme.");
+}
+
+function directoryContainsInterestingFiles(directoryPath) {
+  const stack = [directoryPath];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    let entries = [];
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      const absolutePath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        if (INIT_SKIP_DIRECTORIES.has(entry.name)) {
+          continue;
+        }
+        stack.push(absolutePath);
+        continue;
+      }
+
+      if (entry.isFile() && isInterestingSourceFile(entry.name)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function detectInitialSourcePaths(targetDir) {
+  if (!fs.existsSync(targetDir)) {
+    return [...DEFAULT_SOURCE_PATHS];
+  }
+
+  let entries = [];
+  try {
+    entries = fs.readdirSync(targetDir, { withFileTypes: true });
+  } catch {
+    return [...DEFAULT_SOURCE_PATHS];
+  }
+
+  const codeDirs = [];
+  const docDirs = [];
+  const rootFiles = [];
+
+  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+    const absolutePath = path.join(targetDir, entry.name);
+
+    if (entry.isDirectory()) {
+      if (INIT_SKIP_DIRECTORIES.has(entry.name)) {
+        continue;
+      }
+      if (!directoryContainsInterestingFiles(absolutePath)) {
+        continue;
+      }
+
+      const bucket = ROOT_DOC_PATHS.has(entry.name) ? docDirs : codeDirs;
+      bucket.push(toPosixPath(entry.name));
+      continue;
+    }
+
+    if (entry.isFile() && isInterestingSourceFile(entry.name)) {
+      rootFiles.push(toPosixPath(entry.name));
+    }
+  }
+
+  const readmeFiles = rootFiles.filter((filePath) => /^readme(\.|$)/i.test(path.basename(filePath)));
+  const nonReadmeRootFiles = rootFiles.filter((filePath) => !readmeFiles.includes(filePath));
+  const detected = [
+    ...codeDirs,
+    ...nonReadmeRootFiles,
+    ...docDirs,
+    ".context/notes",
+    ".context/decisions",
+    ...readmeFiles
+  ];
+  const uniqueDetected = [...new Set(detected)];
+  const hasConcreteRepoContent = uniqueDetected.some((value) => !value.startsWith(".context/"));
+  return hasConcreteRepoContent ? uniqueDetected : [...DEFAULT_SOURCE_PATHS];
+}
+
+function buildInitialConfig(targetDir) {
+  const repoId = slugifyRepoId(path.basename(path.resolve(targetDir)));
+  const sourcePaths = detectInitialSourcePaths(targetDir);
+  return [
+    `repo_id: ${yamlScalar(repoId)}`,
+    "source_paths:",
+    ...sourcePaths.map((sourcePath) => `  - ${yamlScalar(sourcePath)}`),
+    "truth_order:",
+    "  - ADR",
+    "  - RULE",
+    "  - CODE",
+    "  - WIKI",
+    "ranking:",
+    "  semantic: 0.40",
+    "  graph: 0.25",
+    "  trust: 0.20",
+    "  recency: 0.15",
+    "runtime:",
+    "  top_k: 5",
+    "  include_uncertainties: true",
+    ""
+  ].join("\n");
+}
+
+function initializeScaffold(targetDir, force) {
+  const configPath = path.join(targetDir, ".context", "config.yaml");
+  const hasExistingConfig = fs.existsSync(configPath);
+  const generatedConfig = hasExistingConfig ? null : buildInitialConfig(targetDir);
+  installScaffold(targetDir, force);
+  if (!hasExistingConfig && generatedConfig) {
+    writeTextFile(configPath, generatedConfig);
   }
 }
 
@@ -555,7 +770,7 @@ async function maybeMigrateScaffold(targetDir, command) {
 
   console.error(`[cortex] migrating scaffold in ${targetDir}`);
   ensureScaffoldExists();
-  installScaffold(targetDir, true);
+  initializeScaffold(targetDir, true);
   installAssistantHelpers(targetDir);
   await maybeInstallGitHooks(targetDir);
   await runContextCommand(targetDir, ["bootstrap"]);
@@ -590,7 +805,7 @@ async function ensureProjectInitializedForMcp(targetDir) {
     }
     ensureScaffoldExists();
     fs.mkdirSync(targetDir, { recursive: true });
-    installScaffold(targetDir, false);
+    initializeScaffold(targetDir, false);
     installAssistantHelpers(targetDir);
     await maybeInstallGitHooks(targetDir);
     console.log(`[cortex] auto-init completed in ${targetDir}`);
@@ -632,7 +847,7 @@ async function run() {
     const { target, force, bootstrap, connect, watch } = parseInitArgs(rest);
     printBanner("Cortex initializes repo-scoped context for AI coding agents.");
     fs.mkdirSync(target, { recursive: true });
-    installScaffold(target, force);
+    initializeScaffold(target, force);
     const helpers = installAssistantHelpers(target);
     await maybeInstallGitHooks(target);
 
@@ -753,4 +968,4 @@ if (invokedAsScript) {
   });
 }
 
-export { isScaffoldOutOfDate };
+export { buildInitialConfig, detectInitialSourcePaths, isScaffoldOutOfDate, slugifyRepoId };

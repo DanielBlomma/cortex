@@ -25,6 +25,20 @@ const DEFAULT_TARGET_FRAMEWORK = "net8.0";
 let runtimeCache = null;
 let publishCache = null;
 
+function hasGitCheckout(startDir) {
+  let current = startDir;
+  while (true) {
+    if (fs.existsSync(path.join(current, ".git"))) {
+      return true;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return false;
+    }
+    current = parent;
+  }
+}
+
 function getDotnetCommand() {
   const override = process.env.CORTEX_DOTNET_CMD;
   return override && override.trim().length > 0 ? override.trim() : DEFAULT_DOTNET_COMMAND;
@@ -74,6 +88,19 @@ function needsPublish() {
   } catch {
     return true;
   }
+
+  if (process.env.CORTEX_CSHARP_FORCE_PUBLISH === "1") {
+    return true;
+  }
+
+  // In packaged installs there is no writable git checkout, but the
+  // published DLL is already bundled. Trust it instead of forcing an
+  // unnecessary `dotnet publish`, which can fail offline and leave C#
+  // repos with 0 chunks.
+  if (!hasGitCheckout(__dirname)) {
+    return false;
+  }
+
   return getMaxSourceMtime() > dllMtime;
 }
 

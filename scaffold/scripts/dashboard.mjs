@@ -24,11 +24,12 @@ const SUPPORTED_TEXT_EXTENSIONS = new Set([
 // Same skip dirs as ingest.mjs
 const SKIP_DIRECTORIES = new Set([
   ".git", ".idea", ".vscode", "node_modules",
-  "dist", "build", "coverage", ".next", ".cache", ".context"
+  "bin", "obj", "dist", "build", "coverage", ".next", ".cache", ".context"
 ]);
 
 const MAX_FILE_BYTES = 1024 * 1024;
 const VERSION_CHECK_TTL_MS = 10 * 60 * 1000;
+const VERSION_LOOKUP_TIMEOUT_MS = 8000;
 const VERSION_INSTALL_HINT = "npm i -g github:DanielBlomma/cortex";
 
 // ── ANSI helpers ──────────────────────────────────────────────
@@ -93,7 +94,11 @@ function walkDirectory(dirPath, files) {
     if (entry.isDirectory()) {
       walkDirectory(abs, files);
     } else if (entry.isFile()) {
-      files.push(abs);
+      if (typeof files.add === "function") {
+        files.add(abs);
+      } else {
+        files.push(abs);
+      }
     }
   }
 }
@@ -111,20 +116,20 @@ function hasSourcePrefix(relPath, sourcePaths) {
 }
 
 // ── Data: baseline scan ──────────────────────────────────────
-function scanBaseline() {
-  if (!fs.existsSync(CONFIG_PATH)) return { files: 0, lines: 0, chars: 0, tokens: 0 };
+function scanBaseline(repoRoot = REPO_ROOT, configPath = CONFIG_PATH) {
+  if (!fs.existsSync(configPath)) return { files: 0, lines: 0, chars: 0, tokens: 0 };
 
-  const configText = fs.readFileSync(CONFIG_PATH, "utf8");
-  const sourcePaths = parseSourcePaths(configText);
+  const configText = fs.readFileSync(configPath, "utf8");
+  const sourcePaths = [...new Set(parseSourcePaths(configText))];
   if (sourcePaths.length === 0) return { files: 0, lines: 0, chars: 0, tokens: 0 };
 
-  const allFiles = [];
+  const allFiles = new Set();
   for (const sp of sourcePaths) {
-    const abs = path.resolve(REPO_ROOT, sp);
+    const abs = path.resolve(repoRoot, sp);
     if (!fs.existsSync(abs)) continue;
     const stat = fs.statSync(abs);
     if (stat.isFile()) {
-      allFiles.push(abs);
+      allFiles.add(abs);
     } else if (stat.isDirectory()) {
       walkDirectory(abs, allFiles);
     }
@@ -265,6 +270,9 @@ function shorten(text, max = 40) {
 }
 
 function summarizeError(error) {
+  if (error && typeof error === "object" && error.code === "ETIMEDOUT") {
+    return `version check timed out after ${Math.round(VERSION_LOOKUP_TIMEOUT_MS / 1000)}s`;
+  }
   const raw = error instanceof Error ? error.message : String(error);
   return shorten(raw.split(/\r?\n/)[0].trim());
 }
@@ -325,7 +333,7 @@ function getVersionStatus() {
           cwd: REPO_ROOT,
           stdio: ["ignore", "pipe", "pipe"],
           encoding: "utf8",
-          timeout: 2500,
+          timeout: VERSION_LOOKUP_TIMEOUT_MS,
           env: { ...process.env, NPM_CONFIG_CACHE: npmCache },
           shell: true,
         }).trim();
@@ -491,6 +499,7 @@ function gatherData(baselineCache) {
     },
     tokens: tokenEstimate,
     embeddings: embedModel ? { model: embedModel, count: embedCount, dimensions: embedDim } : null,
+    parserHealth: manifests.ingest?.parser_health || {},
     freshness,
     version,
     topConnected,
@@ -696,6 +705,14 @@ function render(data, isTTY) {
   } else {
     lines.push(sideBorder(`Embeddings: ${col("not generated", C.yellow)}  ${dim("Run: cortex embed")}`, w));
   }
+  if (data.parserHealth.csharp && Number(data.parserHealth.csharp.files || 0) > 0) {
+    const csharp = data.parserHealth.csharp;
+    if (!csharp.available) {
+      lines.push(sideBorder(`Parser warning (C#): ${col("unavailable", C.red)}  ${dim(csharp.reason || "install .NET SDK")}`, w));
+    } else if (csharp.chunks === 0) {
+      lines.push(sideBorder(`Parser warning (C#): ${col("0 chunks", C.yellow)}  ${dim(`${csharp.files} files indexed`)}`, w));
+    }
+  }
   lines.push(emptyLine(w));
 
   // ── TOP CONNECTED ──
@@ -791,4 +808,14 @@ function main() {
   });
 }
 
-main();
+const isMainModule = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename);
+if (isMainModule) {
+  main();
+}
+
+export {
+  parseSourcePaths,
+  render,
+  scanBaseline,
+  walkDirectory
+};

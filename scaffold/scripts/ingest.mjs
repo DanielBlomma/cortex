@@ -24,6 +24,7 @@ let parseVb6Code = null;
 let isVbNetParserAvailable = () => false;
 let isCSharpParserAvailable = () => false;
 let isCppParserAvailable = () => false;
+let getCSharpParserRuntime = () => ({ available: false, reason: "parser module not loaded" });
 
 async function loadOptionalParsers() {
   const loaders = [
@@ -37,6 +38,10 @@ async function loadOptionalParsers() {
     import("./parsers/csharp.mjs").then((module) => {
       parseCSharpCode = module.parseCode;
       parseCSharpProject = module.parseProject ?? null;
+      getCSharpParserRuntime =
+        typeof module.getCSharpParserRuntime === "function"
+          ? module.getCSharpParserRuntime
+          : () => ({ available: typeof module.parseCode === "function", reason: "runtime details unavailable" });
       isCSharpParserAvailable =
         typeof module.isCSharpParserAvailable === "function"
           ? module.isCSharpParserAvailable
@@ -472,6 +477,8 @@ const SKIP_DIRECTORIES = new Set([
   ".idea",
   ".vscode",
   "node_modules",
+  "bin",
+  "obj",
   "dist",
   "build",
   "coverage",
@@ -2675,6 +2682,8 @@ async function main() {
 
   const fileRecords = [...fileRecordMap.values()].sort((a, b) => a.path.localeCompare(b.path));
   const adrRecords = [...adrRecordMap.values()].sort((a, b) => a.path.localeCompare(b.path));
+  const csharpFileCount = fileRecords.filter((record) => path.extname(record.path).toLowerCase() === ".cs").length;
+  const csharpRuntime = csharpFileCount > 0 ? getCSharpParserRuntime() : null;
   const indexedFileIds = new Set(fileRecords.map((record) => record.id));
   const changedFileIds = new Set(
     [...candidates].map((absolutePath) => `file:${toPosixPath(path.relative(REPO_ROOT, absolutePath))}`)
@@ -3072,6 +3081,23 @@ async function main() {
       console.log(
         `[ingest] uses_resource_key=${validUsesResourceKeyRelations.length} uses_setting_key=${validUsesSettingKeyRelations.length}`
       );
+    }
+  }
+
+  const csharpChunkCount = chunkRecords.filter((record) => record.language === "csharp").length;
+  const parserHealth = {};
+  if (csharpFileCount > 0) {
+    parserHealth.csharp = {
+      files: csharpFileCount,
+      available: Boolean(csharpRuntime?.available),
+      reason: csharpRuntime?.available ? null : (csharpRuntime?.reason ?? "C# parser unavailable"),
+      chunks: csharpChunkCount,
+    };
+
+    if (!csharpRuntime?.available) {
+      console.log(`[ingest] warning csharp parser unavailable: ${parserHealth.csharp.reason}`);
+    } else if (csharpChunkCount === 0) {
+      console.log("[ingest] warning csharp parser produced 0 chunks across C# files");
     }
   }
 
@@ -3512,6 +3538,7 @@ async function main() {
       relations_transforms_config: configTransformRelations.length
     },
     skipped,
+    parser_health: parserHealth,
     incremental_mode: incrementalMode,
     changed_candidates: candidates.size,
     deleted_paths: deletedRelPaths.length

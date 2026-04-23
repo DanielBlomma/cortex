@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
+  ensureCSharpParserPublished,
   getCSharpParserRuntime,
   isCSharpParserAvailable,
   parseCode,
@@ -299,3 +303,45 @@ test("parseProject falls back to empty results when dotnet runtime is missing", 
   assert.equal(result.size, 1);
   assert.deepEqual(result.get("A.cs"), { chunks: [], errors: [] });
 }));
+
+liveTest("ensureCSharpParserPublished trusts bundled dll outside git checkout", () => {
+  const previousProject = process.env.CORTEX_CSHARP_PARSER_PROJECT;
+  const previousPublishDir = process.env.CORTEX_CSHARP_PUBLISH_DIR;
+  const previousForce = process.env.CORTEX_CSHARP_FORCE_PUBLISH;
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-csharp-bundled-"));
+  const projectPath = path.join(tempRoot, "CSharpParser.csproj");
+  const publishDir = path.join(tempRoot, "publish");
+  const dllPath = path.join(publishDir, "CSharpParser.dll");
+
+  fs.mkdirSync(publishDir, { recursive: true });
+  fs.writeFileSync(projectPath, "<Project />\n");
+  fs.writeFileSync(dllPath, "not-a-real-dll");
+
+  process.env.CORTEX_CSHARP_PARSER_PROJECT = projectPath;
+  process.env.CORTEX_CSHARP_PUBLISH_DIR = publishDir;
+  delete process.env.CORTEX_CSHARP_FORCE_PUBLISH;
+  resetCSharpParserRuntimeCache();
+
+  try {
+    const published = ensureCSharpParserPublished();
+    assert.deepEqual(published, { ok: true, dllPath });
+  } finally {
+    if (previousProject === undefined) {
+      delete process.env.CORTEX_CSHARP_PARSER_PROJECT;
+    } else {
+      process.env.CORTEX_CSHARP_PARSER_PROJECT = previousProject;
+    }
+    if (previousPublishDir === undefined) {
+      delete process.env.CORTEX_CSHARP_PUBLISH_DIR;
+    } else {
+      process.env.CORTEX_CSHARP_PUBLISH_DIR = previousPublishDir;
+    }
+    if (previousForce === undefined) {
+      delete process.env.CORTEX_CSHARP_FORCE_PUBLISH;
+    } else {
+      process.env.CORTEX_CSHARP_FORCE_PUBLISH = previousForce;
+    }
+    resetCSharpParserRuntimeCache();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
