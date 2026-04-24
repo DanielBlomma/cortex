@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { env, pipeline } from "@xenova/transformers";
+import { env, pipeline } from "@huggingface/transformers";
 import { readJsonl, asString } from "./jsonl.js";
 import { PATHS } from "./paths.js";
 import type { EmbeddingIndex, JsonObject } from "./types.js";

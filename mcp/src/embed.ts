@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
-import { env, pipeline } from "@xenova/transformers";
+import { env, pipeline } from "@huggingface/transformers";
 import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
 import { TRUST_DOCUMENT, TRUST_RULE, TRUST_ADR } from "./defaults.js";
 import { EMBEDDINGS_DIR, PATHS } from "./paths.js";
