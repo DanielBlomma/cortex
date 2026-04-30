@@ -63,6 +63,7 @@ function printHelp() {
   console.log("  cortex daemon [start|stop|status]");
   console.log("  cortex hooks [install|uninstall|status] [--project]");
   console.log("  cortex hook <name>          (internal: invoked by Claude Code)");
+  console.log("  cortex telemetry test       Smoke-test push pipeline end-to-end");
   console.log("  cortex help");
 }
 
@@ -941,6 +942,10 @@ async function run() {
     return runHooksCommand(rest);
   }
 
+  if (command === "telemetry") {
+    return runTelemetryCommand(rest);
+  }
+
   const passthrough = new Set([
     "bootstrap",
     "update",
@@ -1101,6 +1106,25 @@ function readJsonSafe(file) {
 function writeJson(file, data) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(data, null, 2) + "\n", "utf8");
+}
+
+async function runTelemetryCommand(args) {
+  const sub = args[0] || "help";
+  if (sub === "test") {
+    const entry = path.join(PACKAGE_ROOT, "mcp", "dist", "cli", "telemetry-test.js");
+    if (!fs.existsSync(entry)) {
+      throw new Error(`Build cortex first (missing ${entry})`);
+    }
+    const mod = await import(pathToFileURL(entry).href);
+    const code = await mod.runTelemetryTest();
+    process.exit(code);
+  }
+  if (sub === "help" || sub === "--help" || sub === "-h") {
+    console.log("Usage:");
+    console.log("  cortex telemetry test    Smoke-test the push pipeline end-to-end");
+    return;
+  }
+  throw new Error(`Unknown telemetry subcommand: ${sub}`);
 }
 
 async function runHooksCommand(args) {
