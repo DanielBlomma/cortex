@@ -31,6 +31,8 @@ mcp/dist/
 scaffold/mcp/dist/
 scaffold/scripts/parsers/dotnet/**/bin/
 scaffold/scripts/parsers/dotnet/**/obj/
+scripts/parsers/dotnet/**/bin/
+scripts/parsers/dotnet/**/obj/
 
 # Release artifacts and local auth tokens
 *.tgz
@@ -39,3 +41,4 @@ scaffold/scripts/parsers/dotnet/**/obj/
 # Cortex local storage
 mcp/node_modules/
 mcp/.context/
+

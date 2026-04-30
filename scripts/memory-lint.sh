@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Keep in sync with scaffold/scripts/memory-lint.sh
+# Keep in sync with scripts/memory-lint.sh
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
