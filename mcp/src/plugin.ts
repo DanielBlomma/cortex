@@ -106,6 +106,21 @@ export async function loadPlugins(server: McpServer): Promise<void> {
       return;
     }
 
+    // v2.0.0: validate license against cortex-web before activating.
+    // The verifier uses 24h cache + 7d grace period so transient endpoint
+    // outages don't degrade enterprise users immediately.
+    const { verifyLicense } = await import("./core/license.js");
+    const license = await verifyLicense(contextDir, config.enterprise.endpoint, config.enterprise.api_key, {
+      client_version: process.env.CORTEX_VERSION,
+    });
+
+    if (!license.valid) {
+      process.stderr.write(
+        `[cortex] Enterprise inactive: license check failed (${license.reason}, source=${license.source})\n`
+      );
+      return;
+    }
+
     if (typeof enterprise.register === "function") {
       await enterprise.register(server);
       loadedEdition = {
