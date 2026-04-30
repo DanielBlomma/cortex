@@ -60,6 +60,9 @@ function printHelp() {
   console.log("  cortex dashboard [--interval <sec>]");
   console.log("  cortex memory-compile [--dry-run] [--verbose]");
   console.log("  cortex memory-lint [--verbose] [--json]");
+  console.log("  cortex daemon [start|stop|status]");
+  console.log("  cortex hooks [install|uninstall|status] [--project]");
+  console.log("  cortex hook <name>          (internal: invoked by Claude Code)");
   console.log("  cortex help");
 }
 
@@ -926,6 +929,18 @@ async function run() {
     return;
   }
 
+  if (command === "daemon") {
+    return runDaemonCommand(rest);
+  }
+
+  if (command === "hook") {
+    return runHookShim(rest);
+  }
+
+  if (command === "hooks") {
+    return runHooksCommand(rest);
+  }
+
   const passthrough = new Set([
     "bootstrap",
     "update",
@@ -947,6 +962,203 @@ async function run() {
 
   await maybeMigrateScaffold(process.cwd(), command);
   await runContextCommand(process.cwd(), [command, ...rest]);
+}
+
+// ---------------------------------------------------------------------------
+// v2.0.0: daemon + hooks commands
+// ---------------------------------------------------------------------------
+
+const DAEMON_DIR = path.join(process.env.HOME || "", ".cortex");
+const PID_FILE = path.join(DAEMON_DIR, "daemon.pid");
+
+function pidFileExists() {
+  return fs.existsSync(PID_FILE);
+}
+
+function readPid() {
+  try {
+    const raw = fs.readFileSync(PID_FILE, "utf8").trim();
+    const pid = Number.parseInt(raw, 10);
+    return Number.isFinite(pid) && pid > 0 ? pid : null;
+  } catch {
+    return null;
+  }
+}
+
+function isPidAlive(pid) {
+  if (!pid) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveDaemonEntry() {
+  // bin/cortex.mjs → ../mcp/dist/daemon/main.js
+  return path.join(PACKAGE_ROOT, "mcp", "dist", "daemon", "main.js");
+}
+
+function resolveHookEntry(name) {
+  return path.join(PACKAGE_ROOT, "mcp", "dist", "hooks", `${name}.js`);
+}
+
+async function runDaemonCommand(args) {
+  const sub = args[0] || "status";
+  if (sub === "start") {
+    if (isPidAlive(readPid())) {
+      console.log("Daemon already running.");
+      return;
+    }
+    fs.mkdirSync(DAEMON_DIR, { recursive: true });
+    const entry = resolveDaemonEntry();
+    if (!fs.existsSync(entry)) {
+      throw new Error(`Daemon entry not found: ${entry}. Build cortex first.`);
+    }
+    const logFd = fs.openSync(path.join(DAEMON_DIR, "daemon.log"), "a");
+    const child = spawn(process.execPath, [entry], {
+      detached: true,
+      stdio: ["ignore", logFd, logFd],
+    });
+    child.unref();
+    console.log(`Daemon started (pid=${child.pid}). Log: ${path.join(DAEMON_DIR, "daemon.log")}`);
+    return;
+  }
+  if (sub === "stop") {
+    const pid = readPid();
+    if (!isPidAlive(pid)) {
+      console.log("Daemon not running.");
+      return;
+    }
+    try {
+      process.kill(pid, "SIGTERM");
+      console.log(`Sent SIGTERM to pid ${pid}`);
+    } catch (err) {
+      throw new Error(`Failed to stop daemon: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    return;
+  }
+  if (sub === "status") {
+    const pid = readPid();
+    if (isPidAlive(pid)) {
+      console.log(`Daemon running (pid=${pid})`);
+    } else {
+      console.log("Daemon not running.");
+      if (pidFileExists()) {
+        console.log(`(stale pid file at ${PID_FILE})`);
+      }
+    }
+    return;
+  }
+  throw new Error(`Unknown daemon subcommand: ${sub}. Try start|stop|status`);
+}
+
+async function runHookShim(args) {
+  const name = args[0];
+  if (!name) {
+    throw new Error("Usage: cortex hook <name>");
+  }
+  const entry = resolveHookEntry(name);
+  if (!fs.existsSync(entry)) {
+    throw new Error(`Hook script not found: ${entry}`);
+  }
+  // Forward stdin → child, stdout/stderr → parent. Hook protocol = stdio.
+  const child = spawn(process.execPath, [entry], { stdio: "inherit" });
+  await new Promise((resolve) => {
+    child.on("exit", (code) => {
+      process.exit(code ?? 0);
+      resolve(undefined);
+    });
+  });
+}
+
+const HOOK_DEFS = [
+  { event: "PreToolUse", matcher: "Edit|Write|Bash|MultiEdit", name: "pre-tool-use" },
+  { event: "Stop", matcher: undefined, name: "stop" },
+];
+
+function settingsPathFor(scope) {
+  if (scope === "project") {
+    return path.join(process.cwd(), ".claude", "settings.json");
+  }
+  return path.join(process.env.HOME || "", ".claude", "settings.json");
+}
+
+function readJsonSafe(file) {
+  if (!fs.existsSync(file)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function writeJson(file, data) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(data, null, 2) + "\n", "utf8");
+}
+
+async function runHooksCommand(args) {
+  const sub = args[0] || "status";
+  const scope = args.includes("--project") ? "project" : "user";
+  const target = settingsPathFor(scope);
+
+  if (sub === "install") {
+    const settings = readJsonSafe(target);
+    settings.hooks = settings.hooks || {};
+    for (const def of HOOK_DEFS) {
+      const entry = {
+        ...(def.matcher ? { matcher: def.matcher } : {}),
+        hooks: [{ type: "command", command: `cortex hook ${def.name}` }],
+      };
+      const existing = settings.hooks[def.event] || [];
+      const filtered = existing.filter((row) => {
+        const cmd = (row.hooks?.[0]?.command || "");
+        return !cmd.startsWith("cortex hook ");
+      });
+      settings.hooks[def.event] = [...filtered, entry];
+    }
+    writeJson(target, settings);
+    console.log(`Installed cortex hooks into ${target}`);
+    console.log(`Hooks: ${HOOK_DEFS.map((d) => d.name).join(", ")}`);
+    return;
+  }
+  if (sub === "uninstall") {
+    const settings = readJsonSafe(target);
+    if (settings.hooks) {
+      for (const event of Object.keys(settings.hooks)) {
+        settings.hooks[event] = (settings.hooks[event] || []).filter((row) => {
+          const cmd = (row.hooks?.[0]?.command || "");
+          return !cmd.startsWith("cortex hook ");
+        });
+        if (settings.hooks[event].length === 0) {
+          delete settings.hooks[event];
+        }
+      }
+      if (Object.keys(settings.hooks).length === 0) {
+        delete settings.hooks;
+      }
+    }
+    writeJson(target, settings);
+    console.log(`Removed cortex hooks from ${target}`);
+    return;
+  }
+  if (sub === "status") {
+    const settings = readJsonSafe(target);
+    const installed = [];
+    for (const def of HOOK_DEFS) {
+      const rows = settings.hooks?.[def.event] || [];
+      const found = rows.some((row) => (row.hooks?.[0]?.command || "").startsWith(`cortex hook ${def.name}`));
+      installed.push({ name: def.name, event: def.event, found });
+    }
+    console.log(`Settings file: ${target}`);
+    for (const row of installed) {
+      console.log(`  ${row.found ? "✓" : "✗"} ${row.event} → ${row.name}`);
+    }
+    return;
+  }
+  throw new Error(`Unknown hooks subcommand: ${sub}. Try install|uninstall|status`);
 }
 
 function resolveArgv1() {
