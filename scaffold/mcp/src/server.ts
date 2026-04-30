@@ -4,8 +4,34 @@ import { z } from "zod";
 import { reloadContextGraph } from "./graph.js";
 import { runContextRules } from "./rules.js";
 import { runContextImpact, runContextRelated, runContextSearch } from "./search.js";
+import {
+  getToolCallHook,
+  getToolEventHook,
+  getSessionEndHook,
+  getSessionEventHook,
+  loadPlugins,
+} from "./plugin.js";
 
 type ToolPayload = Record<string, unknown>;
+
+const ESTIMATED_TOKENS_SAVED_PER_RESULT = 400;
+const MAX_SESSION_CALLS = 1000;
+const SHUTDOWN_TIMEOUT_MS = 3000;
+
+type SessionCall = {
+  tool: string;
+  query?: string;
+  resultCount: number;
+  time: string;
+  outcome?: "success" | "error";
+  duration_ms?: number;
+  error?: string;
+};
+
+const sessionCalls: SessionCall[] = [];
+const sessionStartedAt = Date.now();
+let successfulToolCalls = 0;
+let failedToolCalls = 0;
 
 const SearchInput = z.object({
   query: z.string().min(1),
@@ -123,6 +149,115 @@ function buildToolResult(data: ToolPayload) {
   };
 }
 
+function extractQuery(input: unknown): string | undefined {
+  if (input && typeof input === "object" && "query" in input) {
+    const q = (input as { query?: unknown }).query;
+    if (typeof q === "string") return q;
+  }
+  return undefined;
+}
+
+function notifyToolStart(toolName: string, input: unknown): string {
+  const timestamp = new Date().toISOString();
+  const eventHook = getToolEventHook();
+  if (eventHook) {
+    const query = extractQuery(input);
+    void eventHook({
+      phase: "start",
+      tool: toolName,
+      timestamp,
+      input: (input ?? {}) as Record<string, unknown>,
+      query,
+      query_length: query?.length,
+    });
+  }
+  return timestamp;
+}
+
+function notifyToolCall(toolName: string, input: unknown, result: ToolPayload, durationMs: number, startedAtIso: string): void {
+  const resultCount = Array.isArray((result as { results?: unknown }).results)
+    ? ((result as { results: unknown[] }).results).length
+    : 0;
+  const query = extractQuery(input);
+  if (sessionCalls.length < MAX_SESSION_CALLS) {
+    sessionCalls.push({
+      tool: toolName,
+      query,
+      resultCount,
+      time: startedAtIso,
+      outcome: "success",
+      duration_ms: durationMs,
+    });
+  }
+  successfulToolCalls++;
+
+  const eventHook = getToolEventHook();
+  const hook = getToolCallHook();
+  if (!eventHook && hook) {
+    hook(toolName, resultCount, resultCount * ESTIMATED_TOKENS_SAVED_PER_RESULT);
+  }
+  if (eventHook) {
+    void eventHook({
+      phase: "success",
+      tool: toolName,
+      timestamp: new Date().toISOString(),
+      input: (input ?? {}) as Record<string, unknown>,
+      query,
+      query_length: query?.length,
+      result_count: resultCount,
+      estimated_tokens_saved: resultCount * ESTIMATED_TOKENS_SAVED_PER_RESULT,
+      duration_ms: durationMs,
+    });
+  }
+}
+
+function notifyToolError(toolName: string, input: unknown, error: unknown, durationMs: number, startedAtIso: string): void {
+  const query = extractQuery(input);
+  if (sessionCalls.length < MAX_SESSION_CALLS) {
+    sessionCalls.push({
+      tool: toolName,
+      query,
+      resultCount: 0,
+      time: startedAtIso,
+      outcome: "error",
+      duration_ms: durationMs,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+  failedToolCalls++;
+
+  const eventHook = getToolEventHook();
+  if (eventHook) {
+    void eventHook({
+      phase: "error",
+      tool: toolName,
+      timestamp: new Date().toISOString(),
+      input: (input ?? {}) as Record<string, unknown>,
+      query,
+      query_length: query?.length,
+      duration_ms: durationMs,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function executeInstrumentedTool(
+  toolName: string,
+  input: unknown,
+  run: () => Promise<ToolPayload>
+) {
+  const startedAt = Date.now();
+  const startedAtIso = notifyToolStart(toolName, input);
+  try {
+    const result = await run();
+    notifyToolCall(toolName, input, result, Date.now() - startedAt, startedAtIso);
+    return buildToolResult(result);
+  } catch (error) {
+    notifyToolError(toolName, input, error, Date.now() - startedAt, startedAtIso);
+    throw error;
+  }
+}
+
 function registerTools(server: McpServer): void {
   server.registerTool(
     "context.search",
@@ -130,7 +265,11 @@ function registerTools(server: McpServer): void {
       description: "Search ranked context documents and code using semantic, graph and trust weighting.",
       inputSchema: SearchInput
     },
-    async (input) => buildToolResult(await runContextSearch(SearchInput.parse(input ?? {})))
+    async (input) => executeInstrumentedTool(
+      "context.search",
+      input,
+      async () => runContextSearch(SearchInput.parse(input ?? {}))
+    )
   );
 
   server.registerTool(
@@ -139,7 +278,11 @@ function registerTools(server: McpServer): void {
       description: "Return related entities and graph edges for a context entity id.",
       inputSchema: RelatedInput
     },
-    async (input) => buildToolResult(await runContextRelated(RelatedInput.parse(input ?? {})))
+    async (input) => executeInstrumentedTool(
+      "context.get_related",
+      input,
+      async () => runContextRelated(RelatedInput.parse(input ?? {}))
+    )
   );
 
   server.registerTool(
@@ -148,7 +291,11 @@ function registerTools(server: McpServer): void {
       description: "Traverse likely impact paths across config, code and SQL starting from an entity id or query.",
       inputSchema: ImpactInput
     },
-    async (input) => buildToolResult(await runContextImpact(ImpactInput.parse(input ?? {})))
+    async (input) => executeInstrumentedTool(
+      "context.impact",
+      input,
+      async () => runContextImpact(ImpactInput.parse(input ?? {}))
+    )
   );
 
   server.registerTool(
@@ -157,7 +304,11 @@ function registerTools(server: McpServer): void {
       description: "List indexed rules filtered by scope and active status.",
       inputSchema: RulesInput.optional()
     },
-    async (input) => buildToolResult(await runContextRules(RulesInput.parse(input ?? {})))
+    async (input) => executeInstrumentedTool(
+      "context.get_rules",
+      input,
+      async () => runContextRules(RulesInput.parse(input ?? {}))
+    )
   );
 
   server.registerTool(
@@ -166,11 +317,48 @@ function registerTools(server: McpServer): void {
       description: "Reload RyuGraph connection after graph updates or maintenance.",
       inputSchema: ReloadInput.optional()
     },
-    async (input) => {
+    async (input) => executeInstrumentedTool("context.reload", input, async () => {
       const parsed = ReloadInput.parse(input ?? {});
-      return buildToolResult(await reloadContextGraph(parsed.force));
-    }
+      return reloadContextGraph(parsed.force);
+    })
   );
+}
+
+let shutdownCalled = false;
+
+async function onShutdown(): Promise<void> {
+  if (shutdownCalled) return;
+  shutdownCalled = true;
+  const sessionEventHook = getSessionEventHook();
+  if (sessionEventHook) {
+    try {
+      await Promise.race([
+        Promise.resolve(sessionEventHook({
+          phase: "end",
+          timestamp: new Date().toISOString(),
+          duration_ms: Date.now() - sessionStartedAt,
+          tool_calls: sessionCalls.length,
+          successful_tool_calls: successfulToolCalls,
+          failed_tool_calls: failedToolCalls,
+          calls: [...sessionCalls],
+        })),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("session event hook timeout")), SHUTDOWN_TIMEOUT_MS))
+      ]);
+    } catch {
+      // Best effort — don't block shutdown
+    }
+  }
+  const hook = getSessionEndHook();
+  if (hook) {
+    try {
+      await Promise.race([
+        hook([...sessionCalls]),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("shutdown hook timeout")), SHUTDOWN_TIMEOUT_MS))
+      ]);
+    } catch {
+      // Best effort — don't block shutdown
+    }
+  }
 }
 
 async function main(): Promise<void> {
@@ -180,8 +368,31 @@ async function main(): Promise<void> {
   });
 
   registerTools(server);
+
+  // v2.0.0: load enterprise plugin in-process if .context/enterprise.yml
+  // is present and license validates. Community-mode is a no-op.
+  await loadPlugins(server);
+
+  // Notify session start to enterprise (if active).
+  const sessionEventHook = getSessionEventHook();
+  if (sessionEventHook) {
+    void sessionEventHook({
+      phase: "start",
+      timestamp: new Date(sessionStartedAt).toISOString(),
+    });
+  }
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
+
+  const cleanup = () => {
+    void onShutdown().finally(() => process.exit(0));
+  };
+  process.on("SIGINT", cleanup);
+  process.on("SIGTERM", cleanup);
+  process.on("beforeExit", () => {
+    void onShutdown();
+  });
 }
 
 main().catch((error) => {

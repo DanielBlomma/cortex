@@ -1005,13 +1005,25 @@ function isPidAlive(pid) {
   }
 }
 
+function resolveProjectMcpDist() {
+  // v2.0.0: daemon/hooks/cli are built into the project's mcp/dist/
+  // (via 'cortex bootstrap'). PACKAGE_ROOT/scaffold/mcp/ is the source
+  // tree the scaffold is copied from. The actual built code lives in
+  // each project's <cwd>/mcp/dist/ after bootstrap.
+  const target = process.env.CORTEX_PROJECT_ROOT?.trim() || process.cwd();
+  return path.join(target, "mcp", "dist");
+}
+
 function resolveDaemonEntry() {
-  // bin/cortex.mjs → ../mcp/dist/daemon/main.js
-  return path.join(PACKAGE_ROOT, "mcp", "dist", "daemon", "main.js");
+  return path.join(resolveProjectMcpDist(), "daemon", "main.js");
 }
 
 function resolveHookEntry(name) {
-  return path.join(PACKAGE_ROOT, "mcp", "dist", "hooks", `${name}.js`);
+  return path.join(resolveProjectMcpDist(), "hooks", `${name}.js`);
+}
+
+function resolveCliEntry(name) {
+  return path.join(resolveProjectMcpDist(), "cli", `${name}.js`);
 }
 
 async function runDaemonCommand(args) {
@@ -1140,9 +1152,9 @@ async function runEnterpriseCommand(args) {
     }
   }
 
-  const entry = path.join(PACKAGE_ROOT, "mcp", "dist", "cli", "enterprise-setup.js");
+  const entry = resolveCliEntry("enterprise-setup");
   if (!fs.existsSync(entry)) {
-    throw new Error(`Build cortex first (missing ${entry})`);
+    throw new Error(`Build the project's MCP first (missing ${entry}). Run 'cortex bootstrap' in the project root.`);
   }
   const mod = await import(pathToFileURL(entry).href);
   const result = await mod.runEnterpriseSetup({ apiKey, endpoint, cwd: process.cwd() });
@@ -1182,9 +1194,9 @@ async function runEnterpriseCommand(args) {
 async function runTelemetryCommand(args) {
   const sub = args[0] || "help";
   if (sub === "test") {
-    const entry = path.join(PACKAGE_ROOT, "mcp", "dist", "cli", "telemetry-test.js");
+    const entry = resolveCliEntry("telemetry-test");
     if (!fs.existsSync(entry)) {
-      throw new Error(`Build cortex first (missing ${entry})`);
+      throw new Error(`Build the project's MCP first (missing ${entry}). Run 'cortex bootstrap' in the project root.`);
     }
     const mod = await import(pathToFileURL(entry).href);
     const code = await mod.runTelemetryTest();
