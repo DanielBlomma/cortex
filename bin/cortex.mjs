@@ -1076,6 +1076,10 @@ async function runHookShim(args) {
 const HOOK_DEFS = [
   { event: "PreToolUse", matcher: "Edit|Write|Bash|MultiEdit", name: "pre-tool-use" },
   { event: "Stop", matcher: undefined, name: "stop" },
+  { event: "SessionStart", matcher: undefined, name: "session-start" },
+  { event: "SessionEnd", matcher: undefined, name: "session-end" },
+  { event: "UserPromptSubmit", matcher: undefined, name: "user-prompt-submit" },
+  { event: "PreCompact", matcher: undefined, name: "pre-compact" },
 ];
 
 function settingsPathFor(scope) {

@@ -10,6 +10,7 @@ export type RequestType =
   | "ping"
   | "policy.check"
   | "telemetry.flush"
+  | "audit.log"
   | "shutdown";
 
 export type Request<T extends RequestType = RequestType> = {
@@ -50,6 +51,30 @@ export type TelemetryFlushPayload = {
 export type TelemetryFlushResult = {
   flushed: boolean;
   events_pushed: number;
+};
+
+export type AuditLogPayload = {
+  cwd: string;
+  // Subset of AuditEntry — daemon fills in date-based file routing.
+  // Caller passes only the event-shaped fields; daemon writes them
+  // as-is to the per-day audit log.
+  entry: {
+    timestamp: string;
+    tool: string;
+    input: Record<string, unknown>;
+    result_count?: number;
+    duration_ms?: number;
+    status?: "success" | "error";
+    event_type?: string;
+    evidence_level?: "required" | "diagnostic";
+    resource_type?: string;
+    session_id?: string;
+    metadata?: Record<string, unknown>;
+  };
+};
+
+export type AuditLogResult = {
+  written: boolean;
 };
 
 export const DEFAULT_REQUEST_TIMEOUT_MS = 5000;

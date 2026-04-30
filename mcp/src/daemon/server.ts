@@ -8,6 +8,8 @@ import type {
   PolicyCheckResult,
   TelemetryFlushPayload,
   TelemetryFlushResult,
+  AuditLogPayload,
+  AuditLogResult,
 } from "./protocol.js";
 
 /**
@@ -27,6 +29,7 @@ type DaemonOptions = {
   onTelemetryFlush?: (
     payload: TelemetryFlushPayload,
   ) => Promise<TelemetryFlushResult>;
+  onAuditLog?: (payload: AuditLogPayload) => Promise<AuditLogResult>;
 };
 
 export class CortexDaemon {
@@ -167,6 +170,17 @@ export class CortexDaemon {
           }
           const result = await this.opts.onTelemetryFlush(
             req.payload as TelemetryFlushPayload,
+          );
+          this.sendOk(socket, req.id, result);
+          return;
+        }
+        case "audit.log": {
+          if (!this.opts.onAuditLog) {
+            this.sendOk(socket, req.id, { written: false } as AuditLogResult);
+            return;
+          }
+          const result = await this.opts.onAuditLog(
+            req.payload as AuditLogPayload,
           );
           this.sendOk(socket, req.id, result);
           return;

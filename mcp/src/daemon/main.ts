@@ -6,10 +6,13 @@ import type {
   PolicyCheckResult,
   TelemetryFlushPayload,
   TelemetryFlushResult,
+  AuditLogPayload,
+  AuditLogResult,
 } from "./protocol.js";
 import { loadEnterpriseConfig, resolveEnterpriseActivation } from "../core/config.js";
 import { pushMetrics } from "../enterprise/telemetry/sync.js";
 import type { TelemetryMetrics } from "../core/telemetry/collector.js";
+import { AuditWriter, type AuditEntry } from "../core/audit/writer.js";
 
 /**
  * Daemon entry point. Run by `cortex daemon start` (or auto-spawned by
@@ -89,10 +92,56 @@ async function telemetryFlush(
   };
 }
 
+// Per-cwd AuditWriter cache. Daemon serves multiple projects so we don't
+// want to instantiate (and lose buffered state) on every audit.log call.
+const auditWriters = new Map<string, AuditWriter>();
+
+function getAuditWriter(cwd: string): AuditWriter {
+  const contextDir = join(cwd, ".context");
+  let writer = auditWriters.get(contextDir);
+  if (!writer) {
+    writer = new AuditWriter(contextDir);
+    auditWriters.set(contextDir, writer);
+  }
+  return writer;
+}
+
+async function auditLog(payload: AuditLogPayload): Promise<AuditLogResult> {
+  if (!payload.cwd || !payload.entry) {
+    return { written: false };
+  }
+
+  const contextDir = join(payload.cwd, ".context");
+  if (!existsSync(contextDir)) {
+    return { written: false };
+  }
+
+  const writer = getAuditWriter(payload.cwd);
+  const entry: AuditEntry = {
+    timestamp: payload.entry.timestamp,
+    tool: payload.entry.tool,
+    input: payload.entry.input,
+    result_count: payload.entry.result_count ?? 0,
+    entities_returned: [],
+    rules_applied: [],
+    duration_ms: payload.entry.duration_ms ?? 0,
+    status: payload.entry.status,
+    event_type: payload.entry.event_type as AuditEntry["event_type"],
+    evidence_level: payload.entry.evidence_level,
+    resource_type: payload.entry.resource_type,
+    session_id: payload.entry.session_id,
+    metadata: payload.entry.metadata,
+  };
+
+  writer.log(entry);
+  return { written: true };
+}
+
 async function main(): Promise<void> {
   const daemon = new CortexDaemon({
     onPolicyCheck: policyCheck,
     onTelemetryFlush: telemetryFlush,
+    onAuditLog: auditLog,
   });
   await daemon.start();
 }
