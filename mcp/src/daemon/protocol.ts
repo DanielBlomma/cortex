@@ -42,6 +42,9 @@ export type PolicyCheckResult = {
 export type TelemetryFlushPayload = {
   reason: "stop" | "session_end" | "interval";
   session_id?: string;
+  // Working directory of the project whose telemetry should flush.
+  // Hook scripts pass Claude Code's cwd through here.
+  cwd?: string;
 };
 
 export type TelemetryFlushResult = {

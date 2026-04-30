@@ -20,6 +20,7 @@ import {
 
 type ClaudeStopInput = {
   session_id?: string;
+  cwd?: string;
 };
 
 async function main(): Promise<void> {
@@ -31,6 +32,7 @@ async function main(): Promise<void> {
   const payload: TelemetryFlushPayload = {
     reason: "stop",
     session_id: input.session_id,
+    cwd: input.cwd ?? process.cwd(),
   };
 
   const res = await call<TelemetryFlushResult>("telemetry.flush", payload, {
