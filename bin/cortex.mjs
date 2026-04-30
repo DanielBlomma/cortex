@@ -60,6 +60,7 @@ function printHelp() {
   console.log("  cortex dashboard [--interval <sec>]");
   console.log("  cortex memory-compile [--dry-run] [--verbose]");
   console.log("  cortex memory-lint [--verbose] [--json]");
+  console.log("  cortex enterprise <api-key> [--endpoint <url>] [--no-hooks] [--no-daemon]");
   console.log("  cortex daemon [start|stop|status]");
   console.log("  cortex hooks [install|uninstall|status] [--project]");
   console.log("  cortex hook <name>          (internal: invoked by Claude Code)");
@@ -946,6 +947,10 @@ async function run() {
     return runTelemetryCommand(rest);
   }
 
+  if (command === "enterprise") {
+    return runEnterpriseCommand(rest);
+  }
+
   const passthrough = new Set([
     "bootstrap",
     "update",
@@ -1106,6 +1111,72 @@ function readJsonSafe(file) {
 function writeJson(file, data) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(data, null, 2) + "\n", "utf8");
+}
+
+async function runEnterpriseCommand(args) {
+  if (args.length === 0 || args[0] === "help" || args[0] === "--help") {
+    console.log("Usage:");
+    console.log("  cortex enterprise <api-key> [--endpoint <url>] [--no-hooks] [--no-daemon]");
+    console.log("");
+    console.log("One-liner setup: validates the key, writes .context/enterprise.yml,");
+    console.log("installs Claude Code hooks, and starts the daemon.");
+    console.log("");
+    console.log("Default endpoint: https://cortex-web-rho.vercel.app");
+    return;
+  }
+
+  const apiKey = args[0];
+  let endpoint;
+  let installHooks = true;
+  let startDaemon = true;
+  for (let i = 1; i < args.length; i++) {
+    if (args[i] === "--endpoint" && args[i + 1]) {
+      endpoint = args[i + 1];
+      i++;
+    } else if (args[i] === "--no-hooks") {
+      installHooks = false;
+    } else if (args[i] === "--no-daemon") {
+      startDaemon = false;
+    }
+  }
+
+  const entry = path.join(PACKAGE_ROOT, "mcp", "dist", "cli", "enterprise-setup.js");
+  if (!fs.existsSync(entry)) {
+    throw new Error(`Build cortex first (missing ${entry})`);
+  }
+  const mod = await import(pathToFileURL(entry).href);
+  const result = await mod.runEnterpriseSetup({ apiKey, endpoint, cwd: process.cwd() });
+
+  if (!result.ok) {
+    console.error(`✗ ${result.message}`);
+    process.exit(1);
+  }
+
+  console.log(`✓ License valid (edition: ${result.edition}, expires: ${result.expiresAt})`);
+  console.log(`✓ Wrote ${result.configPath}`);
+
+  if (installHooks) {
+    try {
+      await runHooksCommand(["install"]);
+    } catch (err) {
+      console.error(`! Hook install failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  } else {
+    console.log("- Hooks install skipped (--no-hooks)");
+  }
+
+  if (startDaemon) {
+    try {
+      await runDaemonCommand(["start"]);
+    } catch (err) {
+      console.error(`! Daemon start failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  } else {
+    console.log("- Daemon start skipped (--no-daemon)");
+  }
+
+  console.log("");
+  console.log("Run 'cortex telemetry test' to verify the pipeline.");
 }
 
 async function runTelemetryCommand(args) {
