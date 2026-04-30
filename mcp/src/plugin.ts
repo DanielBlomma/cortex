@@ -89,8 +89,23 @@ export function getSessionEventHook(): SessionEventHook | null {
 }
 
 export async function loadPlugins(server: McpServer): Promise<void> {
+  // v2.0.0: enterprise is now in-process. We still gate registration on
+  // whether enterprise activation succeeds (license + config), so community
+  // users get a no-op when no api_key is present.
   try {
-    const enterprise = await import("@danielblomma/cortex-enterprise");
+    const enterprise = await import("./enterprise/index.js");
+    const { resolveEnterpriseActivation, loadEnterpriseConfig } = await import("./core/config.js");
+    const path = await import("node:path");
+    const projectRoot = process.env.CORTEX_PROJECT_ROOT?.trim() || process.cwd();
+    const contextDir = path.join(projectRoot, ".context");
+    const config = loadEnterpriseConfig(contextDir);
+    const activation = resolveEnterpriseActivation(config);
+
+    if (!activation.active) {
+      // Community mode: no api_key or invalid config. Skip registration.
+      return;
+    }
+
     if (typeof enterprise.register === "function") {
       await enterprise.register(server);
       loadedEdition = {
@@ -110,19 +125,11 @@ export async function loadPlugins(server: McpServer): Promise<void> {
       if (typeof enterprise.onSessionEvent === "function") {
         sessionEventHook = enterprise.onSessionEvent;
       }
-      process.stderr.write(`[cortex] Enterprise plugin loaded: ${loadedEdition.version}\n`);
+      process.stderr.write(`[cortex] Enterprise loaded: ${loadedEdition.version}\n`);
     }
   } catch (error: unknown) {
-    if (
-      error instanceof Error &&
-      "code" in error &&
-      (error as NodeJS.ErrnoException).code === "ERR_MODULE_NOT_FOUND"
-    ) {
-      // Enterprise not installed — community mode
-    } else {
-      process.stderr.write(
-        `[cortex] Enterprise plugin failed to load: ${error instanceof Error ? error.message : "unknown error"}\n`
-      );
-    }
+    process.stderr.write(
+      `[cortex] Enterprise activation failed: ${error instanceof Error ? error.message : "unknown error"}\n`
+    );
   }
 }

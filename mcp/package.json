@@ -12,7 +12,6 @@
     "test": "npm run build --silent && node --test tests/*.test.mjs"
   },
   "dependencies": {
-    "@danielblomma/cortex-enterprise": "^0.5.1",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@huggingface/transformers": "^4.1.0",
     "ryugraph": "^25.9.1",
