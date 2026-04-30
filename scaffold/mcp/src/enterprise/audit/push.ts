@@ -1,10 +1,14 @@
 import type { AuditEntry } from "../../core/audit/writer.js";
-import { sanitizeAuditEntryForPush } from "../privacy/boundary.js";
+import type { RepoIdentity } from "../../core/telemetry/repo-identity.js";
+import { buildRepoIdentityPayload, sanitizeAuditEntryForPush } from "../privacy/boundary.js";
+import { resolveRepoIdentity } from "../repo-push-context.js";
 
 export type AuditPushContext = {
   repo?: string;
   instance_id?: string;
   session_id?: string;
+  project_root?: string;
+  repo_identity?: RepoIdentity;
 };
 
 export type AuditPushResult = {
@@ -46,6 +50,7 @@ export async function pushAuditEvents(
 
   while (pending.length > 0) {
     const batch = pending.splice(0, 100);
+    const repoIdentity = resolveRepoIdentity(activeContext);
 
     try {
       const response = await fetch(auditUrl, {
@@ -59,6 +64,7 @@ export async function pushAuditEvents(
           repo: activeContext.repo,
           instance_id: activeContext.instance_id,
           session_id: activeContext.session_id,
+          ...buildRepoIdentityPayload(repoIdentity),
           events: batch,
         }),
         signal: AbortSignal.timeout(10_000),

@@ -12,6 +12,7 @@ import type {
 import { loadEnterpriseConfig, resolveEnterpriseActivation } from "../core/config.js";
 import { pushMetrics } from "../enterprise/telemetry/sync.js";
 import type { TelemetryMetrics } from "../core/telemetry/collector.js";
+import { getRepoIdentity } from "../core/telemetry/repo-identity.js";
 import { AuditWriter, type AuditEntry } from "../core/audit/writer.js";
 
 /**
@@ -76,7 +77,10 @@ async function telemetryFlush(
     metrics,
     config.telemetry.endpoint,
     config.telemetry.api_key,
-    { session_id: payload.session_id },
+    {
+      session_id: payload.session_id,
+      repo_identity: getRepoIdentity(cwd),
+    },
   );
 
   if (!result.success) {

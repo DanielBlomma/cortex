@@ -1,9 +1,14 @@
+import type { RepoIdentity } from "../../core/telemetry/repo-identity.js";
+import { buildRepoIdentityPayload } from "../privacy/boundary.js";
+import { resolveRepoIdentity } from "../repo-push-context.js";
 import type { WorkflowState } from "./state.js";
 
 export type WorkflowPushContext = {
   repo?: string;
   instance_id?: string;
   session_id?: string;
+  project_root?: string;
+  repo_identity?: RepoIdentity;
 };
 
 export type WorkflowPushResult = {
@@ -28,6 +33,7 @@ export async function pushWorkflowSnapshot(
   }
 
   const workflowUrl = endpoint.replace(/\/policies\/sync\/?$/, "/workflow/push");
+  const repoIdentity = resolveRepoIdentity(activeContext);
 
   try {
     const response = await fetch(workflowUrl, {
@@ -41,6 +47,7 @@ export async function pushWorkflowSnapshot(
         repo: activeContext.repo,
         instance_id: activeContext.instance_id,
         session_id: activeContext.session_id,
+        ...buildRepoIdentityPayload(repoIdentity),
         workflow,
       }),
       signal: AbortSignal.timeout(10_000),

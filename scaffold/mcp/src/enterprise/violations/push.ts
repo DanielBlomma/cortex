@@ -5,6 +5,10 @@
  * violations require the "policy" scope.
  */
 
+import type { RepoIdentity } from "../../core/telemetry/repo-identity.js";
+import { buildRepoIdentityPayload } from "../privacy/boundary.js";
+import { resolveRepoIdentity } from "../repo-push-context.js";
+
 type ViolationItem = {
   rule_id: string;
   severity: "error" | "warning" | "info";
@@ -18,6 +22,8 @@ export type ViolationPushContext = {
   repo?: string;
   instance_id?: string;
   session_id?: string;
+  project_root?: string;
+  repo_identity?: RepoIdentity;
 };
 
 export type ViolationPushResult = {
@@ -62,6 +68,7 @@ export async function pushViolations(
   const violationsUrl = endpoint.replace(/\/policies\/sync\/?$/, "/violations/push");
 
   const batch = pending.splice(0, 100); // max 100 per push
+  const repoIdentity = resolveRepoIdentity(activeContext);
 
   try {
     const response = await fetch(violationsUrl, {
@@ -75,6 +82,7 @@ export async function pushViolations(
         repo: activeContext.repo,
         instance_id: activeContext.instance_id,
         session_id: activeContext.session_id,
+        ...buildRepoIdentityPayload(repoIdentity),
         violations: batch,
       }),
       signal: AbortSignal.timeout(10_000),
