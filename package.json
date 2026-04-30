@@ -26,13 +26,14 @@
   ],
   "exports": {
     ".": "./bin/cortex.mjs",
-    "./types": "./mcp/dist/types.js"
+    "./types": "./types.js"
   },
   "bin": {
     "cortex": "bin/cortex.mjs"
   },
   "files": [
     "bin",
+    "types.js",
     "scaffold/.context",
     "scaffold/.githooks",
     "scaffold/docs",
