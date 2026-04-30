@@ -1,5 +1,4 @@
 import type { TelemetryMetrics } from "../../core/telemetry/collector.js";
-import type { RepoIdentity } from "../../core/telemetry/repo-identity.js";
 import { buildTelemetryPushPayload } from "../privacy/boundary.js";
 
 export type PushResult = {
@@ -10,8 +9,8 @@ export type PushResult = {
 };
 
 export type PushContext = {
+  repo?: string;
   session_id?: string;
-  repo_identity?: RepoIdentity;
 };
 
 let lastPush: PushResult | null = null;

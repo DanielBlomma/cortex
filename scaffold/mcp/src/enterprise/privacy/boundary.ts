@@ -1,19 +1,14 @@
 import type { AuditEntry } from "../../core/audit/writer.js";
 import type { TelemetryMetrics } from "../../core/telemetry/collector.js";
-import type { RepoIdentity } from "../../core/telemetry/repo-identity.js";
 
-const REPO_IDENTITY_METADATA = [
+const REPO_METADATA = [
   "repo",
   "instance_id",
   "session_id",
-  "repo_remote_hash",
-  "repo_branch",
-  "repo_head_sha",
-  "repo_dirty",
 ] as const;
 
 export const OUTBOUND_DATA_BOUNDARY = {
-  version: 2,
+  version: 3,
   excludes: [
     "source_code",
     "raw_prompts",
@@ -46,46 +41,32 @@ export const OUTBOUND_DATA_BOUNDARY = {
       "estimated_tokens_saved",
       "estimated_tokens_total",
       "client_version",
+      "repo",
       "instance_id",
       "session_id",
       "tool_metrics",
-      "repo_remote_hash",
-      "repo_branch",
-      "repo_head_sha",
-      "repo_dirty",
     ],
   },
   audit: {
     required_retention_days: 365,
     diagnostic_retention_days: 30,
     redaction: "string values are summarized to counts/lengths before outbound push",
-    metadata_fields: REPO_IDENTITY_METADATA,
+    metadata_fields: REPO_METADATA,
   },
   reviews: {
-    metadata_fields: REPO_IDENTITY_METADATA,
+    metadata_fields: REPO_METADATA,
   },
   violations: {
-    metadata_fields: REPO_IDENTITY_METADATA,
+    metadata_fields: REPO_METADATA,
   },
   workflow: {
-    metadata_fields: REPO_IDENTITY_METADATA,
+    metadata_fields: REPO_METADATA,
   },
 } as const;
 
-// Always-present, possibly-null shape for repo identity in outbound JSON.
-// Used by every push channel so the server-side schema is consistent.
-export function buildRepoIdentityPayload(identity: RepoIdentity | undefined) {
-  return {
-    repo_remote_hash: identity?.repo_remote_hash ?? null,
-    repo_branch: identity?.repo_branch ?? null,
-    repo_head_sha: identity?.repo_head_sha ?? null,
-    repo_dirty: identity?.repo_dirty ?? null,
-  };
-}
-
 type TelemetryPushContext = {
+  repo?: string;
   session_id?: string;
-  repo_identity?: RepoIdentity;
 };
 
 const MAX_OBJECT_KEYS = 12;
@@ -223,9 +204,9 @@ export function buildTelemetryPushPayload(
     estimated_tokens_saved: metrics.estimated_tokens_saved,
     estimated_tokens_total: metrics.estimated_tokens_total,
     client_version: metrics.client_version,
+    repo: context.repo,
     instance_id: metrics.instance_id,
     session_id: context.session_id,
     tool_metrics: metrics.tool_metrics,
-    ...buildRepoIdentityPayload(context.repo_identity),
   };
 }

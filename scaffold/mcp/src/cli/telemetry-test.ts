@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { hostname, platform, arch } from "node:os";
@@ -8,7 +8,6 @@ import {
 } from "../core/config.js";
 import { pushMetrics } from "../enterprise/telemetry/sync.js";
 import type { TelemetryMetrics } from "../core/telemetry/collector.js";
-import { getRepoIdentity } from "../core/telemetry/repo-identity.js";
 
 /**
  * Smoke-test the telemetry pipeline end-to-end.
@@ -123,7 +122,7 @@ export async function runTelemetryTest(): Promise<number> {
     metrics,
     config.telemetry.endpoint,
     config.telemetry.api_key,
-    { repo_identity: getRepoIdentity(projectRoot) },
+    { repo: basename(projectRoot) },
   );
   const elapsed = Date.now() - start;
 

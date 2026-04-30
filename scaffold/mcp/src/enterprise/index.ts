@@ -9,7 +9,6 @@ import {
 } from "../core/config.js";
 import { deployBundledModel } from "./model/deploy.js";
 import { TelemetryCollector } from "../core/telemetry/collector.js";
-import { getRepoIdentity } from "../core/telemetry/repo-identity.js";
 import { pushMetrics } from "./telemetry/sync.js";
 import { AuditWriter, type AuditEntry } from "../core/audit/writer.js";
 import { pushAuditEvents, queueAuditEvent, setAuditPushContext } from "./audit/push.js";
@@ -33,11 +32,6 @@ let activeAuditWriter: AuditWriter | null = null;
 let activeInstanceId: string | null = null;
 let activeSessionId: string | null = null;
 let activeRepo: string | null = null;
-let activeProjectRoot: string | null = null;
-
-function getActiveRepoIdentity() {
-  return activeProjectRoot ? getRepoIdentity(activeProjectRoot) : undefined;
-}
 
 async function flushComplianceQueues(
   config: EnterpriseConfig,
@@ -117,7 +111,6 @@ export function shutdown(): void {
   activeInstanceId = null;
   activeSessionId = null;
   activeRepo = null;
-  activeProjectRoot = null;
   setAuditPushContext({});
   setViolationPushContext({});
   setReviewPushContext({});
@@ -216,8 +209,8 @@ export async function onSessionEnd(): Promise<void> {
         config.telemetry.endpoint,
         config.telemetry.api_key,
         {
+          repo: activeRepo ?? undefined,
           session_id: activeSessionId ?? undefined,
-          repo_identity: getActiveRepoIdentity(),
         },
       );
       if (!result.success) {
@@ -290,7 +283,6 @@ export async function register(server: McpServer): Promise<void> {
   activeInstanceId = collector.getMetrics().instance_id;
   activeSessionId = randomUUID();
   activeRepo = path.basename(projectRoot);
-  activeProjectRoot = projectRoot;
   const auditWriter = config.audit.enabled
     ? new AuditWriter(contextDir, {
         onEntry(entry) {
@@ -305,25 +297,21 @@ export async function register(server: McpServer): Promise<void> {
     repo: activeRepo ?? undefined,
     instance_id: activeInstanceId ?? undefined,
     session_id: activeSessionId ?? undefined,
-    project_root: activeProjectRoot ?? undefined,
   });
   setViolationPushContext({
     repo: activeRepo ?? undefined,
     instance_id: activeInstanceId ?? undefined,
     session_id: activeSessionId ?? undefined,
-    project_root: activeProjectRoot ?? undefined,
   });
   setReviewPushContext({
     repo: activeRepo ?? undefined,
     instance_id: activeInstanceId ?? undefined,
     session_id: activeSessionId ?? undefined,
-    project_root: activeProjectRoot ?? undefined,
   });
   setWorkflowPushContext({
     repo: activeRepo ?? undefined,
     instance_id: activeInstanceId ?? undefined,
     session_id: activeSessionId ?? undefined,
-    project_root: activeProjectRoot ?? undefined,
   });
 
   // Initial policy sync
@@ -366,8 +354,8 @@ export async function register(server: McpServer): Promise<void> {
     // Push any accumulated metrics from previous sessions on startup
     if (config.telemetry.endpoint) {
       pushMetrics(collector.getMetrics(), config.telemetry.endpoint, config.telemetry.api_key, {
+        repo: activeRepo ?? undefined,
         session_id: activeSessionId ?? undefined,
-        repo_identity: getActiveRepoIdentity(),
       })
         .then((r) => { if (!r.success) process.stderr.write(`[cortex-enterprise] Startup telemetry push failed: ${r.error}\n`); })
         .catch((err) => { process.stderr.write(`[cortex-enterprise] Startup telemetry push error: ${err}\n`); });
@@ -379,8 +367,8 @@ export async function register(server: McpServer): Promise<void> {
         collector.flush();
         if (config.telemetry.endpoint) {
           await pushMetrics(collector.getMetrics(), config.telemetry.endpoint, config.telemetry.api_key, {
+            repo: activeRepo ?? undefined,
             session_id: activeSessionId ?? undefined,
-            repo_identity: getActiveRepoIdentity(),
           });
         }
       } catch (err) {

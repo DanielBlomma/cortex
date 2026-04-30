@@ -1,7 +1,3 @@
-import type { RepoIdentity } from "../../core/telemetry/repo-identity.js";
-import { buildRepoIdentityPayload } from "../privacy/boundary.js";
-import { resolveRepoIdentity } from "../repo-push-context.js";
-
 export type ReviewPushItem = {
   policy_id: string;
   pass: boolean;
@@ -15,8 +11,6 @@ export type ReviewPushContext = {
   repo?: string;
   instance_id?: string;
   session_id?: string;
-  project_root?: string;
-  repo_identity?: RepoIdentity;
 };
 
 export type ReviewPushResult = {
@@ -50,7 +44,6 @@ export async function pushReviewResults(
 
   const reviewsUrl = endpoint.replace(/\/policies\/sync\/?$/, "/reviews/push");
   const batch = pending.splice(0, 100);
-  const repoIdentity = resolveRepoIdentity(activeContext);
 
   try {
     const response = await fetch(reviewsUrl, {
@@ -64,7 +57,6 @@ export async function pushReviewResults(
         repo: activeContext.repo,
         instance_id: activeContext.instance_id,
         session_id: activeContext.session_id,
-        ...buildRepoIdentityPayload(repoIdentity),
         reviews: batch,
       }),
       signal: AbortSignal.timeout(10_000),

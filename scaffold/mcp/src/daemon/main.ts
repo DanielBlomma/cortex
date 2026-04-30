@@ -1,5 +1,5 @@
 import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { CortexDaemon } from "./server.js";
 import type {
   PolicyCheckPayload,
@@ -12,7 +12,6 @@ import type {
 import { loadEnterpriseConfig, resolveEnterpriseActivation } from "../core/config.js";
 import { pushMetrics } from "../enterprise/telemetry/sync.js";
 import type { TelemetryMetrics } from "../core/telemetry/collector.js";
-import { getRepoIdentity } from "../core/telemetry/repo-identity.js";
 import { AuditWriter, type AuditEntry } from "../core/audit/writer.js";
 
 /**
@@ -78,8 +77,8 @@ async function telemetryFlush(
     config.telemetry.endpoint,
     config.telemetry.api_key,
     {
+      repo: basename(cwd),
       session_id: payload.session_id,
-      repo_identity: getRepoIdentity(cwd),
     },
   );
 
