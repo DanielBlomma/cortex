@@ -37,10 +37,12 @@ async function flushComplianceQueues(
   config: EnterpriseConfig,
   reason: "periodic" | "shutdown",
 ): Promise<void> {
-  if (!config.policy.endpoint || !config.policy.api_key) return;
+  const baseUrl = (config.enterprise.base_url || config.enterprise.endpoint).trim();
+  const apiKey = config.enterprise.api_key.trim();
+  if (!baseUrl || !apiKey) return;
 
   try {
-    const result = await pushAuditEvents(config.policy.endpoint, config.policy.api_key);
+    const result = await pushAuditEvents(baseUrl, apiKey);
     if (!result.success) {
       process.stderr.write(`[cortex-enterprise] ${reason} audit push failed: ${result.error}\n`);
     }
@@ -49,7 +51,7 @@ async function flushComplianceQueues(
   }
 
   try {
-    const result = await pushViolations(config.policy.endpoint, config.policy.api_key);
+    const result = await pushViolations(baseUrl, apiKey);
     if (!result.success) {
       process.stderr.write(`[cortex-enterprise] ${reason} violations push failed: ${result.error}\n`);
     }
@@ -58,7 +60,7 @@ async function flushComplianceQueues(
   }
 
   try {
-    const result = await pushReviewResults(config.policy.endpoint, config.policy.api_key);
+    const result = await pushReviewResults(baseUrl, apiKey);
     if (!result.success) {
       process.stderr.write(`[cortex-enterprise] ${reason} reviews push failed: ${result.error}\n`);
     }

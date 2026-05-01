@@ -34,14 +34,14 @@ export function pendingCount(): number {
 }
 
 export async function pushAuditEvents(
-  endpoint: string,
+  baseUrl: string,
   apiKey: string,
 ): Promise<AuditPushResult> {
   if (pending.length === 0) {
     return { success: true, count: 0 };
   }
 
-  const auditUrl = endpoint.replace(/\/policies\/sync\/?$/, "/audit/push");
+  const auditUrl = `${baseUrl.replace(/\/$/, "")}/api/v1/audit/push`;
   let pushedCount = 0;
 
   while (pending.length > 0) {

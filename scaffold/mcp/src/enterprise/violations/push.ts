@@ -44,21 +44,18 @@ export function queueViolation(item: ViolationItem): void {
  * Fire-and-forget — errors are logged but do not throw.
  */
 export async function pushViolations(
-  endpoint: string,
+  baseUrl: string,
   apiKey: string,
 ): Promise<ViolationPushResult> {
   if (pending.length === 0) {
     return { success: true, count: 0 };
   }
 
-  if (!endpoint || !apiKey) {
+  if (!baseUrl || !apiKey) {
     return { success: false, count: 0, error: "endpoint or api_key not configured" };
   }
 
-  // Derive the violations endpoint from the policy endpoint.
-  // policy endpoint:     https://host/api/v1/policies/sync
-  // violations endpoint: https://host/api/v1/violations/push
-  const violationsUrl = endpoint.replace(/\/policies\/sync\/?$/, "/violations/push");
+  const violationsUrl = `${baseUrl.replace(/\/$/, "")}/api/v1/violations/push`;
 
   const batch = pending.splice(0, 100); // max 100 per push
 

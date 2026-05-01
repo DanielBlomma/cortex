@@ -92,12 +92,10 @@ async function pushWorkflowStateIfConfigured(
   config: EnterpriseConfig,
   state: ReturnType<typeof loadWorkflowState>
 ): Promise<void> {
-  if (!config.policy.endpoint || !config.policy.api_key) return;
-  const result = await pushWorkflowSnapshot(
-    config.policy.endpoint,
-    config.policy.api_key,
-    state
-  );
+  const baseUrl = (config.enterprise.base_url || config.enterprise.endpoint).trim();
+  const apiKey = config.enterprise.api_key.trim();
+  if (!baseUrl || !apiKey) return;
+  const result = await pushWorkflowSnapshot(baseUrl, apiKey, state);
   if (!result.success) {
     process.stderr.write(
       `[cortex-enterprise] Workflow snapshot push failed: ${result.error ?? "unknown error"}\n`

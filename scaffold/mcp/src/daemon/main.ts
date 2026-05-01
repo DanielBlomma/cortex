@@ -13,6 +13,12 @@ import { loadEnterpriseConfig, resolveEnterpriseActivation } from "../core/confi
 import { pushMetrics } from "../enterprise/telemetry/sync.js";
 import type { TelemetryMetrics } from "../core/telemetry/collector.js";
 import { AuditWriter, type AuditEntry } from "../core/audit/writer.js";
+import { PolicyStore } from "../core/policy/store.js";
+import {
+  enforceInjectionPolicy,
+  isInjectionDefenseActive,
+} from "../core/policy/enforce.js";
+import { syncFromCloud } from "../enterprise/policy/sync.js";
 import { startUngovernedScanner } from "./ungoverned-scanner.js";
 import {
   HeartbeatTracker,
@@ -22,6 +28,7 @@ import {
 import { startSyncTimer } from "./sync-checker.js";
 import { startHostEventsPusher } from "./host-events-pusher.js";
 import { startEgressProxy } from "./egress-proxy.js";
+import { startHeartbeatPusher } from "./heartbeat-pusher.js";
 import type { HeartbeatPayload, HeartbeatResult } from "./protocol.js";
 
 /**
@@ -33,13 +40,43 @@ import type { HeartbeatPayload, HeartbeatResult } from "./protocol.js";
  * Stop hook now reliably pushes metrics.json even if MCP died abruptly.
  */
 
+function extractStringFields(value: unknown, out: string[] = []): string[] {
+  if (typeof value === "string") {
+    out.push(value);
+  } else if (Array.isArray(value)) {
+    for (const v of value) extractStringFields(v, out);
+  } else if (value && typeof value === "object") {
+    for (const v of Object.values(value as Record<string, unknown>)) {
+      extractStringFields(v, out);
+    }
+  }
+  return out;
+}
+
 async function policyCheck(
   payload: PolicyCheckPayload,
 ): Promise<PolicyCheckResult> {
-  // v2.0.0 MVP stub: allow everything. Real policy enforcement
-  // (rules.yaml + injection scan) wires in next commit.
-  void payload;
-  return { allow: true };
+  if (!payload.cwd) return { allow: true };
+  const contextDir = join(payload.cwd, ".context");
+  if (!existsSync(contextDir)) return { allow: true };
+
+  const store = new PolicyStore(contextDir);
+  const policies = store.getMergedPolicies();
+  if (!isInjectionDefenseActive(policies)) {
+    return { allow: true };
+  }
+
+  const haystack = extractStringFields(payload.input).join("\n");
+  if (!haystack) return { allow: true };
+
+  const result = enforceInjectionPolicy(haystack, policies);
+  if (result.allowed) return { allow: true };
+
+  const topMatch = result.scan.matches[0];
+  const reason = topMatch
+    ? `prompt-injection-defense: ${topMatch.category} (${topMatch.matched.slice(0, 80)})`
+    : "prompt-injection-defense: flagged";
+  return { allow: false, reason };
 }
 
 function readMetrics(contextDir: string): TelemetryMetrics | null {
@@ -199,6 +236,15 @@ async function main(): Promise<void> {
   }
   if (process.env.CORTEX_DISABLE_HOST_EVENTS_PUSH !== "1") {
     startHostEventsPusher(process.cwd(), pushIntervalMs);
+  }
+
+  // Govern host heartbeat — fills host_enrollment on cortex-web so the
+  // dashboard at /dashboard/govern actually shows this host.
+  const heartbeatRaw = parseInt(process.env.CORTEX_HEARTBEAT_PUSH_MS ?? "", 10);
+  const heartbeatMs =
+    Number.isFinite(heartbeatRaw) && heartbeatRaw > 0 ? heartbeatRaw : 5 * 60 * 1000;
+  if (process.env.CORTEX_DISABLE_HEARTBEAT_PUSH !== "1") {
+    startHeartbeatPusher(process.cwd(), heartbeatMs);
   }
 
   // Phase 4 task 19: cortex egress proxy. Logs SNI + destination per

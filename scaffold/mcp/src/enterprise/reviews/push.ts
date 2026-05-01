@@ -35,14 +35,14 @@ export function pendingCount(): number {
 }
 
 export async function pushReviewResults(
-  endpoint: string,
+  baseUrl: string,
   apiKey: string,
 ): Promise<ReviewPushResult> {
   if (pending.length === 0) {
     return { success: true, count: 0 };
   }
 
-  const reviewsUrl = endpoint.replace(/\/policies\/sync\/?$/, "/reviews/push");
+  const reviewsUrl = `${baseUrl.replace(/\/$/, "")}/api/v1/reviews/push`;
   const batch = pending.splice(0, 100);
 
   try {

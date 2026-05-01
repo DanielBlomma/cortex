@@ -19,15 +19,15 @@ export function setWorkflowPushContext(context: WorkflowPushContext): void {
 }
 
 export async function pushWorkflowSnapshot(
-  endpoint: string,
+  baseUrl: string,
   apiKey: string,
   workflow: WorkflowState
 ): Promise<WorkflowPushResult> {
-  if (!endpoint || !apiKey) {
+  if (!baseUrl || !apiKey) {
     return { success: false, error: "endpoint or api_key not configured" };
   }
 
-  const workflowUrl = endpoint.replace(/\/policies\/sync\/?$/, "/workflow/push");
+  const workflowUrl = `${baseUrl.replace(/\/$/, "")}/api/v1/workflow/push`;
 
   try {
     const response = await fetch(workflowUrl, {
