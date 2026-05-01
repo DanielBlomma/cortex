@@ -66,6 +66,7 @@ function printHelp() {
   console.log("  cortex enterprise status               Show local enterprise/govern state");
   console.log("  cortex enterprise sync                 Force re-fetch and re-apply (sudo)");
   console.log("  cortex enterprise uninstall            Remove. [--break-glass --reason \"<text>\"] in enforced mode (sudo)");
+  console.log("  cortex run <claude|codex|copilot> [args...]   Wrap AI CLI in cortex enforcement (Tier 1 passthrough or Tier 2 sandbox)");
   console.log("  cortex daemon [start|stop|status]");
   console.log("  cortex hooks [install|uninstall|status] [--project]");
   console.log("  cortex hook <name>          (internal: invoked by Claude Code)");
@@ -956,6 +957,10 @@ async function run() {
     return runEnterpriseCommand(rest);
   }
 
+  if (command === "run") {
+    return runRunCommand(rest);
+  }
+
   const passthrough = new Set([
     "bootstrap",
     "update",
@@ -1343,6 +1348,41 @@ async function runEnterpriseInstall(args) {
 
   console.log("");
   console.log("Run 'cortex enterprise status' for current state, or 'cortex telemetry test' to verify the pipeline.");
+}
+
+const RUN_CLIS = new Set(["claude", "codex", "copilot"]);
+
+async function runRunCommand(args) {
+  const sub = args[0];
+  if (!sub || sub === "help" || sub === "--help" || sub === "-h") {
+    console.log("Usage:");
+    console.log("  cortex run <claude|codex|copilot> [args...]");
+    console.log("");
+    console.log("Wraps the named AI CLI in cortex enforcement:");
+    console.log("  claude/codex: passthrough — their own managed-config + sandbox");
+    console.log("                cover Tier 1 enforcement after 'cortex enterprise <key>'.");
+    console.log("  copilot:      Tier 2 — OS-level sandbox (sandbox-exec on macOS,");
+    console.log("                bwrap on Linux). Denies writes to ~/.copilot/,");
+    console.log("                ~/.copilot.local/, /etc/copilot* so AI cannot");
+    console.log("                reconfigure itself out of governance.");
+    console.log("");
+    console.log("Tip: alias copilot='cortex run copilot' so direct 'copilot' invocations");
+    console.log("are also wrapped. Direct invocations are otherwise caught by Tier 3");
+    console.log("ungoverned-session detection (Phase 5).");
+    return;
+  }
+  if (!RUN_CLIS.has(sub)) {
+    throw new Error(`Unknown AI CLI: ${sub}. Use claude, codex, or copilot.`);
+  }
+  const entry = resolveCliEntry("run");
+  if (!fs.existsSync(entry)) {
+    throw new Error(
+      `Build the project's MCP first (missing ${entry}). Run 'cortex bootstrap' in the project root.`
+    );
+  }
+  const mod = await import(pathToFileURL(entry).href);
+  const exitCode = await mod.runAiCli({ cli: sub, args: args.slice(1) });
+  process.exit(exitCode);
 }
 
 async function runTelemetryCommand(args) {
