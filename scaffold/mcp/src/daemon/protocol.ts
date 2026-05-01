@@ -11,6 +11,7 @@ export type RequestType =
   | "policy.check"
   | "telemetry.flush"
   | "audit.log"
+  | "heartbeat"
   | "shutdown";
 
 export type Request<T extends RequestType = RequestType> = {
@@ -75,6 +76,26 @@ export type AuditLogPayload = {
 
 export type AuditLogResult = {
   written: boolean;
+};
+
+export type HeartbeatPayload = {
+  cli: "claude" | "codex" | "copilot";
+  hook:
+    | "PreToolUse"
+    | "UserPromptSubmit"
+    | "SessionStart"
+    | "SessionEnd"
+    | "Stop"
+    | "PreCompact";
+  session_id: string;
+  instance_id?: string;
+  cwd: string;
+  ts: string;
+};
+
+export type HeartbeatResult = {
+  recorded: boolean;
+  tamper_lock_active?: boolean;
 };
 
 export const DEFAULT_REQUEST_TIMEOUT_MS = 5000;

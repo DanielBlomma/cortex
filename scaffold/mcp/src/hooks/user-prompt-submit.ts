@@ -5,6 +5,7 @@ import {
   parseInput,
   readStdin,
   resolveDaemonEntry,
+  sendHeartbeat,
 } from "./shared.js";
 
 /**
@@ -47,6 +48,16 @@ async function main(): Promise<void> {
   };
 
   await call<AuditLogResult>("audit.log", payload, { timeoutMs: 3000 });
+
+  if (input.session_id) {
+    await sendHeartbeat({
+      cli: "claude",
+      hook: "UserPromptSubmit",
+      session_id: input.session_id,
+      cwd,
+    });
+  }
+
   process.exit(0);
 }
 

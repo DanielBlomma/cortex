@@ -66,6 +66,7 @@ function printHelp() {
   console.log("  cortex enterprise status               Show local enterprise/govern state");
   console.log("  cortex enterprise sync                 Force re-fetch and re-apply (sudo)");
   console.log("  cortex enterprise uninstall            Remove. [--break-glass --reason \"<text>\"] in enforced mode (sudo)");
+  console.log("  cortex enterprise repair               Verify managed paths, clear .cortex-tamper.lock (sudo)");
   console.log("  cortex run <claude|codex|copilot> [args...]   Wrap AI CLI in cortex enforcement (Tier 1 passthrough or Tier 2 sandbox)");
   console.log("  cortex daemon [start|stop|status]");
   console.log("  cortex hooks [install|uninstall|status] [--project]");
@@ -1184,7 +1185,7 @@ function loadGovernModule() {
   return import(pathToFileURL(entry).href);
 }
 
-const ENTERPRISE_SUBCOMMANDS = new Set(["status", "sync", "uninstall", "help", "--help", "-h"]);
+const ENTERPRISE_SUBCOMMANDS = new Set(["status", "sync", "uninstall", "repair", "help", "--help", "-h"]);
 
 async function runEnterpriseCommand(args) {
   if (args.length === 0 || ENTERPRISE_SUBCOMMANDS.has(args[0])) {
@@ -1203,6 +1204,7 @@ async function runEnterpriseSubcommand(args) {
     console.log("  cortex enterprise status               Show local enforcement state");
     console.log("  cortex enterprise sync                 Force re-fetch + re-apply (sudo)");
     console.log("  cortex enterprise uninstall            Remove. [--break-glass --reason \"<text>\"] in enforced mode (sudo)");
+  console.log("  cortex enterprise repair               Verify managed paths, clear .cortex-tamper.lock (sudo)");
     console.log("");
     console.log("Default endpoint: https://cortex-web-rho.vercel.app");
     return;
@@ -1241,6 +1243,27 @@ async function runEnterpriseSubcommand(args) {
       reason,
       cwd: process.cwd(),
     });
+    if (!result.ok) {
+      console.error(`✗ ${result.message}`);
+      process.exit(1);
+    }
+    console.log(result.message);
+    return;
+  }
+
+  if (sub === "repair") {
+    let reason;
+    for (let i = 1; i < args.length; i++) {
+      if (args[i] === "--reason" && args[i + 1]) {
+        reason = args[i + 1];
+        i++;
+      } else if (args[i].startsWith("-")) {
+        throw new Error(`Unknown enterprise repair option: ${args[i]}`);
+      }
+    }
+    requireSudoElevation();
+    const mod = await loadGovernModule();
+    const result = await mod.runGovernRepair({ cwd: process.cwd(), reason });
     if (!result.ok) {
       console.error(`✗ ${result.message}`);
       process.exit(1);

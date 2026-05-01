@@ -14,6 +14,12 @@ import { pushMetrics } from "../enterprise/telemetry/sync.js";
 import type { TelemetryMetrics } from "../core/telemetry/collector.js";
 import { AuditWriter, type AuditEntry } from "../core/audit/writer.js";
 import { startUngovernedScanner } from "./ungoverned-scanner.js";
+import {
+  HeartbeatTracker,
+  writeTamperLock,
+  emitTamperAudit,
+} from "./heartbeat-tracker.js";
+import type { HeartbeatPayload, HeartbeatResult } from "./protocol.js";
 
 /**
  * Daemon entry point. Run by `cortex daemon start` (or auto-spawned by
@@ -142,10 +148,17 @@ async function auditLog(payload: AuditLogPayload): Promise<AuditLogResult> {
 }
 
 async function main(): Promise<void> {
+  // Phase 6: hook heartbeat tracker (per-session activity record + tamper detect).
+  const tracker = new HeartbeatTracker();
+  async function heartbeat(payload: HeartbeatPayload): Promise<HeartbeatResult> {
+    return tracker.recordHeartbeat(payload);
+  }
+
   const daemon = new CortexDaemon({
     onPolicyCheck: policyCheck,
     onTelemetryFlush: telemetryFlush,
     onAuditLog: auditLog,
+    onHeartbeat: heartbeat,
   });
   await daemon.start();
 
@@ -155,6 +168,41 @@ async function main(): Promise<void> {
   const intervalMs = Number.isFinite(scanInterval) && scanInterval > 0 ? scanInterval : 60_000;
   if (process.env.CORTEX_DISABLE_UNGOVERNED_SCAN !== "1") {
     startUngovernedScanner({ cwd: process.cwd(), intervalMs });
+  }
+
+  // Phase 6: periodic tamper-checker. For each active session that had at
+  // least one tool-fired hook then went silent past missing_threshold_seconds,
+  // write .cortex-tamper.lock + audit event. The next SessionStart in
+  // enforced mode will refuse to register tools until 'cortex enterprise
+  // repair' clears the lock.
+  const tamperThreshold = parseInt(process.env.CORTEX_TAMPER_MISSING_THRESHOLD_S ?? "", 10);
+  const missingThresholdSeconds =
+    Number.isFinite(tamperThreshold) && tamperThreshold > 0 ? tamperThreshold : 300;
+  const tamperCheckInterval = parseInt(process.env.CORTEX_TAMPER_CHECK_MS ?? "", 10);
+  const tamperCheckMs =
+    Number.isFinite(tamperCheckInterval) && tamperCheckInterval > 0 ? tamperCheckInterval : 60_000;
+  if (process.env.CORTEX_DISABLE_TAMPER_CHECK !== "1") {
+    const checkTimer = setInterval(() => {
+      const detected = tracker.detectTamper({
+        cwds: [process.cwd()],
+        missingThresholdSeconds,
+      });
+      for (const entry of detected) {
+        try {
+          writeTamperLock(entry.cwd, entry);
+        } catch (err) {
+          process.stderr.write(
+            `[cortex-daemon] failed to write tamper lock: ${err instanceof Error ? err.message : String(err)}\n`,
+          );
+        }
+        void emitTamperAudit(entry.cwd, entry).catch((err) => {
+          process.stderr.write(
+            `[cortex-daemon] failed to emit tamper audit: ${err instanceof Error ? err.message : String(err)}\n`,
+          );
+        });
+      }
+    }, tamperCheckMs);
+    if (typeof checkTimer.unref === "function") checkTimer.unref();
   }
 }
 

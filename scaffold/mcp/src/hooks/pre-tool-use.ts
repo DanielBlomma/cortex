@@ -6,6 +6,7 @@ import {
   parseInput,
   readStdin,
   resolveDaemonEntry,
+  sendHeartbeat,
 } from "./shared.js";
 
 /**
@@ -23,6 +24,7 @@ type ClaudePreToolUseInput = {
   tool_name?: string;
   tool_input?: Record<string, unknown>;
   cwd?: string;
+  session_id?: string;
 };
 
 async function main(): Promise<void> {
@@ -34,6 +36,15 @@ async function main(): Promise<void> {
 
   // Try to bring the daemon up if it's not already.
   ensureDaemon(resolveDaemonEntry(import.meta.url));
+
+  if (input.session_id) {
+    void sendHeartbeat({
+      cli: "claude",
+      hook: "PreToolUse",
+      session_id: input.session_id,
+      cwd,
+    });
+  }
 
   const payload: PolicyCheckPayload = {
     tool,

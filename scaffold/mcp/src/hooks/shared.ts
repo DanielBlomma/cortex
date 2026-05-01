@@ -1,7 +1,8 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { isDaemonRunning, spawnDaemon } from "../daemon/client.js";
+import { call, isDaemonRunning, spawnDaemon } from "../daemon/client.js";
 import { fileURLToPath } from "node:url";
+import type { HeartbeatPayload, HeartbeatResult } from "../daemon/protocol.js";
 
 /**
  * Shared utilities for hook scripts.
@@ -79,4 +80,55 @@ export function resolveDaemonEntry(hookFileUrl: string): string {
   const hookPath = fileURLToPath(hookFileUrl);
   // dist/hooks/<x>.js → dist/daemon/main.js
   return join(hookPath, "..", "..", "daemon", "main.js");
+}
+
+/**
+ * Send a heartbeat to the daemon for tamper-detection bookkeeping.
+ * Failure to reach the daemon is non-fatal — daemon-down is treated as
+ * "we don't know" rather than tamper. Returns whether the daemon
+ * reported an active tamper-lock for this cwd.
+ */
+export async function sendHeartbeat(
+  payload: Omit<HeartbeatPayload, "ts">,
+): Promise<{ tamperLockActive: boolean }> {
+  const result = await call<HeartbeatResult>(
+    "heartbeat",
+    { ...payload, ts: new Date().toISOString() } satisfies HeartbeatPayload,
+    { timeoutMs: 1500 },
+  );
+  if (!result.ok) return { tamperLockActive: false };
+  return { tamperLockActive: result.result.tamper_lock_active === true };
+}
+
+const TAMPER_LOCK_FILENAME = ".cortex-tamper.lock";
+
+export function readTamperLockJson(cwd: string): unknown | null {
+  const path = join(cwd, ".context", TAMPER_LOCK_FILENAME);
+  if (!existsSync(path)) return null;
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * True iff this cwd is in enforced govern mode. Reads govern.local.json,
+ * which is written by the install/install-flow. We don't fall back to
+ * enterprise.yml because the user's intent is captured at install time.
+ */
+export function isEnforcedMode(cwd: string): boolean {
+  const path = join(cwd, ".context", "govern.local.json");
+  if (!existsSync(path)) return false;
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf8")) as {
+      installs?: Record<string, { mode?: string }>;
+    };
+    for (const inst of Object.values(parsed.installs ?? {})) {
+      if (inst.mode === "enforced") return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
 }

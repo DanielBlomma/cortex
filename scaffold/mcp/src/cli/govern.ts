@@ -12,6 +12,11 @@ import { platform, hostname } from "node:os";
 import { randomUUID } from "node:crypto";
 import { loadEnterpriseConfig, type ComplianceFramework } from "../core/config.js";
 import { installCopilotShim, uninstallCopilotShim } from "./run.js";
+import {
+  readTamperLock,
+  removeTamperLock,
+  emitTamperAudit,
+} from "../daemon/heartbeat-tracker.js";
 
 export type GovernCli = "claude" | "codex" | "copilot";
 
@@ -455,6 +460,112 @@ export function runGovernStatus(options: { cwd?: string } = {}): void {
   }
   console.log("");
   console.log("(Full overview with audit timeline + tamper-status lands in Phase 8.)");
+}
+
+export type GovernRepairOptions = {
+  cwd?: string;
+  skipRoot?: boolean;
+  reason?: string;
+};
+
+export type GovernRepairResult = {
+  ok: boolean;
+  message: string;
+  removed_lock?: boolean;
+  reverified: GovernCli[];
+};
+
+/**
+ * Verify that managed-settings files for each governed CLI still exist
+ * (and copilot's shim path is still our shim). If everything checks out,
+ * remove .cortex-tamper.lock and emit a tamper_repaired audit event.
+ *
+ * Re-fetching from cortex-web (full re-install) is intentionally NOT done
+ * here — that path is `cortex enterprise sync`. Repair is the post-incident
+ * "I've reviewed the situation, lock cleared" verb.
+ */
+export async function runGovernRepair(
+  options: GovernRepairOptions = {},
+): Promise<GovernRepairResult> {
+  const cwd = options.cwd ?? process.cwd();
+  const state = loadState(cwd);
+  const installed = Object.entries(state.installs) as Array<
+    [GovernCli, GovernInstallRecord]
+  >;
+  if (installed.length === 0) {
+    return {
+      ok: false,
+      message:
+        "No CLIs governed on this host — nothing to repair. Run 'cortex enterprise <key>' first.",
+      reverified: [],
+    };
+  }
+
+  if (!options.skipRoot) requireRoot();
+
+  const verified: GovernCli[] = [];
+  const missing: string[] = [];
+  for (const [cli, record] of installed) {
+    if (!existsSync(record.path)) {
+      missing.push(`${cli}: ${record.path} is missing`);
+      continue;
+    }
+    if (cli === "copilot") {
+      // Verify the file is still our shim (not replaced by a real binary).
+      try {
+        const raw = readFileSync(record.path, "utf8");
+        if (!raw.includes("# cortex-shim-v1")) {
+          missing.push(`${cli}: ${record.path} is no longer a cortex shim`);
+          continue;
+        }
+      } catch {
+        missing.push(`${cli}: ${record.path} could not be read`);
+        continue;
+      }
+    }
+    verified.push(cli);
+  }
+
+  if (missing.length > 0) {
+    return {
+      ok: false,
+      message:
+        "Cannot repair — the following managed paths are missing or replaced:\n  " +
+        missing.join("\n  ") +
+        "\nRun 'sudo cortex enterprise sync' to re-install, then 'cortex enterprise repair' again.",
+      reverified: verified,
+    };
+  }
+
+  const lock = readTamperLock(cwd);
+  if (!lock) {
+    return {
+      ok: true,
+      message:
+        "No tamper lock present — managed paths verified, nothing to clear.",
+      removed_lock: false,
+      reverified: verified,
+    };
+  }
+
+  const removed = removeTamperLock(cwd);
+  if (removed) {
+    await emitTamperAudit(cwd, {
+      ...lock,
+      detected_at: new Date().toISOString(),
+      hook_name: "tamper_repaired",
+      missing_seconds: 0,
+    }).catch(() => undefined);
+  }
+
+  return {
+    ok: true,
+    message:
+      `Repaired: managed paths verified for ${verified.join(", ")}; ` +
+      `tamper lock removed${options.reason ? ` (reason: ${options.reason})` : ""}.`,
+    removed_lock: removed,
+    reverified: verified,
+  };
 }
 
 export async function runGovernSync(options: { cwd?: string } = {}): Promise<void> {

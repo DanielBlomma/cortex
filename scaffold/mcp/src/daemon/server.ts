@@ -10,6 +10,8 @@ import type {
   TelemetryFlushResult,
   AuditLogPayload,
   AuditLogResult,
+  HeartbeatPayload,
+  HeartbeatResult,
 } from "./protocol.js";
 
 /**
@@ -30,6 +32,7 @@ type DaemonOptions = {
     payload: TelemetryFlushPayload,
   ) => Promise<TelemetryFlushResult>;
   onAuditLog?: (payload: AuditLogPayload) => Promise<AuditLogResult>;
+  onHeartbeat?: (payload: HeartbeatPayload) => Promise<HeartbeatResult>;
 };
 
 export class CortexDaemon {
@@ -181,6 +184,17 @@ export class CortexDaemon {
           }
           const result = await this.opts.onAuditLog(
             req.payload as AuditLogPayload,
+          );
+          this.sendOk(socket, req.id, result);
+          return;
+        }
+        case "heartbeat": {
+          if (!this.opts.onHeartbeat) {
+            this.sendOk(socket, req.id, { recorded: false } as HeartbeatResult);
+            return;
+          }
+          const result = await this.opts.onHeartbeat(
+            req.payload as HeartbeatPayload,
           );
           this.sendOk(socket, req.id, result);
           return;

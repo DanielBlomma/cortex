@@ -10,6 +10,7 @@ import {
   parseInput,
   readStdin,
   resolveDaemonEntry,
+  sendHeartbeat,
 } from "./shared.js";
 
 /**
@@ -56,6 +57,15 @@ async function main(): Promise<void> {
   await call<TelemetryFlushResult>("telemetry.flush", flushPayload, {
     timeoutMs: 5000,
   });
+
+  if (input.session_id) {
+    await sendHeartbeat({
+      cli: "claude",
+      hook: "SessionEnd",
+      session_id: input.session_id,
+      cwd,
+    });
+  }
 
   process.exit(0);
 }
