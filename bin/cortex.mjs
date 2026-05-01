@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawn } from "node:child_process";
@@ -60,11 +61,11 @@ function printHelp() {
   console.log("  cortex dashboard [--interval <sec>]");
   console.log("  cortex memory-compile [--dry-run] [--verbose]");
   console.log("  cortex memory-lint [--verbose] [--json]");
-  console.log("  cortex enterprise <api-key> [--endpoint <url>] [--no-hooks] [--no-daemon]");
-  console.log("  cortex govern install [--cli claude|codex|all] [--frameworks <csv>] [--mode advisory|enforced]");
-  console.log("  cortex govern uninstall [--cli <name>|all] [--break-glass --reason \"<text>\"]");
-  console.log("  cortex govern status");
-  console.log("  cortex govern sync");
+  console.log("  cortex enterprise <api-key>            Install (requires sudo). Managed enforcement + hooks + daemon.");
+  console.log("                                         [--endpoint <url>] [--frameworks <csv>] [--no-hooks] [--no-daemon]");
+  console.log("  cortex enterprise status               Show local enterprise/govern state");
+  console.log("  cortex enterprise sync                 Force re-fetch and re-apply (sudo)");
+  console.log("  cortex enterprise uninstall            Remove. [--break-glass --reason \"<text>\"] in enforced mode (sudo)");
   console.log("  cortex daemon [start|stop|status]");
   console.log("  cortex hooks [install|uninstall|status] [--project]");
   console.log("  cortex hook <name>          (internal: invoked by Claude Code)");
@@ -955,10 +956,6 @@ async function run() {
     return runEnterpriseCommand(rest);
   }
 
-  if (command === "govern") {
-    return runGovernCommand(rest);
-  }
-
   const passthrough = new Set([
     "bootstrap",
     "update",
@@ -1133,47 +1130,196 @@ function writeJson(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2) + "\n", "utf8");
 }
 
+// Enterprise == govern. One command, sudo-elevated, hard-fail without it.
+// `cortex enterprise <api-key>` does the full install. Subcommands status/sync/uninstall
+// dispatch to scaffold/mcp/dist/cli/govern.js.
+
+function requireSudoElevation() {
+  const isRoot = process.getuid && process.getuid() === 0;
+  if (!isRoot) {
+    console.error("✗ This command requires admin privileges to install non-bypassable enforcement.");
+    console.error("  Re-run as: sudo " + process.argv.slice(1).join(" "));
+    process.exit(1);
+  }
+  const sudoUser = process.env.SUDO_USER;
+  const sudoUidRaw = process.env.SUDO_UID;
+  const sudoGidRaw = process.env.SUDO_GID;
+  if (!sudoUser || !sudoUidRaw || !sudoGidRaw) {
+    console.error("✗ Use 'sudo' to elevate (not 'su' or a root login).");
+    console.error("  Cortex needs SUDO_USER/SUDO_UID/SUDO_GID set so that enterprise.yml,");
+    console.error("  Claude Code hooks and the daemon end up owned by your user.");
+    process.exit(1);
+  }
+  const uid = parseInt(sudoUidRaw, 10);
+  const gid = parseInt(sudoGidRaw, 10);
+  if (!Number.isFinite(uid) || !Number.isFinite(gid)) {
+    console.error("✗ SUDO_UID/SUDO_GID are not valid integers — refusing to drop privileges.");
+    process.exit(1);
+  }
+  return { user: sudoUser, uid, gid };
+}
+
+function dropPrivileges(sudo) {
+  const sudoInfo = os.userInfo({ uid: sudo.uid });
+  process.setgid(sudo.gid);
+  process.setuid(sudo.uid);
+  process.env.HOME = sudoInfo.homedir;
+  process.env.USER = sudo.user;
+  process.env.LOGNAME = sudo.user;
+  return sudoInfo.homedir;
+}
+
+function loadGovernModule() {
+  const entry = resolveCliEntry("govern");
+  if (!fs.existsSync(entry)) {
+    throw new Error(
+      `Build the project's MCP first (missing ${entry}). Run 'cortex bootstrap' in the project root.`
+    );
+  }
+  return import(pathToFileURL(entry).href);
+}
+
+const ENTERPRISE_SUBCOMMANDS = new Set(["status", "sync", "uninstall", "help", "--help", "-h"]);
+
 async function runEnterpriseCommand(args) {
-  if (args.length === 0 || args[0] === "help" || args[0] === "--help") {
+  if (args.length === 0 || ENTERPRISE_SUBCOMMANDS.has(args[0])) {
+    return runEnterpriseSubcommand(args);
+  }
+  return runEnterpriseInstall(args);
+}
+
+async function runEnterpriseSubcommand(args) {
+  const sub = args[0] ?? "help";
+
+  if (sub === "help" || sub === "--help" || sub === "-h" || !sub) {
     console.log("Usage:");
-    console.log("  cortex enterprise <api-key> [--endpoint <url>] [--no-hooks] [--no-daemon]");
-    console.log("");
-    console.log("One-liner setup: validates the key, writes .context/enterprise.yml,");
-    console.log("installs Claude Code hooks, and starts the daemon.");
+    console.log("  cortex enterprise <api-key>            Install (sudo). Sets up managed enforcement + hooks + daemon.");
+    console.log("                                         [--endpoint <url>] [--frameworks <csv>] [--no-hooks] [--no-daemon]");
+    console.log("  cortex enterprise status               Show local enforcement state");
+    console.log("  cortex enterprise sync                 Force re-fetch + re-apply (sudo)");
+    console.log("  cortex enterprise uninstall            Remove. [--break-glass --reason \"<text>\"] in enforced mode (sudo)");
     console.log("");
     console.log("Default endpoint: https://cortex-web-rho.vercel.app");
     return;
   }
 
+  if (sub === "status") {
+    const mod = await loadGovernModule();
+    mod.runGovernStatus({ cwd: process.cwd() });
+    return;
+  }
+
+  if (sub === "sync") {
+    requireSudoElevation();
+    const mod = await loadGovernModule();
+    await mod.runGovernSync({ cwd: process.cwd() });
+    return;
+  }
+
+  if (sub === "uninstall") {
+    let breakGlass = false;
+    let reason;
+    for (let i = 1; i < args.length; i++) {
+      if (args[i] === "--break-glass") breakGlass = true;
+      else if (args[i] === "--reason" && args[i + 1]) {
+        reason = args[i + 1];
+        i++;
+      } else if (args[i].startsWith("-")) {
+        throw new Error(`Unknown enterprise uninstall option: ${args[i]}`);
+      }
+    }
+    requireSudoElevation();
+    const mod = await loadGovernModule();
+    const result = await mod.runGovernUninstall({
+      cli: "all",
+      breakGlass,
+      reason,
+      cwd: process.cwd(),
+    });
+    if (!result.ok) {
+      console.error(`✗ ${result.message}`);
+      process.exit(1);
+    }
+    console.log(result.message);
+    return;
+  }
+
+  throw new Error(`Unknown enterprise subcommand: ${sub}`);
+}
+
+async function runEnterpriseInstall(args) {
   const apiKey = args[0];
   let endpoint;
+  let frameworks;
   let installHooks = true;
   let startDaemon = true;
   for (let i = 1; i < args.length; i++) {
     if (args[i] === "--endpoint" && args[i + 1]) {
       endpoint = args[i + 1];
       i++;
+    } else if (args[i] === "--frameworks" && args[i + 1]) {
+      frameworks = args[i + 1].split(",").map((s) => s.trim()).filter(Boolean);
+      i++;
     } else if (args[i] === "--no-hooks") {
       installHooks = false;
     } else if (args[i] === "--no-daemon") {
       startDaemon = false;
+    } else if (args[i].startsWith("-")) {
+      throw new Error(`Unknown enterprise install option: ${args[i]}`);
     }
   }
 
-  const entry = resolveCliEntry("enterprise-setup");
-  if (!fs.existsSync(entry)) {
-    throw new Error(`Build the project's MCP first (missing ${entry}). Run 'cortex bootstrap' in the project root.`);
-  }
-  const mod = await import(pathToFileURL(entry).href);
-  const result = await mod.runEnterpriseSetup({ apiKey, endpoint, cwd: process.cwd() });
+  const sudo = requireSudoElevation();
 
-  if (!result.ok) {
-    console.error(`✗ ${result.message}`);
+  const enterpriseEntry = resolveCliEntry("enterprise-setup");
+  if (!fs.existsSync(enterpriseEntry)) {
+    throw new Error(`Build the project's MCP first (missing ${enterpriseEntry}). Run 'cortex bootstrap' in the project root.`);
+  }
+  const enterpriseMod = await import(pathToFileURL(enterpriseEntry).href);
+  const setupResult = await enterpriseMod.runEnterpriseSetup({ apiKey, endpoint, cwd: process.cwd() });
+
+  if (!setupResult.ok) {
+    console.error(`✗ ${setupResult.message}`);
     process.exit(1);
   }
 
-  console.log(`✓ License valid (edition: ${result.edition}, expires: ${result.expiresAt})`);
-  console.log(`✓ Wrote ${result.configPath}`);
+  console.log(`✓ License valid (edition: ${setupResult.edition}, expires: ${setupResult.expiresAt})`);
+  console.log(`✓ Wrote ${setupResult.configPath}`);
+
+  // enterprise.yml was just written as root; transfer ownership before we drop privs.
+  try {
+    fs.chownSync(setupResult.configPath, sudo.uid, sudo.gid);
+  } catch (err) {
+    console.error(`! Could not chown ${setupResult.configPath}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  const baseUrl = (endpoint ?? "https://cortex-web-rho.vercel.app").replace(/\/$/, "");
+  const governMod = await loadGovernModule();
+  const governResult = await governMod.runGovernInstall({
+    cli: "all",
+    mode: "enforced",
+    cwd: process.cwd(),
+    apiKey,
+    baseUrl,
+    frameworks,
+  });
+  if (!governResult.ok) {
+    console.error(`✗ Govern install failed: ${governResult.message}`);
+    process.exit(1);
+  }
+
+  // govern.local.json was written as root in cwd/.context. chown it back.
+  const governStatePath = path.join(process.cwd(), ".context", "govern.local.json");
+  if (fs.existsSync(governStatePath)) {
+    try {
+      fs.chownSync(governStatePath, sudo.uid, sudo.gid);
+    } catch (err) {
+      console.error(`! Could not chown ${governStatePath}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Drop privileges before user-scope writes (Claude Code hooks in $HOME) and daemon spawn.
+  dropPrivileges(sudo);
 
   if (installHooks) {
     try {
@@ -1196,119 +1342,7 @@ async function runEnterpriseCommand(args) {
   }
 
   console.log("");
-  console.log("Run 'cortex telemetry test' to verify the pipeline.");
-}
-
-function parseGovernInstallArgs(args) {
-  let cli;
-  let frameworks;
-  let mode;
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--cli" && args[i + 1]) {
-      cli = args[i + 1];
-      i++;
-    } else if (args[i] === "--frameworks" && args[i + 1]) {
-      frameworks = args[i + 1].split(",").map((s) => s.trim()).filter(Boolean);
-      i++;
-    } else if (args[i] === "--mode" && args[i + 1]) {
-      mode = args[i + 1];
-      i++;
-    } else if (args[i].startsWith("-")) {
-      throw new Error(`Unknown govern install option: ${args[i]}`);
-    }
-  }
-  if (!cli) cli = "all";
-  if (cli !== "all" && !["claude", "codex", "copilot"].includes(cli)) {
-    throw new Error(`--cli must be one of: claude, codex, copilot, all (got: ${cli})`);
-  }
-  if (mode && !["advisory", "enforced"].includes(mode)) {
-    throw new Error(`--mode must be advisory or enforced (got: ${mode})`);
-  }
-  return { cli, frameworks, mode };
-}
-
-function parseGovernUninstallArgs(args) {
-  let cli;
-  let breakGlass = false;
-  let reason;
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--cli" && args[i + 1]) {
-      cli = args[i + 1];
-      i++;
-    } else if (args[i] === "--break-glass") {
-      breakGlass = true;
-    } else if (args[i] === "--reason" && args[i + 1]) {
-      reason = args[i + 1];
-      i++;
-    } else if (args[i].startsWith("-")) {
-      throw new Error(`Unknown govern uninstall option: ${args[i]}`);
-    }
-  }
-  if (!cli) cli = "all";
-  if (cli !== "all" && !["claude", "codex", "copilot"].includes(cli)) {
-    throw new Error(`--cli must be one of: claude, codex, copilot, all (got: ${cli})`);
-  }
-  return { cli, breakGlass, reason };
-}
-
-async function runGovernCommand(args) {
-  const sub = args[0];
-  const rest = args.slice(1);
-
-  if (!sub || sub === "help" || sub === "--help" || sub === "-h") {
-    console.log("Usage:");
-    console.log("  cortex govern install [--cli claude|codex|all] [--frameworks <csv>] [--mode advisory|enforced]");
-    console.log("  cortex govern uninstall [--cli <name>|all] [--break-glass --reason \"<text>\"]");
-    console.log("  cortex govern status");
-    console.log("  cortex govern sync");
-    console.log("");
-    console.log("Install requires sudo on macOS/Linux. Configures non-bypassable enforcement");
-    console.log("for the listed AI CLI(s) by writing to system-managed config paths.");
-    console.log("Frameworks default to those in enterprise.yml; --frameworks overrides.");
-    return;
-  }
-
-  const entry = resolveCliEntry("govern");
-  if (!fs.existsSync(entry)) {
-    throw new Error(
-      `Build the project's MCP first (missing ${entry}). Run 'cortex bootstrap' in the project root.`
-    );
-  }
-  const mod = await import(pathToFileURL(entry).href);
-
-  if (sub === "install") {
-    const opts = parseGovernInstallArgs(rest);
-    const result = await mod.runGovernInstall({ ...opts, cwd: process.cwd() });
-    if (!result.ok) {
-      console.error(`✗ ${result.message}`);
-      process.exit(1);
-    }
-    console.log(result.message);
-    return;
-  }
-
-  if (sub === "uninstall") {
-    const opts = parseGovernUninstallArgs(rest);
-    const result = await mod.runGovernUninstall({ ...opts, cwd: process.cwd() });
-    if (!result.ok) {
-      console.error(`✗ ${result.message}`);
-      process.exit(1);
-    }
-    console.log(result.message);
-    return;
-  }
-
-  if (sub === "status") {
-    mod.runGovernStatus({ cwd: process.cwd() });
-    return;
-  }
-
-  if (sub === "sync") {
-    await mod.runGovernSync({ cwd: process.cwd() });
-    return;
-  }
-
-  throw new Error(`Unknown govern subcommand: ${sub}`);
+  console.log("Run 'cortex enterprise status' for current state, or 'cortex telemetry test' to verify the pipeline.");
 }
 
 async function runTelemetryCommand(args) {

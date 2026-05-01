@@ -187,6 +187,8 @@ export type GovernInstallOptions = {
   cwd?: string;
   pathOverride?: Partial<Record<GovernCli, string>>;
   skipRoot?: boolean;
+  apiKey?: string;
+  baseUrl?: string;
 };
 
 export type GovernInstallResult = {
@@ -208,31 +210,37 @@ export async function runGovernInstall(
     };
   }
 
-  const config = loadEnterpriseConfig(contextDir);
-  const apiKey = config.enterprise.api_key.trim();
+  let apiKey = options.apiKey?.trim() ?? "";
+  let baseUrl = options.baseUrl?.trim() ?? "";
+  let frameworks = options.frameworks ?? [];
+
+  if (!apiKey || !baseUrl || frameworks.length === 0) {
+    const config = loadEnterpriseConfig(contextDir);
+    if (!apiKey) apiKey = config.enterprise.api_key.trim();
+    if (!baseUrl) baseUrl = (config.enterprise.base_url || config.enterprise.endpoint).trim();
+    if (frameworks.length === 0) {
+      frameworks = config.compliance.frameworks as ComplianceFramework[];
+    }
+  }
+
   if (!apiKey) {
     return {
       ok: false,
       message:
-        "No enterprise.api_key set in enterprise.yml. Run 'cortex enterprise <key>' first.",
+        "No enterprise.api_key available (pass via options or set in enterprise.yml).",
       installed: [],
     };
   }
-  const baseUrl = (config.enterprise.base_url || config.enterprise.endpoint).trim();
   if (!baseUrl) {
     return {
       ok: false,
-      message: "No enterprise.base_url configured in enterprise.yml.",
+      message: "No enterprise.base_url configured (pass via options or enterprise.yml).",
       installed: [],
     };
   }
 
   const targets: GovernCli[] =
     options.cli === "all" ? [...TIER1_CLIS] : [options.cli as GovernCli];
-  const frameworks =
-    options.frameworks && options.frameworks.length > 0
-      ? options.frameworks
-      : (config.compliance.frameworks as ComplianceFramework[]);
   if (frameworks.length === 0) {
     return {
       ok: false,
