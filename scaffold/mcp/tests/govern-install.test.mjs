@@ -144,7 +144,7 @@ test("install --cli codex writes requirements.toml with sandbox bounds", async (
   }
 });
 
-test("install --all skips copilot with a Tier-2 message", async () => {
+test("install --all installs claude+codex managed files plus copilot Tier-2 shim", async () => {
   const { server, baseUrl } = await startMockServer({
     "GET /api/v1/govern/config": (req, res) => {
       const config = {
@@ -162,6 +162,14 @@ test("install --all skips copilot with a Tier-2 message", async () => {
   });
 
   const { root } = makeProject({ apiKey: "ent_test_key_12345678", baseUrl });
+  // Stand up a fake real-copilot binary on a temp PATH so the shim install
+  // can find it; otherwise copilot is skipped for missing-binary reasons.
+  const realDir = path.join(root, "real-bin");
+  fs.mkdirSync(realDir, { recursive: true });
+  const realCopilot = path.join(realDir, "copilot");
+  fs.writeFileSync(realCopilot, "#!/bin/sh\necho real copilot\n", { mode: 0o755 });
+  const origPath = process.env.PATH;
+  process.env.PATH = `${realDir}:${origPath ?? ""}`;
   try {
     const result = await runGovernInstall({
       cli: "all",
@@ -169,12 +177,17 @@ test("install --all skips copilot with a Tier-2 message", async () => {
       pathOverride: {
         claude: path.join(root, "claude-managed.json"),
         codex: path.join(root, "codex-requirements.toml"),
+        copilot: path.join(root, "fake-copilot-shim"),
       },
       skipRoot: true,
     });
     assert.equal(result.ok, true, result.message);
-    assert.deepEqual(result.installed.sort(), ["claude", "codex"]);
+    assert.deepEqual(result.installed.sort(), ["claude", "codex", "copilot"]);
+    const shimContents = fs.readFileSync(path.join(root, "fake-copilot-shim"), "utf8");
+    assert.match(shimContents, /cortex-shim-v1/);
+    assert.match(shimContents, new RegExp(realCopilot));
   } finally {
+    process.env.PATH = origPath;
     server.close();
     fs.rmSync(root, { recursive: true, force: true });
   }

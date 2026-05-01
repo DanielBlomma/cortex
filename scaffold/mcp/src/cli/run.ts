@@ -1,6 +1,13 @@
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  unlinkSync,
+  mkdirSync,
+  chmodSync,
+} from "node:fs";
+import { join, dirname } from "node:path";
 import { platform, tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 
@@ -139,4 +146,123 @@ export async function runAiCli(options: RunOptions): Promise<number> {
   }
   console.error(`✗ Tier 2 (wrap) for copilot not yet supported on ${os}.`);
   return 1;
+}
+
+const DEFAULT_COPILOT_SHIM_PATHS: Partial<Record<NodeJS.Platform, string>> = {
+  darwin: "/usr/local/bin/copilot",
+  linux: "/usr/local/bin/copilot",
+};
+
+export function getDefaultCopilotShimPath(os: NodeJS.Platform): string {
+  const path = DEFAULT_COPILOT_SHIM_PATHS[os];
+  if (!path) {
+    throw new Error(`copilot shim install not yet supported on ${os}`);
+  }
+  return path;
+}
+
+export function buildCopilotShim(realBinary: string): string {
+  return [
+    "#!/bin/sh",
+    SHIM_MARKER,
+    "# Cortex Tier 2 wrap shim — re-execs through 'cortex run copilot'.",
+    "# Direct invocations of copilot are routed through cortex's OS sandbox.",
+    `# Real binary captured at install time: ${realBinary}`,
+    "",
+    'CORTEX="${CORTEX_BIN:-cortex}"',
+    'exec "$CORTEX" run copilot "$@"',
+    "",
+  ].join("\n");
+}
+
+export type InstallShimOptions = {
+  shimPath?: string;
+  realBinary?: string;
+  searchPath?: string;
+};
+
+export type InstallShimResult = {
+  ok: boolean;
+  message: string;
+  shimPath?: string;
+  realBinary?: string;
+};
+
+export function installCopilotShim(options: InstallShimOptions = {}): InstallShimResult {
+  const shimPath = options.shimPath ?? getDefaultCopilotShimPath(platform());
+  const search = options.searchPath ?? process.env.PATH ?? "";
+  const real =
+    options.realBinary ??
+    findRealBinaryIn(search, "copilot", [shimPath]);
+  if (!real) {
+    return {
+      ok: false,
+      message:
+        `Copilot CLI not found in PATH (excluding ${shimPath}). ` +
+        "Install GitHub Copilot CLI first, then re-run cortex enterprise sync.",
+    };
+  }
+  if (existsSync(shimPath) && !isCortexShim(shimPath)) {
+    return {
+      ok: false,
+      message:
+        `${shimPath} exists and is not a cortex shim — refusing to overwrite. ` +
+        "Move/rename the existing file, then re-run.",
+    };
+  }
+  try {
+    mkdirSync(dirname(shimPath), { recursive: true });
+    writeFileSync(shimPath, buildCopilotShim(real));
+    chmodSync(shimPath, 0o755);
+  } catch (err) {
+    return {
+      ok: false,
+      message: `Failed to write shim at ${shimPath}: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+  return {
+    ok: true,
+    message: `Installed copilot shim at ${shimPath} (real binary: ${real})`,
+    shimPath,
+    realBinary: real,
+  };
+}
+
+function findRealBinaryIn(
+  searchPath: string,
+  name: string,
+  excludePaths: string[],
+): string | null {
+  const exclusions = new Set(excludePaths);
+  for (const dir of searchPath.split(":")) {
+    if (!dir) continue;
+    const candidate = join(dir, name);
+    if (exclusions.has(candidate)) continue;
+    if (!existsSync(candidate)) continue;
+    if (isCortexShim(candidate)) continue;
+    return candidate;
+  }
+  return null;
+}
+
+export function uninstallCopilotShim(shimPath?: string): { ok: boolean; message: string } {
+  const target = shimPath ?? getDefaultCopilotShimPath(platform());
+  if (!existsSync(target)) {
+    return { ok: true, message: `${target} already absent.` };
+  }
+  if (!isCortexShim(target)) {
+    return {
+      ok: false,
+      message: `${target} is no longer a cortex shim — refusing to delete (would clobber a real binary).`,
+    };
+  }
+  try {
+    unlinkSync(target);
+  } catch (err) {
+    return {
+      ok: false,
+      message: `Failed to remove ${target}: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+  return { ok: true, message: `Removed copilot shim at ${target}` };
 }

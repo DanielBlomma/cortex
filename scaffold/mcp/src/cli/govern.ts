@@ -11,9 +11,11 @@ import { join, dirname } from "node:path";
 import { platform, hostname } from "node:os";
 import { randomUUID } from "node:crypto";
 import { loadEnterpriseConfig, type ComplianceFramework } from "../core/config.js";
+import { installCopilotShim, uninstallCopilotShim } from "./run.js";
 
 export type GovernCli = "claude" | "codex" | "copilot";
 
+const ALL_CLIS: GovernCli[] = ["claude", "codex", "copilot"];
 const TIER1_CLIS: GovernCli[] = ["claude", "codex"];
 
 export type ManagedSettingsPaths = Partial<Record<GovernCli, Partial<Record<NodeJS.Platform, string>>>>;
@@ -240,7 +242,7 @@ export async function runGovernInstall(
   }
 
   const targets: GovernCli[] =
-    options.cli === "all" ? [...TIER1_CLIS] : [options.cli as GovernCli];
+    options.cli === "all" ? [...ALL_CLIS] : [options.cli as GovernCli];
   if (frameworks.length === 0) {
     return {
       ok: false,
@@ -256,9 +258,24 @@ export async function runGovernInstall(
 
   for (const cli of targets) {
     if (cli === "copilot") {
-      console.log(
-        `! ${cli} is Tier 2 (wrap). Use 'cortex run copilot ...' once Phase 4 lands.`,
+      if (!options.skipRoot) requireRoot();
+      const shimPath = options.pathOverride?.copilot;
+      const shimResult = installCopilotShim(
+        shimPath ? { shimPath } : {},
       );
+      if (!shimResult.ok) {
+        console.log(`! ${cli}: ${shimResult.message}`);
+        continue;
+      }
+      state.installs[cli] = {
+        path: shimResult.shimPath ?? "",
+        version: "shim-v1",
+        frameworks: [{ id: "tier2", version: "wrap" }],
+        installed_at: new Date().toISOString(),
+        mode,
+      };
+      installed.push(cli);
+      console.log(`✓ ${cli}: ${shimResult.message} (mode=${mode})`);
       continue;
     }
     if (!options.skipRoot) requireRoot();
@@ -378,6 +395,20 @@ export async function runGovernUninstall(
     const inst = state.installs[cli];
     if (!inst) continue;
     if (!options.skipRoot) requireRoot();
+    if (cli === "copilot") {
+      const shimResult = uninstallCopilotShim(inst.path);
+      if (!shimResult.ok) {
+        console.log(`! ${cli}: ${shimResult.message}`);
+        continue;
+      }
+      delete state.installs[cli];
+      uninstalled.push(cli);
+      console.log(
+        `✓ ${cli}: ${shimResult.message}` +
+          (options.breakGlass ? ` (break-glass: ${options.reason})` : ""),
+      );
+      continue;
+    }
     try {
       unlinkSync(inst.path);
     } catch {
