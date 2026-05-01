@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { hostname } from "node:os";
 import { join } from "node:path";
 import { loadEnterpriseConfig } from "../core/config.js";
 import { writeHostAuditEvent } from "./ungoverned-scanner.js";
@@ -147,7 +148,7 @@ export async function runSyncCheckOnce(
     outcomes.push(outcome);
     const eventBase = {
       timestamp: now,
-      host_id: undefined as string | undefined,
+      host_id: hostname(),
       cli,
     };
     if (outcome.kind === "unchanged") {

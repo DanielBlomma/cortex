@@ -155,7 +155,10 @@ test("runSyncCheckOnce: writes update notification when new version is available
     const audit = path.join(ctx, "audit", `host-events-${date}.jsonl`);
     assert.equal(fs.existsSync(audit), true);
     const lines = fs.readFileSync(audit, "utf8").trim().split("\n").map(JSON.parse);
-    assert.ok(lines.some((l) => l.event_type === "govern_config_available"));
+    const availableLine = lines.find((l) => l.event_type === "govern_config_available");
+    assert.ok(availableLine, "expected govern_config_available event");
+    assert.equal(typeof availableLine.host_id, "string");
+    assert.ok(availableLine.host_id.length > 0, "host_id should be non-empty");
   } finally {
     server.close();
     fs.rmSync(root, { recursive: true, force: true });

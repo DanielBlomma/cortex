@@ -27,6 +27,17 @@ type Cursor = {
   tamper_last_ts?: string;
 };
 
+/**
+ * Cursor format is `${ISO_TIMESTAMP}#${stable_id}` where stable_id is
+ * the pid for ungoverned events and the session_id for tamper events.
+ * The composite suffix breaks ties when two writers emit at the exact
+ * same millisecond (clock resolution / two daemon producers).
+ *
+ * For backward compatibility, a persisted value with no `#` is treated
+ * as `${ts}#~`: `~` sorts after every printable ASCII character we
+ * actually emit, so an old cursor still skips all events at-or-before
+ * its timestamp on the first read after upgrade.
+ */
 function readCursor(cwd: string): Cursor {
   const path = join(cwd, ".context", CURSOR_FILENAME);
   if (!existsSync(path)) return {};
@@ -35,6 +46,42 @@ function readCursor(cwd: string): Cursor {
   } catch {
     return {};
   }
+}
+
+function normalizeCursor(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  return value.includes("#") ? value : `${value}#~`;
+}
+
+function stableIdFor(evt: HostEvent): string {
+  if (evt.event_type === "ungoverned_ai_session_detected") {
+    const pid = evt.pid;
+    if (typeof pid === "number") return String(pid);
+    if (typeof pid === "string" && pid.length > 0) return pid;
+    return "0";
+  }
+  if (evt.event_type === "hook_tamper_detected") {
+    const sid = evt.session_id;
+    if (typeof sid === "string" && sid.length > 0) return sid;
+    return "";
+  }
+  return "";
+}
+
+function compositeKey(evt: HostEvent): string | null {
+  const ts = eventTimestamp(evt);
+  if (!ts) return null;
+  return `${ts}#${stableIdFor(evt)}`;
+}
+
+function sortByTs<T extends HostEvent>(arr: T[]): T[] {
+  return arr.sort((a, b) => {
+    const ka = compositeKey(a) ?? "";
+    const kb = compositeKey(b) ?? "";
+    if (ka < kb) return -1;
+    if (ka > kb) return 1;
+    return 0;
+  });
 }
 
 function writeCursor(cwd: string, cursor: Cursor): void {
@@ -76,9 +123,11 @@ function eventTimestamp(e: HostEvent): string | null {
   return typeof ts === "string" ? ts : null;
 }
 
-function isAfter(a: string, b: string | undefined): boolean {
-  if (!b) return true;
-  return a > b;
+function isAfterComposite(evt: HostEvent, cursor: string | undefined): boolean {
+  if (!cursor) return true;
+  const key = compositeKey(evt);
+  if (!key) return false;
+  return key > cursor;
 }
 
 export type PushOutcome = {
@@ -103,6 +152,8 @@ export async function pushHostEvents(cwd: string): Promise<PushOutcome> {
   }
 
   const cursor = readCursor(cwd);
+  const ungovernedCursor = normalizeCursor(cursor.ungoverned_last_ts);
+  const tamperCursor = normalizeCursor(cursor.tamper_last_ts);
   const ungoverned: HostEvent[] = [];
   const tamper: HostEvent[] = [];
 
@@ -110,13 +161,16 @@ export async function pushHostEvents(cwd: string): Promise<PushOutcome> {
     for (const evt of readEventsFrom(file)) {
       const ts = eventTimestamp(evt);
       if (!ts) continue;
-      if (evt.event_type === "ungoverned_ai_session_detected" && isAfter(ts, cursor.ungoverned_last_ts)) {
+      if (evt.event_type === "ungoverned_ai_session_detected" && isAfterComposite(evt, ungovernedCursor)) {
         ungoverned.push(evt);
-      } else if (evt.event_type === "hook_tamper_detected" && isAfter(ts, cursor.tamper_last_ts)) {
+      } else if (evt.event_type === "hook_tamper_detected" && isAfterComposite(evt, tamperCursor)) {
         tamper.push(evt);
       }
     }
   }
+
+  sortByTs(ungoverned);
+  sortByTs(tamper);
 
   if (ungoverned.length > 0) {
     const result = await pushBatch(
@@ -128,7 +182,8 @@ export async function pushHostEvents(cwd: string): Promise<PushOutcome> {
     );
     if (result.ok) {
       outcome.ungoverned_pushed = ungoverned.length;
-      cursor.ungoverned_last_ts = ungoverned[ungoverned.length - 1].timestamp ?? cursor.ungoverned_last_ts;
+      const last = ungoverned[ungoverned.length - 1];
+      cursor.ungoverned_last_ts = compositeKey(last) ?? cursor.ungoverned_last_ts;
     } else {
       outcome.errors.push(`ungoverned: ${result.error}`);
     }
@@ -144,7 +199,8 @@ export async function pushHostEvents(cwd: string): Promise<PushOutcome> {
     );
     if (result.ok) {
       outcome.tamper_pushed = tamper.length;
-      cursor.tamper_last_ts = tamper[tamper.length - 1].timestamp ?? cursor.tamper_last_ts;
+      const last = tamper[tamper.length - 1];
+      cursor.tamper_last_ts = compositeKey(last) ?? cursor.tamper_last_ts;
     } else {
       outcome.errors.push(`tamper: ${result.error}`);
     }
