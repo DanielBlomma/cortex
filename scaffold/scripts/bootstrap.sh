@@ -6,16 +6,6 @@ MCP_DIR="$REPO_ROOT/mcp"
 TOTAL_STEPS=6
 STEP_INDEX=0
 
-print_logo() {
-  cat <<'EOF'
-  CCC    OOO   RRRR  TTTTT  EEEEE  X   X
- C   C  O   O  R   R   T    E       X X
- C      O   O  RRRR    T    EEEE     X
- C   C  O   O  R  R    T    E       X X
-  CCC    OOO   R   R   T    EEEEE  X   X
-EOF
-}
-
 step() {
   STEP_INDEX=$((STEP_INDEX + 1))
   echo ""
@@ -26,7 +16,6 @@ info() {
   echo "[cortex] $1"
 }
 
-print_logo
 info "bootstrap start"
 info "repo: $REPO_ROOT"
 info "pipeline: deps -> ingest -> embeddings -> graph -> status"
