@@ -44,8 +44,9 @@ else
   fail ".context/config.yaml not found — run: cortex init"
 fi
 
-# Enterprise config
+# Enterprise config — gate on api_key being set (file may exist as a stub).
 ENTERPRISE_CONFIG=""
+ENTERPRISE_ENABLED=0
 if [[ -f "$CONTEXT_DIR/enterprise.yml" ]]; then
   ENTERPRISE_CONFIG="$CONTEXT_DIR/enterprise.yml"
 elif [[ -f "$CONTEXT_DIR/enterprise.yaml" ]]; then
@@ -53,9 +54,28 @@ elif [[ -f "$CONTEXT_DIR/enterprise.yaml" ]]; then
 fi
 
 if [[ -n "$ENTERPRISE_CONFIG" ]]; then
-  pass "enterprise config found: $(basename "$ENTERPRISE_CONFIG")"
+  ENTERPRISE_API_KEY=$(node -e '
+    const fs = require("node:fs");
+    const raw = fs.readFileSync(process.argv[1], "utf8");
+    let section = "", fields = {};
+    for (const line of raw.split("\n")) {
+      const t = line.trimEnd();
+      if (!t || t.startsWith("#")) continue;
+      const sm = t.match(/^(\w+):\s*$/);
+      if (sm) { section = sm[1]; continue; }
+      const kv = t.match(/^\s+(\w+):\s*(.+?)\s*$/);
+      if (kv && section) fields[section + "." + kv[1]] = kv[2].replace(/^["\x27]|["\x27]$/g, "");
+    }
+    console.log(fields["enterprise.api_key"] || "");
+  ' "$ENTERPRISE_CONFIG" 2>/dev/null || echo "")
+  if [[ -n "$ENTERPRISE_API_KEY" ]]; then
+    pass "enterprise config found: $(basename "$ENTERPRISE_CONFIG")"
+    ENTERPRISE_ENABLED=1
+  else
+    info "enterprise config present but no api_key set — see https://cortx.se for more info"
+  fi
 else
-  info "no enterprise config (community mode)"
+  info "no enterprise config (community mode) — see https://cortx.se for more info"
 fi
 
 # ── Index ───────────────────────────────────────────────
@@ -177,7 +197,7 @@ fi
 
 # ── Enterprise ──────────────────────────────────────────
 
-if [[ -n "$ENTERPRISE_CONFIG" ]]; then
+if [[ "$ENTERPRISE_ENABLED" == "1" ]]; then
   echo ""
   echo "  Enterprise"
 

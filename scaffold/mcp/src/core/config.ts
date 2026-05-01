@@ -13,6 +13,7 @@ export type TelemetryConfig = {
 export type EnterpriseServiceConfig = {
   endpoint: string;
   api_key: string;
+  base_url: string;
 };
 
 export type EnterpriseActivation =
@@ -40,6 +41,33 @@ export type PolicyConfig = {
   sync_interval_minutes: number;
 };
 
+export type ComplianceFramework =
+  | "iso27001"
+  | "iso42001"
+  | "soc2"
+  | "gdpr"
+  | "ai_act"
+  | "nis2";
+
+export type ComplianceConfig = {
+  frameworks: ComplianceFramework[];
+  eu_addons: boolean;
+};
+
+export type GovernMode = "off" | "advisory" | "enforced";
+export type GovernTier = "prevent" | "wrap" | "detect" | "off";
+
+export type GovernConfig = {
+  mode: GovernMode;
+  sync_on_startup: boolean;
+  sync_interval_minutes: number;
+  tier_claude: GovernTier;
+  tier_codex: GovernTier;
+  tier_copilot: GovernTier;
+  detect_ungoverned: boolean;
+  govern_endpoint: string;
+};
+
 export type EnterpriseConfig = {
   enterprise: EnterpriseServiceConfig;
   telemetry: TelemetryConfig;
@@ -47,12 +75,24 @@ export type EnterpriseConfig = {
   policy: PolicyConfig;
   rbac: RBACConfig;
   validators: ValidatorsConfig;
+  compliance: ComplianceConfig;
+  govern: GovernConfig;
 };
+
+const DEFAULT_FRAMEWORKS: ComplianceFramework[] = ["iso27001", "iso42001", "soc2"];
+const EU_ADDON_FRAMEWORKS: ComplianceFramework[] = ["gdpr", "ai_act", "nis2"];
+const VALID_FRAMEWORKS = new Set<ComplianceFramework>([
+  ...DEFAULT_FRAMEWORKS,
+  ...EU_ADDON_FRAMEWORKS,
+]);
+const VALID_MODES = new Set<GovernMode>(["off", "advisory", "enforced"]);
+const VALID_TIERS = new Set<GovernTier>(["prevent", "wrap", "detect", "off"]);
 
 const DEFAULTS: EnterpriseConfig = {
   enterprise: {
     endpoint: "",
     api_key: "",
+    base_url: "",
   },
   telemetry: {
     enabled: false,
@@ -75,6 +115,20 @@ const DEFAULTS: EnterpriseConfig = {
     default_role: "developer",
   },
   validators: {},
+  compliance: {
+    frameworks: [],
+    eu_addons: false,
+  },
+  govern: {
+    mode: "off",
+    sync_on_startup: true,
+    sync_interval_minutes: 60,
+    tier_claude: "prevent",
+    tier_codex: "prevent",
+    tier_copilot: "wrap",
+    detect_ungoverned: true,
+    govern_endpoint: "",
+  },
 };
 
 const VALID_ROLES: Role[] = ["admin", "developer", "readonly"];
@@ -94,6 +148,17 @@ function stripInlineComment(value: string): string {
   return commentIdx >= 0 ? value.slice(0, commentIdx).trimEnd() : value;
 }
 
+function parseInlineList(value: string): string[] | null {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) return null;
+  const inner = trimmed.slice(1, -1).trim();
+  if (!inner) return [];
+  return inner
+    .split(",")
+    .map((part) => part.trim().replace(/^["']|["']$/g, ""))
+    .filter(Boolean);
+}
+
 function parseSimpleYaml(text: string): Record<string, string> {
   const result: Record<string, string> = {};
   let section = "";
@@ -101,21 +166,18 @@ function parseSimpleYaml(text: string): Record<string, string> {
     const trimmed = line.trimEnd();
     if (!trimmed || trimmed.startsWith("#")) continue;
 
-    // Section header (indented key with colon, no value)
     const sectionMatch = trimmed.match(/^(\w+):\s*$/);
     if (sectionMatch) {
       section = sectionMatch[1];
       continue;
     }
 
-    // Key-value pair (possibly indented under a section)
     const kvMatch = trimmed.match(/^\s+(\w+):\s*(.+?)\s*$/);
     if (kvMatch && section) {
       result[`${section}.${kvMatch[1]}`] = stripInlineComment(kvMatch[2]);
       continue;
     }
 
-    // Top-level key-value
     const topMatch = trimmed.match(/^(\w+):\s*(.+?)\s*$/);
     if (topMatch) {
       result[topMatch[1]] = stripInlineComment(topMatch[2]);
@@ -160,6 +222,30 @@ export function resolveEnterpriseActivation(config: EnterpriseConfig): Enterpris
   return { active: true, reason: "active", api_key: apiKey, endpoint };
 }
 
+function deriveEndpoint(baseUrl: string, suffix: string): string {
+  if (!baseUrl) return "";
+  return baseUrl.replace(/\/$/, "") + suffix;
+}
+
+function isValidTier(value: string | undefined): value is GovernTier {
+  return value !== undefined && VALID_TIERS.has(value as GovernTier);
+}
+
+function isValidMode(value: string | undefined): value is GovernMode {
+  return value !== undefined && VALID_MODES.has(value as GovernMode);
+}
+
+function resolveFrameworks(rawList: string | undefined, euAddons: boolean): ComplianceFramework[] {
+  const parsed = rawList ? parseInlineList(rawList) : null;
+  const base = parsed && parsed.length > 0
+    ? parsed.filter((f): f is ComplianceFramework => VALID_FRAMEWORKS.has(f as ComplianceFramework))
+    : DEFAULT_FRAMEWORKS.slice();
+  if (!euAddons) return base;
+  const merged = new Set<ComplianceFramework>(base);
+  for (const f of EU_ADDON_FRAMEWORKS) merged.add(f);
+  return Array.from(merged);
+}
+
 export function loadEnterpriseConfig(contextDir: string): EnterpriseConfig {
   let raw: string;
   try {
@@ -174,16 +260,33 @@ export function loadEnterpriseConfig(contextDir: string): EnterpriseConfig {
 
   const fields = parseSimpleYaml(raw);
   const enterpriseApiKey = fields["enterprise.api_key"] ?? DEFAULTS.enterprise.api_key;
-  const enterpriseEndpoint = fields["enterprise.endpoint"] ?? DEFAULTS.enterprise.endpoint;
-  const telemetryEndpoint = fields["telemetry.endpoint"] ?? DEFAULTS.telemetry.endpoint;
+  const baseUrl = (fields["enterprise.base_url"] ?? fields["enterprise.endpoint"] ?? "").replace(/\/$/, "");
+  const enterpriseEndpoint = fields["enterprise.endpoint"] ?? baseUrl;
+
+  const telemetryEndpoint =
+    fields["enterprise.endpoint_telemetry"] ??
+    fields["telemetry.endpoint"] ??
+    deriveEndpoint(baseUrl, "/api/v1/telemetry/push");
   const telemetryApiKey = fields["telemetry.api_key"] ?? enterpriseApiKey;
-  const policyEndpoint = fields["policy.endpoint"] ?? DEFAULTS.policy.endpoint;
+  const policyEndpoint =
+    fields["enterprise.endpoint_policy"] ??
+    fields["policy.endpoint"] ??
+    deriveEndpoint(baseUrl, "/api/v1/policies/sync");
   const policyApiKey = fields["policy.api_key"] ?? enterpriseApiKey;
+  const governEndpoint =
+    fields["enterprise.endpoint_govern"] ??
+    deriveEndpoint(baseUrl, "/api/v1/govern");
+
+  const euAddons = fields["compliance.eu_addons"] === "true";
+  const frameworks = resolveFrameworks(fields["compliance.frameworks"], euAddons);
+
+  const governMode = isValidMode(fields["govern.mode"]) ? fields["govern.mode"] : DEFAULTS.govern.mode;
 
   return {
     enterprise: {
       endpoint: enterpriseEndpoint,
       api_key: enterpriseApiKey,
+      base_url: baseUrl,
     },
     telemetry: {
       endpoint: telemetryEndpoint,
@@ -208,5 +311,19 @@ export function loadEnterpriseConfig(contextDir: string): EnterpriseConfig {
       default_role: isValidRole(fields["rbac.default_role"]) ? fields["rbac.default_role"] : DEFAULTS.rbac.default_role,
     },
     validators: parseValidatorsConfig(fields),
+    compliance: {
+      frameworks,
+      eu_addons: euAddons,
+    },
+    govern: {
+      mode: governMode,
+      sync_on_startup: fields["govern.sync_on_startup"] !== "false",
+      sync_interval_minutes: parseInt(fields["govern.sync_interval_minutes"] ?? "", 10) || DEFAULTS.govern.sync_interval_minutes,
+      tier_claude: isValidTier(fields["govern.tier_claude"]) ? fields["govern.tier_claude"] : DEFAULTS.govern.tier_claude,
+      tier_codex: isValidTier(fields["govern.tier_codex"]) ? fields["govern.tier_codex"] : DEFAULTS.govern.tier_codex,
+      tier_copilot: isValidTier(fields["govern.tier_copilot"]) ? fields["govern.tier_copilot"] : DEFAULTS.govern.tier_copilot,
+      detect_ungoverned: fields["govern.detect_ungoverned"] !== "false",
+      govern_endpoint: governEndpoint,
+    },
   };
 }
