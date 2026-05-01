@@ -61,6 +61,10 @@ function printHelp() {
   console.log("  cortex memory-compile [--dry-run] [--verbose]");
   console.log("  cortex memory-lint [--verbose] [--json]");
   console.log("  cortex enterprise <api-key> [--endpoint <url>] [--no-hooks] [--no-daemon]");
+  console.log("  cortex govern install [--cli claude|codex|all] [--frameworks <csv>] [--mode advisory|enforced]");
+  console.log("  cortex govern uninstall [--cli <name>|all] [--break-glass --reason \"<text>\"]");
+  console.log("  cortex govern status");
+  console.log("  cortex govern sync");
   console.log("  cortex daemon [start|stop|status]");
   console.log("  cortex hooks [install|uninstall|status] [--project]");
   console.log("  cortex hook <name>          (internal: invoked by Claude Code)");
@@ -951,6 +955,10 @@ async function run() {
     return runEnterpriseCommand(rest);
   }
 
+  if (command === "govern") {
+    return runGovernCommand(rest);
+  }
+
   const passthrough = new Set([
     "bootstrap",
     "update",
@@ -1189,6 +1197,118 @@ async function runEnterpriseCommand(args) {
 
   console.log("");
   console.log("Run 'cortex telemetry test' to verify the pipeline.");
+}
+
+function parseGovernInstallArgs(args) {
+  let cli;
+  let frameworks;
+  let mode;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--cli" && args[i + 1]) {
+      cli = args[i + 1];
+      i++;
+    } else if (args[i] === "--frameworks" && args[i + 1]) {
+      frameworks = args[i + 1].split(",").map((s) => s.trim()).filter(Boolean);
+      i++;
+    } else if (args[i] === "--mode" && args[i + 1]) {
+      mode = args[i + 1];
+      i++;
+    } else if (args[i].startsWith("-")) {
+      throw new Error(`Unknown govern install option: ${args[i]}`);
+    }
+  }
+  if (!cli) cli = "all";
+  if (cli !== "all" && !["claude", "codex", "copilot"].includes(cli)) {
+    throw new Error(`--cli must be one of: claude, codex, copilot, all (got: ${cli})`);
+  }
+  if (mode && !["advisory", "enforced"].includes(mode)) {
+    throw new Error(`--mode must be advisory or enforced (got: ${mode})`);
+  }
+  return { cli, frameworks, mode };
+}
+
+function parseGovernUninstallArgs(args) {
+  let cli;
+  let breakGlass = false;
+  let reason;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--cli" && args[i + 1]) {
+      cli = args[i + 1];
+      i++;
+    } else if (args[i] === "--break-glass") {
+      breakGlass = true;
+    } else if (args[i] === "--reason" && args[i + 1]) {
+      reason = args[i + 1];
+      i++;
+    } else if (args[i].startsWith("-")) {
+      throw new Error(`Unknown govern uninstall option: ${args[i]}`);
+    }
+  }
+  if (!cli) cli = "all";
+  if (cli !== "all" && !["claude", "codex", "copilot"].includes(cli)) {
+    throw new Error(`--cli must be one of: claude, codex, copilot, all (got: ${cli})`);
+  }
+  return { cli, breakGlass, reason };
+}
+
+async function runGovernCommand(args) {
+  const sub = args[0];
+  const rest = args.slice(1);
+
+  if (!sub || sub === "help" || sub === "--help" || sub === "-h") {
+    console.log("Usage:");
+    console.log("  cortex govern install [--cli claude|codex|all] [--frameworks <csv>] [--mode advisory|enforced]");
+    console.log("  cortex govern uninstall [--cli <name>|all] [--break-glass --reason \"<text>\"]");
+    console.log("  cortex govern status");
+    console.log("  cortex govern sync");
+    console.log("");
+    console.log("Install requires sudo on macOS/Linux. Configures non-bypassable enforcement");
+    console.log("for the listed AI CLI(s) by writing to system-managed config paths.");
+    console.log("Frameworks default to those in enterprise.yml; --frameworks overrides.");
+    return;
+  }
+
+  const entry = resolveCliEntry("govern");
+  if (!fs.existsSync(entry)) {
+    throw new Error(
+      `Build the project's MCP first (missing ${entry}). Run 'cortex bootstrap' in the project root.`
+    );
+  }
+  const mod = await import(pathToFileURL(entry).href);
+
+  if (sub === "install") {
+    const opts = parseGovernInstallArgs(rest);
+    const result = await mod.runGovernInstall({ ...opts, cwd: process.cwd() });
+    if (!result.ok) {
+      console.error(`✗ ${result.message}`);
+      process.exit(1);
+    }
+    console.log(result.message);
+    return;
+  }
+
+  if (sub === "uninstall") {
+    const opts = parseGovernUninstallArgs(rest);
+    const result = await mod.runGovernUninstall({ ...opts, cwd: process.cwd() });
+    if (!result.ok) {
+      console.error(`✗ ${result.message}`);
+      process.exit(1);
+    }
+    console.log(result.message);
+    return;
+  }
+
+  if (sub === "status") {
+    mod.runGovernStatus({ cwd: process.cwd() });
+    return;
+  }
+
+  if (sub === "sync") {
+    await mod.runGovernSync({ cwd: process.cwd() });
+    return;
+  }
+
+  throw new Error(`Unknown govern subcommand: ${sub}`);
 }
 
 async function runTelemetryCommand(args) {
