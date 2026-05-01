@@ -316,5 +316,5 @@ test("status with no installs prints the empty-state hint", () => {
   }
   const output = lines.join("\n");
   assert.match(output, /No CLIs governed/);
-  assert.match(output, /sudo cortex govern install/);
+  assert.match(output, /sudo cortex enterprise/);
 });

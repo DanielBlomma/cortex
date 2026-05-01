@@ -1201,7 +1201,7 @@ async function runEnterpriseSubcommand(args) {
     console.log("Usage:");
     console.log("  cortex enterprise <api-key>            Install (sudo). Sets up managed enforcement + hooks + daemon.");
     console.log("                                         [--endpoint <url>] [--frameworks <csv>] [--no-hooks] [--no-daemon]");
-    console.log("  cortex enterprise status               Show local enforcement state");
+    console.log("  cortex enterprise status [--verbose|--json]   Show local enforcement state");
     console.log("  cortex enterprise sync                 Force re-fetch + re-apply (sudo)");
     console.log("  cortex enterprise uninstall            Remove. [--break-glass --reason \"<text>\"] in enforced mode (sudo)");
   console.log("  cortex enterprise repair               Verify managed paths, clear .cortex-tamper.lock (sudo)");
@@ -1211,8 +1211,17 @@ async function runEnterpriseSubcommand(args) {
   }
 
   if (sub === "status") {
+    let verbose = false;
+    let json = false;
+    for (let i = 1; i < args.length; i++) {
+      if (args[i] === "--verbose" || args[i] === "-v") verbose = true;
+      else if (args[i] === "--json") json = true;
+      else if (args[i].startsWith("-")) {
+        throw new Error(`Unknown enterprise status option: ${args[i]}`);
+      }
+    }
     const mod = await loadGovernModule();
-    mod.runGovernStatus({ cwd: process.cwd() });
+    mod.runGovernStatus({ cwd: process.cwd(), verbose, json });
     return;
   }
 

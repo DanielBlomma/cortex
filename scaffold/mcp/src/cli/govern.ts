@@ -1,6 +1,8 @@
 import {
   writeFileSync,
   readFileSync,
+  readdirSync,
+  statSync,
   mkdirSync,
   existsSync,
   renameSync,
@@ -435,31 +437,386 @@ export async function runGovernUninstall(
   };
 }
 
-export function runGovernStatus(options: { cwd?: string } = {}): void {
+type CliStatusEntry = {
+  cli: GovernCli;
+  tier: "Tier 1 (Prevent)" | "Tier 2 (Wrap)";
+  path: string;
+  version: string;
+  mode: "advisory" | "enforced";
+  frameworks: Array<{ id: string; version: string }>;
+  installed_at: string;
+  managed_path_present: boolean;
+  managed_path_size_bytes: number | null;
+  managed_path_kind: "managed-settings.json" | "requirements.toml" | "shim" | "unknown";
+  deny_rules_count: number | null;
+  shim_real_binary: string | null;
+};
+
+type RecentEventCount = {
+  ungoverned_ai_session_detected: number;
+  hook_tamper_detected: number;
+  tamper_repaired: number;
+  govern_config_unchanged: number;
+  govern_config_available: number;
+  govern_config_sync_failed: number;
+};
+
+export type GovernStatusReport = {
+  cwd: string;
+  host_id: string;
+  generated_at: string;
+  enterprise: {
+    api_key_set: boolean;
+    base_url: string;
+    frameworks_configured: ComplianceFramework[];
+    govern_mode_config: GovernConfigModeFromConfig;
+  };
+  mode_effective: "off" | "advisory" | "enforced";
+  installs: CliStatusEntry[];
+  update_notification: {
+    cli: string;
+    latest_version: string;
+    current_version: string | null;
+    detected_at: string;
+  } | null;
+  tamper_lock: {
+    cli: string;
+    session_id: string;
+    detected_at: string;
+    last_seen: string;
+    missing_seconds: number;
+  } | null;
+  recent_events_24h: RecentEventCount;
+  recent_events_sample: Array<Record<string, unknown>>;
+};
+
+type GovernConfigModeFromConfig = "off" | "advisory" | "enforced";
+
+const TIER_BY_CLI: Record<GovernCli, CliStatusEntry["tier"]> = {
+  claude: "Tier 1 (Prevent)",
+  codex: "Tier 1 (Prevent)",
+  copilot: "Tier 2 (Wrap)",
+};
+
+function classifyManagedPath(
+  cli: GovernCli,
+  filePath: string,
+): CliStatusEntry["managed_path_kind"] {
+  if (cli === "copilot") return "shim";
+  if (filePath.endsWith(".json")) return "managed-settings.json";
+  if (filePath.endsWith(".toml")) return "requirements.toml";
+  return "unknown";
+}
+
+function countDenyRules(
+  cli: GovernCli,
+  filePath: string,
+): { count: number | null; shimReal: string | null } {
+  if (!existsSync(filePath)) return { count: null, shimReal: null };
+  let raw: string;
+  try {
+    raw = readFileSync(filePath, "utf8");
+  } catch {
+    return { count: null, shimReal: null };
+  }
+  if (cli === "copilot") {
+    // Shim is a shell script — pull the captured "Real binary" comment.
+    const m = raw.match(/Real binary captured at install time:\s*(.+?)\s*$/m);
+    return { count: null, shimReal: m ? m[1] : null };
+  }
+  if (cli === "claude") {
+    try {
+      const parsed = JSON.parse(raw) as {
+        permissions?: { deny?: unknown[] };
+      };
+      const deny = parsed.permissions?.deny;
+      return { count: Array.isArray(deny) ? deny.length : 0, shimReal: null };
+    } catch {
+      return { count: null, shimReal: null };
+    }
+  }
+  if (cli === "codex") {
+    // requirements.toml: count items inside `deny_read = [ ... ]`.
+    const m = raw.match(/deny_read\s*=\s*\[([^\]]*)\]/);
+    if (!m) return { count: 0, shimReal: null };
+    const inner = m[1].trim();
+    if (!inner) return { count: 0, shimReal: null };
+    return { count: inner.split(",").filter((s) => s.trim()).length, shimReal: null };
+  }
+  return { count: null, shimReal: null };
+}
+
+function readUpdateNotification(cwd: string): GovernStatusReport["update_notification"] {
+  const path = join(cwd, ".context", ".govern-update-available.json");
+  if (!existsSync(path)) return null;
+  try {
+    const raw = JSON.parse(readFileSync(path, "utf8")) as {
+      cli?: string;
+      latest_version?: string;
+      current_version?: string | null;
+      detected_at?: string;
+    };
+    if (!raw.cli || !raw.latest_version || !raw.detected_at) return null;
+    return {
+      cli: raw.cli,
+      latest_version: raw.latest_version,
+      current_version: raw.current_version ?? null,
+      detected_at: raw.detected_at,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readActiveTamperLock(cwd: string): GovernStatusReport["tamper_lock"] {
+  const path = join(cwd, ".context", ".cortex-tamper.lock");
+  if (!existsSync(path)) return null;
+  try {
+    const raw = JSON.parse(readFileSync(path, "utf8")) as {
+      cli?: string;
+      session_id?: string;
+      detected_at?: string;
+      last_seen?: string;
+      missing_seconds?: number;
+    };
+    if (!raw.cli || !raw.session_id || !raw.detected_at || !raw.last_seen) return null;
+    return {
+      cli: raw.cli,
+      session_id: raw.session_id,
+      detected_at: raw.detected_at,
+      last_seen: raw.last_seen,
+      missing_seconds: raw.missing_seconds ?? 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readRecentEvents(
+  cwd: string,
+  windowMs: number,
+  now: Date,
+): { counts: RecentEventCount; sample: Array<Record<string, unknown>> } {
+  const counts: RecentEventCount = {
+    ungoverned_ai_session_detected: 0,
+    hook_tamper_detected: 0,
+    tamper_repaired: 0,
+    govern_config_unchanged: 0,
+    govern_config_available: 0,
+    govern_config_sync_failed: 0,
+  };
+  const sample: Array<Record<string, unknown>> = [];
+  const cutoff = now.getTime() - windowMs;
+  const auditDir = join(cwd, ".context", "audit");
+  if (!existsSync(auditDir)) return { counts, sample };
+  let files: string[];
+  try {
+    files = readdirSync(auditDir)
+      .filter((n) => n.startsWith("host-events-") && n.endsWith(".jsonl"))
+      .sort()
+      .slice(-2)
+      .map((n) => join(auditDir, n));
+  } catch {
+    return { counts, sample };
+  }
+  for (const file of files) {
+    let raw: string;
+    try {
+      raw = readFileSync(file, "utf8");
+    } catch {
+      continue;
+    }
+    for (const line of raw.split("\n")) {
+      if (!line.trim()) continue;
+      let evt: Record<string, unknown>;
+      try {
+        evt = JSON.parse(line) as Record<string, unknown>;
+      } catch {
+        continue;
+      }
+      const ts = (evt.timestamp ?? evt.detected_at) as string | undefined;
+      if (!ts) continue;
+      const t = new Date(ts).getTime();
+      if (!Number.isFinite(t) || t < cutoff) continue;
+      const type = evt.event_type as keyof RecentEventCount | undefined;
+      if (type && type in counts) {
+        counts[type] += 1;
+      }
+      if (sample.length < 10) sample.push(evt);
+    }
+  }
+  return { counts, sample };
+}
+
+export function buildGovernStatus(options: { cwd?: string; now?: Date } = {}): GovernStatusReport {
   const cwd = options.cwd ?? process.cwd();
+  const now = options.now ?? new Date();
+  const config = loadEnterpriseConfig(join(cwd, ".context"));
   const state = loadState(cwd);
-  const installs = state.installs;
-  console.log("Cortex Govern — local state");
-  console.log("===========================");
-  if (Object.keys(installs).length === 0) {
-    console.log("No CLIs governed on this host.");
-    console.log("Run: sudo cortex govern install --cli <claude|codex|all>");
-    console.log("(Full overview UI lands in Phase 8.)");
+
+  const installs: CliStatusEntry[] = [];
+  let mostRestrictiveMode: "off" | "advisory" | "enforced" = "off";
+  for (const [cliName, record] of Object.entries(state.installs) as Array<
+    [GovernCli, GovernInstallRecord]
+  >) {
+    if (!record) continue;
+    const present = existsSync(record.path);
+    let size: number | null = null;
+    if (present) {
+      try {
+        size = statSync(record.path).size;
+      } catch {
+        size = null;
+      }
+    }
+    const { count, shimReal } = countDenyRules(cliName, record.path);
+    installs.push({
+      cli: cliName,
+      tier: TIER_BY_CLI[cliName],
+      path: record.path,
+      version: record.version,
+      mode: record.mode,
+      frameworks: record.frameworks,
+      installed_at: record.installed_at,
+      managed_path_present: present,
+      managed_path_size_bytes: size,
+      managed_path_kind: classifyManagedPath(cliName, record.path),
+      deny_rules_count: count,
+      shim_real_binary: shimReal,
+    });
+    if (record.mode === "enforced") mostRestrictiveMode = "enforced";
+    else if (record.mode === "advisory" && mostRestrictiveMode === "off") {
+      mostRestrictiveMode = "advisory";
+    }
+  }
+
+  const { counts, sample } = readRecentEvents(cwd, 24 * 60 * 60 * 1000, now);
+
+  return {
+    cwd,
+    host_id: hostname(),
+    generated_at: now.toISOString(),
+    enterprise: {
+      api_key_set: config.enterprise.api_key.trim() !== "",
+      base_url: config.enterprise.base_url || config.enterprise.endpoint,
+      frameworks_configured: config.compliance.frameworks,
+      govern_mode_config: config.govern.mode,
+    },
+    mode_effective: mostRestrictiveMode,
+    installs,
+    update_notification: readUpdateNotification(cwd),
+    tamper_lock: readActiveTamperLock(cwd),
+    recent_events_24h: counts,
+    recent_events_sample: sample,
+  };
+}
+
+function formatCompact(report: GovernStatusReport): string {
+  const lines: string[] = [];
+  lines.push("Cortex Enterprise — Govern Overview");
+  lines.push("===================================");
+  lines.push(`Host:          ${report.host_id}`);
+  lines.push(`Mode:          ${report.mode_effective}`);
+  lines.push(
+    `Frameworks:    ${report.enterprise.frameworks_configured.join(", ") || "(none)"}`,
+  );
+  lines.push(`Endpoint:      ${report.enterprise.base_url || "(not set)"}`);
+  lines.push(
+    `API key:       ${report.enterprise.api_key_set ? "configured" : "NOT SET (run 'sudo cortex enterprise <key>')"}`,
+  );
+  lines.push("");
+  if (report.tamper_lock) {
+    lines.push("⚠ TAMPER LOCK ACTIVE");
+    lines.push(
+      `  cli=${report.tamper_lock.cli} session=${report.tamper_lock.session_id} detected=${report.tamper_lock.detected_at}`,
+    );
+    lines.push("  Run: sudo cortex enterprise repair");
+    lines.push("");
+  }
+  if (report.update_notification) {
+    lines.push(
+      `↺ UPDATE AVAILABLE: ${report.update_notification.cli} ` +
+        `(current=${report.update_notification.current_version ?? "unknown"} → ` +
+        `latest=${report.update_notification.latest_version})`,
+    );
+    lines.push("  Run: sudo cortex enterprise sync");
+    lines.push("");
+  }
+  if (report.installs.length === 0) {
+    lines.push("No CLIs governed on this host.");
+    lines.push("Run: sudo cortex enterprise <api-key>");
+    return lines.join("\n");
+  }
+  lines.push("AI CLIs on this host:");
+  for (const i of report.installs) {
+    const presence = i.managed_path_present ? "✓" : "✗";
+    const denyText =
+      i.deny_rules_count !== null ? `${i.deny_rules_count} deny rules` : "shim";
+    lines.push(
+      `  ${presence} ${i.cli.padEnd(8)} ${i.tier.padEnd(20)} ${denyText}, mode=${i.mode}`,
+    );
+  }
+  lines.push("");
+  lines.push("Recent activity (last 24h):");
+  lines.push(`  ungoverned sessions:  ${report.recent_events_24h.ungoverned_ai_session_detected}`);
+  lines.push(`  tamper detected:      ${report.recent_events_24h.hook_tamper_detected}`);
+  lines.push(`  tamper repaired:      ${report.recent_events_24h.tamper_repaired}`);
+  lines.push(`  config unchanged:     ${report.recent_events_24h.govern_config_unchanged}`);
+  lines.push(`  config available:     ${report.recent_events_24h.govern_config_available}`);
+  lines.push(`  sync failed:          ${report.recent_events_24h.govern_config_sync_failed}`);
+  lines.push("");
+  lines.push("Run 'cortex enterprise status --verbose' for the full deny-rule list and event details.");
+  return lines.join("\n");
+}
+
+function formatVerbose(report: GovernStatusReport): string {
+  const sections: string[] = [formatCompact(report), ""];
+  sections.push("Per-CLI managed-config detail:");
+  for (const i of report.installs) {
+    sections.push(`  [${i.cli}]`);
+    sections.push(`    path:           ${i.path}`);
+    sections.push(`    kind:           ${i.managed_path_kind}`);
+    sections.push(
+      `    file:           ${i.managed_path_present ? `present (${i.managed_path_size_bytes ?? "?"} bytes)` : "MISSING"}`,
+    );
+    sections.push(`    version:        ${i.version}`);
+    sections.push(`    mode:           ${i.mode}`);
+    sections.push(`    installed_at:   ${i.installed_at}`);
+    sections.push(
+      `    frameworks:     ${i.frameworks.map((f) => `${f.id}@${f.version}`).join(", ") || "(none)"}`,
+    );
+    if (i.deny_rules_count !== null) {
+      sections.push(`    deny_rules:     ${i.deny_rules_count}`);
+    }
+    if (i.shim_real_binary) {
+      sections.push(`    shim → real:    ${i.shim_real_binary}`);
+    }
+    sections.push("");
+  }
+  sections.push("Recent host events (sample, up to 10):");
+  if (report.recent_events_sample.length === 0) {
+    sections.push("  (none in last 24h)");
+  } else {
+    for (const evt of report.recent_events_sample) {
+      sections.push(`  ${JSON.stringify(evt)}`);
+    }
+  }
+  return sections.join("\n");
+}
+
+export type RunGovernStatusOptions = {
+  cwd?: string;
+  verbose?: boolean;
+  json?: boolean;
+};
+
+export function runGovernStatus(options: RunGovernStatusOptions = {}): void {
+  const report = buildGovernStatus({ cwd: options.cwd });
+  if (options.json) {
+    console.log(JSON.stringify(report, null, 2));
     return;
   }
-  for (const cli of Object.keys(installs) as GovernCli[]) {
-    const i = installs[cli];
-    if (!i) continue;
-    const fwIds = i.frameworks.map((f) => f.id).join(", ") || "(none)";
-    console.log(`  ${cli}:`);
-    console.log(`    path:        ${i.path}`);
-    console.log(`    version:     ${i.version}`);
-    console.log(`    mode:        ${i.mode}`);
-    console.log(`    frameworks:  ${fwIds}`);
-    console.log(`    installed:   ${i.installed_at}`);
-  }
-  console.log("");
-  console.log("(Full overview with audit timeline + tamper-status lands in Phase 8.)");
+  console.log(options.verbose ? formatVerbose(report) : formatCompact(report));
 }
 
 export type GovernRepairOptions = {
