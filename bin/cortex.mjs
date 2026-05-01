@@ -1137,7 +1137,20 @@ function settingsPathFor(scope) {
   if (scope === "project") {
     return path.join(process.cwd(), ".claude", "settings.json");
   }
-  return path.join(process.env.HOME || "", ".claude", "settings.json");
+  let home = process.env.HOME || "";
+  const isRoot = process.getuid && process.getuid() === 0;
+  if (isRoot) {
+    const sudoUidRaw = process.env.SUDO_UID;
+    const sudoUid = sudoUidRaw ? parseInt(sudoUidRaw, 10) : NaN;
+    if (Number.isFinite(sudoUid)) {
+      try {
+        home = os.userInfo({ uid: sudoUid }).homedir;
+      } catch {
+        // Fall back to HOME below.
+      }
+    }
+  }
+  return path.join(home, ".claude", "settings.json");
 }
 
 function readJsonSafe(file) {
