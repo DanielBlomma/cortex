@@ -373,7 +373,12 @@ export async function runGovernUninstall(
   const cwd = options.cwd ?? process.cwd();
   const state = loadState(cwd);
 
-  const allInstalledClis = Object.keys(state.installs) as GovernCli[];
+  // Filter out unknown CLI keys defensively — govern.local.json is a
+  // user-writable file and a corrupted/forward-compatible entry must not
+  // crash the path that walks it.
+  const allInstalledClis = Object.keys(state.installs).filter((k): k is GovernCli =>
+    ALL_CLIS.includes(k as GovernCli),
+  );
   const targets: GovernCli[] =
     options.cli === "all" ? allInstalledClis : [options.cli as GovernCli];
 
@@ -611,21 +616,33 @@ function readRecentEvents(
   if (!existsSync(auditDir)) return { counts, sample };
   let files: string[];
   try {
+    // Walk every host-events-*.jsonl file, newest first. The window can
+    // span more than two daily files (a 24h window read at 00:30 still
+    // needs yesterday's file + a sliver of the day before), and we must
+    // not silently drop events because the slice(-2) heuristic happens
+    // to land on a quiet day. Per-line cutoff still bounds work below.
     files = readdirSync(auditDir)
       .filter((n) => n.startsWith("host-events-") && n.endsWith(".jsonl"))
       .sort()
-      .slice(-2)
+      .reverse()
       .map((n) => join(auditDir, n));
   } catch {
     return { counts, sample };
   }
-  for (const file of files) {
+  outer: for (const file of files) {
     let raw: string;
     try {
       raw = readFileSync(file, "utf8");
     } catch {
       continue;
     }
+    // Within a single file, lines are appended in chronological order, so
+    // once we hit a line older than the cutoff every subsequent line is
+    // also too old. The filename ordering is already newest-first across
+    // files, so once an entire file is too old it's the boundary and we
+    // stop walking older files altogether.
+    let fileHadAnyInWindow = false;
+    let fileHadAnyOutOfWindow = false;
     for (const line of raw.split("\n")) {
       if (!line.trim()) continue;
       let evt: Record<string, unknown>;
@@ -637,13 +654,21 @@ function readRecentEvents(
       const ts = (evt.timestamp ?? evt.detected_at) as string | undefined;
       if (!ts) continue;
       const t = new Date(ts).getTime();
-      if (!Number.isFinite(t) || t < cutoff) continue;
+      if (!Number.isFinite(t)) continue;
+      if (t < cutoff) {
+        fileHadAnyOutOfWindow = true;
+        continue;
+      }
+      fileHadAnyInWindow = true;
       const type = evt.event_type as keyof RecentEventCount | undefined;
       if (type && type in counts) {
         counts[type] += 1;
       }
       if (sample.length < 10) sample.push(evt);
     }
+    // If this file had only out-of-window events, the cutoff is behind us
+    // and any older file can only contain even older events — stop early.
+    if (fileHadAnyOutOfWindow && !fileHadAnyInWindow) break outer;
   }
   return { counts, sample };
 }
@@ -656,10 +681,14 @@ export function buildGovernStatus(options: { cwd?: string; now?: Date } = {}): G
 
   const installs: CliStatusEntry[] = [];
   let mostRestrictiveMode: "off" | "advisory" | "enforced" = "off";
-  for (const [cliName, record] of Object.entries(state.installs) as Array<
-    [GovernCli, GovernInstallRecord]
-  >) {
+  for (const [rawCliName, record] of Object.entries(state.installs)) {
+    // Skip any unknown CLI keys (e.g. a forward-compatible 'gemini' entry
+    // written by a newer enterprise endpoint, or a hand-edited corrupt
+    // file). Casting blindly would let unknown keys flow into TIER_BY_CLI
+    // / countDenyRules and produce undefined-shaped data.
+    if (!ALL_CLIS.includes(rawCliName as GovernCli)) continue;
     if (!record) continue;
+    const cliName = rawCliName as GovernCli;
     const present = existsSync(record.path);
     let size: number | null = null;
     if (present) {
@@ -846,9 +875,14 @@ export async function runGovernRepair(
 ): Promise<GovernRepairResult> {
   const cwd = options.cwd ?? process.cwd();
   const state = loadState(cwd);
-  const installed = Object.entries(state.installs) as Array<
-    [GovernCli, GovernInstallRecord]
-  >;
+  // Filter to known CLIs so a corrupt or forward-compatible install
+  // record doesn't crash the repair walk.
+  const installed: Array<[GovernCli, GovernInstallRecord]> = Object.entries(
+    state.installs,
+  ).filter(
+    (entry): entry is [GovernCli, GovernInstallRecord] =>
+      ALL_CLIS.includes(entry[0] as GovernCli) && entry[1] !== undefined,
+  );
   if (installed.length === 0) {
     return {
       ok: false,
@@ -928,7 +962,13 @@ export async function runGovernRepair(
 export async function runGovernSync(options: { cwd?: string } = {}): Promise<void> {
   const cwd = options.cwd ?? process.cwd();
   const state = loadState(cwd);
-  const targets = Object.keys(state.installs) as GovernCli[];
+  // Drop unknown CLI keys: runGovernInstall would throw on an unsupported
+  // cli, but silently skipping is the right behaviour when sync runs in
+  // the daemon — it's not a user typo to surface, just stale/forward
+  // state we don't recognise.
+  const targets = Object.keys(state.installs).filter((k): k is GovernCli =>
+    ALL_CLIS.includes(k as GovernCli),
+  );
   if (targets.length === 0) {
     console.log("Nothing to sync — no CLIs governed on this host.");
     return;
