@@ -34,8 +34,24 @@ When the user (or the shim) invokes `cortex run copilot ...`:
 
 - **Run `copilot ...` directly via the real binary path** (e.g. by reading the shim's embedded comment). The Tier 2 protection is gone for that invocation — but the cortex daemon's Tier 3 process scanner sees the unwrapped `copilot` process within ~60 seconds, audits it, and in `enforced` mode SIGTERMs it (same-user only).
 - **Spawn `copilot` from a non-PATH location** (e.g. `/opt/some/path/copilot`). Same Tier 3 mitigation.
-- **Set `HTTPS_PROXY` to bypass the cortex egress proxy** (when the egress proxy lands in Phase 4 task 19). Mitigation via the OS sandbox blocking arbitrary network egress is in scope for that future phase.
 - **Use `--allow-all` / `--yolo` to skip Copilot's per-tool prompts.** GitHub does NOT expose an admin-level disable for these flags — this is the fundamental limitation of Copilot CLI that motivated Tier 2 in the first place. Audit-only.
+
+## Egress proxy (Phase 4 task 19)
+
+When the cortex daemon is running, it also listens on `127.0.0.1:18888` (configurable via `CORTEX_EGRESS_PROXY_PORT`) as a passive HTTP proxy. `cortex run copilot` automatically sets `HTTPS_PROXY`/`HTTP_PROXY` env vars when spawning the wrapped Copilot binary, so all of Copilot's outbound traffic transits the proxy.
+
+The proxy:
+
+- **Does NOT terminate TLS.** Bytes are piped through transparently. Cortex never sees the request body, response body, or any prompt content.
+- **Inspects only the TLS ClientHello SNI** — the destination hostname Copilot is contacting. Logged as `egress_connection` events to `.context/audit/host-events-*.jsonl` with `{ destination: { host, port }, sni, protocol, bytes_client_to_server, bytes_server_to_client, duration_ms, host_id }`.
+- **For HTTP (non-CONNECT) requests**, logs the `Host` header in place of SNI.
+- **Survives daemon restarts** — the daemon re-binds the port on next start; in-flight connections fail and Copilot retries.
+
+The events flow to cortex-web via the host-events pusher (Fas 7) and surface in `/dashboard/govern` recent activity. A revisor sees per-session destinations (`api.githubcopilot.com`, `api.github.com`, etc) without ever seeing the prompt text — the privacy boundary v3 holds end-to-end.
+
+To disable the proxy entirely (e.g. on a host without internet egress restrictions): set `CORTEX_DISABLE_EGRESS_PROXY=1` in the daemon's environment. To pick a different port: `CORTEX_EGRESS_PROXY_PORT=18889`.
+
+If a developer bypasses `cortex run copilot` and invokes the real Copilot binary directly, their HTTPS_PROXY is unset and the egress is invisible to cortex. Tier 3 detection still catches the unwrapped invocation within ~60s, so the gap is bounded; pair with an OS-level firewall rule that blocks Copilot CLI's outbound traffic except via the proxy if your threat model requires it.
 
 ## Effective security posture
 

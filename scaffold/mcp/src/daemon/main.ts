@@ -21,6 +21,7 @@ import {
 } from "./heartbeat-tracker.js";
 import { startSyncTimer } from "./sync-checker.js";
 import { startHostEventsPusher } from "./host-events-pusher.js";
+import { startEgressProxy } from "./egress-proxy.js";
 import type { HeartbeatPayload, HeartbeatResult } from "./protocol.js";
 
 /**
@@ -198,6 +199,26 @@ async function main(): Promise<void> {
   }
   if (process.env.CORTEX_DISABLE_HOST_EVENTS_PUSH !== "1") {
     startHostEventsPusher(process.cwd(), pushIntervalMs);
+  }
+
+  // Phase 4 task 19: cortex egress proxy. Logs SNI + destination per
+  // outbound connection (no TLS termination). cortex run sets
+  // HTTPS_PROXY/HTTP_PROXY for the Copilot wrap; other AI CLIs respect
+  // these env vars too if a developer wires them in.
+  const proxyPortRaw = parseInt(process.env.CORTEX_EGRESS_PROXY_PORT ?? "", 10);
+  const proxyPort = Number.isFinite(proxyPortRaw) && proxyPortRaw > 0 ? proxyPortRaw : 18888;
+  if (process.env.CORTEX_DISABLE_EGRESS_PROXY !== "1") {
+    startEgressProxy({ cwd: process.cwd(), port: proxyPort })
+      .then((handle) => {
+        process.stderr.write(
+          `[cortex-daemon] egress proxy listening on 127.0.0.1:${handle.port}\n`,
+        );
+      })
+      .catch((err) => {
+        process.stderr.write(
+          `[cortex-daemon] egress proxy failed to start: ${err instanceof Error ? err.message : String(err)}\n`,
+        );
+      });
   }
 
   if (process.env.CORTEX_DISABLE_TAMPER_CHECK !== "1") {

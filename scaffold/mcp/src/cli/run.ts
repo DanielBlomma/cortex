@@ -90,9 +90,10 @@ export type RunOptions = {
   excludePaths?: string[];
 };
 
-function spawnAndWait(cmd: string, args: string[]): Promise<number> {
+function spawnAndWait(cmd: string, args: string[], extraEnv?: Record<string, string>): Promise<number> {
   return new Promise((resolve) => {
-    const child = spawn(cmd, args, { stdio: "inherit" });
+    const env = extraEnv ? { ...process.env, ...extraEnv } : process.env;
+    const child = spawn(cmd, args, { stdio: "inherit", env });
     child.on("exit", (code, signal) => {
       if (signal) resolve(128);
       else resolve(code ?? 1);
@@ -126,13 +127,21 @@ export async function runAiCli(options: RunOptions): Promise<number> {
     return 1;
   }
 
+  const proxyPort = process.env.CORTEX_EGRESS_PROXY_PORT ?? "18888";
+  const proxyEnv: Record<string, string> = {
+    HTTPS_PROXY: `http://127.0.0.1:${proxyPort}`,
+    HTTP_PROXY: `http://127.0.0.1:${proxyPort}`,
+    https_proxy: `http://127.0.0.1:${proxyPort}`,
+    http_proxy: `http://127.0.0.1:${proxyPort}`,
+  };
+
   const os = platform();
   if (os === "darwin") {
     const profile = buildDarwinSandboxProfile(home);
     const tmpProfile = join(tmpdir(), `cortex-copilot-${randomUUID()}.sb`);
     writeFileSync(tmpProfile, profile);
     try {
-      return await spawnAndWait("sandbox-exec", ["-f", tmpProfile, real, ...args]);
+      return await spawnAndWait("sandbox-exec", ["-f", tmpProfile, real, ...args], proxyEnv);
     } finally {
       try {
         unlinkSync(tmpProfile);
@@ -142,7 +151,7 @@ export async function runAiCli(options: RunOptions): Promise<number> {
     }
   }
   if (os === "linux") {
-    return spawnAndWait("bwrap", buildLinuxBwrapArgs(home, real, args));
+    return spawnAndWait("bwrap", buildLinuxBwrapArgs(home, real, args), proxyEnv);
   }
   console.error(`✗ Tier 2 (wrap) for copilot not yet supported on ${os}.`);
   return 1;
