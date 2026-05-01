@@ -27,7 +27,7 @@ node_modules/
 mcp/.npm-cache/
 
 # Build output
-mcp/dist/
+mcp/
 scaffold/mcp/dist/
 scaffold/scripts/parsers/dotnet/**/bin/
 scaffold/scripts/parsers/dotnet/**/obj/
