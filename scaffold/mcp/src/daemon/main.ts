@@ -13,6 +13,7 @@ import { loadEnterpriseConfig, resolveEnterpriseActivation } from "../core/confi
 import { pushMetrics } from "../enterprise/telemetry/sync.js";
 import type { TelemetryMetrics } from "../core/telemetry/collector.js";
 import { AuditWriter, type AuditEntry } from "../core/audit/writer.js";
+import { startUngovernedScanner } from "./ungoverned-scanner.js";
 
 /**
  * Daemon entry point. Run by `cortex daemon start` (or auto-spawned by
@@ -147,6 +148,14 @@ async function main(): Promise<void> {
     onAuditLog: auditLog,
   });
   await daemon.start();
+
+  // Phase 5: Tier 3 ungoverned-session detection. Periodic process scan, audit
+  // emit per finding, optional SIGTERM in enforced mode (same-user only).
+  const scanInterval = parseInt(process.env.CORTEX_UNGOVERNED_SCAN_MS ?? "", 10);
+  const intervalMs = Number.isFinite(scanInterval) && scanInterval > 0 ? scanInterval : 60_000;
+  if (process.env.CORTEX_DISABLE_UNGOVERNED_SCAN !== "1") {
+    startUngovernedScanner({ cwd: process.cwd(), intervalMs });
+  }
 }
 
 main().catch((err) => {
