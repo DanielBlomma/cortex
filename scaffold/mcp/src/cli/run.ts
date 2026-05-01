@@ -14,6 +14,33 @@ import { randomUUID } from "node:crypto";
 export type RunCli = "claude" | "codex" | "copilot";
 export const RUN_CLIS: RunCli[] = ["claude", "codex", "copilot"];
 
+// Inline ANSI helper. Kept here (rather than imported from bin/style.mjs) so
+// the scaffold MCP stays self-contained — projects bundle scaffold/ on init
+// but do not pull bin/ into their tree. Style stays brand-aligned: cyan accent
+// (xterm-256 code 81), graceful degrade when the stream is not a TTY or when
+// NO_COLOR / CORTEX_NO_COLOR are set.
+function runHeaderSupportsColor(): boolean {
+  if (process.env.NO_COLOR) return false;
+  if (process.env.CORTEX_NO_COLOR) return false;
+  if (process.env.TERM === "dumb") return false;
+  return Boolean(process.stderr.isTTY);
+}
+
+function runHeaderUnicodeOk(): boolean {
+  if (process.env.CORTEX_NO_UNICODE) return false;
+  const locale = process.env.LC_ALL || process.env.LC_CTYPE || process.env.LANG || "";
+  if (!locale) return process.platform !== "win32";
+  return /UTF-?8/i.test(locale);
+}
+
+export function buildRunHeader(label: string): string {
+  const glyph = runHeaderUnicodeOk() ? "▸" : ">";
+  if (!runHeaderSupportsColor()) {
+    return `${glyph} ${label}`;
+  }
+  return `\x1b[38;5;81m${glyph}\x1b[0m ${label}`;
+}
+
 export const SHIM_MARKER = "# cortex-shim-v1";
 
 export function isCortexShim(filePath: string): boolean {
@@ -141,6 +168,7 @@ export async function runAiCli(options: RunOptions): Promise<number> {
     const tmpProfile = join(tmpdir(), `cortex-copilot-${randomUUID()}.sb`);
     writeFileSync(tmpProfile, profile);
     try {
+      process.stderr.write(buildRunHeader("cortex run copilot — Tier 2 wrap (sandbox-exec)") + "\n");
       return await spawnAndWait("sandbox-exec", ["-f", tmpProfile, real, ...args], proxyEnv);
     } finally {
       try {
@@ -151,6 +179,7 @@ export async function runAiCli(options: RunOptions): Promise<number> {
     }
   }
   if (os === "linux") {
+    process.stderr.write(buildRunHeader("cortex run copilot — Tier 2 wrap (bwrap)") + "\n");
     return spawnAndWait("bwrap", buildLinuxBwrapArgs(home, real, args), proxyEnv);
   }
   console.error(`✗ Tier 2 (wrap) for copilot not yet supported on ${os}.`);

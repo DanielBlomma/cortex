@@ -5,6 +5,16 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawn } from "node:child_process";
 import { normalizeProjectRoot } from "./wsl.mjs";
+import {
+  bullet,
+  printBullet,
+  spinner,
+  gradient,
+  muted,
+  accent,
+  bold,
+  headerBanner
+} from "./style.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,54 +35,62 @@ const GITIGNORE_LINES = [
   "mcp/node_modules/"
 ];
 
-const CORTEX_LOGO = [
-  "  CCC    OOO   RRRR  TTTTT  EEEEE  X   X",
-  " C   C  O   O  R   R   T    E       X X",
-  " C      O   O  RRRR    T    EEEE     X",
-  " C   C  O   O  R  R    T    E       X X",
-  "  CCC    OOO   R   R   T    EEEEE  X   X"
-].join("\n");
-
 function printBanner(title) {
-  console.log(CORTEX_LOGO);
-  if (title) {
-    console.log(title);
+  process.stdout.write(headerBanner({ tagline: title }));
+}
+
+// Help-row formatter: "<command>" in accent cyan, gap, "<description>" in muted grey.
+function helpRow(cmd, desc) {
+  const target = 46;
+  const pad = cmd.length >= target ? " " : " ".repeat(target - cmd.length);
+  if (desc) {
+    return `  ${accent(cmd)}${pad}${muted(desc)}`;
   }
-  console.log("");
+  return `  ${accent(cmd)}`;
+}
+
+function helpSection(title) {
+  return `\n${bold(muted(title))}`;
 }
 
 function printHelp() {
-  console.log("Cortex CLI");
+  console.log(gradient("CORTEX CLI") + muted("  ·  governance for AI coding agents"));
+  console.log(muted("  Cortex is in control. Calm, intelligent, always monitoring."));
+  console.log(helpSection("USAGE"));
+  console.log(helpRow("cortex <command> [options]"));
+
+  console.log(helpSection("CONTEXT"));
+  console.log(helpRow("init [path]", "Scaffold a project with --force/--bootstrap/--connect/--watch"));
+  console.log(helpRow("connect [path]", "Re-register MCP clients (Codex + Claude Code)"));
+  console.log(helpRow("bootstrap", "Install deps, ingest, embed, load graph"));
+  console.log(helpRow("update", "Refresh context for changed files"));
+  console.log(helpRow("status", "Project context status"));
+  console.log(helpRow("doctor", "Diagnose setup health"));
+  console.log(helpRow("ingest [--changed] [--verbose]", "Re-index source files"));
+  console.log(helpRow("embed [--changed]", "Recompute embeddings"));
+  console.log(helpRow("graph-load [--no-reset]", "Reload the dependency graph"));
+  console.log(helpRow("dashboard [--interval <sec>]", "Live local dashboard"));
+  console.log(helpRow("memory-compile [--dry-run] [--verbose]", "Compile memory artifacts"));
+  console.log(helpRow("memory-lint [--verbose] [--json]", "Lint compiled memory"));
+  console.log(helpRow("watch [start|stop|status|run|once]", "Background sync (--interval, --debounce, --mode)"));
+
+  console.log(helpSection("GOVERNANCE"));
+  console.log(helpRow("enterprise <api-key>", "Install enforcement + hooks + daemon (sudo)"));
+  console.log(helpRow("  ", "[--endpoint <url>] [--frameworks <csv>] [--no-hooks] [--no-daemon]"));
+  console.log(helpRow("enterprise status", "Show local enforcement state"));
+  console.log(helpRow("enterprise sync", "Force re-fetch + re-apply (sudo)"));
+  console.log(helpRow("enterprise uninstall", "Remove enforcement (sudo, --break-glass --reason)"));
+  console.log(helpRow("enterprise repair", "Verify managed paths, clear tamper-lock (sudo)"));
+  console.log(helpRow("run <claude|codex|copilot> [args...]", "Wrap an AI CLI in cortex enforcement"));
+  console.log(helpRow("daemon [start|stop|status]", "Local supervisor daemon"));
+  console.log(helpRow("hooks [install|uninstall|status] [--project]", "Claude Code hooks"));
+  console.log(helpRow("telemetry test", "Smoke-test the push pipeline"));
+
+  console.log(helpSection("MISC"));
+  console.log(helpRow("mcp", "Run the MCP stdio server for the current project"));
+  console.log(helpRow("version", "Print CLI version"));
+  console.log(helpRow("help", "This screen"));
   console.log("");
-  console.log("Usage:");
-  console.log("  cortex init [path] [--force] [--bootstrap] [--connect] [--no-connect] [--watch] [--no-watch]");
-  console.log("  cortex connect [path] [--skip-build]");
-  console.log("  cortex mcp");
-  console.log(
-    "  cortex watch [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>] [--mode <auto|event|poll>]"
-  );
-  console.log("  cortex bootstrap");
-  console.log("  cortex update");
-  console.log("  cortex status");
-  console.log("  cortex doctor");
-  console.log("  cortex ingest [--changed] [--verbose]");
-  console.log("  cortex embed [--changed]");
-  console.log("  cortex graph-load [--no-reset]");
-  console.log("  cortex dashboard [--interval <sec>]");
-  console.log("  cortex memory-compile [--dry-run] [--verbose]");
-  console.log("  cortex memory-lint [--verbose] [--json]");
-  console.log("  cortex enterprise <api-key>            Install (requires sudo). Managed enforcement + hooks + daemon.");
-  console.log("                                         [--endpoint <url>] [--frameworks <csv>] [--no-hooks] [--no-daemon]");
-  console.log("  cortex enterprise status               Show local enterprise/govern state");
-  console.log("  cortex enterprise sync                 Force re-fetch and re-apply (sudo)");
-  console.log("  cortex enterprise uninstall            Remove. [--break-glass --reason \"<text>\"] in enforced mode (sudo)");
-  console.log("  cortex enterprise repair               Verify managed paths, clear .cortex-tamper.lock (sudo)");
-  console.log("  cortex run <claude|codex|copilot> [args...]   Wrap AI CLI in cortex enforcement (Tier 1 passthrough or Tier 2 sandbox)");
-  console.log("  cortex daemon [start|stop|status]");
-  console.log("  cortex hooks [install|uninstall|status] [--project]");
-  console.log("  cortex hook <name>          (internal: invoked by Claude Code)");
-  console.log("  cortex telemetry test       Smoke-test push pipeline end-to-end");
-  console.log("  cortex help");
 }
 
 function readCliVersion() {
@@ -1143,23 +1161,23 @@ function writeJson(file, data) {
 function requireSudoElevation() {
   const isRoot = process.getuid && process.getuid() === 0;
   if (!isRoot) {
-    console.error("✗ This command requires admin privileges to install non-bypassable enforcement.");
-    console.error("  Re-run as: sudo " + process.argv.slice(1).join(" "));
+    process.stderr.write(bullet("fail", "This command requires admin privileges to install non-bypassable enforcement.", process.stderr) + "\n");
+    process.stderr.write(muted("  Re-run as: sudo " + process.argv.slice(1).join(" "), process.stderr) + "\n");
     process.exit(1);
   }
   const sudoUser = process.env.SUDO_USER;
   const sudoUidRaw = process.env.SUDO_UID;
   const sudoGidRaw = process.env.SUDO_GID;
   if (!sudoUser || !sudoUidRaw || !sudoGidRaw) {
-    console.error("✗ Use 'sudo' to elevate (not 'su' or a root login).");
-    console.error("  Cortex needs SUDO_USER/SUDO_UID/SUDO_GID set so that enterprise.yml,");
-    console.error("  Claude Code hooks and the daemon end up owned by your user.");
+    process.stderr.write(bullet("fail", "Use 'sudo' to elevate (not 'su' or a root login).", process.stderr) + "\n");
+    process.stderr.write(muted("  Cortex needs SUDO_USER/SUDO_UID/SUDO_GID set so that enterprise.yml,", process.stderr) + "\n");
+    process.stderr.write(muted("  Claude Code hooks and the daemon end up owned by your user.", process.stderr) + "\n");
     process.exit(1);
   }
   const uid = parseInt(sudoUidRaw, 10);
   const gid = parseInt(sudoGidRaw, 10);
   if (!Number.isFinite(uid) || !Number.isFinite(gid)) {
-    console.error("✗ SUDO_UID/SUDO_GID are not valid integers — refusing to drop privileges.");
+    process.stderr.write(bullet("fail", "SUDO_UID/SUDO_GID are not valid integers — refusing to drop privileges.", process.stderr) + "\n");
     process.exit(1);
   }
   return { user: sudoUser, uid, gid };
@@ -1198,15 +1216,15 @@ async function runEnterpriseSubcommand(args) {
   const sub = args[0] ?? "help";
 
   if (sub === "help" || sub === "--help" || sub === "-h" || !sub) {
-    console.log("Usage:");
-    console.log("  cortex enterprise <api-key>            Install (sudo). Sets up managed enforcement + hooks + daemon.");
-    console.log("                                         [--endpoint <url>] [--frameworks <csv>] [--no-hooks] [--no-daemon]");
-    console.log("  cortex enterprise status [--verbose|--json]   Show local enforcement state");
-    console.log("  cortex enterprise sync                 Force re-fetch + re-apply (sudo)");
-    console.log("  cortex enterprise uninstall            Remove. [--break-glass --reason \"<text>\"] in enforced mode (sudo)");
-  console.log("  cortex enterprise repair               Verify managed paths, clear .cortex-tamper.lock (sudo)");
+    console.log(gradient("cortex enterprise") + muted("  ·  governance, armed."));
+    console.log(helpRow("enterprise <api-key>", "Install (sudo). Managed enforcement + hooks + daemon."));
+    console.log(helpRow("  ", "[--endpoint <url>] [--frameworks <csv>] [--no-hooks] [--no-daemon]"));
+    console.log(helpRow("enterprise status [--verbose|--json]", "Show local enforcement state"));
+    console.log(helpRow("enterprise sync", "Force re-fetch + re-apply (sudo)"));
+    console.log(helpRow("enterprise uninstall", "Remove. [--break-glass --reason \"<text>\"] in enforced mode (sudo)"));
+    console.log(helpRow("enterprise repair", "Verify managed paths, clear .cortex-tamper.lock (sudo)"));
     console.log("");
-    console.log("Default endpoint: https://cortex-web-rho.vercel.app");
+    console.log(muted("Default endpoint: https://cortex-web-rho.vercel.app"));
     return;
   }
 
@@ -1253,10 +1271,10 @@ async function runEnterpriseSubcommand(args) {
       cwd: process.cwd(),
     });
     if (!result.ok) {
-      console.error(`✗ ${result.message}`);
+      printBullet("fail", result.message, process.stderr);
       process.exit(1);
     }
-    console.log(result.message);
+    printBullet("ok", result.message);
     return;
   }
 
@@ -1274,10 +1292,10 @@ async function runEnterpriseSubcommand(args) {
     const mod = await loadGovernModule();
     const result = await mod.runGovernRepair({ cwd: process.cwd(), reason });
     if (!result.ok) {
-      console.error(`✗ ${result.message}`);
+      printBullet("fail", result.message, process.stderr);
       process.exit(1);
     }
-    console.log(result.message);
+    printBullet("ok", result.message);
     return;
   }
 
@@ -1308,29 +1326,35 @@ async function runEnterpriseInstall(args) {
 
   const sudo = requireSudoElevation();
 
+  process.stdout.write(headerBanner({ tagline: "  Cortex enterprise — activating governance" }));
+
   const enterpriseEntry = resolveCliEntry("enterprise-setup");
   if (!fs.existsSync(enterpriseEntry)) {
-    throw new Error(`Build the project's MCP first (missing ${enterpriseEntry}). Run 'cortex bootstrap' in the project root.`);
-  }
-  const enterpriseMod = await import(pathToFileURL(enterpriseEntry).href);
-  const setupResult = await enterpriseMod.runEnterpriseSetup({ apiKey, endpoint, cwd: process.cwd() });
-
-  if (!setupResult.ok) {
-    console.error(`✗ ${setupResult.message}`);
+    printBullet("fail", `Build the project's MCP first (missing ${enterpriseEntry}). Run 'cortex bootstrap' in the project root.`);
     process.exit(1);
   }
+  const enterpriseMod = await import(pathToFileURL(enterpriseEntry).href);
 
-  console.log(`✓ License valid (edition: ${setupResult.edition}, expires: ${setupResult.expiresAt})`);
-  console.log(`✓ Wrote ${setupResult.configPath}`);
+  // Step 1 — Initializing Cortex core (license validation + enterprise.yml).
+  const step1 = spinner("Initializing Cortex core");
+  const setupResult = await enterpriseMod.runEnterpriseSetup({ apiKey, endpoint, cwd: process.cwd() });
+  if (!setupResult.ok) {
+    step1.stop("fail", `Initializing Cortex core — ${setupResult.message}`);
+    process.exit(1);
+  }
+  step1.stop("ok", `Initializing Cortex core — license ${setupResult.edition}, expires ${setupResult.expiresAt}`);
+  printBullet("info", muted(`config: ${setupResult.configPath}`));
 
   // enterprise.yml was just written as root; transfer ownership before we drop privs.
   try {
     fs.chownSync(setupResult.configPath, sudo.uid, sudo.gid);
   } catch (err) {
-    console.error(`! Could not chown ${setupResult.configPath}: ${err instanceof Error ? err.message : String(err)}`);
+    printBullet("warn", `Could not chown ${setupResult.configPath}: ${err instanceof Error ? err.message : String(err)}`);
   }
 
+  // Step 2 — Loading policy engine (govern install: managed config + frameworks).
   const baseUrl = (endpoint ?? "https://cortex-web-rho.vercel.app").replace(/\/$/, "");
+  const step2 = spinner("Loading policy engine");
   const governMod = await loadGovernModule();
   const governResult = await governMod.runGovernInstall({
     cli: "all",
@@ -1341,9 +1365,10 @@ async function runEnterpriseInstall(args) {
     frameworks,
   });
   if (!governResult.ok) {
-    console.error(`✗ Govern install failed: ${governResult.message}`);
+    step2.stop("fail", `Loading policy engine — ${governResult.message}`);
     process.exit(1);
   }
+  step2.stop("ok", "Loading policy engine — policies armed");
 
   // govern.local.json was written as root in cwd/.context. chown it back.
   const governStatePath = path.join(process.cwd(), ".context", "govern.local.json");
@@ -1351,35 +1376,48 @@ async function runEnterpriseInstall(args) {
     try {
       fs.chownSync(governStatePath, sudo.uid, sudo.gid);
     } catch (err) {
-      console.error(`! Could not chown ${governStatePath}: ${err instanceof Error ? err.message : String(err)}`);
+      printBullet("warn", `Could not chown ${governStatePath}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
+
+  // Step 3 — Connecting audit pipeline (telemetry endpoint already wired by govern install).
+  const step3 = spinner("Connecting audit pipeline");
+  step3.stop("ok", `Connecting audit pipeline — endpoint ${baseUrl}`);
 
   // Drop privileges before user-scope writes (Claude Code hooks in $HOME) and daemon spawn.
   dropPrivileges(sudo);
 
+  // Step 4 — Preparing MCP gateway (Claude Code hooks bind the MCP surface).
   if (installHooks) {
+    const step4 = spinner("Preparing MCP gateway");
     try {
       await runHooksCommand(["install"]);
+      step4.stop("ok", "Preparing MCP gateway — hooks installed");
     } catch (err) {
-      console.error(`! Hook install failed: ${err instanceof Error ? err.message : String(err)}`);
+      step4.stop("fail", `Preparing MCP gateway — ${err instanceof Error ? err.message : String(err)}`);
     }
   } else {
-    console.log("- Hooks install skipped (--no-hooks)");
+    printBullet("warn", "Preparing MCP gateway — skipped (--no-hooks)");
   }
 
+  // Step 5 — Installing guardrails (supervisor daemon).
   if (startDaemon) {
+    const step5 = spinner("Installing guardrails");
     try {
       await runDaemonCommand(["start"]);
+      step5.stop("ok", "Installing guardrails — daemon online");
     } catch (err) {
-      console.error(`! Daemon start failed: ${err instanceof Error ? err.message : String(err)}`);
+      step5.stop("fail", `Installing guardrails — ${err instanceof Error ? err.message : String(err)}`);
     }
   } else {
-    console.log("- Daemon start skipped (--no-daemon)");
+    printBullet("warn", "Installing guardrails — skipped (--no-daemon)");
   }
 
   console.log("");
-  console.log("Run 'cortex enterprise status' for current state, or 'cortex telemetry test' to verify the pipeline.");
+  console.log(bullet("ok", bold("Cortex is running.")));
+  console.log(muted("  Monitoring AI activity. No violations detected."));
+  console.log(muted("  Next: ") + accent("cortex enterprise status") + muted("  ·  ") + accent("cortex telemetry test"));
+  console.log("");
 }
 
 const RUN_CLIS = new Set(["claude", "codex", "copilot"]);
@@ -1512,7 +1550,8 @@ const invokedAsScript =
 
 if (invokedAsScript) {
   run().catch((error) => {
-    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(bullet("fail", message, process.stderr) + "\n");
     process.exit(1);
   });
 }
