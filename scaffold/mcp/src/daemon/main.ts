@@ -19,6 +19,8 @@ import {
   writeTamperLock,
   emitTamperAudit,
 } from "./heartbeat-tracker.js";
+import { startSyncTimer } from "./sync-checker.js";
+import { startHostEventsPusher } from "./host-events-pusher.js";
 import type { HeartbeatPayload, HeartbeatResult } from "./protocol.js";
 
 /**
@@ -181,6 +183,23 @@ async function main(): Promise<void> {
   const tamperCheckInterval = parseInt(process.env.CORTEX_TAMPER_CHECK_MS ?? "", 10);
   const tamperCheckMs =
     Number.isFinite(tamperCheckInterval) && tamperCheckInterval > 0 ? tamperCheckInterval : 60_000;
+  // Phase 7: periodic sync-version-check + host-events push to cortex-web.
+  // Daemon runs as the user post-Fas-3 privilege drop, so sync only checks
+  // version availability (writes a notification + audit). Re-applying
+  // managed-settings still requires 'sudo cortex enterprise sync'.
+  const syncIntervalRaw = parseInt(process.env.CORTEX_SYNC_CHECK_MS ?? "", 10);
+  const syncIntervalMs =
+    Number.isFinite(syncIntervalRaw) && syncIntervalRaw > 0 ? syncIntervalRaw : 60 * 60 * 1000;
+  const pushIntervalRaw = parseInt(process.env.CORTEX_HOST_EVENTS_PUSH_MS ?? "", 10);
+  const pushIntervalMs =
+    Number.isFinite(pushIntervalRaw) && pushIntervalRaw > 0 ? pushIntervalRaw : 5 * 60 * 1000;
+  if (process.env.CORTEX_DISABLE_SYNC_CHECK !== "1") {
+    startSyncTimer(process.cwd(), syncIntervalMs);
+  }
+  if (process.env.CORTEX_DISABLE_HOST_EVENTS_PUSH !== "1") {
+    startHostEventsPusher(process.cwd(), pushIntervalMs);
+  }
+
   if (process.env.CORTEX_DISABLE_TAMPER_CHECK !== "1") {
     const checkTimer = setInterval(() => {
       const detected = tracker.detectTamper({
