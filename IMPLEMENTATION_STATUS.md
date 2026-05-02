@@ -91,10 +91,10 @@ All core implementation is complete. The system is:
    - Adjust ranking to prefer chunks over files when relevant
    - Add chunk-specific search filters
 
-4. **New MCP Tools** (NOT YET DONE)
-   - `cortex_find_callers` - what calls this function?
-   - `cortex_trace_calls` - what does this function call?
-   - `cortex_impact_analysis` - if I change X, what breaks?
+4. **Impact tooling**
+   - Call-graph and blast-radius analysis is exposed through `context.impact`
+   - Dedicated `find_callers` / `trace_calls` / `impact_analysis` MCP tools are not shipped separately
+   - Keep docs and telemetry aligned with the consolidated `context.impact` surface
 
 5. **Re-run benchmark**
    - TrafficQualityReportService with chunking enabled

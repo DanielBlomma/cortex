@@ -9,9 +9,7 @@ When answering questions about this codebase, you MUST use Cortex tools instead 
 - **context.search** — Search before answering any code question. Never guess at implementations.
 - **context.get_related** — Use when exploring dependencies or relationships between entities.
 - **context.get_rules** — Check architectural rules before suggesting changes.
-- **context.find_callers** — Use when understanding who calls a function.
-- **context.trace_calls** — Use when tracing execution flow.
-- **context.impact_analysis** — Use before refactoring to understand blast radius.
+- **context.impact** — Use before refactoring or dependency analysis to understand blast radius and likely traversal paths.
 - **context.reload** — Use after making significant changes to refresh the index.
 
 Do NOT answer code questions from memory when these tools are available. Always search first.

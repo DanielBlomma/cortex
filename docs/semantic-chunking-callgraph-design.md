@@ -119,10 +119,12 @@ CREATE REL TABLE IF NOT EXISTS IMPORTS(FROM Chunk TO File, import_name STRING);
 
 ### Phase 4: MCP Tool Updates
 
-**New MCP tools:**
+**New MCP tools (design-time proposal):**
 1. `cortex_trace_calls` — "what does this function call?"
 2. `cortex_find_callers` — "what calls this function?"
 3. `cortex_impact_analysis` — "if I change X, what breaks?"
+
+In the shipped surface, these ideas were consolidated into `context.impact`.
 
 **Updated tools:**
 - `cortex_search` — now returns chunks when more relevant than files

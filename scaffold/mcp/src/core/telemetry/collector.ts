@@ -167,6 +167,7 @@ export class TelemetryCollector {
       case "context.trace_calls":
         this.metrics.trace_lookups++;
         break;
+      case "context.impact":
       case "context.impact_analysis":
         this.metrics.impact_analyses++;
         break;

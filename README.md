@@ -255,30 +255,9 @@ Input:
 - `depth` (int, 1-3, default `1`)
 - `include_edges` (bool, default `true`)
 
-### `context.find_callers`
+### `context.impact`
 
-Return chunk callers for a chunk or file entity using the indexed call graph.
-
-Input:
-
-- `entity_id` (string, required)
-- `depth` (int, 1-4, default `1`)
-- `include_edges` (bool, default `true`)
-
-### `context.trace_calls`
-
-Trace call graph neighbors from a chunk or file entity in the requested direction.
-
-Input:
-
-- `entity_id` (string, required)
-- `depth` (int, 1-4, default `2`)
-- `direction` (`"outgoing"` | `"incoming"` | `"both"`, default `"outgoing"`)
-- `include_edges` (bool, default `true`)
-
-### `context.impact_analysis`
-
-Analyze likely impacted call-graph entities starting from an entity id or search query.
+Traverse likely impact paths across config, code and SQL starting from an entity id or query.
 
 Input:
 
@@ -286,8 +265,9 @@ Input:
 - `query` (string, optional)
 - `depth` (int, 1-4, default `2`)
 - `top_k` (int, 1-20, default `8`)
-- `direction` (`"incoming"` | `"outgoing"` | `"both"`, default `"incoming"`)
 - `include_edges` (bool, default `true`)
+- `profile` (`"all"` | `"config_only"` | `"config_to_sql"` | `"code_only"` | `"sql_only"`, default `"all"`)
+- `sort_by` (`"impact_score"` | `"shortest_path"` | `"semantic_score"` | `"graph_score"` | `"trust_score"`, default `"impact_score"`)
 
 ### `context.get_rules`
 

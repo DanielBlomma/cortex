@@ -32,12 +32,10 @@
 
 Cortex can extract function-level chunks and build call graphs in experimental builds:
 
-- `context.find_callers` - What calls this function?
-- `context.trace_calls` - What does this function call?
-- `context.impact_analysis` - What is impacted if this function changes?
-- Requires JavaScript/TypeScript codebase and semantic chunking/call graph indexing enabled.
+- `context.impact` - Traverse likely impact paths across code, config, and SQL starting from an entity or query.
+- Requires semantic chunking and graph indexing to be meaningfully populated.
 
-Note: these APIs are experimental and are not part of the stable tool contract in this submission.
+Note: call-graph analysis is currently exposed through `context.impact`, not separate `find_callers` or `trace_calls` tools.
 
 ### Installation
 

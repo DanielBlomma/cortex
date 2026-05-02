@@ -121,11 +121,15 @@ Deliverable:
 
 Expose call graph features already supported by the data model.
 
-Planned tools:
+Planned tools at the time:
 
 - `context.find_callers`
 - `context.trace_calls`
 - `context.impact_analysis`
+
+Current state:
+
+- these ideas were consolidated into `context.impact` rather than shipped as three separate MCP tools
 
 Deliverable:
 
