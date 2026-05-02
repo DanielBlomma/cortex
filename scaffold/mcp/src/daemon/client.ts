@@ -24,11 +24,14 @@ export type CallResult<T> =
   | { ok: true; result: T }
   | { ok: false; error: string };
 
-function isProcessAlive(pid: number): boolean {
+export function isProcessAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
+  } catch (err) {
+    if (err && typeof err === "object" && "code" in err && err.code === "EPERM") {
+      return true;
+    }
     return false;
   }
 }

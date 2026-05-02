@@ -19,6 +19,7 @@ export type ScannerOptions = {
 };
 
 const DEFAULT_INTERVAL_MS = 60_000;
+const TIER1_CLIS = new Set(["claude", "codex"]);
 
 function readMode(cwd: string): EnforcementMode {
   const stateFile = join(cwd, ".context", "govern.local.json");
@@ -37,6 +38,34 @@ function readMode(cwd: string): EnforcementMode {
   }
 }
 
+function readManagedTier1Clis(cwd: string): Set<string> {
+  const stateFile = join(cwd, ".context", "govern.local.json");
+  const managed = new Set<string>();
+  if (!existsSync(stateFile)) return managed;
+  try {
+    const raw = readFileSync(stateFile, "utf8");
+    const parsed = JSON.parse(raw) as {
+      installs?: Record<string, { path?: string }>;
+    };
+    for (const [cli, inst] of Object.entries(parsed.installs ?? {})) {
+      if (!TIER1_CLIS.has(cli)) continue;
+      if (!inst?.path || !existsSync(inst.path)) continue;
+      managed.add(cli);
+    }
+  } catch {
+    return managed;
+  }
+  return managed;
+}
+
+function filterManagedTier1Findings(
+  findings: UngovernedFinding[],
+  managedTier1Clis: Set<string>,
+): UngovernedFinding[] {
+  if (managedTier1Clis.size === 0) return findings;
+  return findings.filter((finding) => !managedTier1Clis.has(finding.cli));
+}
+
 export async function writeHostAuditEvent(
   cwd: string,
   event: Record<string, unknown>,
@@ -50,7 +79,11 @@ export async function writeHostAuditEvent(
 
 export async function runScanOnce(options: ScannerOptions): Promise<UngovernedFinding[]> {
   const mode = options.mode ?? readMode(options.cwd);
-  const findings = detectUngoverned(options.detectorOptions);
+  const managedTier1Clis = readManagedTier1Clis(options.cwd);
+  const findings = filterManagedTier1Findings(
+    detectUngoverned(options.detectorOptions),
+    managedTier1Clis,
+  );
   const me = userInfo().username;
   for (const finding of findings) {
     const action = enforceFinding(finding, { mode, currentUser: me });

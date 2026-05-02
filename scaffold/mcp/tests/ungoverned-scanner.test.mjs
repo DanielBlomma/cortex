@@ -6,15 +6,18 @@ import path from "node:path";
 
 import { runScanOnce, writeHostAuditEvent, startUngovernedScanner } from "../dist/daemon/ungoverned-scanner.js";
 
-function makeWorkspace(governMode) {
+function makeWorkspace(governMode, installs = null) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-ungoverned-"));
   const ctx = path.join(root, ".context");
   fs.mkdirSync(ctx, { recursive: true });
   if (governMode) {
+    const defaultInstalls = {
+      claude: { mode: governMode, path: "/x", version: "v", frameworks: [], installed_at: "now" },
+    };
     fs.writeFileSync(
       path.join(ctx, "govern.local.json"),
       JSON.stringify({
-        installs: { claude: { mode: governMode, path: "/x", version: "v", frameworks: [], installed_at: "now" } },
+        installs: installs ?? defaultInstalls,
       }),
     );
   }
@@ -116,6 +119,57 @@ test("runScanOnce: emits onFinding callback per detection", async () => {
     assert.equal(seen.length, 2);
     assert.deepEqual(seen.map((s) => s.cli).sort(), ["codex", "copilot"]);
     for (const s of seen) assert.equal(s.action, "logged");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("runScanOnce: skips Tier 1 CLIs that already have managed installs", async () => {
+  const { root } = makeWorkspace("enforced");
+  const managedClaudePath = path.join(root, "managed-settings.json");
+  fs.writeFileSync(managedClaudePath, "{}\n");
+  const managedCodexPath = path.join(root, "requirements.toml");
+  fs.writeFileSync(managedCodexPath, "# managed\n");
+  fs.writeFileSync(
+    path.join(root, ".context", "govern.local.json"),
+    JSON.stringify({
+      installs: {
+        claude: {
+          mode: "enforced",
+          path: managedClaudePath,
+          version: "v1",
+          frameworks: [],
+          installed_at: "now",
+        },
+        codex: {
+          mode: "enforced",
+          path: managedCodexPath,
+          version: "v2",
+          frameworks: [],
+          installed_at: "now",
+        },
+      },
+    }),
+  );
+  try {
+    const fakeProcs = [
+      { pid: 200, ppid: 1, user: os.userInfo().username, comm: "claude", args: "claude --prompt hi" },
+      { pid: 300, ppid: 1, user: os.userInfo().username, comm: "codex", args: "codex exec hi" },
+      { pid: 400, ppid: 1, user: os.userInfo().username, comm: "copilot", args: "copilot suggest" },
+    ];
+    const findings = await runScanOnce({
+      cwd: root,
+      mode: "enforced",
+      detectorOptions: { processes: fakeProcs, hostId: "test-host" },
+    });
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].cli, "copilot");
+
+    const date = new Date().toISOString().slice(0, 10);
+    const file = path.join(root, ".context", "audit", `host-events-${date}.jsonl`);
+    const events = fs.readFileSync(file, "utf8").trim().split("\n").map(JSON.parse);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].cli, "copilot");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

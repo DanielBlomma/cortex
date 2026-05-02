@@ -1029,7 +1029,10 @@ function isPidAlive(pid) {
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
+  } catch (err) {
+    if (err && typeof err === "object" && err.code === "EPERM") {
+      return true;
+    }
     return false;
   }
 }
@@ -1133,6 +1136,16 @@ const HOOK_DEFS = [
   { event: "PreCompact", matcher: undefined, name: "pre-compact" },
 ];
 
+function managedClaudeSettingsPath() {
+  if (process.platform === "darwin") {
+    return "/Library/Application Support/ClaudeCode/managed-settings.json";
+  }
+  if (process.platform === "linux") {
+    return "/etc/claude-code/managed-settings.json";
+  }
+  return null;
+}
+
 function settingsPathFor(scope) {
   if (scope === "project") {
     return path.join(process.cwd(), ".claude", "settings.json");
@@ -1160,6 +1173,23 @@ function readJsonSafe(file) {
   } catch {
     return {};
   }
+}
+
+function hookInstalledInSettings(settings, def) {
+  const rows = settings.hooks?.[def.event] || [];
+  return rows.some((row) => (row.hooks?.[0]?.command || "").startsWith(`cortex hook ${def.name}`));
+}
+
+function readManagedClaudeSettings() {
+  const file = managedClaudeSettingsPath();
+  if (!file) return { file: null, settings: {} };
+  return { file, settings: readJsonSafe(file) };
+}
+
+function hasManagedClaudeHooks() {
+  const { settings } = readManagedClaudeSettings();
+  if (settings.allowManagedHooksOnly !== true) return false;
+  return HOOK_DEFS.every((def) => hookInstalledInSettings(settings, def));
 }
 
 function writeJson(file, data) {
@@ -1404,8 +1434,12 @@ async function runEnterpriseInstall(args) {
   if (installHooks) {
     const step4 = spinner("Preparing MCP gateway");
     try {
-      await runHooksCommand(["install"]);
-      step4.stop("ok", "Preparing MCP gateway — hooks installed");
+      if (hasManagedClaudeHooks()) {
+        step4.stop("ok", "Preparing MCP gateway — managed Claude hooks active");
+      } else {
+        await runHooksCommand(["install"]);
+        step4.stop("ok", "Preparing MCP gateway — hooks installed");
+      }
     } catch (err) {
       step4.stop("fail", `Preparing MCP gateway — ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -1534,15 +1568,27 @@ async function runHooksCommand(args) {
   }
   if (sub === "status") {
     const settings = readJsonSafe(target);
+    const managed = scope === "user" ? readManagedClaudeSettings() : { file: null, settings: {} };
     const installed = [];
     for (const def of HOOK_DEFS) {
-      const rows = settings.hooks?.[def.event] || [];
-      const found = rows.some((row) => (row.hooks?.[0]?.command || "").startsWith(`cortex hook ${def.name}`));
-      installed.push({ name: def.name, event: def.event, found });
+      const userFound = hookInstalledInSettings(settings, def);
+      const managedFound = scope === "user" ? hookInstalledInSettings(managed.settings, def) : false;
+      const found = userFound || managedFound;
+      let source = "";
+      if (userFound && managedFound) source = "user+managed";
+      else if (userFound) source = "user";
+      else if (managedFound) source = "managed";
+      installed.push({ name: def.name, event: def.event, found, source });
     }
     console.log(`Settings file: ${target}`);
+    if (scope === "user" && managed.file) {
+      console.log(`Managed settings: ${managed.file}`);
+    }
     for (const row of installed) {
-      console.log(`  ${row.found ? "✓" : "✗"} ${row.event} → ${row.name}`);
+      console.log(`  ${row.found ? "✓" : "✗"} ${row.event} → ${row.name}${row.source ? ` (${row.source})` : ""}`);
+    }
+    if (scope === "user" && managed.settings.allowManagedHooksOnly === true) {
+      console.log("  note: managed Claude hooks are authoritative; user hooks may be intentionally absent");
     }
     return;
   }
