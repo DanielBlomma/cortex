@@ -443,6 +443,8 @@ async function main(): Promise<void> {
 
   if (reset) {
     fs.rmSync(DB_PATH, { recursive: true, force: true });
+    fs.rmSync(`${DB_PATH}.wal`, { force: true });
+    fs.rmSync(`${DB_PATH}.shm`, { force: true });
   }
   fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
