@@ -40,11 +40,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd mcp && npm ci
+          cd scaffold/mcp && npm ci
           npm i -g mcporter || true
 
       - name: Build Cortex MCP
-        run: cd mcp && npm run build
+        run: cd scaffold/mcp && npm run build
 
       - name: Ingest test codebase
         run: |

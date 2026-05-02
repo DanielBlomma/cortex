@@ -54,7 +54,7 @@ jobs:
           node tests/context-regressions.test.mjs
 
       - name: Run MCP build and tests
-        working-directory: mcp
+        working-directory: scaffold/mcp
         run: |
           npm ci
           npm run build --silent
