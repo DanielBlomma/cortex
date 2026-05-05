@@ -90,6 +90,32 @@ function readMetrics(contextDir: string): TelemetryMetrics | null {
   }
 }
 
+// Per-cwd exponential backoff so a flapping endpoint doesn't get hammered.
+// 1m, 2m, 4m, 8m, 16m, cap 30m. Reset on success.
+type TelemetryBackoffState = { nextPushAt: number; consecutiveFailures: number };
+const telemetryBackoff = new Map<string, TelemetryBackoffState>();
+const TELEMETRY_BACKOFF_BASE_MS = 60_000;
+const TELEMETRY_BACKOFF_CAP_MS = 30 * 60_000;
+
+function shouldSkipTelemetryPush(cwd: string, now = Date.now()): boolean {
+  const state = telemetryBackoff.get(cwd);
+  return state ? now < state.nextPushAt : false;
+}
+
+function recordTelemetryPushOutcome(cwd: string, success: boolean, now = Date.now()): void {
+  if (success) {
+    telemetryBackoff.delete(cwd);
+    return;
+  }
+  const prev = telemetryBackoff.get(cwd) ?? { nextPushAt: 0, consecutiveFailures: 0 };
+  const failures = prev.consecutiveFailures + 1;
+  const delay = Math.min(TELEMETRY_BACKOFF_BASE_MS * 2 ** (failures - 1), TELEMETRY_BACKOFF_CAP_MS);
+  telemetryBackoff.set(cwd, {
+    consecutiveFailures: failures,
+    nextPushAt: now + delay,
+  });
+}
+
 async function telemetryFlush(
   payload: TelemetryFlushPayload,
 ): Promise<TelemetryFlushResult> {
@@ -114,9 +140,11 @@ async function telemetryFlush(
 
   const metrics = readMetrics(contextDir);
   if (!metrics) {
-    // No metrics on disk yet — MCP probably hasn't flushed once. Nothing
-    // to push from disk. (MCP's interval flush + session-end push handle
-    // the in-memory case.)
+    // No metrics on disk yet — MCP hasn't flushed. Nothing to push.
+    return { flushed: false, events_pushed: 0 };
+  }
+
+  if (shouldSkipTelemetryPush(cwd)) {
     return { flushed: false, events_pushed: 0 };
   }
 
@@ -130,6 +158,8 @@ async function telemetryFlush(
       push_id: randomUUID(),
     },
   );
+
+  recordTelemetryPushOutcome(cwd, result.success);
 
   if (!result.success) {
     process.stderr.write(
