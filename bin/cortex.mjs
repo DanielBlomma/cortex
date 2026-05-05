@@ -1046,44 +1046,16 @@ function resolveProjectMcpDist() {
   return path.join(target, "mcp", "dist");
 }
 
-// Walk up from cwd to filesystem root, collecting every existing
-// <ancestor>/mcp/dist/<subdir>/<name>.js along the way, and return the
-// outermost one. The umbrella project is by definition the highest
-// ancestor that has a bootstrapped cortex install — that's the one
-// that owns the daemon, hooks, telemetry pipeline, and shared context
-// across all subrepos. Inner matches (e.g. cortex/scaffold/mcp/dist
-// from a tsc build) must not shadow it.
-//
-// CORTEX_PROJECT_ROOT remains an explicit override. Final fallback is
-// the cwd-based path so error messages still point at something
-// reasonable when nothing is bootstrapped at all.
-function resolveProjectEntry(subdir, name) {
-  const filename = `${name}.js`;
-  const override = process.env.CORTEX_PROJECT_ROOT?.trim();
-  if (override) return path.join(override, "mcp", "dist", subdir, filename);
-  let dir = path.resolve(process.cwd());
-  const { root } = path.parse(dir);
-  let outermost = null;
-  while (true) {
-    const candidate = path.join(dir, "mcp", "dist", subdir, filename);
-    if (fs.existsSync(candidate)) outermost = candidate;
-    if (dir === root) break;
-    dir = path.dirname(dir);
-  }
-  if (outermost) return outermost;
-  return path.join(process.cwd(), "mcp", "dist", subdir, filename);
-}
-
 function resolveDaemonEntry() {
-  return resolveProjectEntry("daemon", "main");
+  return path.join(resolveProjectMcpDist(), "daemon", "main.js");
 }
 
 function resolveHookEntry(name) {
-  return resolveProjectEntry("hooks", name);
+  return path.join(resolveProjectMcpDist(), "hooks", `${name}.js`);
 }
 
 function resolveCliEntry(name) {
-  return resolveProjectEntry("cli", name);
+  return path.join(resolveProjectMcpDist(), "cli", `${name}.js`);
 }
 
 async function runDaemonCommand(args) {
