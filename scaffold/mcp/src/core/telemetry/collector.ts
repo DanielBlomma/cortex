@@ -95,6 +95,43 @@ export type TelemetryEvent = {
   duration_ms?: number;
 };
 
+function subtractCounter(current: number, pushed: number): number {
+  return Math.max(0, current - pushed);
+}
+
+function hasUsage(metrics: TelemetryMetrics): boolean {
+  if (
+    metrics.total_tool_calls > 0 ||
+    metrics.successful_tool_calls > 0 ||
+    metrics.failed_tool_calls > 0 ||
+    metrics.total_duration_ms > 0 ||
+    metrics.session_starts > 0 ||
+    metrics.session_ends > 0 ||
+    metrics.session_duration_ms_total > 0 ||
+    metrics.searches > 0 ||
+    metrics.related_lookups > 0 ||
+    metrics.caller_lookups > 0 ||
+    metrics.trace_lookups > 0 ||
+    metrics.impact_analyses > 0 ||
+    metrics.rule_lookups > 0 ||
+    metrics.reloads > 0 ||
+    metrics.total_results_returned > 0 ||
+    metrics.estimated_tokens_saved > 0 ||
+    metrics.estimated_tokens_total > 0
+  ) {
+    return true;
+  }
+
+  return Object.values(metrics.tool_metrics).some(
+    (bucket) =>
+      bucket.calls > 0 ||
+      bucket.failures > 0 ||
+      bucket.total_duration_ms > 0 ||
+      bucket.total_results_returned > 0 ||
+      bucket.estimated_tokens_saved > 0,
+  );
+}
+
 export class TelemetryCollector {
   private metrics: TelemetryMetrics;
   private readonly metricsPath: string;
@@ -212,7 +249,143 @@ export class TelemetryCollector {
   }
 
   getMetrics(): TelemetryMetrics {
-    return { ...this.metrics };
+    return {
+      ...this.metrics,
+      tool_metrics: Object.fromEntries(
+        Object.entries(this.metrics.tool_metrics).map(([toolName, bucket]) => [
+          toolName,
+          { ...bucket },
+        ]),
+      ),
+    };
+  }
+
+  acknowledgePush(pushed: TelemetryMetrics): void {
+    const nextToolMetrics: TelemetryMetrics["tool_metrics"] = {};
+    const toolNames = new Set([
+      ...Object.keys(this.metrics.tool_metrics),
+      ...Object.keys(pushed.tool_metrics ?? {}),
+    ]);
+
+    for (const toolName of toolNames) {
+      const currentBucket = this.metrics.tool_metrics[toolName] ?? {
+        calls: 0,
+        failures: 0,
+        total_duration_ms: 0,
+        total_results_returned: 0,
+        estimated_tokens_saved: 0,
+      };
+      const pushedBucket = pushed.tool_metrics?.[toolName] ?? {
+        calls: 0,
+        failures: 0,
+        total_duration_ms: 0,
+        total_results_returned: 0,
+        estimated_tokens_saved: 0,
+      };
+
+      const nextBucket = {
+        calls: subtractCounter(currentBucket.calls, pushedBucket.calls),
+        failures: subtractCounter(currentBucket.failures, pushedBucket.failures),
+        total_duration_ms: subtractCounter(
+          currentBucket.total_duration_ms,
+          pushedBucket.total_duration_ms,
+        ),
+        total_results_returned: subtractCounter(
+          currentBucket.total_results_returned,
+          pushedBucket.total_results_returned,
+        ),
+        estimated_tokens_saved: subtractCounter(
+          currentBucket.estimated_tokens_saved,
+          pushedBucket.estimated_tokens_saved,
+        ),
+      };
+
+      if (
+        nextBucket.calls > 0 ||
+        nextBucket.failures > 0 ||
+        nextBucket.total_duration_ms > 0 ||
+        nextBucket.total_results_returned > 0 ||
+        nextBucket.estimated_tokens_saved > 0
+      ) {
+        nextToolMetrics[toolName] = nextBucket;
+      }
+    }
+
+    const nextMetrics: TelemetryMetrics = {
+      ...this.metrics,
+      period_start: pushed.period_end,
+      total_tool_calls: subtractCounter(
+        this.metrics.total_tool_calls,
+        pushed.total_tool_calls,
+      ),
+      successful_tool_calls: subtractCounter(
+        this.metrics.successful_tool_calls,
+        pushed.successful_tool_calls,
+      ),
+      failed_tool_calls: subtractCounter(
+        this.metrics.failed_tool_calls,
+        pushed.failed_tool_calls,
+      ),
+      total_duration_ms: subtractCounter(
+        this.metrics.total_duration_ms,
+        pushed.total_duration_ms,
+      ),
+      session_starts: subtractCounter(
+        this.metrics.session_starts,
+        pushed.session_starts,
+      ),
+      session_ends: subtractCounter(this.metrics.session_ends, pushed.session_ends),
+      session_duration_ms_total: subtractCounter(
+        this.metrics.session_duration_ms_total,
+        pushed.session_duration_ms_total,
+      ),
+      searches: subtractCounter(this.metrics.searches, pushed.searches),
+      related_lookups: subtractCounter(
+        this.metrics.related_lookups,
+        pushed.related_lookups,
+      ),
+      caller_lookups: subtractCounter(
+        this.metrics.caller_lookups,
+        pushed.caller_lookups,
+      ),
+      trace_lookups: subtractCounter(
+        this.metrics.trace_lookups,
+        pushed.trace_lookups,
+      ),
+      impact_analyses: subtractCounter(
+        this.metrics.impact_analyses,
+        pushed.impact_analyses,
+      ),
+      rule_lookups: subtractCounter(
+        this.metrics.rule_lookups,
+        pushed.rule_lookups,
+      ),
+      reloads: subtractCounter(this.metrics.reloads, pushed.reloads),
+      total_results_returned: subtractCounter(
+        this.metrics.total_results_returned,
+        pushed.total_results_returned,
+      ),
+      estimated_tokens_saved: subtractCounter(
+        this.metrics.estimated_tokens_saved,
+        pushed.estimated_tokens_saved,
+      ),
+      estimated_tokens_total: subtractCounter(
+        this.metrics.estimated_tokens_total,
+        pushed.estimated_tokens_total,
+      ),
+      client_version: this.clientVersion,
+      instance_id: this.instanceId,
+      tool_metrics: nextToolMetrics,
+    };
+
+    if (hasUsage(nextMetrics)) {
+      this.metrics = nextMetrics;
+      this.metrics.period_end = new Date().toISOString();
+    } else {
+      this.metrics = emptyMetrics(this.clientVersion, this.instanceId);
+    }
+
+    this.dirty = true;
   }
 
   flush(): void {

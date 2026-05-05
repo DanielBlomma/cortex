@@ -11,7 +11,7 @@ import type {
 } from "./protocol.js";
 import { loadEnterpriseConfig, resolveEnterpriseActivation } from "../core/config.js";
 import { pushMetrics } from "../enterprise/telemetry/sync.js";
-import type { TelemetryMetrics } from "../core/telemetry/collector.js";
+import { TelemetryCollector, type TelemetryMetrics } from "../core/telemetry/collector.js";
 import { AuditWriter, type AuditEntry } from "../core/audit/writer.js";
 import { PolicyStore } from "../core/policy/store.js";
 import {
@@ -135,6 +135,10 @@ async function telemetryFlush(
     );
     return { flushed: false, events_pushed: 0 };
   }
+
+  const collector = new TelemetryCollector(contextDir, metrics.client_version || "unknown");
+  collector.acknowledgePush(metrics);
+  collector.flush();
 
   return {
     flushed: true,

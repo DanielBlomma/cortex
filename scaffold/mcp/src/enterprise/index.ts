@@ -206,8 +206,9 @@ export async function onSessionEnd(): Promise<void> {
   if (config.telemetry.enabled && config.telemetry.endpoint && activeCollector) {
     activeCollector.flush();
     try {
+      const snapshot = activeCollector.getMetrics();
       const result = await pushMetrics(
-        activeCollector.getMetrics(),
+        snapshot,
         config.telemetry.endpoint,
         config.telemetry.api_key,
         {
@@ -217,6 +218,9 @@ export async function onSessionEnd(): Promise<void> {
       );
       if (!result.success) {
         process.stderr.write(`[cortex-enterprise] Shutdown telemetry push failed: ${result.error}\n`);
+      } else {
+        activeCollector.acknowledgePush(snapshot);
+        activeCollector.flush();
       }
     } catch (err) {
       process.stderr.write(`[cortex-enterprise] Shutdown telemetry push error: ${err}\n`);
@@ -355,11 +359,19 @@ export async function register(server: McpServer): Promise<void> {
   if (config.telemetry.enabled) {
     // Push any accumulated metrics from previous sessions on startup
     if (config.telemetry.endpoint) {
-      pushMetrics(collector.getMetrics(), config.telemetry.endpoint, config.telemetry.api_key, {
+      const startupSnapshot = collector.getMetrics();
+      pushMetrics(startupSnapshot, config.telemetry.endpoint, config.telemetry.api_key, {
         repo: activeRepo ?? undefined,
         session_id: activeSessionId ?? undefined,
       })
-        .then((r) => { if (!r.success) process.stderr.write(`[cortex-enterprise] Startup telemetry push failed: ${r.error}\n`); })
+        .then((r) => {
+          if (!r.success) {
+            process.stderr.write(`[cortex-enterprise] Startup telemetry push failed: ${r.error}\n`);
+            return;
+          }
+          collector.acknowledgePush(startupSnapshot);
+          collector.flush();
+        })
         .catch((err) => { process.stderr.write(`[cortex-enterprise] Startup telemetry push error: ${err}\n`); });
     }
 
@@ -368,10 +380,15 @@ export async function register(server: McpServer): Promise<void> {
       try {
         collector.flush();
         if (config.telemetry.endpoint) {
-          await pushMetrics(collector.getMetrics(), config.telemetry.endpoint, config.telemetry.api_key, {
+          const snapshot = collector.getMetrics();
+          const result = await pushMetrics(snapshot, config.telemetry.endpoint, config.telemetry.api_key, {
             repo: activeRepo ?? undefined,
             session_id: activeSessionId ?? undefined,
           });
+          if (result.success) {
+            collector.acknowledgePush(snapshot);
+            collector.flush();
+          }
         }
       } catch (err) {
         process.stderr.write(`[cortex-enterprise] Telemetry flush error: ${err}\n`);
