@@ -1,6 +1,6 @@
 {
   "name": "cortex",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Cortex MCP server for repo-scoped semantic context in Claude Code",
   "author": {
     "name": "Daniel Blomma",
