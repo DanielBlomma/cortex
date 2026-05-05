@@ -22,17 +22,20 @@ const PACKAGE_ROOT = path.resolve(__dirname, "..");
 const SCAFFOLD_ROOT = path.join(PACKAGE_ROOT, "scaffold");
 const PACKAGE_JSON_PATH = path.join(PACKAGE_ROOT, "package.json");
 
+// v2.0.5: project layout moved mcp/ under .context/mcp/, and the
+// gitignore policy flipped to "ignore everything in .context/, whitelist
+// only the three editable config files". Generated artifacts (db,
+// embeddings, cache, hooks, mcp/, govern.local.json) never land in git.
+const MCP_PROJECT_REL = path.join(".context", "mcp");
+
 const GITIGNORE_LINES = [
   "",
   "# Cortex local storage",
-  ".context/db/",
-  ".context/embeddings/",
-  ".context/cache/",
-  ".context/hooks/",
-  ".npm-cache/",
-  "mcp/.npm-cache/",
-  "mcp/dist/",
-  "mcp/node_modules/"
+  ".context/",
+  "!.context/config.yaml",
+  "!.context/rules.yaml",
+  "!.context/ontology.cypher",
+  ".npm-cache/"
 ];
 
 function printBanner(title) {
@@ -199,7 +202,6 @@ const INIT_SKIP_DIRECTORIES = new Set([
   ".cache",
   ".context",
   "scripts",
-  "mcp",
   ".githooks",
   "bin",
   "obj"
@@ -439,11 +441,26 @@ function mergeGitignore(targetDir) {
   fs.writeFileSync(gitignorePath, merged, "utf8");
 }
 
+function migrateLegacyMcpLocation(targetDir) {
+  const legacyMcp = path.join(targetDir, "mcp");
+  const newMcp = path.join(targetDir, MCP_PROJECT_REL);
+  if (!fs.existsSync(legacyMcp)) return;
+  if (fs.existsSync(newMcp)) return;
+  fs.mkdirSync(path.join(targetDir, ".context"), { recursive: true });
+  fs.renameSync(legacyMcp, newMcp);
+  console.log(
+    "[cortex] migrated legacy mcp/ → .context/mcp/ to keep project root clean. " +
+      "Re-run 'cortex connect' if Claude/Codex MCP registrations need to be refreshed.",
+  );
+}
+
 function installScaffold(targetDir, force) {
+  migrateLegacyMcpLocation(targetDir);
+
   const copyMap = [
     [path.join(SCAFFOLD_ROOT, ".context"), path.join(targetDir, ".context")],
     [path.join(SCAFFOLD_ROOT, "scripts"), path.join(targetDir, "scripts")],
-    [path.join(SCAFFOLD_ROOT, "mcp"), path.join(targetDir, "mcp")],
+    [path.join(SCAFFOLD_ROOT, "mcp"), path.join(targetDir, MCP_PROJECT_REL)],
     [path.join(SCAFFOLD_ROOT, ".githooks"), path.join(targetDir, ".githooks")]
   ];
 
@@ -633,7 +650,7 @@ async function connectClaude(targetDir) {
   }
 
   const serverName = "cortex";
-  const projectServerEntry = path.join("mcp", "dist", "server.js");
+  const projectServerEntry = path.join(MCP_PROJECT_REL, "dist", "server.js");
   await runCommandResult("claude", ["mcp", "remove", "-s", "project", serverName], targetDir, "ignore");
   await runCommand(
     "claude",
@@ -646,7 +663,7 @@ async function connectClaude(targetDir) {
 
 async function connectMcpClients(targetDir, options = {}) {
   const { skipBuild = false } = options;
-  const mcpDir = path.join(targetDir, "mcp");
+  const mcpDir = path.join(targetDir, MCP_PROJECT_REL);
   const packageJson = path.join(mcpDir, "package.json");
   const nodeModules = path.join(mcpDir, "node_modules");
   const serverEntry = path.join(mcpDir, "dist", "server.js");
@@ -662,7 +679,7 @@ async function connectMcpClients(targetDir, options = {}) {
       console.log(`[cortex] MCP build failed, continuing with existing dist output: ${toErrorMessage(error)}`);
     }
   } else if (!skipBuild) {
-    console.log("[cortex] mcp/node_modules not found, skipping build (run cortex bootstrap first)");
+    console.log("[cortex] .context/mcp/node_modules not found, skipping build (run cortex bootstrap first)");
   }
 
   if (!fs.existsSync(serverEntry)) {
@@ -716,7 +733,7 @@ async function maybeInstallGitHooks(targetDir) {
 }
 
 function ensureProjectInitialized(targetDir) {
-  const mcpPackageJson = path.join(targetDir, "mcp", "package.json");
+  const mcpPackageJson = path.join(targetDir, MCP_PROJECT_REL, "package.json");
   if (!fs.existsSync(mcpPackageJson)) {
     throw new Error(`Missing ${mcpPackageJson}. Run 'cortex init --bootstrap' first.`);
   }
@@ -731,7 +748,9 @@ function isTruthyEnv(value) {
 }
 
 function canAutoInitialize(targetDir) {
-  const scaffoldPaths = [".context", "scripts", "mcp", ".githooks"].map((entry) => path.join(targetDir, entry));
+  // Legacy mcp/ at root no longer counted — pre-v2.0.5 projects are migrated
+  // by installScaffold rather than blocking auto-init.
+  const scaffoldPaths = [".context", "scripts", ".githooks"].map((entry) => path.join(targetDir, entry));
   return scaffoldPaths.every((entryPath) => !fs.existsSync(entryPath));
 }
 
@@ -744,7 +763,12 @@ function isScaffoldOutOfDate(targetDir) {
   if (!fs.existsSync(doctorScript)) {
     return true;
   }
-  const mcpPackage = path.join(targetDir, "mcp", "package.json");
+  // Treat legacy mcp/ at project root as out-of-date so existing installs
+  // get migrated into .context/mcp/ on the next bootstrap.
+  if (fs.existsSync(path.join(targetDir, "mcp", "package.json"))) {
+    return true;
+  }
+  const mcpPackage = path.join(targetDir, MCP_PROJECT_REL, "package.json");
   if (!fs.existsSync(mcpPackage)) {
     return true;
   }
@@ -780,7 +804,8 @@ async function maybeMigrateScaffold(targetDir, command) {
 
   console.error(
     `[cortex] scaffold in ${targetDir} is out of date ` +
-      `(missing scripts/doctor.sh, mcp/package.json, or doctor subcommand in context.sh).`
+      `(missing scripts/doctor.sh, .context/mcp/package.json, doctor subcommand in context.sh, ` +
+      `or carries a legacy mcp/ directory at the project root).`
   );
 
   let proceed = autoYes;
@@ -808,8 +833,8 @@ async function maybeMigrateScaffold(targetDir, command) {
 }
 
 async function ensureProjectInitializedForMcp(targetDir) {
-  const mcpPackageJson = path.join(targetDir, "mcp", "package.json");
-  const serverEntry = path.join(targetDir, "mcp", "dist", "server.js");
+  const mcpPackageJson = path.join(targetDir, MCP_PROJECT_REL, "package.json");
+  const serverEntry = path.join(targetDir, MCP_PROJECT_REL, "dist", "server.js");
 
   if (fs.existsSync(mcpPackageJson) && fs.existsSync(serverEntry)) {
     return;
@@ -947,7 +972,7 @@ async function run() {
     process.env.CORTEX_PROJECT_ROOT = target;
     await ensureProjectInitializedForMcp(target);
     ensureProjectInitialized(target);
-    const serverEntry = path.join(target, "mcp", "dist", "server.js");
+    const serverEntry = path.join(target, MCP_PROJECT_REL, "dist", "server.js");
     if (!fs.existsSync(serverEntry)) {
       throw new Error(`Missing ${serverEntry}. Run 'cortex bootstrap' in ${target} first.`);
     }
@@ -1038,12 +1063,12 @@ function isPidAlive(pid) {
 }
 
 function resolveProjectMcpDist() {
-  // v2.0.0: daemon/hooks/cli are built into the project's mcp/dist/
-  // (via 'cortex bootstrap'). PACKAGE_ROOT/scaffold/mcp/ is the source
-  // tree the scaffold is copied from. The actual built code lives in
-  // each project's <cwd>/mcp/dist/ after bootstrap.
+  // v2.0.5: project layout was moved from <cwd>/mcp/ to <cwd>/.context/mcp/.
+  // PACKAGE_ROOT/scaffold/mcp/ is still the source tree the scaffold is
+  // copied from; the actual built code lives in each project's
+  // <cwd>/.context/mcp/dist/ after bootstrap.
   const target = process.env.CORTEX_PROJECT_ROOT?.trim() || process.cwd();
-  return path.join(target, "mcp", "dist");
+  return path.join(target, MCP_PROJECT_REL, "dist");
 }
 
 function resolveDaemonEntry() {

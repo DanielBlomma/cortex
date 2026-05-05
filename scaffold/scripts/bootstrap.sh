@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MCP_DIR="$REPO_ROOT/mcp"
+MCP_DIR="$REPO_ROOT/.context/mcp"
 TOTAL_STEPS=6
 STEP_INDEX=0
 
