@@ -1046,16 +1046,37 @@ function resolveProjectMcpDist() {
   return path.join(target, "mcp", "dist");
 }
 
+// Walk up from cwd looking for a real entrypoint at
+// <ancestor>/mcp/dist/<subdir>/<name>.js. This makes `cortex hook ...`
+// (and daemon/cli shims) work from subrepos without each subdir needing
+// its own bootstrapped install. Honours CORTEX_PROJECT_ROOT as an
+// explicit override and falls back to the cwd-based path so error
+// messages still point at something sensible.
+function resolveProjectEntry(subdir, name) {
+  const filename = `${name}.js`;
+  const override = process.env.CORTEX_PROJECT_ROOT?.trim();
+  if (override) return path.join(override, "mcp", "dist", subdir, filename);
+  let dir = path.resolve(process.cwd());
+  const { root } = path.parse(dir);
+  while (true) {
+    const candidate = path.join(dir, "mcp", "dist", subdir, filename);
+    if (fs.existsSync(candidate)) return candidate;
+    if (dir === root) break;
+    dir = path.dirname(dir);
+  }
+  return path.join(process.cwd(), "mcp", "dist", subdir, filename);
+}
+
 function resolveDaemonEntry() {
-  return path.join(resolveProjectMcpDist(), "daemon", "main.js");
+  return resolveProjectEntry("daemon", "main");
 }
 
 function resolveHookEntry(name) {
-  return path.join(resolveProjectMcpDist(), "hooks", `${name}.js`);
+  return resolveProjectEntry("hooks", name);
 }
 
 function resolveCliEntry(name) {
-  return path.join(resolveProjectMcpDist(), "cli", `${name}.js`);
+  return resolveProjectEntry("cli", name);
 }
 
 async function runDaemonCommand(args) {
