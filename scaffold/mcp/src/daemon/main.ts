@@ -27,6 +27,7 @@ import {
   emitTamperAudit,
 } from "./heartbeat-tracker.js";
 import { startSyncTimer } from "./sync-checker.js";
+import { startSkillSyncTimer } from "./skill-sync-checker.js";
 import { startHostEventsPusher } from "./host-events-pusher.js";
 import { startEgressProxy } from "./egress-proxy.js";
 import { startHeartbeatPusher } from "./heartbeat-pusher.js";
@@ -344,6 +345,16 @@ async function main(): Promise<void> {
   }
   if (process.env.CORTEX_DISABLE_HOST_EVENTS_PUSH !== "1") {
     startHostEventsPusher(process.cwd(), pushIntervalMs);
+  }
+  // Skills v3: poll cortex-web for org-authored skills, write SKILL.md
+  // files into per-CLI user-scope directories. Runs at the same cadence
+  // as the govern-config sync check by default but is independently
+  // configurable.
+  const skillSyncRaw = parseInt(process.env.CORTEX_SKILL_SYNC_MS ?? "", 10);
+  const skillSyncMs =
+    Number.isFinite(skillSyncRaw) && skillSyncRaw > 0 ? skillSyncRaw : syncIntervalMs;
+  if (process.env.CORTEX_DISABLE_SKILL_SYNC !== "1") {
+    startSkillSyncTimer(process.cwd(), skillSyncMs);
   }
 
   // Govern host heartbeat — fills host_enrollment on cortex-web so the
