@@ -9,7 +9,6 @@ import {
 } from "../core/config.js";
 import { deployBundledModel } from "./model/deploy.js";
 import { TelemetryCollector } from "../core/telemetry/collector.js";
-import { pushMetrics } from "./telemetry/sync.js";
 import { AuditWriter, type AuditEntry } from "../core/audit/writer.js";
 import { pushAuditEvents, queueAuditEvent, setAuditPushContext } from "./audit/push.js";
 import { PolicyStore } from "../core/policy/store.js";
@@ -203,28 +202,10 @@ export function recordToolActivity(activity: ToolActivity): void {
 export async function onSessionEnd(): Promise<void> {
   if (!activeConfig) return;
   const config = activeConfig;
-  if (config.telemetry.enabled && config.telemetry.endpoint && activeCollector) {
+  // Telemetry push is owned by the daemon. MCP only persists in-memory
+  // metrics to disk so the daemon can pick them up on its next push tick.
+  if (config.telemetry.enabled && activeCollector) {
     activeCollector.flush();
-    try {
-      const snapshot = activeCollector.getMetrics();
-      const result = await pushMetrics(
-        snapshot,
-        config.telemetry.endpoint,
-        config.telemetry.api_key,
-        {
-          repo: activeRepo ?? undefined,
-          session_id: activeSessionId ?? undefined,
-        },
-      );
-      if (!result.success) {
-        process.stderr.write(`[cortex-enterprise] Shutdown telemetry push failed: ${result.error}\n`);
-      } else {
-        activeCollector.acknowledgePush(snapshot);
-        activeCollector.flush();
-      }
-    } catch (err) {
-      process.stderr.write(`[cortex-enterprise] Shutdown telemetry push error: ${err}\n`);
-    }
   }
 
   await flushComplianceQueues(config, "shutdown");
@@ -355,41 +336,14 @@ export async function register(server: McpServer): Promise<void> {
     process.stderr.write(`[cortex-enterprise] Active: ${features.join(", ")}\n`);
   }
 
-  // Schedule telemetry flush + push
+  // Telemetry push is owned by the daemon (single network writer).
+  // MCP only persists in-memory metrics to disk on a tick so the daemon
+  // can read and push them.
   if (config.telemetry.enabled) {
-    // Push any accumulated metrics from previous sessions on startup
-    if (config.telemetry.endpoint) {
-      const startupSnapshot = collector.getMetrics();
-      pushMetrics(startupSnapshot, config.telemetry.endpoint, config.telemetry.api_key, {
-        repo: activeRepo ?? undefined,
-        session_id: activeSessionId ?? undefined,
-      })
-        .then((r) => {
-          if (!r.success) {
-            process.stderr.write(`[cortex-enterprise] Startup telemetry push failed: ${r.error}\n`);
-            return;
-          }
-          collector.acknowledgePush(startupSnapshot);
-          collector.flush();
-        })
-        .catch((err) => { process.stderr.write(`[cortex-enterprise] Startup telemetry push error: ${err}\n`); });
-    }
-
     const intervalMs = config.telemetry.interval_minutes * 60000;
-    const timer = setInterval(async () => {
+    const timer = setInterval(() => {
       try {
         collector.flush();
-        if (config.telemetry.endpoint) {
-          const snapshot = collector.getMetrics();
-          const result = await pushMetrics(snapshot, config.telemetry.endpoint, config.telemetry.api_key, {
-            repo: activeRepo ?? undefined,
-            session_id: activeSessionId ?? undefined,
-          });
-          if (result.success) {
-            collector.acknowledgePush(snapshot);
-            collector.flush();
-          }
-        }
       } catch (err) {
         process.stderr.write(`[cortex-enterprise] Telemetry flush error: ${err}\n`);
       }

@@ -271,6 +271,33 @@ async function main(): Promise<void> {
       });
   }
 
+  // Periodic telemetry push. Daemon owns the network call so MCP doesn't
+  // race with itself or with this loop. Walks active sessions, dedupes
+  // cwds, and runs the existing per-cwd flush handler.
+  const telemetryPushRaw = parseInt(process.env.CORTEX_TELEMETRY_PUSH_MS ?? "", 10);
+  const telemetryPushMs =
+    Number.isFinite(telemetryPushRaw) && telemetryPushRaw > 0
+      ? telemetryPushRaw
+      : 5 * 60 * 1000;
+  if (process.env.CORTEX_DISABLE_TELEMETRY_PUSH !== "1") {
+    const telemetryTimer = setInterval(async () => {
+      const cwds = new Set<string>();
+      for (const [, state] of tracker.getActiveSessions()) {
+        if (state.cwd) cwds.add(state.cwd);
+      }
+      for (const cwd of cwds) {
+        try {
+          await telemetryFlush({ reason: "interval", cwd });
+        } catch (err) {
+          process.stderr.write(
+            `[cortex-daemon] telemetry push failed for ${cwd}: ${err instanceof Error ? err.message : String(err)}\n`,
+          );
+        }
+      }
+    }, telemetryPushMs);
+    if (typeof telemetryTimer.unref === "function") telemetryTimer.unref();
+  }
+
   if (process.env.CORTEX_DISABLE_TAMPER_CHECK !== "1") {
     const checkTimer = setInterval(() => {
       const detected = tracker.detectTamper({
