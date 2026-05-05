@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { basename, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { CortexDaemon } from "./server.js";
@@ -90,6 +90,50 @@ function readMetrics(contextDir: string): TelemetryMetrics | null {
   }
 }
 
+// Pending-push state: snapshot + push_id are written to disk before the
+// network call. If the daemon crashes mid-push, the next tick replays the
+// same push_id so the server can deduplicate.
+type PendingPush = {
+  snapshot: TelemetryMetrics;
+  push_id: string;
+  written_at: string;
+};
+
+function pendingPushPath(contextDir: string): string {
+  return join(contextDir, "telemetry", "pending-push.json");
+}
+
+function readPendingPush(contextDir: string): PendingPush | null {
+  const path = pendingPushPath(contextDir);
+  if (!existsSync(path)) return null;
+  try {
+    return JSON.parse(readFileSync(path, "utf8")) as PendingPush;
+  } catch {
+    return null;
+  }
+}
+
+function writePendingPush(contextDir: string, pending: PendingPush): void {
+  const path = pendingPushPath(contextDir);
+  mkdirSync(join(contextDir, "telemetry"), { recursive: true });
+  writeFileSync(path, JSON.stringify(pending, null, 2), "utf8");
+}
+
+function deletePendingPush(contextDir: string): void {
+  const path = pendingPushPath(contextDir);
+  try {
+    rmSync(path, { force: true });
+  } catch {
+    // best effort
+  }
+}
+
+function ackOnDisk(contextDir: string, pushed: TelemetryMetrics): void {
+  const collector = new TelemetryCollector(contextDir, pushed.client_version || "unknown");
+  collector.acknowledgePush(pushed);
+  collector.flush();
+}
+
 // Per-cwd exponential backoff so a flapping endpoint doesn't get hammered.
 // 1m, 2m, 4m, 8m, 16m, cap 30m. Reset on success.
 type TelemetryBackoffState = { nextPushAt: number; consecutiveFailures: number };
@@ -138,26 +182,54 @@ async function telemetryFlush(
     return { flushed: false, events_pushed: 0 };
   }
 
+  if (shouldSkipTelemetryPush(cwd)) {
+    return { flushed: false, events_pushed: 0 };
+  }
+
+  const repo = basename(cwd);
+  const endpoint = config.telemetry.endpoint;
+  const apiKey = config.telemetry.api_key;
+
+  // Recovery: if a pending push exists, retry it first with the same
+  // push_id so the server can deduplicate against an earlier in-flight
+  // attempt that may have crashed before delete.
+  const pending = readPendingPush(contextDir);
+  if (pending) {
+    const result = await pushMetrics(pending.snapshot, endpoint, apiKey, {
+      repo,
+      session_id: payload.session_id,
+      push_id: pending.push_id,
+    });
+    recordTelemetryPushOutcome(cwd, result.success);
+    if (!result.success) {
+      process.stderr.write(
+        `[cortex-daemon] pending telemetry push retry failed: ${result.error ?? "unknown"}\n`,
+      );
+      return { flushed: false, events_pushed: 0 };
+    }
+    ackOnDisk(contextDir, pending.snapshot);
+    deletePendingPush(contextDir);
+    return { flushed: true, events_pushed: pending.snapshot.total_tool_calls };
+  }
+
   const metrics = readMetrics(contextDir);
   if (!metrics) {
     // No metrics on disk yet — MCP hasn't flushed. Nothing to push.
     return { flushed: false, events_pushed: 0 };
   }
 
-  if (shouldSkipTelemetryPush(cwd)) {
-    return { flushed: false, events_pushed: 0 };
-  }
+  const push_id = randomUUID();
+  writePendingPush(contextDir, {
+    snapshot: metrics,
+    push_id,
+    written_at: new Date().toISOString(),
+  });
 
-  const result = await pushMetrics(
-    metrics,
-    config.telemetry.endpoint,
-    config.telemetry.api_key,
-    {
-      repo: basename(cwd),
-      session_id: payload.session_id,
-      push_id: randomUUID(),
-    },
-  );
+  const result = await pushMetrics(metrics, endpoint, apiKey, {
+    repo,
+    session_id: payload.session_id,
+    push_id,
+  });
 
   recordTelemetryPushOutcome(cwd, result.success);
 
@@ -165,12 +237,12 @@ async function telemetryFlush(
     process.stderr.write(
       `[cortex-daemon] telemetry push failed: ${result.error ?? "unknown"}\n`,
     );
+    // Pending stays on disk; next tick (after backoff) will retry.
     return { flushed: false, events_pushed: 0 };
   }
 
-  const collector = new TelemetryCollector(contextDir, metrics.client_version || "unknown");
-  collector.acknowledgePush(metrics);
-  collector.flush();
+  ackOnDisk(contextDir, metrics);
+  deletePendingPush(contextDir);
 
   return {
     flushed: true,
