@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONTEXT_DIR="$REPO_ROOT/.context"
-MCP_DIR="$REPO_ROOT/mcp"
+MCP_DIR="$CONTEXT_DIR/mcp"
 
 PASS=0
 FAIL=0
@@ -165,15 +165,15 @@ echo ""
 echo "  MCP Server"
 
 if [[ -f "$MCP_DIR/dist/server.js" ]]; then
-  pass "mcp/dist/server.js exists"
+  pass ".context/mcp/dist/server.js exists"
 else
-  fail "mcp/dist/server.js missing — run: cd mcp && npm run build"
+  fail ".context/mcp/dist/server.js missing — run: cd .context/mcp && npm run build"
 fi
 
 if [[ -d "$MCP_DIR/node_modules" ]]; then
-  pass "mcp/node_modules present"
+  pass ".context/mcp/node_modules present"
 else
-  fail "mcp/node_modules missing — run: cd mcp && npm install"
+  fail ".context/mcp/node_modules missing — run: cd .context/mcp && npm install"
 fi
 
 # Quick MCP import check
@@ -181,7 +181,7 @@ if [[ -f "$MCP_DIR/dist/server.js" ]] && [[ -d "$MCP_DIR/node_modules" ]]; then
   MCP_CHECK=$(cd "$REPO_ROOT" && timeout 10 node -e '
     const start = Date.now();
     try {
-      require("./mcp/dist/graph.js");
+      require("./.context/mcp/dist/graph.js");
       console.log("ok " + (Date.now() - start));
     } catch(e) {
       console.log("fail " + e.message);

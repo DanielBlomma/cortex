@@ -146,11 +146,9 @@ status_digest() {
   fi
 
   # Fallback for non-git directories.
+  # .context/ excludes the relocated .context/mcp/ tree as well.
   find "$REPO_ROOT" -type f \
     ! -path "$REPO_ROOT/.context/*" \
-    ! -path "$REPO_ROOT/mcp/node_modules/*" \
-    ! -path "$REPO_ROOT/mcp/dist/*" \
-    ! -path "$REPO_ROOT/mcp/.npm-cache/*" \
     ! -path "$REPO_ROOT/scripts/parsers/node_modules/*" \
     ! -path "$REPO_ROOT/scripts/parsers/.npm-cache/*" \
     -print \
@@ -201,16 +199,13 @@ wait_for_change_event() {
     inotifywait)
       inotifywait -q -r \
         -e modify,create,delete,move \
-        --exclude '(^|/)\\.git(/|$)|(^|/)\\.context(/|$)|(^|/)mcp/(node_modules|dist|\\.npm-cache)(/|$)|(^|/)scripts/parsers/(node_modules|\\.npm-cache)(/|$)' \
+        --exclude '(^|/)\\.git(/|$)|(^|/)\\.context(/|$)|(^|/)scripts/parsers/(node_modules|\\.npm-cache)(/|$)' \
         "$REPO_ROOT" >/dev/null 2>&1 || true
       ;;
     fswatch)
       fswatch -1 -r \
         --exclude '(^|/)\\.git(/|$)' \
         --exclude '(^|/)\\.context(/|$)' \
-        --exclude '(^|/)mcp/node_modules(/|$)' \
-        --exclude '(^|/)mcp/dist(/|$)' \
-        --exclude '(^|/)mcp/\\.npm-cache(/|$)' \
         --exclude '(^|/)scripts/parsers/node_modules(/|$)' \
         --exclude '(^|/)scripts/parsers/\\.npm-cache(/|$)' \
         "$REPO_ROOT" >/dev/null 2>&1 || true

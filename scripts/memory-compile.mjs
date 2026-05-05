@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseFrontmatter, parseStringList } from "../mcp/dist/frontmatter.js";
+import { parseFrontmatter, parseStringList } from "../.context/mcp/dist/frontmatter.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
