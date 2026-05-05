@@ -11,6 +11,7 @@ export type PushResult = {
 export type PushContext = {
   repo?: string;
   session_id?: string;
+  push_id?: string;
 };
 
 let lastPush: PushResult | null = null;

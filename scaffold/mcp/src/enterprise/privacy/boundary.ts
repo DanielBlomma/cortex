@@ -67,6 +67,7 @@ export const OUTBOUND_DATA_BOUNDARY = {
 type TelemetryPushContext = {
   repo?: string;
   session_id?: string;
+  push_id?: string;
 };
 
 const MAX_OBJECT_KEYS = 12;
@@ -207,6 +208,7 @@ export function buildTelemetryPushPayload(
     repo: context.repo,
     instance_id: metrics.instance_id,
     session_id: context.session_id,
+    push_id: context.push_id,
     tool_metrics: metrics.tool_metrics,
   };
 }

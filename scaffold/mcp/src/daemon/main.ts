@@ -1,5 +1,6 @@
 import { readFileSync, existsSync } from "node:fs";
 import { basename, join } from "node:path";
+import { randomUUID } from "node:crypto";
 import { CortexDaemon } from "./server.js";
 import type {
   PolicyCheckPayload,
@@ -126,6 +127,7 @@ async function telemetryFlush(
     {
       repo: basename(cwd),
       session_id: payload.session_id,
+      push_id: randomUUID(),
     },
   );
 
