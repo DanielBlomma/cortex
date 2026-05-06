@@ -28,6 +28,7 @@ import {
 } from "./heartbeat-tracker.js";
 import { startSyncTimer } from "./sync-checker.js";
 import { startSkillSyncTimer } from "./skill-sync-checker.js";
+import { startWorkflowSyncTimer } from "./workflow-sync-checker.js";
 import { startHostEventsPusher } from "./host-events-pusher.js";
 import { startEgressProxy } from "./egress-proxy.js";
 import { startHeartbeatPusher } from "./heartbeat-pusher.js";
@@ -355,6 +356,20 @@ async function main(): Promise<void> {
     Number.isFinite(skillSyncRaw) && skillSyncRaw > 0 ? skillSyncRaw : syncIntervalMs;
   if (process.env.CORTEX_DISABLE_SKILL_SYNC !== "1") {
     startSkillSyncTimer(process.cwd(), skillSyncMs);
+  }
+
+  // Harness Phase 2: poll cortex-web for org-authored workflows, cache
+  // their definitions locally so cortex.workflow.start can resolve
+  // org-specific workflow_ids ahead of bundled defaults. Same cadence
+  // as the skill sync by default; independently configurable via
+  // CORTEX_WORKFLOW_SYNC_MS / CORTEX_DISABLE_WORKFLOW_SYNC.
+  const workflowSyncRaw = parseInt(process.env.CORTEX_WORKFLOW_SYNC_MS ?? "", 10);
+  const workflowSyncMs =
+    Number.isFinite(workflowSyncRaw) && workflowSyncRaw > 0
+      ? workflowSyncRaw
+      : skillSyncMs;
+  if (process.env.CORTEX_DISABLE_WORKFLOW_SYNC !== "1") {
+    startWorkflowSyncTimer(process.cwd(), workflowSyncMs);
   }
 
   // Govern host heartbeat — fills host_enrollment on cortex-web so the
