@@ -8,6 +8,7 @@ import {
   resolveDaemonEntry,
   sendHeartbeat,
 } from "./shared.js";
+import { evaluateToolCall } from "../core/workflow/enforcement.js";
 
 /**
  * PreToolUse hook for Claude Code.
@@ -44,6 +45,35 @@ async function main(): Promise<void> {
       session_id: input.session_id,
       cwd,
     });
+  }
+
+  // Workflow capability gate. Runs before policy.check so harness-level
+  // restrictions block before the daemon's general policy machinery sees
+  // the call. No-op when CORTEX_ACTIVE_TASK_ID is unset.
+  const activeTaskId = process.env.CORTEX_ACTIVE_TASK_ID?.trim();
+  if (activeTaskId) {
+    try {
+      const verdict = evaluateToolCall({
+        cwd,
+        taskId: activeTaskId,
+        call: { toolName: tool, toolInput: input.tool_input ?? {} },
+      });
+      if (!verdict.allowed) {
+        process.stderr.write(
+          `[cortex] Blocked by harness capability: ${verdict.reason}\n`,
+        );
+        process.exit(2);
+      }
+    } catch (err) {
+      // Capability evaluation should never crash the hook — if it does,
+      // log and fall through to the existing policy.check rather than
+      // accidentally blocking a legitimate tool.
+      process.stderr.write(
+        `[cortex] capability evaluation failed (${
+          err instanceof Error ? err.message : String(err)
+        }); deferring to policy.check\n`,
+      );
+    }
   }
 
   const payload: PolicyCheckPayload = {
