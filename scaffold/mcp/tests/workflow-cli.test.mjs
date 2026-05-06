@@ -9,6 +9,15 @@ import { runStageCommand } from "../dist/cli/stage.js";
 function makeWorkspace() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-stage-cli-"));
   process.env.CORTEX_PROJECT_ROOT = dir;
+  // cortex stage is enterprise-only; satisfy the gate by writing a
+  // minimal enterprise.yml. isEnterpriseProject only requires a
+  // non-empty enterprise.api_key field.
+  fs.mkdirSync(path.join(dir, ".context"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, ".context", "enterprise.yml"),
+    "enterprise:\n  api_key: test-key-for-cli-tests\n",
+    "utf8",
+  );
   return dir;
 }
 
@@ -289,5 +298,37 @@ test("stage help: prints help text and returns without throwing", async () => {
 });
 
 test("stage <unknown>: throws with help text", async () => {
+  makeWorkspace();
   await assert.rejects(runStageCommand(["frobnicate"]), /Unknown stage subcommand/);
+});
+
+test("stage start: blocked in community mode (no enterprise.yml)", async () => {
+  // Bypass the helper that auto-writes enterprise.yml.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-stage-cli-community-"));
+  process.env.CORTEX_PROJECT_ROOT = dir;
+  try {
+    await assert.rejects(
+      runStageCommand([
+        "start",
+        "--task-id",
+        "task-1",
+        "--description",
+        "x",
+      ]),
+      /Cortex Harness — an enterprise-only feature/,
+    );
+  } finally {
+    delete process.env.CORTEX_PROJECT_ROOT;
+  }
+});
+
+test("stage help: still prints in community mode (so users discover the feature)", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-stage-cli-community-help-"));
+  process.env.CORTEX_PROJECT_ROOT = dir;
+  try {
+    const { captured } = await captureStdout(() => runStageCommand(["help"]));
+    assert.match(captured, /Usage:/);
+  } finally {
+    delete process.env.CORTEX_PROJECT_ROOT;
+  }
 });

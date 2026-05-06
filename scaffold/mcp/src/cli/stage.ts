@@ -9,6 +9,7 @@ import {
   type WorkflowDefinition,
 } from "../core/workflow/index.js";
 import { DEFAULT_WORKFLOWS } from "../core/workflow/default-workflows.js";
+import { isEnterpriseProject } from "../hooks/shared.js";
 
 /**
  * `cortex stage` CLI surface. Each subcommand is a thin shell wrapper
@@ -31,9 +32,22 @@ import { DEFAULT_WORKFLOWS } from "../core/workflow/default-workflows.js";
  * standalone shell calls.
  */
 
+const ENTERPRISE_REQUIRED_MESSAGE =
+  "cortex stage is part of the Cortex Harness — an enterprise-only feature. " +
+  "This project does not have an enterprise license configured (no enterprise.api_key " +
+  "in .context/enterprise.yml). Run 'cortex enterprise <api-key>' to enable it, or " +
+  "contact your org admin.";
+
 export async function runStageCommand(args: string[]): Promise<void> {
   const sub = args[0] ?? "help";
   const rest = args.slice(1);
+
+  // help is allowed in community mode so users can discover the feature exists.
+  if (sub !== "help" && sub !== "--help" && sub !== "-h") {
+    if (!isEnterpriseProject(projectRoot())) {
+      throw new Error(ENTERPRISE_REQUIRED_MESSAGE);
+    }
+  }
 
   switch (sub) {
     case "start":
