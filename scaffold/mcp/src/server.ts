@@ -11,6 +11,17 @@ import {
   getSessionEventHook,
   loadPlugins,
 } from "./plugin.js";
+import {
+  WorkflowStartInput,
+  WorkflowAdvanceInput,
+  WorkflowStatusInput,
+  WorkflowEnvelopeInput,
+  resolveProjectRoot,
+  runWorkflowAdvance,
+  runWorkflowEnvelope,
+  runWorkflowStart,
+  runWorkflowStatus,
+} from "./core/workflow/mcp-tools.js";
 
 type ToolPayload = Record<string, unknown>;
 
@@ -321,6 +332,70 @@ function registerTools(server: McpServer): void {
       const parsed = ReloadInput.parse(input ?? {});
       return reloadContextGraph(parsed.force);
     })
+  );
+
+  server.registerTool(
+    "cortex.workflow.start",
+    {
+      description:
+        "Start a Cortex Harness workflow run for a task. Creates .agents/<task_id>/state.json and returns the first stage's envelope (the prompt the agent should answer).",
+      inputSchema: WorkflowStartInput,
+    },
+    async (input) => executeInstrumentedTool(
+      "cortex.workflow.start",
+      input,
+      async () => runWorkflowStart(WorkflowStartInput.parse(input ?? {}), {
+        cwd: resolveProjectRoot(),
+      }) as ToolPayload,
+    ),
+  );
+
+  server.registerTool(
+    "cortex.workflow.advance",
+    {
+      description:
+        "Complete the current stage of a workflow run by writing its artifact and advancing the run pointer. Returns the new run state plus the next stage's envelope (or null when the run is finished, blocked, or failed).",
+      inputSchema: WorkflowAdvanceInput,
+    },
+    async (input) => executeInstrumentedTool(
+      "cortex.workflow.advance",
+      input,
+      async () => runWorkflowAdvance(WorkflowAdvanceInput.parse(input ?? {}), {
+        cwd: resolveProjectRoot(),
+      }) as ToolPayload,
+    ),
+  );
+
+  server.registerTool(
+    "cortex.workflow.status",
+    {
+      description:
+        "Read the current run state for a task (current stage, completed stages, outcome). Returns null state when no run exists for the given task_id.",
+      inputSchema: WorkflowStatusInput,
+    },
+    async (input) => executeInstrumentedTool(
+      "cortex.workflow.status",
+      input,
+      async () => runWorkflowStatus(WorkflowStatusInput.parse(input ?? {}), {
+        cwd: resolveProjectRoot(),
+      }) as ToolPayload,
+    ),
+  );
+
+  server.registerTool(
+    "cortex.workflow.envelope",
+    {
+      description:
+        "Compose the prompt envelope for a workflow stage without advancing the run. Defaults to the run's current_stage; pass `stage` to dry-run a different stage.",
+      inputSchema: WorkflowEnvelopeInput,
+    },
+    async (input) => executeInstrumentedTool(
+      "cortex.workflow.envelope",
+      input,
+      async () => runWorkflowEnvelope(WorkflowEnvelopeInput.parse(input ?? {}), {
+        cwd: resolveProjectRoot(),
+      }) as ToolPayload,
+    ),
   );
 }
 

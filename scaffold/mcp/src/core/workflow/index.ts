@@ -3,3 +3,4 @@ export * from "./artifact-io.js";
 export * from "./run-lifecycle.js";
 export * from "./envelope.js";
 export * from "./default-workflows.js";
+export * from "./mcp-tools.js";
