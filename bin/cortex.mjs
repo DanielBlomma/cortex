@@ -95,6 +95,7 @@ function printHelp() {
   console.log(helpRow("stage envelope --task-id <id> [--stage <name>]", "Compose stage prompt envelope"));
   console.log(helpRow("stage advance --task-id <id> --stage <name> --body-file <path>", "Write artifact, advance run"));
   console.log(helpRow("stage run --task-id <id> -- <command>", "Exec a command with CORTEX_ACTIVE_TASK_ID set"));
+  console.log(helpRow("stage drive --task-id <id> -- <agent>", "Auto-loop envelope→agent→advance until run finishes"));
 
   console.log(helpSection("MISC"));
   console.log(helpRow("mcp", "Run the MCP stdio server for the current project"));

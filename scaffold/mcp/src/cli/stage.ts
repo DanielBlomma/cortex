@@ -9,6 +9,7 @@ import {
   type WorkflowDefinition,
 } from "../core/workflow/index.js";
 import { DEFAULT_WORKFLOWS } from "../core/workflow/default-workflows.js";
+import { runDrive } from "./stage-drive.js";
 
 /**
  * `cortex stage` CLI surface. Each subcommand is a thin shell wrapper
@@ -46,6 +47,8 @@ export async function runStageCommand(args: string[]): Promise<void> {
       return runAdvance(rest);
     case "run":
       return runRun(rest);
+    case "drive":
+      return runDriveSub(rest);
     case "help":
     case "--help":
     case "-h":
@@ -66,8 +69,11 @@ function printHelp(): void {
     "  cortex stage advance  --task-id <id> --stage <name> --body-file <path>",
     "                        [--frontmatter-file <path>] [--status <s>] [--outcome-file <path>]",
     "  cortex stage run      --task-id <id> -- <command> [args...]",
+    "  cortex stage drive    --task-id <id> [--description \"...\"] [--workflow <id>]",
+    "                        [--max-stages <N>] -- <agent-command> [args...]",
     "",
     "Status values: complete (default) | blocked | failed",
+    "drive auto-loops envelope → spawn agent (envelope on stdin) → poll state until run finishes.",
     "All commands operate on .agents/<task-id>/ in the current project root.",
   ];
   process.stdout.write(lines.join("\n") + "\n");
@@ -322,4 +328,47 @@ async function runRun(args: string[]): Promise<void> {
       resolve();
     });
   });
+}
+
+async function runDriveSub(args: string[]): Promise<void> {
+  const { flags, rest } = parseFlags(args);
+  const taskId = requireFlag(flags, "task-id");
+  const description =
+    typeof flags.description === "string" ? flags.description : undefined;
+  const workflowId =
+    typeof flags.workflow === "string" ? flags.workflow : undefined;
+  const maxStagesRaw = flags["max-stages"];
+  const maxStages =
+    typeof maxStagesRaw === "string" && Number.isFinite(Number(maxStagesRaw))
+      ? Math.max(1, Math.floor(Number(maxStagesRaw)))
+      : 50;
+
+  if (rest.length === 0) {
+    throw new Error(
+      "cortex stage drive requires an agent command after --, " +
+        "e.g. 'cortex stage drive --task-id task-1 --description \"...\" -- claude --print'",
+    );
+  }
+  const [agentCommand, ...agentArgs] = rest;
+
+  const result = await runDrive({
+    cwd: projectRoot(),
+    taskId,
+    description,
+    workflowId,
+    maxStages,
+    agentCommand,
+    agentArgs,
+    onStageStart: (stage) => {
+      process.stderr.write(`[harness] stage: ${stage}\n`);
+    },
+    onStageEnd: (stage, nextState) => {
+      const summary = nextState.current_stage
+        ? `→ ${nextState.current_stage}`
+        : `(${nextState.outcome})`;
+      process.stderr.write(`[harness] stage ${stage} done ${summary}\n`);
+    },
+  });
+
+  emitJson({ state: result.state, stages_driven: result.stagesDriven });
 }
