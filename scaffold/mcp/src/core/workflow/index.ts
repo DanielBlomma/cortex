@@ -4,3 +4,5 @@ export * from "./run-lifecycle.js";
 export * from "./envelope.js";
 export * from "./default-workflows.js";
 export * from "./mcp-tools.js";
+export * from "./capabilities.js";
+export * from "./enforcement.js";
