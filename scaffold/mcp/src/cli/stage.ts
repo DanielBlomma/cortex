@@ -65,6 +65,8 @@ function printHelp(): void {
     "  cortex stage envelope --task-id <id> [--stage <name>]",
     "  cortex stage advance  --task-id <id> --stage <name> --body-file <path>",
     "                        [--frontmatter-file <path>] [--status <s>] [--outcome-file <path>]",
+    "                        [--validators-passed <id1,id2,...>]",
+    "                        [--override-reason \"...\"] [--override-skipped-validators <id1,id2>]",
     "  cortex stage run      --task-id <id> -- <command> [args...]",
     "",
     "Status values: complete (default) | blocked | failed",
@@ -193,12 +195,36 @@ async function runAdvance(args: string[]): Promise<void> {
     typeof flags["outcome-file"] === "string" ? flags["outcome-file"] : null;
   const statusFlag =
     typeof flags.status === "string" ? (flags.status as StageStatus) : undefined;
+  const validatorsRaw =
+    typeof flags["validators-passed"] === "string"
+      ? flags["validators-passed"]
+      : null;
+  const overrideReason =
+    typeof flags["override-reason"] === "string"
+      ? flags["override-reason"]
+      : null;
+  const overrideSkippedRaw =
+    typeof flags["override-skipped-validators"] === "string"
+      ? flags["override-skipped-validators"]
+      : null;
 
   const body = readFileSync(bodyPath, "utf8");
   const frontmatter: Record<string, unknown> = frontmatterPath
     ? parseJsonObject(frontmatterPath)
     : {};
   const outcome = outcomePath ? parseJsonObject(outcomePath) : undefined;
+  const validatorsPassed = validatorsRaw
+    ? validatorsRaw.split(",").map((s) => s.trim()).filter(Boolean)
+    : undefined;
+  const override = overrideReason
+    ? {
+        reason: overrideReason,
+        skipped_validators: overrideSkippedRaw
+          ? overrideSkippedRaw.split(",").map((s) => s.trim()).filter(Boolean)
+          : [],
+        skipped_requirements: [],
+      }
+    : undefined;
 
   const state = getRunState(projectRoot(), taskId);
   if (!state) {
@@ -234,6 +260,8 @@ async function runAdvance(args: string[]): Promise<void> {
     body,
     status: finalStatus,
     outcome,
+    validatorsPassed,
+    override,
   });
 
   let nextEnvelope = null;

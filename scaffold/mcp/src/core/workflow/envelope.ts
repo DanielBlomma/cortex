@@ -35,6 +35,8 @@ export type ComposedEnvelope = {
   requiredFields: string[];
   /** Capability key the stage runs under (informational). */
   capability: string | null;
+  /** Validators the stage requires the agent to have run. */
+  validators: { id: string; description: string }[];
 };
 
 export type ComposeStageEnvelopeOptions = {
@@ -107,6 +109,7 @@ export function composeStageEnvelope(
 
   const requiredFields = stage.required_fields;
   const capability = stage.capability ?? null;
+  const validators = stage.validators;
 
   const prompt = renderPrompt({
     taskDescription: state.task_description,
@@ -118,6 +121,7 @@ export function composeStageEnvelope(
     requiredFields,
     capability,
     handoffs,
+    validators,
   });
 
   return {
@@ -125,6 +129,7 @@ export function composeStageEnvelope(
     expectedArtifact: stage.artifact,
     requiredFields,
     capability,
+    validators,
   };
 }
 
@@ -150,6 +155,7 @@ type RenderPromptOptions = {
   requiredFields: string[];
   capability: string | null;
   handoffs: string[];
+  validators: { id: string; description: string }[];
 };
 
 function renderPrompt(o: RenderPromptOptions): string {
@@ -200,13 +206,32 @@ function renderPrompt(o: RenderPromptOptions): string {
       ? `_No additional required fields beyond the harness defaults._`
       : o.requiredFields.map((f) => `- \`${f}\``).join("\n");
 
+  const validatorLines =
+    o.validators.length === 0
+      ? `_No validators required for this stage._`
+      : o.validators
+          .map((v) => `- \`${v.id}\` — ${v.description}`)
+          .join("\n");
+
+  sections.push(
+    [
+      `# VALIDATORS`,
+      ``,
+      `Cortex defines what must be validated; you (the agent) pick the concrete tooling and run it in this environment, then report back.`,
+      ``,
+      validatorLines,
+      ``,
+      `When you call \`cortex.workflow.advance\`, set \`validators_passed: [<id1>, <id2>, ...]\` listing every validator you successfully ran. The harness blocks the advance if a required validator is missing — unless you explicitly pass \`override\` with a reason and the list of skipped validator ids.`,
+    ].join("\n"),
+  );
+
   sections.push(
     [
       `# OUTPUT`,
       ``,
       `Produce a single markdown file named \`${o.expectedArtifact}\` with YAML frontmatter on top.`,
       ``,
-      `Required frontmatter fields (in addition to \`stage\`, \`status\`, \`references\`, \`written_at\` which the harness manages):`,
+      `Required frontmatter fields (in addition to \`stage\`, \`status\`, \`references\`, \`validators_passed\`, \`written_at\` which the harness manages):`,
       ``,
       requiredLines,
       ``,

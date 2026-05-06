@@ -6,8 +6,10 @@ import {
 import {
   runStateSchema,
   stageArtifactFrontmatterSchema,
+  stageOverrideSchema,
   workflowDefinitionSchema,
   type RunState,
+  type StageOverride,
   type StageRecord,
   type StageStatus,
   type WorkflowDefinition,
@@ -36,6 +38,7 @@ export function createRun(options: CreateRunOptions): RunState {
   const stages: StageRecord[] = workflow.stages.map((stage) => ({
     name: stage.name,
     status: "pending" as StageStatus,
+    validators_passed: [],
   }));
 
   const state: RunState = {
@@ -80,6 +83,10 @@ export type AdvanceStageOptions = {
   outcome?: Record<string, unknown>;
   /** Final status to record for this stage. Defaults to "complete". */
   status?: StageStatus;
+  /** Validators the agent reports having run. Compared against stage.validators. */
+  validatorsPassed?: string[];
+  /** Process override; required when validators_passed doesn't cover stage.validators. */
+  override?: StageOverride;
   now?: () => Date;
 };
 
@@ -111,12 +118,52 @@ export function advanceStage(options: AdvanceStageOptions): RunState {
     );
   }
 
+  const stageIndex = workflow.stages.findIndex((s) => s.name === options.stageName);
+  const stageDef = workflow.stages[stageIndex];
+
+  // Validator coverage check: every validator the stage declares must
+  // appear in validators_passed unless the override explicitly skips it.
+  // Process is enforced here even though the validators themselves run
+  // in the agent's environment.
+  const validatorsPassed = options.validatorsPassed ?? [];
+  const override = options.override
+    ? stageOverrideSchema.parse(options.override)
+    : undefined;
+  const requiredValidators = stageDef.validators.map((v) => v.id);
+  const declaredSkipped = new Set(override?.skipped_validators ?? []);
+  const missingValidators = requiredValidators.filter(
+    (id) => !validatorsPassed.includes(id) && !declaredSkipped.has(id),
+  );
+  // blocked / failed stages are exempt from validator coverage — the
+  // stage is explicitly halting before completion, so the validators
+  // logically cannot have run.
+  const finalStatus = options.status ?? "complete";
+  const exemptStatus = finalStatus === "blocked" || finalStatus === "failed";
+  if (missingValidators.length > 0 && !exemptStatus) {
+    throw new Error(
+      `Stage ${options.stageName} requires validators ${requiredValidators.join(", ")} ` +
+        `but artifact reported only ${validatorsPassed.join(", ") || "<none>"}. ` +
+        `Missing: ${missingValidators.join(", ")}. ` +
+        `Pass override.skipped_validators with a reason to advance anyway.`,
+    );
+  }
+
   const now = (options.now ?? (() => new Date()))();
   const completedAt = now.toISOString();
 
   const frontmatter = stageArtifactFrontmatterSchema.parse({
     ...options.frontmatter,
     stage: options.stageName,
+    validators_passed: validatorsPassed,
+    ...(override
+      ? {
+          override: {
+            reason: override.reason,
+            skipped_validators: override.skipped_validators,
+            skipped_requirements: override.skipped_requirements,
+          },
+        }
+      : {}),
     written_at: options.frontmatter.written_at ?? completedAt,
   });
   writeStageArtifact(
@@ -127,9 +174,7 @@ export function advanceStage(options: AdvanceStageOptions): RunState {
     options.body,
   );
 
-  const stageIndex = workflow.stages.findIndex((s) => s.name === options.stageName);
   const nextStage = workflow.stages[stageIndex + 1] ?? null;
-  const finalStatus = options.status ?? "complete";
 
   const updatedStages: StageRecord[] = state.stages.map((record) => {
     if (record.name !== options.stageName) return record;
@@ -140,6 +185,8 @@ export function advanceStage(options: AdvanceStageOptions): RunState {
       started_at: record.started_at ?? state.started_at,
       completed_at: completedAt,
       outcome: options.outcome,
+      validators_passed: validatorsPassed,
+      override,
     };
   });
 
