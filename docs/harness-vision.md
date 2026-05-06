@@ -122,43 +122,66 @@ The resolution is to keep state outside the agent. Each agent invocation is a pu
 Memory lives in three layers, each with a different lifetime:
 
 - Stage envelope — compressed input to a single agent (task spec, prior decisions it needs, capabilities, scope). Lives for one invocation.
-- Workflow state — JSON in `.context/workflow/<session_id>/` plus per-stage artifacts. Lives for one workflow run.
+- Workflow state — per-stage artifacts in `.context/workflow/<session_id>/` plus a small daemon-managed `state.json` for bookkeeping. Lives for one workflow run.
 - Cortex memory and rules — long-lived facts (architectural decisions, conventions, prohibited patterns). Lives for the repository's lifetime.
 
 Agents do not read the previous agent's transcript. They read a declared handoff schema that the previous stage produced. This forces structured communication instead of free-form chat history that bleeds bias.
 
+Stage artifacts are markdown files with YAML frontmatter, matching the format Cortex already uses for `SKILL.md`, `MEMORY.md`, and rules. Frontmatter carries the structured fields the harness validates; the body carries the reasoning the next stage actually needs to read. JSON is reserved for daemon-internal bookkeeping (`state.json`, audit events).
+
+Example artifact:
+
+```markdown
+---
+stage: review
+approved: false
+blocking_comments: 1
+references:
+  - stage-1-plan.md
+---
+
+# Review of the plan
+
+The plan is mostly fine, but the migration step needs an IF NOT EXISTS
+guard to stay idempotent on re-runs.
+
+## Comments
+
+- migration step needs IF NOT EXISTS guards (blocking)
+```
+
 Example flow:
 
 Plan
-→ produces plan.json (steps, files, constraints)
+→ produces plan.md (steps, files, constraints)
 
 Review
-→ reads plan.json
-→ produces review.json (approved or needs_changes + comments)
+→ reads plan.md
+→ produces review.md (approved or needs_changes + comments)
 
 Build
-→ reads plan.json + review.json
-→ produces changes.json (files changed, dist artifacts)
+→ reads plan.md + review.md
+→ produces changes.md (files changed, dist artifacts)
 
 Mutation
-→ reads changes.json
-→ produces mutation-report.json
+→ reads changes.md
+→ produces mutation-report.md
 
 Security
-→ reads changes.json
-→ produces security-report.json
+→ reads changes.md
+→ produces security-report.md
 
 Approval
 → reads every prior artifact (human, not agent)
 
 Three of the four building blocks already exist in Cortex:
 
-- Long-lived memory across sessions — provided by the memory system (MEMORY.md + per-fact files).
+- Long-lived memory across sessions — provided by the memory system (`MEMORY.md` + per-fact files).
 - Facts with trust and recency — provided by rules and the context engine.
 - Evidence and audit per run — provided by the audit pipeline (`.context/audit/host-events-*.jsonl`).
 - Workflow state per session — to build.
 
-Workflow state is therefore not a new memory system. It is a thin file-backed directory layout plus an envelope composer in the daemon that builds the agent prompt for each stage, validates the agent's output against the stage's schema, and writes the artifact plus an audit event.
+Workflow state is therefore not a new memory system. It is a thin file-backed directory layout plus an envelope composer in the daemon that builds the agent prompt for each stage, validates the agent's frontmatter against the stage's schema, and writes the artifact plus an audit event.
 
 ---
 
