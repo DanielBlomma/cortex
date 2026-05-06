@@ -113,6 +113,55 @@ Each stage may define:
 
 ---
 
+## State, Memory & Handoffs
+
+Agents start each invocation with an empty context yet must remember what to do.
+
+The resolution is to keep state outside the agent. Each agent invocation is a pure function — the harness owns the state.
+
+Memory lives in three layers, each with a different lifetime:
+
+- Stage envelope — compressed input to a single agent (task spec, prior decisions it needs, capabilities, scope). Lives for one invocation.
+- Workflow state — JSON in `.context/workflow/<session_id>/` plus per-stage artifacts. Lives for one workflow run.
+- Cortex memory and rules — long-lived facts (architectural decisions, conventions, prohibited patterns). Lives for the repository's lifetime.
+
+Agents do not read the previous agent's transcript. They read a declared handoff schema that the previous stage produced. This forces structured communication instead of free-form chat history that bleeds bias.
+
+Example flow:
+
+Plan
+→ produces plan.json (steps, files, constraints)
+
+Review
+→ reads plan.json
+→ produces review.json (approved or needs_changes + comments)
+
+Build
+→ reads plan.json + review.json
+→ produces changes.json (files changed, dist artifacts)
+
+Mutation
+→ reads changes.json
+→ produces mutation-report.json
+
+Security
+→ reads changes.json
+→ produces security-report.json
+
+Approval
+→ reads every prior artifact (human, not agent)
+
+Three of the four building blocks already exist in Cortex:
+
+- Long-lived memory across sessions — provided by the memory system (MEMORY.md + per-fact files).
+- Facts with trust and recency — provided by rules and the context engine.
+- Evidence and audit per run — provided by the audit pipeline (`.context/audit/host-events-*.jsonl`).
+- Workflow state per session — to build.
+
+Workflow state is therefore not a new memory system. It is a thin file-backed directory layout plus an envelope composer in the daemon that builds the agent prompt for each stage, validates the agent's output against the stage's schema, and writes the artifact plus an audit event.
+
+---
+
 ## Continuous Validation
 
 Validation must happen during execution, not after.
