@@ -89,6 +89,13 @@ function printHelp() {
   console.log(helpRow("hooks [install|uninstall|status] [--project]", "Claude Code hooks"));
   console.log(helpRow("telemetry test", "Smoke-test the push pipeline"));
 
+  console.log(helpSection("HARNESS"));
+  console.log(helpRow("stage start --task-id <id> --description \"...\"", "Start a workflow run for a task"));
+  console.log(helpRow("stage status --task-id <id>", "Print run state JSON"));
+  console.log(helpRow("stage envelope --task-id <id> [--stage <name>]", "Compose stage prompt envelope"));
+  console.log(helpRow("stage advance --task-id <id> --stage <name> --body-file <path>", "Write artifact, advance run"));
+  console.log(helpRow("stage run --task-id <id> -- <command>", "Exec a command with CORTEX_ACTIVE_TASK_ID set"));
+
   console.log(helpSection("MISC"));
   console.log(helpRow("mcp", "Run the MCP stdio server for the current project"));
   console.log(helpRow("version", "Print CLI version"));
@@ -1005,6 +1012,10 @@ async function run() {
     return runRunCommand(rest);
   }
 
+  if (command === "stage") {
+    return runStageCommandShim(rest);
+  }
+
   const passthrough = new Set([
     "bootstrap",
     "update",
@@ -1525,6 +1536,19 @@ async function runRunCommand(args) {
   const mod = await import(pathToFileURL(entry).href);
   const exitCode = await mod.runAiCli({ cli: sub, args: args.slice(1) });
   process.exit(exitCode);
+}
+
+async function runStageCommandShim(args) {
+  const target = process.env.CORTEX_PROJECT_ROOT?.trim() || process.cwd();
+  process.env.CORTEX_PROJECT_ROOT = path.resolve(target);
+  const entry = resolveCliEntry("stage");
+  if (!fs.existsSync(entry)) {
+    throw new Error(
+      `Build the project's MCP first (missing ${entry}). Run 'cortex bootstrap' in the project root.`,
+    );
+  }
+  const mod = await import(pathToFileURL(entry).href);
+  await mod.runStageCommand(args);
 }
 
 async function runTelemetryCommand(args) {
