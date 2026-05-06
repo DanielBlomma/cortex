@@ -2,6 +2,7 @@ import { z } from "zod";
 import { advanceStage, createRun, getRunState } from "./run-lifecycle.js";
 import { composeStageEnvelope } from "./envelope.js";
 import { DEFAULT_WORKFLOWS } from "./default-workflows.js";
+import { loadSyncedWorkflows } from "./synced-registry.js";
 import {
   stageStatusSchema,
   type StageStatus,
@@ -79,7 +80,13 @@ function resolveWorkflow(
   workflowId: string,
   registry: Record<string, WorkflowDefinition> | undefined,
 ): WorkflowDefinition {
-  const workflows = registry ?? DEFAULT_WORKFLOWS;
+  // When the caller passes an explicit registry, it wins outright (used
+  // by tests). Otherwise we merge bundled defaults with the org-authored
+  // workflows the daemon has synced into ~/.cortex/workflows.local.json,
+  // with the synced ones taking precedence on workflow_id collisions so
+  // org overrides actually override.
+  const workflows =
+    registry ?? { ...DEFAULT_WORKFLOWS, ...loadSyncedWorkflows() };
   const workflow = workflows[workflowId];
   if (!workflow) {
     throw new Error(

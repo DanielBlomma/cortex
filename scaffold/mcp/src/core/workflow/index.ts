@@ -6,3 +6,4 @@ export * from "./default-workflows.js";
 export * from "./mcp-tools.js";
 export * from "./capabilities.js";
 export * from "./enforcement.js";
+export * from "./synced-registry.js";
