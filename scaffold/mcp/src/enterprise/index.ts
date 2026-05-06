@@ -14,6 +14,7 @@ import { pushAuditEvents, queueAuditEvent, setAuditPushContext } from "./audit/p
 import { PolicyStore } from "../core/policy/store.js";
 import { syncFromCloud, syncFromLocal } from "./policy/sync.js";
 import { registerEnterpriseTools } from "./tools/enterprise.js";
+import { registerHarnessTools } from "./tools/harness.js";
 import { pushViolations, setViolationPushContext } from "./violations/push.js";
 import { pushReviewResults, setReviewPushContext } from "./reviews/push.js";
 import { setWorkflowPushContext } from "./workflow/push.js";
@@ -319,6 +320,10 @@ export async function register(server: McpServer): Promise<void> {
   }
 
   registerEnterpriseTools(server, collector, auditWriter, config, contextDir, policyStore, version);
+  // Cortex Harness MCP tools (cortex.workflow.*) — only registered for
+  // enterprise projects, since they depend on org-authored workflows
+  // synced from cortex-web (also enterprise-only).
+  registerHarnessTools(server);
 
   // v2.0.0: globalThis.__cortexContextToolHook bridge removed.
   // Enterprise is now in-process with cortex-mcp; tool events flow via
