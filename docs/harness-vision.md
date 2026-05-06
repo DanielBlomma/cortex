@@ -196,7 +196,14 @@ Workflow state is therefore not a new memory system. It is a thin tracked direct
 
 Validation must happen during execution, not after.
 
-Examples:
+The split of responsibility is strict:
+
+- **Cortex defines what must be validated.** Each stage in a workflow declares the validators it requires (mutation testing, security scanning, coverage thresholds, architecture checks, compliance gates) and the criteria those validators must meet.
+- **The developer's AI agent runs the validators.** Cortex does not execute test runners, mutators, or scanners itself. The agent — running in the developer's local environment — invokes whatever tooling the validator references and reports the result back through the stage artifact.
+- **Cortex enforces that validators were actually run** by checking the produced artifact's frontmatter against the stage's declared validator list. Missing or failed validators block the run unless the developer explicitly overrides (see *Process Enforcement & Overrides* below).
+
+Examples of validators a stage might require (the agent picks the concrete tool):
+
 - architecture validation
 - security validation
 - unit tests
@@ -206,7 +213,9 @@ Examples:
 - review agents
 - forbidden action detection
 
-Execution should stop automatically if critical policies fail.
+Mutation testing is one example, not the only one — workflows can require any validator that produces a structured pass/fail signal.
+
+Execution should stop automatically if critical validators fail and no override is recorded.
 
 ---
 
@@ -241,6 +250,39 @@ Organization policies define hard restrictions.
 Projects define workflows and architecture.
 
 Developers define task intent and local preferences.
+
+---
+
+## Process Enforcement & Overrides
+
+Cortex's role in the harness is to enforce the **way of working** — not to perform the work itself.
+
+What Cortex enforces:
+
+- The right stages run, in the right order, for the right kind of task
+- Each stage's required validators are declared and reported on
+- Capability gates apply to every tool call inside a stage
+- Every stage transition is logged with its artifact and outcome
+
+What Cortex does **not** do:
+
+- Run the validators themselves (the agent does)
+- Decide what tooling the agent uses to satisfy a validator (the agent picks)
+- Author the actual code, plan, or review (the agent does, the stage envelope tells it what's required)
+
+### Overrides
+
+A developer must be able to override a stage's requirements when their context warrants it — but every override is a recorded deviation from the agreed-upon process, not a silent skip.
+
+Override signals:
+
+- the developer (or their agent on their behalf) explicitly marks a stage as overridden when calling `cortex.workflow.advance`
+- the override carries a free-text reason and the list of validators / requirements that were skipped
+- the artifact's frontmatter records the override
+- a high-evidence audit event is written so reviewers and auditors can see the deviation in the evidence trail
+- downstream stages and the final approval stage see the override and can choose to be stricter
+
+The override mechanism exists so the harness stays usable in the messy reality of software work, while still leaving a clear paper trail when someone steps outside ordinary process.
 
 ---
 
