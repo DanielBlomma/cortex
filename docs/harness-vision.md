@@ -119,17 +119,18 @@ Agents start each invocation with an empty context yet must remember what to do.
 
 The resolution is to keep state outside the agent. Each agent invocation is a pure function — the harness owns the state.
 
-Memory lives in three layers, each with a different lifetime:
+Memory lives in four layers, each with a different lifetime:
 
 - Stage envelope — compressed input to a single agent (task spec, prior decisions it needs, capabilities, scope). Lives for one invocation.
-- Workflow state — per-stage artifacts in `.context/workflow/<session_id>/` plus a small daemon-managed `state.json` for bookkeeping. Lives for one workflow run.
+- Daemon bookkeeping — `.context/agents/<task-id>/state.json` (current stage, status flags). Gitignored because it churns on every tick. Lives for one workflow run.
+- Stage artifacts — markdown files in `.agents/<task-id>/` (`plan.md`, `review.md`, `changes.md`, `mutation-report.md`, `security-report.md`). **Tracked in git.** Get committed alongside the code change so a PR carries the plan that authored it, the review that approved it, and the reports that validated it. Live as long as the code change does — the evidence trail is the git history.
 - Cortex memory and rules — long-lived facts (architectural decisions, conventions, prohibited patterns). Lives for the repository's lifetime.
 
 Agents do not read the previous agent's transcript. They read a declared handoff schema that the previous stage produced. This forces structured communication instead of free-form chat history that bleeds bias.
 
-Stage artifacts are markdown files with YAML frontmatter, matching the format Cortex already uses for `SKILL.md`, `MEMORY.md`, and rules. Frontmatter carries the structured fields the harness validates; the body carries the reasoning the next stage actually needs to read. JSON is reserved for daemon-internal bookkeeping (`state.json`, audit events).
+Stage artifacts are markdown files with YAML frontmatter, matching the format Cortex already uses for `SKILL.md`, `MEMORY.md`, and rules. Frontmatter carries the structured fields the harness validates; the body carries the reasoning the next stage actually needs to read. JSON is reserved for daemon-internal bookkeeping (`state.json`, audit events) where there is no human-authored content to preserve.
 
-Example artifact:
+Example artifact (`.agents/2026-05-06-add-skills-ui/review.md`):
 
 ```markdown
 ---
@@ -137,7 +138,7 @@ stage: review
 approved: false
 blocking_comments: 1
 references:
-  - stage-1-plan.md
+  - plan.md
 ---
 
 # Review of the plan
@@ -174,14 +175,20 @@ Security
 Approval
 → reads every prior artifact (human, not agent)
 
+Why split the two locations:
+
+- Daemon state churns every stage tick; it would clutter `git status` and tempt accidental commits of half-finished workflows. It belongs in `.context/agents/` alongside the existing local-only state.
+- Stage artifacts only land on stage completion and represent a stable record. Tracking them in git turns code review into "I can see the AI's plan, the AI-review of the plan, the diff that implements it, and the security report — all in one PR." That is the harness's evidence trail rendered in the tool engineers already use.
+- A failed workflow leaves partial artifacts in `.agents/` that the developer can either commit (as evidence of what blocked) or `git restore` if they were noise. Failed runs are also evidence.
+
 Three of the four building blocks already exist in Cortex:
 
 - Long-lived memory across sessions — provided by the memory system (`MEMORY.md` + per-fact files).
 - Facts with trust and recency — provided by rules and the context engine.
-- Evidence and audit per run — provided by the audit pipeline (`.context/audit/host-events-*.jsonl`).
+- Evidence and audit per run — provided by the audit pipeline (`.context/audit/host-events-*.jsonl`) plus, going forward, the tracked `.agents/` history.
 - Workflow state per session — to build.
 
-Workflow state is therefore not a new memory system. It is a thin file-backed directory layout plus an envelope composer in the daemon that builds the agent prompt for each stage, validates the agent's frontmatter against the stage's schema, and writes the artifact plus an audit event.
+Workflow state is therefore not a new memory system. It is a thin two-directory layout (one ephemeral, one tracked) plus an envelope composer in the daemon that builds the agent prompt for each stage, validates the agent's frontmatter against the stage's schema, and writes the artifact plus an audit event.
 
 ---
 
