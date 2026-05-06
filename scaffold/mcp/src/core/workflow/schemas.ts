@@ -27,6 +27,23 @@ const slugSchema = z
   );
 
 /**
+ * Validator requirement declared by a workflow stage. Cortex enforces
+ * that the agent reports having run each declared validator (via the
+ * artifact's `validators_passed` frontmatter), but never executes the
+ * validator itself — the agent picks the concrete tooling.
+ *
+ * id is a stable identifier (e.g. "mutation-score") that the agent
+ * echoes back; description is human-readable context for the agent
+ * rendered into the stage envelope.
+ */
+export const validatorRequirementSchema = z.object({
+  id: slugSchema,
+  description: z.string().min(1).max(500),
+});
+
+export type ValidatorRequirement = z.infer<typeof validatorRequirementSchema>;
+
+/**
  * Static definition of a single stage in a workflow. Authored at the
  * organization level (in cortex-web later) and synced down to projects.
  */
@@ -37,6 +54,15 @@ export const stageDefinitionSchema = z.object({
   reads: z.array(slugSchema).default([]),
   /** Required frontmatter fields the produced artifact must populate. */
   required_fields: z.array(z.string().min(1)).default([]),
+  /**
+   * Validators the stage requires the agent to have run. The agent
+   * picks the actual tooling (e.g. stryker for mutation testing) and
+   * reports the result by listing each validator's id under
+   * `validators_passed` in the artifact frontmatter. Cortex enforces
+   * the list-coverage contract on advance unless the call carries an
+   * explicit override.
+   */
+  validators: z.array(validatorRequirementSchema).default([]),
   /** Capability key the stage runs under. References a separate capability registry. */
   capability: z.string().min(1).optional(),
   /** Human-readable summary surfaced in dashboards and audit. */
@@ -71,6 +97,21 @@ export const stageStatusSchema = z.enum([
 export type StageStatus = z.infer<typeof stageStatusSchema>;
 
 /**
+ * Process-override record. When a stage advances despite missing or
+ * failed validators, the caller must pass an override with a free-text
+ * reason. The override is recorded on the StageRecord, stamped into
+ * the artifact's frontmatter, and emitted as a high-evidence audit
+ * event so reviewers can see the deviation in the evidence trail.
+ */
+export const stageOverrideSchema = z.object({
+  reason: z.string().min(1).max(2000),
+  skipped_validators: z.array(z.string().min(1)).default([]),
+  skipped_requirements: z.array(z.string().min(1)).default([]),
+});
+
+export type StageOverride = z.infer<typeof stageOverrideSchema>;
+
+/**
  * Per-stage record inside state.json. Holds outcome metadata that the next
  * stage's envelope composer needs without re-parsing every artifact.
  */
@@ -82,6 +123,10 @@ export const stageRecordSchema = z.object({
   completed_at: z.string().datetime().optional(),
   /** Frontmatter outcome surfaced for fast lookup (e.g. approved=true on review). */
   outcome: z.record(z.string(), z.unknown()).optional(),
+  /** Validators the agent reported having run for this stage. */
+  validators_passed: z.array(z.string().min(1)).default([]),
+  /** Override record if the stage advanced despite missing/failed requirements. */
+  override: stageOverrideSchema.optional(),
 });
 
 export type StageRecord = z.infer<typeof stageRecordSchema>;

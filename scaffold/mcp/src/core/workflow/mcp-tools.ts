@@ -4,6 +4,7 @@ import { composeStageEnvelope } from "./envelope.js";
 import { DEFAULT_WORKFLOWS } from "./default-workflows.js";
 import { loadSyncedWorkflows } from "./synced-registry.js";
 import {
+  stageOverrideSchema,
   stageStatusSchema,
   type StageStatus,
   type WorkflowDefinition,
@@ -45,6 +46,19 @@ export const WorkflowAdvanceInput = z.object({
   status: stageStatusSchema.optional(),
   /** Optional structured outcome surfaced into state.json for fast lookup by later stages. */
   outcome: z.record(z.string(), z.unknown()).optional(),
+  /**
+   * Validators the agent reports having run for this stage. Compared
+   * against the stage definition's required validators on advance —
+   * missing entries block the call unless an override is supplied.
+   */
+  validators_passed: z.array(z.string().min(1)).default([]),
+  /**
+   * Process override. Required when validators_passed does not cover
+   * every validator the stage declares. Logged as a high-evidence
+   * audit event and stamped into the artifact's frontmatter so the
+   * deviation is visible in the evidence trail.
+   */
+  override: stageOverrideSchema.optional(),
 });
 export type WorkflowAdvanceInputT = z.infer<typeof WorkflowAdvanceInput>;
 
@@ -155,6 +169,8 @@ export function runWorkflowAdvance(
     body: input.body,
     outcome: input.outcome,
     status: finalStatus,
+    validatorsPassed: input.validators_passed,
+    override: input.override,
   });
 
   // If the run is still going, also return the next envelope so the caller
