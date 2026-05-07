@@ -7,3 +7,4 @@ export * from "./mcp-tools.js";
 export * from "./capabilities.js";
 export * from "./enforcement.js";
 export * from "./synced-registry.js";
+export * from "./synced-capability-registry.js";

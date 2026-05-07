@@ -29,6 +29,7 @@ import {
 import { startSyncTimer } from "./sync-checker.js";
 import { startSkillSyncTimer } from "./skill-sync-checker.js";
 import { startWorkflowSyncTimer } from "./workflow-sync-checker.js";
+import { startCapabilitySyncTimer } from "./capability-sync-checker.js";
 import { startHostEventsPusher } from "./host-events-pusher.js";
 import { startEgressProxy } from "./egress-proxy.js";
 import { startHeartbeatPusher } from "./heartbeat-pusher.js";
@@ -370,6 +371,20 @@ async function main(): Promise<void> {
       : skillSyncMs;
   if (process.env.CORTEX_DISABLE_WORKFLOW_SYNC !== "1") {
     startWorkflowSyncTimer(process.cwd(), workflowSyncMs);
+  }
+
+  // Harness Phase 2: poll cortex-web for org-authored capabilities and
+  // cache definitions locally so evaluateToolCall can merge them over
+  // bundled DEFAULT_CAPABILITIES on the pre-tool-use path. Same cadence
+  // as the workflow sync by default; independently configurable via
+  // CORTEX_CAPABILITY_SYNC_MS / CORTEX_DISABLE_CAPABILITY_SYNC.
+  const capabilitySyncRaw = parseInt(process.env.CORTEX_CAPABILITY_SYNC_MS ?? "", 10);
+  const capabilitySyncMs =
+    Number.isFinite(capabilitySyncRaw) && capabilitySyncRaw > 0
+      ? capabilitySyncRaw
+      : workflowSyncMs;
+  if (process.env.CORTEX_DISABLE_CAPABILITY_SYNC !== "1") {
+    startCapabilitySyncTimer(process.cwd(), capabilitySyncMs);
   }
 
   // Govern host heartbeat — fills host_enrollment on cortex-web so the

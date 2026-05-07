@@ -4,6 +4,7 @@ import { readRunState } from "./artifact-io.js";
 import { DEFAULT_CAPABILITIES, type CapabilityDefinition } from "./capabilities.js";
 import { workflowDefinitionSchema, type WorkflowDefinition } from "./schemas.js";
 import { DEFAULT_WORKFLOWS } from "./default-workflows.js";
+import { loadSyncedCapabilities } from "./synced-capability-registry.js";
 
 /**
  * Pre-tool-use enforcement for the harness. Pure function: takes the tool
@@ -83,7 +84,12 @@ export function evaluateToolCall(options: EvaluateOptions): EnforcementResult {
     return { allowed: true, reason: "stage has no capability declared" };
   }
 
-  const capabilities = options.capabilities ?? DEFAULT_CAPABILITIES;
+  // When the caller passes an explicit registry, use it as-is (tests).
+  // Otherwise merge bundled defaults with the daemon-synced org-authored
+  // capabilities, with synced ones taking precedence on name collisions
+  // so org overrides actually override.
+  const capabilities =
+    options.capabilities ?? { ...DEFAULT_CAPABILITIES, ...loadSyncedCapabilities() };
   const capability = capabilities[stage.capability];
   if (!capability) {
     return {
