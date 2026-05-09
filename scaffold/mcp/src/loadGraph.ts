@@ -1,16 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import ryugraph, { type Connection, type PreparedStatement, type QueryResult, type RyuValue } from "ryugraph";
 import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
+import { CACHE_DIR, CONTEXT_DIR, DB_PATH } from "./paths.js";
 import type { JsonObject } from "./types.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const REPO_ROOT = path.resolve(__dirname, "../..");
-const CONTEXT_DIR = path.join(REPO_ROOT, ".context");
-const CACHE_DIR = path.join(CONTEXT_DIR, "cache");
-const DB_PATH = path.join(CONTEXT_DIR, "db", "graph.ryu");
 const ONTOLOGY_PATH = path.join(CONTEXT_DIR, "ontology.cypher");
 const BATCH_SIZE = 50;
 

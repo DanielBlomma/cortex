@@ -12,4 +12,4 @@ fi
 mkdir -p "$MCP_DIR/.npm-cache"
 
 echo "[embed] generating embeddings via .context/mcp/embed"
-NPM_CONFIG_CACHE="$MCP_DIR/.npm-cache" npm --prefix "$MCP_DIR" run embed --silent -- "$@"
+CORTEX_PROJECT_ROOT="$REPO_ROOT" NPM_CONFIG_CACHE="$MCP_DIR/.npm-cache" npm --prefix "$MCP_DIR" run embed --silent -- "$@"

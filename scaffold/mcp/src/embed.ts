@@ -1,20 +1,15 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { env, pipeline } from "@huggingface/transformers";
 import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
+import { CACHE_DIR, PATHS } from "./paths.js";
 import type { JsonObject, JsonValue } from "./types.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const REPO_ROOT = path.resolve(__dirname, "../..");
-const CONTEXT_DIR = path.join(REPO_ROOT, ".context");
-const CACHE_DIR = path.join(CONTEXT_DIR, "cache");
-const EMBEDDINGS_DIR = path.join(CONTEXT_DIR, "embeddings");
-const EMBEDDINGS_PATH = path.join(EMBEDDINGS_DIR, "entities.jsonl");
-const EMBEDDINGS_MANIFEST_PATH = path.join(EMBEDDINGS_DIR, "manifest.json");
-const MODEL_CACHE_DIR = path.join(EMBEDDINGS_DIR, "models");
+const EMBEDDINGS_PATH = PATHS.embeddingsEntities;
+const EMBEDDINGS_MANIFEST_PATH = PATHS.embeddingsManifest;
+const MODEL_CACHE_DIR = PATHS.embeddingsModelCache;
+const EMBEDDINGS_DIR = path.dirname(EMBEDDINGS_PATH);
 
 const DEFAULT_MODEL_ID = "Xenova/all-MiniLM-L6-v2";
 const DEFAULT_MAX_TEXT_CHARS = 7000;

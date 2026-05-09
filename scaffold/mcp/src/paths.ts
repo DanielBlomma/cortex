@@ -21,9 +21,45 @@ function normalizeForWsl(rawPath: string): string {
 }
 
 const PROJECT_ROOT_OVERRIDE = process.env.CORTEX_PROJECT_ROOT?.trim();
-export const REPO_ROOT = PROJECT_ROOT_OVERRIDE
-  ? path.resolve(normalizeForWsl(PROJECT_ROOT_OVERRIDE))
-  : path.resolve(__dirname, "../..");
+
+function hasContextConfig(candidate: string): boolean {
+  return fs.existsSync(path.join(candidate, ".context", "config.yaml"));
+}
+
+function resolveFrom(startDir: string): string | null {
+  let current = path.resolve(startDir);
+  while (true) {
+    if (hasContextConfig(current)) {
+      return current;
+    }
+
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return null;
+    }
+    current = parent;
+  }
+}
+
+function resolveRepoRoot(): string {
+  const candidates = [
+    PROJECT_ROOT_OVERRIDE ? path.resolve(normalizeForWsl(PROJECT_ROOT_OVERRIDE)) : null,
+    process.env.INIT_CWD?.trim() ? path.resolve(normalizeForWsl(process.env.INIT_CWD.trim())) : null,
+    process.cwd(),
+    __dirname
+  ].filter((value): value is string => Boolean(value));
+
+  for (const candidate of candidates) {
+    const resolved = resolveFrom(candidate);
+    if (resolved) {
+      return resolved;
+    }
+  }
+
+  return path.resolve(__dirname, "../../..");
+}
+
+export const REPO_ROOT = resolveRepoRoot();
 export const CONTEXT_DIR = path.join(REPO_ROOT, ".context");
 export const CACHE_DIR = path.join(CONTEXT_DIR, "cache");
 export const DB_PATH = path.join(CONTEXT_DIR, "db", "graph.ryu");
