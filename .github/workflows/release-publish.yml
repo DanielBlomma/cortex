@@ -57,8 +57,7 @@ jobs:
         working-directory: scaffold/mcp
         run: |
           npm ci
-          npm run build --silent
-          npm test
+          npm run test:ci
 
       - name: Verify npm package contents
         run: npm pack --dry-run

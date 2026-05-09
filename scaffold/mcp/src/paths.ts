@@ -44,9 +44,9 @@ function resolveFrom(startDir: string): string | null {
 function resolveRepoRoot(): string {
   const candidates = [
     PROJECT_ROOT_OVERRIDE ? path.resolve(normalizeForWsl(PROJECT_ROOT_OVERRIDE)) : null,
-    process.env.INIT_CWD?.trim() ? path.resolve(normalizeForWsl(process.env.INIT_CWD.trim())) : null,
     process.cwd(),
-    __dirname
+    __dirname,
+    process.env.INIT_CWD?.trim() ? path.resolve(normalizeForWsl(process.env.INIT_CWD.trim())) : null
   ].filter((value): value is string => Boolean(value));
 
   for (const candidate of candidates) {

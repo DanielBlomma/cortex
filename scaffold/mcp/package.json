@@ -9,7 +9,8 @@
     "graph:load": "npm run build --silent && node dist/loadGraph.js",
     "dev": "node --loader ts-node/esm src/server.ts",
     "start": "node dist/server.js",
-    "test": "npm run build --silent && node --test tests/*.test.mjs"
+    "test": "npm run build --silent && node --test tests/*.test.mjs",
+    "test:ci": "npm run build --silent && node --test --test-reporter=spec tests/*.test.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.1.0",
