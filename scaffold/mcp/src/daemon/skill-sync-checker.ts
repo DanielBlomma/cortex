@@ -46,6 +46,7 @@ type ManifestEntry = {
 };
 
 type LocalSkillRecord = {
+  cli: SkillCli;
   scope: string;
   updated_at: string;
   path: string;
@@ -88,7 +89,29 @@ function readState(): LocalSkillsState {
   if (!existsSync(path)) return { skills: {} };
   try {
     const parsed = JSON.parse(readFileSync(path, "utf8")) as LocalSkillsState;
-    return { skills: parsed.skills ?? {}, last_synced_at: parsed.last_synced_at };
+    const normalizedSkills: Record<string, LocalSkillRecord> = {};
+    for (const [key, record] of Object.entries(parsed.skills ?? {})) {
+      if (!record || typeof record !== "object") continue;
+      const inferredCli =
+        record.path?.includes("/.codex/skills/")
+          ? "codex"
+          : "claude";
+      const cli =
+        record.cli === "codex" || record.cli === "claude"
+          ? record.cli
+          : inferredCli;
+      const normalizedKey = key.includes(":") ? key : `${cli}:${key}`;
+      normalizedSkills[normalizedKey] = {
+        cli,
+        scope: String(record.scope ?? "global"),
+        updated_at: String(record.updated_at ?? ""),
+        path: String(record.path ?? ""),
+      };
+    }
+    return {
+      skills: normalizedSkills,
+      last_synced_at: parsed.last_synced_at,
+    };
   } catch {
     return { skills: {} };
   }
@@ -103,17 +126,20 @@ function writeState(state: LocalSkillsState): void {
 }
 
 /**
- * Resolve the on-disk SKILL.md path for a skill. Global skills live under
- * ~/.claude/skills (Claude Code's user-scope skills directory); cli:codex
- * skills live under ~/.codex/skills. cli:claude scope is treated as
- * Claude-only and lands in ~/.claude/skills.
+ * Resolve the on-disk SKILL.md path for a skill install target. Global
+ * skills are installed once per CLI, so the destination root depends on the
+ * active sync target rather than just the stored scope.
  */
-function skillFilePath(scope: string, name: string): string {
+function skillFilePath(cli: SkillCli, name: string): string {
   const root =
-    scope === "cli:codex"
+    cli === "codex"
       ? join(homedir(), ".codex", "skills")
       : join(homedir(), ".claude", "skills");
   return join(root, name, "SKILL.md");
+}
+
+function stateSkillKey(cli: SkillCli, name: string): string {
+  return `${cli}:${name}`;
 }
 
 function shouldSyncForCli(scope: string, cli: SkillCli): boolean {
@@ -222,7 +248,8 @@ export async function runSkillSyncForCli(
 
   // Detect adds + changes
   for (const entry of relevantManifest) {
-    const local = state.skills[entry.name];
+    const skillKey = stateSkillKey(cli, entry.name);
+    const local = state.skills[skillKey];
     const isNew = !local;
     const isChanged =
       Boolean(local) &&
@@ -243,7 +270,7 @@ export async function runSkillSyncForCli(
       };
     }
 
-    const path = skillFilePath(entry.scope, entry.name);
+    const path = skillFilePath(cli, entry.name);
     try {
       writeSkillFile(path, body);
     } catch (err) {
@@ -257,7 +284,8 @@ export async function runSkillSyncForCli(
       };
     }
 
-    state.skills[entry.name] = {
+    state.skills[skillKey] = {
+      cli,
       scope: entry.scope,
       updated_at: entry.updated_at,
       path,
@@ -269,7 +297,10 @@ export async function runSkillSyncForCli(
   // dropped (or disabled). We only consider state entries whose scope
   // matches this cli, so we don't accidentally remove the other CLI's
   // skills when running a per-cli tick.
-  for (const [name, record] of Object.entries(state.skills)) {
+  for (const [skillKey, record] of Object.entries(state.skills)) {
+    if (record.cli !== cli) continue;
+    const [, name] = skillKey.split(":", 2);
+    if (!name) continue;
     if (!shouldSyncForCli(record.scope, cli)) continue;
     if (remoteByName.has(name)) continue;
     try {
@@ -277,7 +308,7 @@ export async function runSkillSyncForCli(
     } catch {
       // best-effort; if unlink fails the next tick will retry
     }
-    delete state.skills[name];
+    delete state.skills[skillKey];
     removed.push(name);
   }
 
