@@ -16,6 +16,14 @@ function readJson(relativePath) {
   return JSON.parse(fs.readFileSync(absolutePath, "utf8"));
 }
 
+function readJsonIfExists(relativePath) {
+  const absolutePath = path.join(repoRoot, relativePath);
+  if (!fs.existsSync(absolutePath)) {
+    return null;
+  }
+  return JSON.parse(fs.readFileSync(absolutePath, "utf8"));
+}
+
 function writeJson(relativePath, value) {
   const absolutePath = path.join(repoRoot, relativePath);
   fs.writeFileSync(absolutePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -78,14 +86,17 @@ function main() {
   const syncPlan = [
     {
       path: "server.json",
+      required: true,
       transform: (value) => syncServerJson(value, version, packageName)
     },
     {
       path: "plugins/cortex/.claude-plugin/plugin.json",
+      required: true,
       transform: (value) => syncPluginManifest(value, version)
     },
     {
       path: ".claude-plugin/marketplace.json",
+      required: false,
       transform: (value) => syncMarketplace(value, version)
     }
   ];
@@ -94,7 +105,10 @@ function main() {
   const updatedFiles = [];
 
   for (const item of syncPlan) {
-    const current = readJson(item.path);
+    const current = item.required ? readJson(item.path) : readJsonIfExists(item.path);
+    if (current === null) {
+      continue;
+    }
     const next = item.transform(current);
     if (!isEqualJson(current, next)) {
       if (checkMode) {
