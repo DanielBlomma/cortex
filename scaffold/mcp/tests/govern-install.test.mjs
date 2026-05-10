@@ -109,7 +109,29 @@ test("install --cli codex writes requirements.toml with sandbox bounds", async (
     "GET /api/v1/govern/config": (req, res) => {
       const config = {
         cli: "codex",
-        managed_settings: {},
+        managed_settings: {
+          hooks: {
+            PreToolUse: [
+              {
+                matcher: "Edit|Write|Bash|MultiEdit",
+                command: "cortex hook pre-tool-use",
+                statusMessage: "Checking Cortex policy",
+                timeout: 30,
+              },
+            ],
+            SessionStart: [
+              {
+                matcher: "startup|resume|clear",
+                command: "cortex hook session-start",
+              },
+            ],
+            SessionEnd: [
+              {
+                command: "cortex hook session-end",
+              },
+            ],
+          },
+        },
         deny_rules: [
           { pattern: "Edit(~/.codex/config.toml)", source_frameworks: ["iso27001"] },
         ],
@@ -124,7 +146,8 @@ test("install --cli codex writes requirements.toml with sandbox bounds", async (
   });
 
   const { root } = makeProject({ apiKey: "ent_test_key_12345678", baseUrl });
-  const codexPath = path.join(root, "fake-codex-requirements.toml");
+  const codexDir = path.join(root, "fake managed codex");
+  const codexPath = path.join(codexDir, "requirements.toml");
   try {
     const result = await runGovernInstall({
       cli: "codex",
@@ -138,6 +161,23 @@ test("install --cli codex writes requirements.toml with sandbox bounds", async (
     assert.match(toml, /allowed_sandbox_modes = \["read-only", "workspace-write"\]/);
     assert.match(toml, /\[permissions\.filesystem\]/);
     assert.match(toml, /deny_read = \["~\/.codex\/config\.toml"\]/);
+    assert.match(toml, /\[hooks\]/);
+    assert.match(toml, /managed_dir = ".+fake managed codex\/hooks"/);
+    assert.match(toml, /\[\[hooks\.PreToolUse\]\]/);
+    assert.match(toml, /matcher = "Edit\|Write\|Bash\|MultiEdit"/);
+    assert.match(toml, /command = "\\".+fake managed codex\/hooks\/pre-tool-use\.sh\\""/);
+    assert.match(toml, /\[\[hooks\.SessionStart\]\]/);
+    assert.match(toml, /command = "\\".+fake managed codex\/hooks\/session-start\.sh\\""/);
+    assert.doesNotMatch(toml, /hooks\.SessionEnd/);
+
+    const preToolUseWrapper = path.join(codexDir, "hooks", "pre-tool-use.sh");
+    const sessionStartWrapper = path.join(codexDir, "hooks", "session-start.sh");
+    assert.equal(fs.existsSync(preToolUseWrapper), true);
+    assert.equal(fs.existsSync(sessionStartWrapper), true);
+    const preToolUseContents = fs.readFileSync(preToolUseWrapper, "utf8");
+    assert.match(preToolUseContents, /exec "\$CORTEX" hook pre-tool-use "\$@"/);
+    const mode = fs.statSync(preToolUseWrapper).mode & 0o777;
+    assert.equal(mode, 0o755);
   } finally {
     server.close();
     fs.rmSync(root, { recursive: true, force: true });

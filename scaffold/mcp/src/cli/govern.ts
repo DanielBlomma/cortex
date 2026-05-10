@@ -8,6 +8,7 @@ import {
   renameSync,
   unlinkSync,
   rmSync,
+  chmodSync,
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { platform, hostname } from "node:os";
@@ -58,6 +59,29 @@ export type FetchedConfig = {
   frameworks: Array<{ id: string; version: string }>;
 };
 
+type CodexHookCommand = {
+  type: "command";
+  command: string;
+  timeout?: number;
+  statusMessage?: string;
+};
+
+type CodexHookHandler = {
+  matcher?: string;
+  hooks: CodexHookCommand[];
+};
+
+type CodexHookHandlersByEvent = Record<string, CodexHookHandler[]>;
+
+const SUPPORTED_CODEX_HOOK_EVENTS = new Set([
+  "SessionStart",
+  "PreToolUse",
+  "PermissionRequest",
+  "PostToolUse",
+  "UserPromptSubmit",
+  "Stop",
+]);
+
 export function getManagedSettingsPath(cli: GovernCli, os: NodeJS.Platform): string {
   const path = DEFAULT_PATHS[cli]?.[os];
   if (!path) {
@@ -93,11 +117,159 @@ function tomlArray(values: unknown[]): string {
   return `[${items.join(", ")}]`;
 }
 
-export function buildCodexRequirementsToml(config: FetchedConfig): string {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeCodexHookCommand(raw: unknown): CodexHookCommand | null {
+  if (typeof raw === "string" && raw.trim()) {
+    return { type: "command", command: raw.trim() };
+  }
+  if (!isRecord(raw)) {
+    return null;
+  }
+  const command = typeof raw.command === "string" ? raw.command.trim() : "";
+  if (!command) {
+    return null;
+  }
+  const timeout = typeof raw.timeout === "number" && Number.isFinite(raw.timeout)
+    ? Math.trunc(raw.timeout)
+    : undefined;
+  const statusMessage = typeof raw.statusMessage === "string" && raw.statusMessage.trim()
+    ? raw.statusMessage
+    : undefined;
+  return {
+    type: "command",
+    command,
+    ...(timeout !== undefined ? { timeout } : {}),
+    ...(statusMessage ? { statusMessage } : {}),
+  };
+}
+
+function normalizeCodexHookCommands(raw: unknown): CodexHookCommand[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((entry) => normalizeCodexHookCommand(entry))
+      .filter((entry): entry is CodexHookCommand => entry !== null);
+  }
+  const single = normalizeCodexHookCommand(raw);
+  return single ? [single] : [];
+}
+
+function normalizeCodexHookHandlers(raw: unknown): CodexHookHandler[] {
+  const entries = Array.isArray(raw) ? raw : [raw];
+  const normalized: CodexHookHandler[] = [];
+
+  for (const entry of entries) {
+    if (typeof entry === "string") {
+      normalized.push({ hooks: [{ type: "command", command: entry }] });
+      continue;
+    }
+    if (!isRecord(entry)) {
+      continue;
+    }
+
+    const matcher = typeof entry.matcher === "string" && entry.matcher.trim()
+      ? entry.matcher
+      : undefined;
+
+    if (Array.isArray(entry.hooks) || typeof entry.hooks === "string" || isRecord(entry.hooks)) {
+      const hooks = normalizeCodexHookCommands(entry.hooks);
+      if (hooks.length > 0) {
+        normalized.push({ ...(matcher ? { matcher } : {}), hooks });
+      }
+      continue;
+    }
+
+    const shorthand = normalizeCodexHookCommand(entry);
+    if (shorthand) {
+      normalized.push({
+        ...(matcher ? { matcher } : {}),
+        hooks: [shorthand],
+      });
+    }
+  }
+
+  return normalized;
+}
+
+function normalizeCodexHooks(managedSettings: Record<string, unknown>): CodexHookHandlersByEvent {
+  const hooksRoot = managedSettings.hooks;
+  if (!isRecord(hooksRoot)) {
+    return {};
+  }
+
+  const normalized: CodexHookHandlersByEvent = {};
+  for (const [eventName, rawHandlers] of Object.entries(hooksRoot)) {
+    if (!SUPPORTED_CODEX_HOOK_EVENTS.has(eventName)) {
+      continue;
+    }
+    const handlers = normalizeCodexHookHandlers(rawHandlers);
+    if (handlers.length > 0) {
+      normalized[eventName] = handlers;
+    }
+  }
+  return normalized;
+}
+
+function codexManagedHooksDir(requirementsPath: string): string {
+  return join(dirname(requirementsPath), "hooks");
+}
+
+function shellQuotedCommandPath(filePath: string): string {
+  return `"${filePath.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+function managedCodexHookWrapperContent(hookName: string): string {
+  return [
+    "#!/bin/sh",
+    "set -eu",
+    'CORTEX="${CORTEX_BIN:-cortex}"',
+    `exec "$CORTEX" hook ${hookName} "$@"`,
+    "",
+  ].join("\n");
+}
+
+function materializeCodexManagedHooks(
+  requirementsPath: string,
+  managedSettings: Record<string, unknown>,
+): { managedHookDir: string | null; hooksByEvent: CodexHookHandlersByEvent } {
+  const hooksByEvent = normalizeCodexHooks(managedSettings);
+  const eventNames = Object.keys(hooksByEvent);
+  if (eventNames.length === 0) {
+    return { managedHookDir: null, hooksByEvent };
+  }
+
+  const managedHookDir = codexManagedHooksDir(requirementsPath);
+  mkdirSync(managedHookDir, { recursive: true });
+
+  for (const handlers of Object.values(hooksByEvent)) {
+    for (const handler of handlers) {
+      for (const hook of handler.hooks) {
+        const match = hook.command.match(/^cortex hook ([a-z0-9-]+)$/);
+        if (!match) {
+          continue;
+        }
+        const hookName = match[1];
+        const wrapperPath = join(managedHookDir, `${hookName}.sh`);
+        writeAtomic(wrapperPath, managedCodexHookWrapperContent(hookName), 0o755);
+        hook.command = shellQuotedCommandPath(wrapperPath);
+      }
+    }
+  }
+
+  return { managedHookDir, hooksByEvent };
+}
+
+export function buildCodexRequirementsToml(
+  config: FetchedConfig,
+  options: { managedHookDir?: string | null; hooksByEvent?: CodexHookHandlersByEvent } = {},
+): string {
   const denyRead = config.deny_rules
     .map((r) => r.pattern)
     .filter((p) => /^(Edit|Read|Write)\(/.test(p))
     .map((p) => p.replace(/^[A-Za-z]+\(/, "").replace(/\)$/, ""));
+  const hooksByEvent = options.hooksByEvent ?? normalizeCodexHooks(config.managed_settings);
   const lines: string[] = [
     "# Cortex govern — codex requirements (Phase 3 of PLAN.govern-mode.md).",
     "# Admin-enforced upper bounds. Users cannot weaken these via ~/.codex/config.toml.",
@@ -112,13 +284,48 @@ export function buildCodexRequirementsToml(config: FetchedConfig): string {
     "codex_hooks = true",
     "",
   ];
+
+  const eventNames = Object.keys(hooksByEvent);
+  if (eventNames.length > 0) {
+    lines.push("[hooks]");
+    if (options.managedHookDir) {
+      lines.push(`managed_dir = ${tomlString(options.managedHookDir)}`);
+    }
+    lines.push("");
+
+    for (const eventName of eventNames) {
+      for (const handler of hooksByEvent[eventName]) {
+        lines.push(`[[hooks.${eventName}]]`);
+        if (handler.matcher) {
+          lines.push(`matcher = ${tomlString(handler.matcher)}`);
+        }
+        for (const hook of handler.hooks) {
+          lines.push("");
+          lines.push(`[[hooks.${eventName}.hooks]]`);
+          lines.push(`type = ${tomlString(hook.type)}`);
+          lines.push(`command = ${tomlString(hook.command)}`);
+          if (hook.timeout !== undefined) {
+            lines.push(`timeout = ${hook.timeout}`);
+          }
+          if (hook.statusMessage) {
+            lines.push(`statusMessage = ${tomlString(hook.statusMessage)}`);
+          }
+        }
+        lines.push("");
+      }
+    }
+  }
+
   return lines.join("\n");
 }
 
-function writeAtomic(filePath: string, content: string): void {
+function writeAtomic(filePath: string, content: string, mode?: number): void {
   mkdirSync(dirname(filePath), { recursive: true });
   const tmp = `${filePath}.tmp.${randomUUID()}`;
   writeFileSync(tmp, content, "utf8");
+  if (mode !== undefined) {
+    chmodSync(tmp, mode);
+  }
   renameSync(tmp, filePath);
 }
 
@@ -303,10 +510,15 @@ export async function runGovernInstall(
       };
     }
 
+    const codexManagedHooks =
+      cli === "codex"
+        ? materializeCodexManagedHooks(path, merged.managed_settings)
+        : { managedHookDir: null, hooksByEvent: {} };
+
     const content =
       cli === "claude"
         ? JSON.stringify(merged.managed_settings, null, 2) + "\n"
-        : buildCodexRequirementsToml(merged);
+        : buildCodexRequirementsToml(merged, codexManagedHooks);
 
     try {
       writeAtomic(path, content);
