@@ -45,6 +45,16 @@ test("buildCodexRequirementsToml: emits sandbox + approval upper bounds", () => 
             timeout: 30,
           },
         ],
+        PostToolUse: [
+          {
+            command: '"/Library/Application Support/Codex/hooks/post-tool-use.sh"',
+          },
+        ],
+        PermissionRequest: [
+          {
+            command: '"/Library/Application Support/Codex/hooks/permission-request.sh"',
+          },
+        ],
         SessionEnd: [
           {
             command: "cortex hook session-end",
@@ -71,9 +81,14 @@ test("buildCodexRequirementsToml: emits sandbox + approval upper bounds", () => 
   assert.match(toml, /\[\[hooks\.PreToolUse\]\]/);
   assert.match(toml, /matcher = "Edit\|Write\|Bash\|MultiEdit"/);
   assert.match(toml, /command = "\\"\/Library\/Application Support\/Codex\/hooks\/pre-tool-use\.sh\\""/);
+  assert.match(toml, /\[\[hooks\.PostToolUse\]\]/);
+  assert.match(toml, /command = "\\"\/Library\/Application Support\/Codex\/hooks\/post-tool-use\.sh\\""/);
+  assert.match(toml, /\[\[hooks\.PermissionRequest\]\]/);
+  assert.match(toml, /command = "\\"\/Library\/Application Support\/Codex\/hooks\/permission-request\.sh\\""/);
   assert.match(toml, /statusMessage = "Checking Cortex policy"/);
   assert.match(toml, /timeout = 30/);
-  assert.doesNotMatch(toml, /hooks\.SessionEnd/);
+  assert.match(toml, /\[\[hooks\.SessionEnd\]\]/);
+  assert.match(toml, /command = "cortex hook session-end"/);
   // Bash(...) patterns should not appear in deny_read (filesystem only)
   assert.doesNotMatch(toml, /curl/);
 });

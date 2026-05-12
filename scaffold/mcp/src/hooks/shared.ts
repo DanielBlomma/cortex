@@ -20,6 +20,13 @@ export type HookInput = {
   [key: string]: unknown;
 };
 
+export type NormalizedToolCall = {
+  cwd: string;
+  sessionId?: string;
+  toolName: string;
+  toolInput: Record<string, unknown>;
+};
+
 export async function readStdin(): Promise<string> {
   return new Promise((resolve) => {
     let data = "";
@@ -40,6 +47,106 @@ export function parseInput(raw: string): HookInput {
   } catch {
     return {};
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+export function getStringField(
+  input: Record<string, unknown>,
+  keys: string[],
+): string | undefined {
+  for (const key of keys) {
+    const value = input[key];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return undefined;
+}
+
+export function getNumberField(
+  input: Record<string, unknown>,
+  keys: string[],
+): number | undefined {
+  for (const key of keys) {
+    const value = input[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return undefined;
+}
+
+export function getBooleanField(
+  input: Record<string, unknown>,
+  keys: string[],
+): boolean | undefined {
+  for (const key of keys) {
+    const value = input[key];
+    if (typeof value === "boolean") return value;
+  }
+  return undefined;
+}
+
+export function getRecordField(
+  input: Record<string, unknown>,
+  keys: string[],
+): Record<string, unknown> | undefined {
+  for (const key of keys) {
+    const value = input[key];
+    if (isRecord(value)) return value;
+  }
+  return undefined;
+}
+
+export function normalizeToolInput(value: unknown): Record<string, unknown> {
+  if (isRecord(value)) return value;
+  return {};
+}
+
+export function normalizeToolCall(input: HookInput): NormalizedToolCall {
+  const cwd = getStringField(input, ["cwd", "working_directory", "workingDirectory"]) ?? process.cwd();
+  const sessionId = getStringField(input, ["session_id", "sessionId"]);
+  const toolName =
+    getStringField(input, ["tool_name", "toolName", "tool"]) ??
+    (typeof input.command === "string" ? "Bash" : "unknown");
+  const toolInput =
+    getRecordField(input, ["tool_input", "toolInput", "tool_args", "toolArgs", "input", "args"]) ??
+    {};
+
+  if (typeof input.command === "string" && toolInput.command === undefined) {
+    toolInput.command = input.command;
+  }
+  if (Array.isArray(input.prefix_rule) && toolInput.prefix_rule === undefined) {
+    toolInput.prefix_rule = input.prefix_rule;
+  }
+  if (
+    typeof input.sandbox_permissions === "string" &&
+    toolInput.sandbox_permissions === undefined
+  ) {
+    toolInput.sandbox_permissions = input.sandbox_permissions;
+  }
+
+  return {
+    cwd,
+    ...(sessionId ? { sessionId } : {}),
+    toolName,
+    toolInput,
+  };
+}
+
+export function serializeForAudit(value: unknown, maxLen = 1200): string | undefined {
+  if (value === undefined) return undefined;
+  const raw =
+    typeof value === "string"
+      ? value
+      : (() => {
+          try {
+            return JSON.stringify(value);
+          } catch {
+            return String(value);
+          }
+        })();
+  if (!raw) return undefined;
+  return raw.length <= maxLen ? raw : `${raw.slice(0, maxLen)}...`;
 }
 
 /**

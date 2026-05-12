@@ -82,6 +82,8 @@ export type HeartbeatPayload = {
   cli: "claude" | "codex" | "copilot";
   hook:
     | "PreToolUse"
+    | "PostToolUse"
+    | "PermissionRequest"
     | "UserPromptSubmit"
     | "SessionStart"
     | "SessionEnd"

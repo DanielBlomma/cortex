@@ -119,6 +119,16 @@ test("install --cli codex writes requirements.toml with sandbox bounds", async (
                 timeout: 30,
               },
             ],
+            PostToolUse: [
+              {
+                command: "cortex hook post-tool-use",
+              },
+            ],
+            PermissionRequest: [
+              {
+                command: "cortex hook permission-request",
+              },
+            ],
             SessionStart: [
               {
                 matcher: "startup|resume|clear",
@@ -166,16 +176,33 @@ test("install --cli codex writes requirements.toml with sandbox bounds", async (
     assert.match(toml, /\[\[hooks\.PreToolUse\]\]/);
     assert.match(toml, /matcher = "Edit\|Write\|Bash\|MultiEdit"/);
     assert.match(toml, /command = "\\".+fake managed codex\/hooks\/pre-tool-use\.sh\\""/);
+    assert.match(toml, /\[\[hooks\.PostToolUse\]\]/);
+    assert.match(toml, /command = "\\".+fake managed codex\/hooks\/post-tool-use\.sh\\""/);
+    assert.match(toml, /\[\[hooks\.PermissionRequest\]\]/);
+    assert.match(toml, /command = "\\".+fake managed codex\/hooks\/permission-request\.sh\\""/);
     assert.match(toml, /\[\[hooks\.SessionStart\]\]/);
     assert.match(toml, /command = "\\".+fake managed codex\/hooks\/session-start\.sh\\""/);
-    assert.doesNotMatch(toml, /hooks\.SessionEnd/);
+    assert.match(toml, /\[\[hooks\.SessionEnd\]\]/);
+    assert.match(toml, /command = "\\".+fake managed codex\/hooks\/session-end\.sh\\""/);
 
     const preToolUseWrapper = path.join(codexDir, "hooks", "pre-tool-use.sh");
+    const postToolUseWrapper = path.join(codexDir, "hooks", "post-tool-use.sh");
+    const permissionRequestWrapper = path.join(codexDir, "hooks", "permission-request.sh");
     const sessionStartWrapper = path.join(codexDir, "hooks", "session-start.sh");
+    const sessionEndWrapper = path.join(codexDir, "hooks", "session-end.sh");
     assert.equal(fs.existsSync(preToolUseWrapper), true);
+    assert.equal(fs.existsSync(postToolUseWrapper), true);
+    assert.equal(fs.existsSync(permissionRequestWrapper), true);
     assert.equal(fs.existsSync(sessionStartWrapper), true);
+    assert.equal(fs.existsSync(sessionEndWrapper), true);
     const preToolUseContents = fs.readFileSync(preToolUseWrapper, "utf8");
     assert.match(preToolUseContents, /exec "\$CORTEX" hook pre-tool-use "\$@"/);
+    const postToolUseContents = fs.readFileSync(postToolUseWrapper, "utf8");
+    assert.match(postToolUseContents, /exec "\$CORTEX" hook post-tool-use "\$@"/);
+    const permissionRequestContents = fs.readFileSync(permissionRequestWrapper, "utf8");
+    assert.match(permissionRequestContents, /exec "\$CORTEX" hook permission-request "\$@"/);
+    const sessionEndContents = fs.readFileSync(sessionEndWrapper, "utf8");
+    assert.match(sessionEndContents, /exec "\$CORTEX" hook session-end "\$@"/);
     const mode = fs.statSync(preToolUseWrapper).mode & 0o777;
     assert.equal(mode, 0o755);
   } finally {

@@ -75,6 +75,7 @@ type CodexHookHandlersByEvent = Record<string, CodexHookHandler[]>;
 
 const SUPPORTED_CODEX_HOOK_EVENTS = new Set([
   "SessionStart",
+  "SessionEnd",
   "PreToolUse",
   "PermissionRequest",
   "PostToolUse",
