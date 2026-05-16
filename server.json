@@ -6,12 +6,12 @@
     "url": "https://github.com/DanielBlomma/cortex",
     "source": "github"
   },
-  "version": "2.0.14",
+  "version": "2.0.15",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@danielblomma/cortex-mcp",
-      "version": "2.0.14",
+      "version": "2.0.15",
       "transport": {
         "type": "stdio"
       }
