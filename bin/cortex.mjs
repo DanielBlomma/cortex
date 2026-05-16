@@ -188,7 +188,7 @@ function ensureScaffoldExists() {
 
 // Files that should never be overwritten if they already exist in the target.
 // These contain user-specific configuration that would be lost on re-init.
-const PRESERVE_FILES = new Set(["config.yaml", "enterprise.yml", "enterprise.yaml", "CLAUDE.md"]);
+const PRESERVE_FILES = new Set(["config.yaml", "enterprise.yml", "enterprise.yaml", "CLAUDE.md", "AGENTS.md"]);
 const DEFAULT_SOURCE_PATHS = [
   "src",
   "docs",
@@ -476,11 +476,12 @@ function installScaffold(targetDir, force) {
     copyDirectory(sourcePath, targetPath);
   }
 
-  // Copy CLAUDE.md (skip if already exists to preserve user edits)
-  const claudeMdSource = path.join(SCAFFOLD_ROOT, "CLAUDE.md");
-  const claudeMdTarget = path.join(targetDir, "CLAUDE.md");
-  if (fs.existsSync(claudeMdSource) && !fs.existsSync(claudeMdTarget)) {
-    fs.copyFileSync(claudeMdSource, claudeMdTarget);
+  for (const fileName of ["CLAUDE.md", "AGENTS.md"]) {
+    const sourcePath = path.join(SCAFFOLD_ROOT, fileName);
+    const targetPath = path.join(targetDir, fileName);
+    if (fs.existsSync(sourcePath) && !fs.existsSync(targetPath)) {
+      fs.copyFileSync(sourcePath, targetPath);
+    }
   }
 
   const docsDir = path.join(targetDir, "docs");
