@@ -6,6 +6,7 @@ import {
   loadEnterpriseConfig,
   resolveEnterpriseActivation,
 } from "../core/config.js";
+import { telemetryStatePath } from "../core/telemetry/state-dir.js";
 import { pushMetrics } from "../enterprise/telemetry/sync.js";
 import type { TelemetryMetrics } from "../core/telemetry/collector.js";
 
@@ -25,7 +26,7 @@ import type { TelemetryMetrics } from "../core/telemetry/collector.js";
  */
 
 function readMachineId(contextDir: string): string {
-  const path = join(contextDir, "telemetry", "machine_id");
+  const path = telemetryStatePath(contextDir, "machine_id");
   if (existsSync(path)) {
     try {
       const id = readFileSync(path, "utf8").trim();

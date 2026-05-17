@@ -13,6 +13,7 @@ import type {
 import { loadEnterpriseConfig, resolveEnterpriseActivation } from "../core/config.js";
 import { pushMetrics } from "../enterprise/telemetry/sync.js";
 import { TelemetryCollector, type TelemetryMetrics } from "../core/telemetry/collector.js";
+import { resolveTelemetryStateDir, telemetryStatePath } from "../core/telemetry/state-dir.js";
 import { AuditWriter, type AuditEntry } from "../core/audit/writer.js";
 import { PolicyStore } from "../core/policy/store.js";
 import {
@@ -84,7 +85,7 @@ async function policyCheck(
 }
 
 function readMetrics(contextDir: string): TelemetryMetrics | null {
-  const path = join(contextDir, "telemetry", "metrics.json");
+  const path = telemetryStatePath(contextDir, "metrics.json");
   if (!existsSync(path)) return null;
   try {
     return JSON.parse(readFileSync(path, "utf8")) as TelemetryMetrics;
@@ -103,7 +104,7 @@ type PendingPush = {
 };
 
 function pendingPushPath(contextDir: string): string {
-  return join(contextDir, "telemetry", "pending-push.json");
+  return telemetryStatePath(contextDir, "pending-push.json");
 }
 
 function readPendingPush(contextDir: string): PendingPush | null {
@@ -118,7 +119,7 @@ function readPendingPush(contextDir: string): PendingPush | null {
 
 function writePendingPush(contextDir: string, pending: PendingPush): void {
   const path = pendingPushPath(contextDir);
-  mkdirSync(join(contextDir, "telemetry"), { recursive: true });
+  mkdirSync(resolveTelemetryStateDir(contextDir), { recursive: true });
   writeFileSync(path, JSON.stringify(pending, null, 2), "utf8");
 }
 

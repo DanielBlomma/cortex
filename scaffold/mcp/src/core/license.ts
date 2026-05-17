@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
+import { resolveTelemetryStateDir, telemetryStatePath } from "./telemetry/state-dir.js";
 
 export type LicenseVerification =
   | {
@@ -30,7 +31,7 @@ const GRACE_PERIOD_MS = 7 * 24 * 60 * 60 * 1000; // 7d grace if endpoint unreach
 const REQUEST_TIMEOUT_MS = 5000;
 
 function cachePath(contextDir: string): string {
-  return join(contextDir, "telemetry", CACHE_FILE);
+  return telemetryStatePath(contextDir, CACHE_FILE);
 }
 
 function readCache(contextDir: string): CacheEntry | null {
@@ -47,7 +48,7 @@ function readCache(contextDir: string): CacheEntry | null {
 function writeCache(contextDir: string, entry: CacheEntry): void {
   const path = cachePath(contextDir);
   try {
-    mkdirSync(join(contextDir, "telemetry"), { recursive: true });
+    mkdirSync(resolveTelemetryStateDir(contextDir), { recursive: true });
     writeFileSync(path, JSON.stringify(entry, null, 2), "utf8");
   } catch {
     // Cache failures are non-fatal — license check just won't be cached.

@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { hostname, platform, arch } from "node:os";
 import { join } from "node:path";
+import { resolveTelemetryStateDir, telemetryStatePath } from "./state-dir.js";
 
 export type TelemetryMetrics = {
   period_start: string;
@@ -37,7 +38,8 @@ export type TelemetryMetrics = {
 const AVG_TOKENS_PER_RESULT = 400;
 
 function generateInstanceId(contextDir: string): string {
-  const idPath = join(contextDir, "telemetry", "machine_id");
+  const telemetryDir = resolveTelemetryStateDir(contextDir);
+  const idPath = join(telemetryDir, "machine_id");
   if (existsSync(idPath)) {
     try {
       const existing = readFileSync(idPath, "utf8").trim();
@@ -51,7 +53,7 @@ function generateInstanceId(contextDir: string): string {
   const fingerprint = `${hostname()}|${platform()}|${arch()}`;
   const id = createHash("sha256").update(fingerprint).digest("hex").slice(0, 16);
   try {
-    mkdirSync(join(contextDir, "telemetry"), { recursive: true });
+    mkdirSync(telemetryDir, { recursive: true });
     writeFileSync(idPath, id, "utf8");
   } catch (err) {
     process.stderr.write(`[cortex-enterprise] Could not persist instance id: ${err instanceof Error ? err.message : String(err)}\n`);
@@ -142,8 +144,7 @@ export class TelemetryCollector {
   constructor(contextDir: string, clientVersion = "unknown") {
     this.clientVersion = clientVersion;
     this.instanceId = generateInstanceId(contextDir);
-    const telemetryDir = join(contextDir, "telemetry");
-    this.metricsPath = join(telemetryDir, "metrics.json");
+    this.metricsPath = telemetryStatePath(contextDir, "metrics.json");
 
     // Load existing metrics or start fresh
     try {
