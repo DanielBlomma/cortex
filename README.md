@@ -346,11 +346,13 @@ This repository includes two GitHub Actions workflows:
   - Triggers on tag push `v*.*.*`
   - Verifies tag/version sync
   - Runs root tests + MCP build/tests
-  - Publishes `@danielblomma/cortex-mcp` to npm
+  - Publishes `@danielblomma/cortex-mcp` to npm via npm trusted publishing (GitHub OIDC)
 
-Required GitHub secret:
+Required npm configuration:
 
-- `NPM_TOKEN` (npm automation token with publish rights for `@danielblomma/cortex-mcp`)
+- Configure a trusted publisher for `@danielblomma/cortex-mcp` on npmjs.com
+- Use GitHub Actions publisher `DanielBlomma/cortex`
+- Workflow filename must match `release-publish.yml`
 
 ## Limitations
 
