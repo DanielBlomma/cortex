@@ -6,6 +6,32 @@ import path from "node:path";
 
 import { runStageCommand } from "../dist/cli/stage.js";
 
+const TINY_WORKFLOW = {
+  id: "tiny",
+  description: "Two-stage tests workflow",
+  version: 1,
+  stages: [
+    {
+      name: "plan",
+      artifact: "plan.md",
+      reads: [],
+      required_fields: [],
+      validators: [],
+      capability: "planner",
+      description: "Produce a plan.",
+    },
+    {
+      name: "review",
+      artifact: "review.md",
+      reads: ["plan"],
+      required_fields: ["approved"],
+      validators: [],
+      capability: "reviewer",
+      description: "Review the plan.",
+    },
+  ],
+};
+
 function makeWorkspace() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-stage-cli-"));
   process.env.CORTEX_PROJECT_ROOT = dir;
@@ -19,6 +45,37 @@ function makeWorkspace() {
     "utf8",
   );
   return dir;
+}
+
+function writeSyncedWorkflow(homeDir, workflowId, definition) {
+  const cortexDir = path.join(homeDir, ".cortex");
+  fs.mkdirSync(cortexDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(cortexDir, "workflows.local.json"),
+    JSON.stringify({
+      workflows: {
+        [workflowId]: {
+          workflow_id: workflowId,
+          version: definition.version,
+          updated_at: "2026-05-17T10:00:00.000Z",
+          definition,
+        },
+      },
+    }),
+    "utf8",
+  );
+}
+
+function setEnforcedMode(projectRoot) {
+  fs.writeFileSync(
+    path.join(projectRoot, ".context", "govern.local.json"),
+    JSON.stringify({
+      installs: {
+        codex: { mode: "enforced" },
+      },
+    }),
+    "utf8",
+  );
 }
 
 function captureStdout(run) {
@@ -37,6 +94,7 @@ function captureStdout(run) {
 
 test.afterEach(() => {
   delete process.env.CORTEX_PROJECT_ROOT;
+  delete process.env.HOME;
 });
 
 test("stage start: creates run + returns first envelope as JSON on stdout", async () => {
@@ -56,6 +114,8 @@ test("stage start: creates run + returns first envelope as JSON on stdout", asyn
   assert.equal(parsed.state.task_id, "task-1");
   assert.equal(parsed.state.current_stage, "plan");
   assert.equal(parsed.envelope.expectedArtifact, "plan.md");
+  assert.equal(parsed.workflow_source, "bundled");
+  assert.equal(parsed.warnings.length, 1);
   assert.ok(fs.existsSync(path.join(cwd, ".agents", "task-1", "state.json")));
 });
 
@@ -71,7 +131,48 @@ test("stage start: rejects unknown workflow", async () => {
       "--workflow",
       "no-such",
     ]),
-    /Unknown workflow_id/,
+    /Available bundled: secure-build/,
+  );
+});
+
+test("stage start: accepts synced workflow ids from the local cache", async () => {
+  makeWorkspace();
+  const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-stage-home-"));
+  process.env.HOME = fakeHome;
+  writeSyncedWorkflow(fakeHome, "tiny", TINY_WORKFLOW);
+
+  const { captured } = await captureStdout(() =>
+    runStageCommand([
+      "start",
+      "--task-id",
+      "task-synced",
+      "--description",
+      "Use synced workflow",
+      "--workflow",
+      "tiny",
+    ]),
+  );
+  const parsed = JSON.parse(captured);
+  assert.equal(parsed.state.workflow_id, "tiny");
+  assert.equal(parsed.workflow_source, "synced");
+  assert.deepEqual(parsed.warnings, []);
+});
+
+test("stage start: blocks bundled workflow fallback in enforced mode", async () => {
+  const cwd = makeWorkspace();
+  setEnforcedMode(cwd);
+
+  await assert.rejects(
+    runStageCommand([
+      "start",
+      "--task-id",
+      "task-enforced",
+      "--description",
+      "Use bundled fallback",
+      "--workflow",
+      "secure-build",
+    ]),
+    /requires a synced org workflow/,
   );
 });
 

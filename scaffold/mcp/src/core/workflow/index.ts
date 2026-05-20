@@ -8,3 +8,4 @@ export * from "./capabilities.js";
 export * from "./enforcement.js";
 export * from "./synced-registry.js";
 export * from "./synced-capability-registry.js";
+export * from "./resolution.js";

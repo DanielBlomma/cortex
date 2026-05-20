@@ -8,6 +8,7 @@ import {
   loadSyncedWorkflows,
   syncedWorkflowsCachePath,
 } from "../dist/core/workflow/synced-registry.js";
+import { resolveWorkflowDefinition } from "../dist/core/workflow/resolution.js";
 import { runWorkflowStart } from "../dist/core/workflow/mcp-tools.js";
 import { SECURE_BUILD_WORKFLOW } from "../dist/core/workflow/default-workflows.js";
 
@@ -173,6 +174,61 @@ test("resolveWorkflow integration: synced cache adds new workflow_ids beyond def
     );
     assert.equal(result.state.workflow_id, "tiny");
     assert.equal(result.state.current_stage, "plan");
+    assert.equal(result.workflow_source, "synced");
+  } finally {
+    delete process.env.HOME;
+  }
+});
+
+test("resolveWorkflowDefinition: includes bundled fallback warning when synced cache lacks the requested id", () => {
+  const fakeHome = makeWorkspace();
+  process.env.HOME = fakeHome;
+  try {
+    const resolved = resolveWorkflowDefinition("secure-build", {
+      emitBundledFallbackWarning: true,
+    });
+    assert.equal(resolved.source, "bundled");
+    assert.equal(resolved.warnings.length, 1);
+    assert.match(resolved.warnings[0].message, /bundled registry/);
+  } finally {
+    delete process.env.HOME;
+  }
+});
+
+test("resolveWorkflowDefinition: can block bundled fallback when synced workflows are required", () => {
+  const fakeHome = makeWorkspace();
+  process.env.HOME = fakeHome;
+  try {
+    assert.throws(
+      () =>
+        resolveWorkflowDefinition("secure-build", {
+          bundledFallbackPolicy: "block",
+        }),
+      /requires a synced org workflow/,
+    );
+  } finally {
+    delete process.env.HOME;
+  }
+});
+
+test("resolveWorkflowDefinition: unknown workflow errors list bundled and synced ids", () => {
+  const fakeHome = makeWorkspace();
+  process.env.HOME = fakeHome;
+  try {
+    writeCache(path.join(fakeHome, ".cortex"), {
+      workflows: {
+        tiny: {
+          workflow_id: "tiny",
+          version: 1,
+          updated_at: "2026-05-06T12:00:00.000Z",
+          definition: TINY_WORKFLOW,
+        },
+      },
+    });
+    assert.throws(
+      () => resolveWorkflowDefinition("missing-workflow"),
+      /Available bundled: secure-build\. Available synced: tiny\./,
+    );
   } finally {
     delete process.env.HOME;
   }

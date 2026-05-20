@@ -100,6 +100,21 @@ type ReviewStatusPayload = {
   reviewedFiles: ReviewedFileSnapshot[] | null;
 };
 
+function formatReviewEvidenceSource(
+  source: ReviewStatusPayload["source"] | "none",
+): string {
+  switch (source) {
+    case "workflow-state":
+      return "workflow state";
+    case "workflow-artifact":
+      return "workflow artifact";
+    case "legacy-review-status":
+      return "legacy file";
+    default:
+      return "none";
+  }
+}
+
 type ReviewedFileSnapshot = {
   path: string;
   exists: boolean;
@@ -474,7 +489,9 @@ registerValidator({
         pass: false,
         severity: "warning",
         message: `${sourceLabel} at ${reviewStatus.timestamp} is stale for current changes`,
-        detail: `Source: ${reviewStatus.source}. ${freshness.detail ?? "Current changes no longer match the reviewed code."}`,
+        detail:
+          `Source: ${formatReviewEvidenceSource(reviewStatus.source)}. ` +
+          `${freshness.detail ?? "Current changes no longer match the reviewed code."}`,
       };
     }
 
@@ -485,7 +502,7 @@ registerValidator({
         message: reviewStatus.reviewed
           ? `Enterprise review completed by ${reviewStatus.reviewer} at ${reviewStatus.timestamp}`
           : `Enterprise review recorded at ${reviewStatus.timestamp} but did not pass`,
-        detail: `Source: ${reviewStatus.source}`,
+        detail: `Source: ${formatReviewEvidenceSource(reviewStatus.source)}`,
       };
     }
 
@@ -496,7 +513,9 @@ registerValidator({
         message: reviewStatus.reviewed
           ? `Code review completed by ${reviewStatus.reviewer} at ${reviewStatus.timestamp}`
           : "Code review recorded but not approved",
-        detail: reviewStatus.reviewed ? undefined : `Source: ${reviewStatus.source}`,
+        detail: reviewStatus.reviewed
+          ? undefined
+          : `Source: ${formatReviewEvidenceSource(reviewStatus.source)}`,
       };
     }
 
@@ -504,7 +523,8 @@ registerValidator({
       pass: false,
       severity: "warning",
       message: "No code review recorded for current changes",
-      detail: "Run /review or context.review, or ensure your CI writes .context/review-status.json.",
+      detail:
+        "Source: none. Run /review or context.review, or ensure your CI writes .context/review-status.json.",
     };
   },
 });

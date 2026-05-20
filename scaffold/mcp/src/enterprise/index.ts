@@ -17,7 +17,8 @@ import { registerEnterpriseTools } from "./tools/enterprise.js";
 import { registerHarnessTools } from "./tools/harness.js";
 import { pushViolations, setViolationPushContext } from "./violations/push.js";
 import { pushReviewResults, setReviewPushContext } from "./reviews/push.js";
-import { setWorkflowPushContext } from "./workflow/push.js";
+import { pushWorkflowSnapshot, setWorkflowPushContext } from "./workflow/push.js";
+import { hasWorkflowState, loadWorkflowState } from "./workflow/state.js";
 
 const require = createRequire(import.meta.url);
 const pkg = require("../package.json") as { version: string };
@@ -32,6 +33,7 @@ let activeAuditWriter: AuditWriter | null = null;
 let activeInstanceId: string | null = null;
 let activeSessionId: string | null = null;
 let activeRepo: string | null = null;
+let activeContextDir: string | null = null;
 
 async function flushComplianceQueues(
   config: EnterpriseConfig,
@@ -63,6 +65,15 @@ async function flushComplianceQueues(
     const result = await pushReviewResults(baseUrl, apiKey);
     if (!result.success) {
       process.stderr.write(`[cortex-enterprise] ${reason} reviews push failed: ${result.error}\n`);
+    }
+    if (result.attempted && activeContextDir && hasWorkflowState(activeContextDir)) {
+      const workflowState = loadWorkflowState(activeContextDir);
+      const workflowResult = await pushWorkflowSnapshot(baseUrl, apiKey, workflowState);
+      if (!workflowResult.success) {
+        process.stderr.write(
+          `[cortex-enterprise] ${reason} workflow snapshot refresh after review push failed: ${workflowResult.error}\n`,
+        );
+      }
     }
   } catch (err) {
     process.stderr.write(`[cortex-enterprise] ${reason} reviews push error: ${err}\n`);
@@ -113,6 +124,7 @@ export function shutdown(): void {
   activeInstanceId = null;
   activeSessionId = null;
   activeRepo = null;
+  activeContextDir = null;
   setAuditPushContext({});
   setViolationPushContext({});
   setReviewPushContext({});
@@ -248,6 +260,7 @@ export async function onSessionEvent(event: SessionEvent): Promise<void> {
 export async function register(server: McpServer): Promise<void> {
   const projectRoot = process.env.CORTEX_PROJECT_ROOT?.trim() || process.cwd();
   const contextDir = path.join(projectRoot, ".context");
+  activeContextDir = contextDir;
 
   const config = loadEnterpriseConfig(contextDir);
   const activation = resolveEnterpriseActivation(config);
@@ -295,6 +308,8 @@ export async function register(server: McpServer): Promise<void> {
     repo: activeRepo ?? undefined,
     instance_id: activeInstanceId ?? undefined,
     session_id: activeSessionId ?? undefined,
+    context_dir: contextDir,
+    project_root: projectRoot,
   });
   setWorkflowPushContext({
     repo: activeRepo ?? undefined,

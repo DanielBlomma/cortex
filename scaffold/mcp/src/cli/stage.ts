@@ -8,8 +8,8 @@ import {
   type StageStatus,
   type WorkflowDefinition,
 } from "../core/workflow/index.js";
-import { DEFAULT_WORKFLOWS } from "../core/workflow/default-workflows.js";
-import { isEnterpriseProject } from "../hooks/shared.js";
+import { resolveWorkflowDefinition } from "../core/workflow/resolution.js";
+import { isEnforcedMode, isEnterpriseProject } from "../hooks/shared.js";
 
 /**
  * `cortex stage` CLI surface. Each subcommand is a thin shell wrapper
@@ -93,18 +93,6 @@ function projectRoot(): string {
   return process.env.CORTEX_PROJECT_ROOT?.trim() || process.cwd();
 }
 
-function resolveWorkflow(workflowId: string): WorkflowDefinition {
-  const wf = DEFAULT_WORKFLOWS[workflowId];
-  if (!wf) {
-    throw new Error(
-      `Unknown workflow_id: ${workflowId}. Available: ${
-        Object.keys(DEFAULT_WORKFLOWS).join(", ") || "<none>"
-      }`,
-    );
-  }
-  return wf;
-}
-
 type Flags = Record<string, string | boolean>;
 
 function parseFlags(args: string[]): { flags: Flags; rest: string[] } {
@@ -153,7 +141,11 @@ async function runStart(args: string[]): Promise<void> {
   const workflowId =
     typeof flags.workflow === "string" ? flags.workflow : "secure-build";
 
-  const workflow = resolveWorkflow(workflowId);
+  const resolved = resolveWorkflowDefinition(workflowId, {
+    emitBundledFallbackWarning: true,
+    bundledFallbackPolicy: isEnforcedMode(projectRoot()) ? "block" : "warn",
+  });
+  const workflow = resolved.workflow;
   const state = createRun({
     cwd: projectRoot(),
     taskId,
@@ -165,7 +157,12 @@ async function runStart(args: string[]): Promise<void> {
     taskId,
     workflow,
   });
-  emitJson({ state, envelope });
+  emitJson({
+    state,
+    envelope,
+    workflow_source: resolved.source,
+    warnings: resolved.warnings,
+  });
 }
 
 async function runStatus(args: string[]): Promise<void> {
@@ -186,7 +183,7 @@ async function runEnvelope(args: string[]): Promise<void> {
       `No run state for task ${taskId}. Start one with 'cortex stage start'.`,
     );
   }
-  const workflow = resolveWorkflow(state.workflow_id);
+  const workflow = resolveWorkflowDefinition(state.workflow_id).workflow;
   const envelope = composeStageEnvelope({
     cwd: projectRoot(),
     taskId,
@@ -246,7 +243,7 @@ async function runAdvance(args: string[]): Promise<void> {
       `No run state for task ${taskId}. Start one with 'cortex stage start'.`,
     );
   }
-  const workflow = resolveWorkflow(state.workflow_id);
+  const workflow = resolveWorkflowDefinition(state.workflow_id).workflow;
   const stage = workflow.stages.find((s) => s.name === stageName);
   if (!stage) {
     throw new Error(

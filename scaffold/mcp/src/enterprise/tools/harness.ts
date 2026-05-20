@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { isEnforcedMode } from "../../hooks/shared.js";
 import {
   WorkflowAdvanceInput,
   WorkflowEnvelopeInput,
@@ -38,6 +39,7 @@ export function registerHarnessTools(server: McpServer): void {
     async (input) => buildResult(
       runWorkflowStart(WorkflowStartInput.parse(input ?? {}), {
         cwd: resolveProjectRoot(),
+        bundledFallbackPolicy: isEnforcedMode(resolveProjectRoot()) ? "block" : "allow",
       }) as ToolPayload,
     ),
   );

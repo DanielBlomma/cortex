@@ -86,6 +86,7 @@ test("runWorkflowStart: creates run and returns the first envelope", () => {
   assert.equal(result.state.current_stage, "plan");
   assert.equal(result.state.outcome, "in_progress");
   assert.equal(result.envelope.expectedArtifact, "plan.md");
+  assert.equal(result.workflow_source, "injected");
   assert.match(result.envelope.prompt, /# STAGE: plan/);
 
   // state.json persisted under .agents/<task-id>/
@@ -117,6 +118,27 @@ test("runWorkflowStart: defaults to bundled DEFAULT_WORKFLOWS when no registry g
   );
   assert.equal(result.state.workflow_id, "secure-build");
   assert.equal(result.envelope.expectedArtifact, "plan.md");
+  assert.equal(result.workflow_source, "bundled");
+  assert.equal(result.warnings.length, 0);
+});
+
+test("runWorkflowStart: blocks bundled fallback when the caller requires synced workflows", () => {
+  const cwd = makeWorkspace();
+  assert.throws(
+    () =>
+      runWorkflowStart(
+        {
+          task_id: "task-enforced",
+          task_description: "Use the default workflow",
+          workflow_id: SECURE_BUILD_WORKFLOW.id,
+        },
+        {
+          cwd,
+          bundledFallbackPolicy: "block",
+        },
+      ),
+    /requires a synced org workflow/,
+  );
 });
 
 test("runWorkflowAdvance: writes artifact + state, returns next envelope while in_progress", () => {

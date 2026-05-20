@@ -13,7 +13,9 @@ import type { InjectionMatch } from "../../core/policy/injection.js";
 import { getLastPush } from "../telemetry/sync.js";
 import { syncFromCloud, syncFromLocal, getLastSync } from "../policy/sync.js";
 import { queueViolation } from "../violations/push.js";
-import { queueReviewResult } from "../reviews/push.js";
+import { getReviewPushContext, queueReviewResult } from "../reviews/push.js";
+import { partitionReviewPolicies } from "../reviews/policy-selection.js";
+import { recordQueuedReviewTrustState } from "../reviews/trust-state.js";
 import { pushWorkflowSnapshot } from "../workflow/push.js";
 import { OUTBOUND_DATA_BOUNDARY } from "../privacy/boundary.js";
 import {
@@ -31,11 +33,7 @@ import {
 } from "../workflow/state.js";
 import { queryAuditLog } from "../../core/audit/query.js";
 import { checkAccess, getAccessDeniedMessage, type Role } from "../../core/rbac/check.js";
-import {
-  getGenericEvaluator,
-  getValidator,
-  runValidators,
-} from "../../core/validators/engine.js";
+import { runValidators } from "../../core/validators/engine.js";
 import "../../core/validators/builtins.js";
 import { recordToolActivity } from "../index.js";
 
@@ -904,41 +902,10 @@ export function registerEnterpriseTools(
       // rules. Predefined rules leave type/config null and route to the
       // name-based validator registry.
       const policies = policyStore.getMergedPolicies();
-      const skippedPolicies = policies
-        .filter((p) => p.enforce)
-        .filter((p) => p.id === "require-code-review" || (p.type ? !getGenericEvaluator(p.type) : !getValidator(p.id)))
-        .map((p) => {
-          if (p.id === "require-code-review") {
-            return {
-              policy_id: p.id,
-              kind: p.kind ?? null,
-              type: p.type ?? null,
-              reason: "Current context.review invocation is the review being recorded; validate this policy from workflow state on the next run.",
-            };
-          }
-          return {
-            policy_id: p.id,
-            kind: p.kind ?? null,
-            type: p.type ?? null,
-            reason: p.type
-              ? `No evaluator registered for type "${p.type}"`
-              : "No executable validator registered for this policy",
-          };
-        });
-
-      const enforced = policies
-        .filter((p) => p.enforce)
-        .filter((p) => {
-          if (p.id === "require-code-review") return false;
-          if (p.type) return Boolean(getGenericEvaluator(p.type));
-          return Boolean(getValidator(p.id));
-        })
-        .map((p) => ({
-          id: p.id,
-          type: p.type ?? null,
-          config: p.config ?? null,
-          severity: p.severity ?? "block",
-        }));
+      const {
+        enforced,
+        skipped: skippedPolicies,
+      } = partitionReviewPolicies(policies);
 
       const now = new Date().toISOString();
 
@@ -964,9 +931,9 @@ export function registerEnterpriseTools(
             occurred_at: now,
           });
         }
-        queueReviewResult({
-          policy_id: r.policy_id,
-          pass: r.pass,
+          queueReviewResult({
+            policy_id: r.policy_id,
+            pass: r.pass,
           severity: r.severity,
           message: r.message,
           detail: r.detail,
@@ -1001,20 +968,43 @@ export function registerEnterpriseTools(
         reviewed_files: reviewedFiles,
       });
       const lastReview = workflowState.last_review;
+      const reviewedAt = lastReview?.reviewed_at ?? now;
       if (lastReview) {
         writeFileSync(
           join(contextDir, "review-status.json"),
           `${JSON.stringify({
             reviewed: lastReview.status === "passed",
             reviewer: "context.review",
-            timestamp: lastReview.reviewed_at,
+            timestamp: reviewedAt,
             scope: parsed.scope,
             reviewed_files: reviewedFiles,
           }, null, 2)}\n`,
           "utf8",
         );
       }
-      await pushWorkflowStateIfConfigured(config, workflowState);
+      const trustState = recordQueuedReviewTrustState(
+        {
+          contextDir,
+          projectRoot,
+          repo: getReviewPushContext().repo,
+          instance_id: getReviewPushContext().instance_id,
+          session_id: getReviewPushContext().session_id,
+          task_id: process.env.CORTEX_ACTIVE_TASK_ID?.trim() || undefined,
+        },
+        {
+          reviewedAt,
+          summary: {
+            total: output.summary.total,
+            passed: output.summary.passed,
+            failed: output.summary.failed,
+            warnings: output.summary.warnings,
+            skipped: skippedPolicies.length,
+          },
+          skippedPolicies: skippedPolicies,
+        },
+      );
+      const workflowWithTrust = loadWorkflowState(contextDir);
+      await pushWorkflowStateIfConfigured(config, workflowWithTrust);
 
       return buildToolResult({
         scope: parsed.scope,
@@ -1024,7 +1014,10 @@ export function registerEnterpriseTools(
           ...output.summary,
           skipped: skippedPolicies.length,
         },
-        workflow: workflowState,
+        workflow: workflowWithTrust,
+        workflow_source: trustState.workflow.source,
+        delivery: trustState.delivery,
+        trust_warnings: trustState.trust_warnings,
       });
     },
   );

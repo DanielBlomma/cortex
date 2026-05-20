@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { advanceStage, createRun, getRunState } from "./run-lifecycle.js";
 import { composeStageEnvelope } from "./envelope.js";
-import { DEFAULT_WORKFLOWS } from "./default-workflows.js";
-import { loadSyncedWorkflows } from "./synced-registry.js";
+import { resolveWorkflowDefinition } from "./resolution.js";
 import {
   stageOverrideSchema,
   stageStatusSchema,
@@ -88,33 +87,18 @@ export function resolveProjectRoot(): string {
 export type WorkflowToolContext = {
   cwd: string;
   workflows?: Record<string, WorkflowDefinition>;
+  bundledFallbackPolicy?: "allow" | "warn" | "block";
 };
-
-function resolveWorkflow(
-  workflowId: string,
-  registry: Record<string, WorkflowDefinition> | undefined,
-): WorkflowDefinition {
-  // When the caller passes an explicit registry, it wins outright (used
-  // by tests). Otherwise we merge bundled defaults with the org-authored
-  // workflows the daemon has synced into ~/.cortex/workflows.local.json,
-  // with the synced ones taking precedence on workflow_id collisions so
-  // org overrides actually override.
-  const workflows =
-    registry ?? { ...DEFAULT_WORKFLOWS, ...loadSyncedWorkflows() };
-  const workflow = workflows[workflowId];
-  if (!workflow) {
-    throw new Error(
-      `Unknown workflow_id: ${workflowId}. Available: ${Object.keys(workflows).join(", ") || "<none>"}`,
-    );
-  }
-  return workflow;
-}
 
 export function runWorkflowStart(
   input: WorkflowStartInputT,
   ctx: WorkflowToolContext,
 ) {
-  const workflow = resolveWorkflow(input.workflow_id, ctx.workflows);
+  const resolved = resolveWorkflowDefinition(input.workflow_id, {
+    registry: ctx.workflows,
+    bundledFallbackPolicy: ctx.bundledFallbackPolicy,
+  });
+  const workflow = resolved.workflow;
   const state = createRun({
     cwd: ctx.cwd,
     taskId: input.task_id,
@@ -129,6 +113,8 @@ export function runWorkflowStart(
   return {
     state,
     envelope,
+    workflow_source: resolved.source,
+    warnings: resolved.warnings,
   };
 }
 
@@ -142,7 +128,9 @@ export function runWorkflowAdvance(
       `No run state found for task ${input.task_id}. Call cortex.workflow.start first.`,
     );
   }
-  const workflow = resolveWorkflow(state.workflow_id, ctx.workflows);
+  const workflow = resolveWorkflowDefinition(state.workflow_id, {
+    registry: ctx.workflows,
+  }).workflow;
   const stage = workflow.stages.find((s) => s.name === input.stage);
   if (!stage) {
     throw new Error(`Stage ${input.stage} is not defined in workflow ${workflow.id}`);
@@ -220,7 +208,9 @@ export function runWorkflowEnvelope(
       `No run state found for task ${input.task_id}. Call cortex.workflow.start first.`,
     );
   }
-  const workflow = resolveWorkflow(state.workflow_id, ctx.workflows);
+  const workflow = resolveWorkflowDefinition(state.workflow_id, {
+    registry: ctx.workflows,
+  }).workflow;
   const envelope = composeStageEnvelope({
     cwd: ctx.cwd,
     taskId: input.task_id,

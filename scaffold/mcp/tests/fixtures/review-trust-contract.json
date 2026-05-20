@@ -1,0 +1,111 @@
+{
+  "accepted": {
+    "review_session": {
+      "sessionId": "session-accepted",
+      "repo": "demo-repo",
+      "instanceId": "abc123",
+      "reviewCount": 3,
+      "lastReviewedAt": "2026-05-19T10:00:00.000Z",
+      "lastReceivedAt": "2026-05-19T10:02:00.000Z"
+    },
+    "workflow_session": {
+      "sessionId": "session-accepted",
+      "repo": "demo-repo",
+      "instanceId": "abc123",
+      "phase": "reviewed",
+      "reviewStatus": "passed",
+      "approvalStatus": "ready",
+      "lastReceivedAt": "2026-05-19T10:02:00.000Z"
+    },
+    "workflow_snapshot": {
+      "sessionId": "session-accepted",
+      "repo": "demo-repo",
+      "instanceId": "abc123",
+      "phase": "reviewed",
+      "reviewStatus": "passed",
+      "approvalStatus": "ready",
+      "receivedAt": "2026-05-19T10:02:00.000Z",
+      "snapshot": {
+        "review_trust": {
+          "workflow": {
+            "id": "secure-build",
+            "source": "synced"
+          },
+          "last_review_at": "2026-05-19T10:00:00.000Z",
+          "skipped_policies": [
+            {
+              "policy_id": "require-code-review",
+              "kind": "predefined",
+              "type": null,
+              "reason": "validate this policy from workflow state on the next run."
+            }
+          ],
+          "delivery": {
+            "status": "accepted",
+            "review_count": 3,
+            "last_accepted_at": "2026-05-19T10:02:00.000Z",
+            "last_attempted_at": "2026-05-19T10:02:00.000Z",
+            "last_error": null
+          }
+        }
+      }
+    },
+    "expected": {
+      "trustHealth": "healthy",
+      "workflowSource": "synced",
+      "reviewCount": 3,
+      "skippedPolicyIds": [
+        "require-code-review"
+      ]
+    }
+  },
+  "failed": {
+    "review_session": null,
+    "workflow_session": {
+      "sessionId": "session-failed",
+      "repo": "demo-repo",
+      "instanceId": "abc123",
+      "phase": "reviewed",
+      "reviewStatus": "passed",
+      "approvalStatus": "ready",
+      "lastReceivedAt": "2026-05-19T11:02:00.000Z"
+    },
+    "workflow_snapshot": {
+      "sessionId": "session-failed",
+      "repo": "demo-repo",
+      "instanceId": "abc123",
+      "phase": "reviewed",
+      "reviewStatus": "passed",
+      "approvalStatus": "ready",
+      "receivedAt": "2026-05-19T11:02:00.000Z",
+      "snapshot": {
+        "review_trust": {
+          "workflow": {
+            "id": "secure-build",
+            "source": "synced"
+          },
+          "last_review_at": "2026-05-19T11:00:00.000Z",
+          "skipped_policies": [],
+          "delivery": {
+            "status": "failed",
+            "review_count": 2,
+            "last_accepted_at": null,
+            "last_attempted_at": "2026-05-19T11:02:00.000Z",
+            "last_error": "HTTP 502"
+          }
+        }
+      }
+    },
+    "expected": {
+      "trustHealth": "failed_delivery",
+      "workflowSource": "synced",
+      "reviewCount": 2,
+      "lastPushFailure": {
+        "at": "2026-05-19T11:02:00.000Z",
+        "error": "HTTP 502",
+        "sessionId": "session-failed",
+        "repo": "demo-repo"
+      }
+    }
+  }
+}

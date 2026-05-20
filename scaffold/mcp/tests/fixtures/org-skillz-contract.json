@@ -1,0 +1,59 @@
+{
+  "skills": [
+    {
+      "name": "alpha-codex",
+      "description": "Codex-first org skill",
+      "body": "# Alpha Codex\n\nUse for Codex review flows.",
+      "scope": "cli:codex",
+      "enabled": true,
+      "updated_at": "2026-05-19T09:00:00.000Z"
+    },
+    {
+      "name": "claude-playbook",
+      "description": "Claude-only org skill",
+      "body": "# Claude Playbook\n\nUse for Claude-only flows.",
+      "scope": "cli:claude",
+      "enabled": true,
+      "updated_at": "2026-05-19T08:45:00.000Z"
+    },
+    {
+      "name": "global-guard",
+      "description": "Shared org skill",
+      "body": "# Global Guard\n\nApply for both CLIs.",
+      "scope": "global",
+      "enabled": true,
+      "updated_at": "2026-05-19T08:30:00.000Z"
+    }
+  ],
+  "manifest": {
+    "codex": [
+      {
+        "name": "alpha-codex",
+        "scope": "cli:codex",
+        "updated_at": "2026-05-19T09:00:00.000Z"
+      },
+      {
+        "name": "global-guard",
+        "scope": "global",
+        "updated_at": "2026-05-19T08:30:00.000Z"
+      }
+    ],
+    "claude": [
+      {
+        "name": "claude-playbook",
+        "scope": "cli:claude",
+        "updated_at": "2026-05-19T08:45:00.000Z"
+      },
+      {
+        "name": "global-guard",
+        "scope": "global",
+        "updated_at": "2026-05-19T08:30:00.000Z"
+      }
+    ]
+  },
+  "markdown": {
+    "alpha-codex": "---\nname: alpha-codex\ndescription: \"Codex-first org skill\"\n---\n\n# Alpha Codex\n\nUse for Codex review flows.\n",
+    "claude-playbook": "---\nname: claude-playbook\ndescription: \"Claude-only org skill\"\n---\n\n# Claude Playbook\n\nUse for Claude-only flows.\n",
+    "global-guard": "---\nname: global-guard\ndescription: \"Shared org skill\"\n---\n\n# Global Guard\n\nApply for both CLIs.\n"
+  }
+}

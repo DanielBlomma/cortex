@@ -10,6 +10,7 @@ import type {
   ReviewResult,
   ReviewSummary,
 } from "../../core/validators/engine.js";
+import type { ReviewTrustState } from "../reviews/trust-state.js";
 
 export type WorkflowPhase =
   | "planning"
@@ -111,6 +112,7 @@ export type WorkflowState = {
   notes: WorkflowNote[];
   todos: WorkflowTodo[];
   history: WorkflowHistoryEntry[];
+  review_trust: ReviewTrustState | null;
 };
 
 export type WorkflowMutationResult = {
@@ -143,6 +145,10 @@ function workflowDir(contextDir: string): string {
 
 function workflowStatePath(contextDir: string): string {
   return join(workflowDir(contextDir), "state.json");
+}
+
+export function hasWorkflowState(contextDir: string): boolean {
+  return existsSync(workflowStatePath(contextDir));
 }
 
 function workflowReviewsDir(contextDir: string): string {
@@ -195,6 +201,7 @@ function initialState(): WorkflowState {
     notes: [],
     todos: [],
     history: [],
+    review_trust: null,
   };
 }
 
@@ -455,6 +462,20 @@ export function recordWorkflowUpdate(
     contextDir,
     withRecalculatedApproval(state, input.phase === undefined)
   );
+}
+
+export function setWorkflowReviewTrust(
+  contextDir: string,
+  reviewTrust: ReviewTrustState,
+): WorkflowState {
+  if (!hasWorkflowState(contextDir)) {
+    const state = initialState();
+    state.review_trust = reviewTrust;
+    return writeState(contextDir, withRecalculatedApproval(state, true));
+  }
+  const state = loadWorkflowState(contextDir);
+  state.review_trust = reviewTrust;
+  return writeState(contextDir, withRecalculatedApproval(state, true));
 }
 
 export function addWorkflowNote(

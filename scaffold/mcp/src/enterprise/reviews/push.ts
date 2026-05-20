@@ -1,3 +1,5 @@
+import { recordReviewDeliveryStatus } from "./trust-state.js";
+
 export type ReviewPushItem = {
   policy_id: string;
   pass: boolean;
@@ -11,12 +13,16 @@ export type ReviewPushContext = {
   repo?: string;
   instance_id?: string;
   session_id?: string;
+  context_dir?: string;
+  project_root?: string;
 };
 
 export type ReviewPushResult = {
   success: boolean;
   count: number;
   error?: string;
+  attempted?: boolean;
+  delivery_status?: "accepted" | "failed";
 };
 
 const pending: ReviewPushItem[] = [];
@@ -24,6 +30,10 @@ let activeContext: ReviewPushContext = {};
 
 export function setReviewPushContext(context: ReviewPushContext): void {
   activeContext = { ...context };
+}
+
+export function getReviewPushContext(): ReviewPushContext {
+  return { ...activeContext };
 }
 
 export function queueReviewResult(item: ReviewPushItem): void {
@@ -39,11 +49,18 @@ export async function pushReviewResults(
   apiKey: string,
 ): Promise<ReviewPushResult> {
   if (pending.length === 0) {
-    return { success: true, count: 0 };
+    return { success: true, count: 0, attempted: false };
   }
 
   const reviewsUrl = `${baseUrl.replace(/\/$/, "")}/api/v1/reviews/push`;
   const batch = pending.splice(0, 100);
+  const attemptedAt = new Date().toISOString();
+  if (activeContext.context_dir) {
+    recordReviewDeliveryStatus(activeContext.context_dir, "pushed", {
+      reviewCount: batch.length,
+      attemptedAt,
+    });
+  }
 
   try {
     const response = await fetch(reviewsUrl, {
@@ -64,16 +81,50 @@ export async function pushReviewResults(
 
     if (!response.ok) {
       pending.unshift(...batch);
-      return { success: false, count: 0, error: `HTTP ${response.status}` };
+      if (activeContext.context_dir) {
+        recordReviewDeliveryStatus(activeContext.context_dir, "failed", {
+          reviewCount: batch.length,
+          attemptedAt,
+          error: `HTTP ${response.status}`,
+        });
+      }
+      return {
+        success: false,
+        count: 0,
+        error: `HTTP ${response.status}`,
+        attempted: true,
+        delivery_status: "failed",
+      };
     }
 
-    return { success: true, count: batch.length };
+    if (activeContext.context_dir) {
+      recordReviewDeliveryStatus(activeContext.context_dir, "accepted", {
+        reviewCount: batch.length,
+        attemptedAt,
+      });
+    }
+    return {
+      success: true,
+      count: batch.length,
+      attempted: true,
+      delivery_status: "accepted",
+    };
   } catch (err) {
     pending.unshift(...batch);
+    const error = err instanceof Error ? err.message : "unknown error";
+    if (activeContext.context_dir) {
+      recordReviewDeliveryStatus(activeContext.context_dir, "failed", {
+        reviewCount: batch.length,
+        attemptedAt,
+        error,
+      });
+    }
     return {
       success: false,
       count: 0,
-      error: err instanceof Error ? err.message : "unknown error",
+      error,
+      attempted: true,
+      delivery_status: "failed",
     };
   }
 }
