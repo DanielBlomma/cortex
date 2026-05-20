@@ -7,11 +7,11 @@ This project uses Cortex for AI-powered code context.
 After cloning, run these once to make the MCP server work and enable background context updates:
 
 ```bash
-scripts/bootstrap.sh        # builds .context/mcp/dist/server.js + parser node_modules
-scripts/install-git-hooks.sh # sets core.hooksPath=.githooks (opt-in, repo-controlled)
+cortex bootstrap # builds .context/mcp/dist/server.js + parser node_modules
+cortex watch start # optional background context updates
 ```
 
-The hooks (`post-commit`, `post-merge`, `post-checkout`, `post-rewrite`) trigger a debounced background `context.sh update` so the index stays fresh. Logs land in `.context/hooks/update.log`.
+The repo-controlled hooks (`post-commit`, `post-merge`, `post-checkout`, `post-rewrite`) trigger a debounced background `cortex update` when installed by Cortex. Logs land in `.context/hooks/update.log`.
 
 ## Required: Always use Cortex MCP tools
 

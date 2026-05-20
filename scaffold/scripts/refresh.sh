@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "[refresh] running ingestion"
-"$REPO_ROOT/scripts/ingest.sh" "$@"
+"$SCRIPT_DIR/ingest.sh" "$@"
 
 echo "[refresh] done"

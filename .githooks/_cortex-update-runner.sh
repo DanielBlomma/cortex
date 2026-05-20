@@ -6,12 +6,12 @@ if [[ -z "$REPO_ROOT" ]]; then
   exit 0
 fi
 
-CONTEXT_SCRIPT="$REPO_ROOT/scripts/context.sh"
+CONTEXT_SCRIPT="$REPO_ROOT/.context/scripts/context.sh"
 if [[ ! -x "$CONTEXT_SCRIPT" ]]; then
   exit 0
 fi
 
-PARSER_MODULES_DIR="$REPO_ROOT/scripts/parsers/node_modules"
+PARSER_MODULES_DIR="$REPO_ROOT/.context/scripts/parsers/node_modules"
 
 HOOK_DIR="$REPO_ROOT/.context/hooks"
 LOCK_DIR="$HOOK_DIR/update.lock"

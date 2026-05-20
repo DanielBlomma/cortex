@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MCP_DIR="$REPO_ROOT/.context/mcp"
 TOTAL_STEPS=6
 STEP_INDEX=0
@@ -25,24 +26,24 @@ mkdir -p "$MCP_DIR/.npm-cache"
 step "Installing MCP dependencies"
 info "note: upstream RyuGraph dependencies may print deprecation warnings during install"
 NPM_CONFIG_CACHE="$MCP_DIR/.npm-cache" npm --prefix "$MCP_DIR" install --no-fund --no-update-notifier --loglevel=warn
-NPM_CONFIG_CACHE="$REPO_ROOT/scripts/parsers/.npm-cache" npm --prefix "$REPO_ROOT/scripts/parsers" install --no-fund --no-update-notifier --loglevel=warn
+NPM_CONFIG_CACHE="$REPO_ROOT/.context/scripts/parsers/.npm-cache" npm --prefix "$REPO_ROOT/.context/scripts/parsers" install --no-fund --no-update-notifier --loglevel=warn
 
-source "$REPO_ROOT/scripts/lib/enterprise-check.sh"
+source "$SCRIPT_DIR/lib/enterprise-check.sh"
 
 step "Indexing repository context"
-"$REPO_ROOT/scripts/ingest.sh"
+"$SCRIPT_DIR/ingest.sh"
 
 step "Generating semantic embeddings"
-if ! "$REPO_ROOT/scripts/embed.sh"; then
+if ! "$SCRIPT_DIR/embed.sh"; then
   info "warning: embedding generation failed; continuing with lexical search fallback"
 fi
 
 step "Loading RyuGraph"
-"$REPO_ROOT/scripts/load-ryu.sh"
+"$SCRIPT_DIR/load-ryu.sh"
 
 step "Reading context status"
-"$REPO_ROOT/scripts/status.sh"
+"$SCRIPT_DIR/status.sh"
 
 echo ""
 info "bootstrap complete"
-info "next: run ./scripts/context.sh update while coding"
+info "next: run cortex update while coding"

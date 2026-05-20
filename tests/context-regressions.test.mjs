@@ -118,17 +118,17 @@ function testIngestChunkIdDisambiguation() {
   const fixtureRoot = makeTempDir("cortex-ingest-chunks-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
-    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
     const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
       'import { parseCode } from "./parsers/javascript.mjs";',
       'import { parseCode } from "./parsers/mock-parser.mjs";'
     );
-    fs.writeFileSync(path.join(fixtureRoot, "scripts", "ingest.mjs"), ingestSource, "utf8");
+    fs.writeFileSync(path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"), ingestSource, "utf8");
 
     fs.writeFileSync(
-      path.join(fixtureRoot, "scripts", "parsers", "mock-parser.mjs"),
+      path.join(fixtureRoot, ".context", "scripts", "parsers", "mock-parser.mjs"),
       `export function parseCode() {
   return {
     errors: [],
@@ -216,7 +216,7 @@ export function useValue() {
       "utf8"
     );
 
-    run("node", ["scripts/ingest.mjs"], { cwd: fixtureRoot });
+    run("node", [".context/scripts/ingest.mjs"], { cwd: fixtureRoot });
 
     const chunks = parseJsonl(path.join(fixtureRoot, ".context", "cache", "entities.chunk.jsonl"));
     const calls = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.calls.jsonl"));
@@ -248,21 +248,21 @@ function testIngestChunkOverlapWindows() {
   const fixtureRoot = makeTempDir("cortex-ingest-overlap-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
-    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
     const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
       'import { parseCode } from "./parsers/javascript.mjs";',
       'import { parseCode } from "./parsers/mock-parser.mjs";'
     );
-    fs.writeFileSync(path.join(fixtureRoot, "scripts", "ingest.mjs"), ingestSource, "utf8");
+    fs.writeFileSync(path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"), ingestSource, "utf8");
 
     const largeBody = Array.from(
       { length: 320 },
       (_, index) => `line-${String(index + 1).padStart(4, "0")}-${"x".repeat(32)}`
     ).join("\n");
     fs.writeFileSync(
-      path.join(fixtureRoot, "scripts", "parsers", "mock-parser.mjs"),
+      path.join(fixtureRoot, ".context", "scripts", "parsers", "mock-parser.mjs"),
       `export function parseCode() {
   return {
     errors: [],
@@ -317,7 +317,7 @@ ranking:
 
     fs.writeFileSync(path.join(fixtureRoot, "src", "sample.ts"), "export const x = 1;\n", "utf8");
 
-    run("node", ["scripts/ingest.mjs"], {
+    run("node", [".context/scripts/ingest.mjs"], {
       cwd: fixtureRoot,
       env: {
         ...process.env,
@@ -361,18 +361,18 @@ function testIngestChunkZeroOverlapConfig() {
   const fixtureRoot = makeTempDir("cortex-ingest-overlap-zero-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
-    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
     const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
       'import { parseCode } from "./parsers/javascript.mjs";',
       'import { parseCode } from "./parsers/mock-parser.mjs";'
     );
-    fs.writeFileSync(path.join(fixtureRoot, "scripts", "ingest.mjs"), ingestSource, "utf8");
+    fs.writeFileSync(path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"), ingestSource, "utf8");
 
     const body = Array.from({ length: 10 }, (_, index) => `line-${index + 1}`).join("\n");
     fs.writeFileSync(
-      path.join(fixtureRoot, "scripts", "parsers", "mock-parser.mjs"),
+      path.join(fixtureRoot, ".context", "scripts", "parsers", "mock-parser.mjs"),
       `export function parseCode() {
   return {
     errors: [],
@@ -427,7 +427,7 @@ ranking:
 
     fs.writeFileSync(path.join(fixtureRoot, "src", "sample.ts"), "export const x = 1;\n", "utf8");
 
-    run("node", ["scripts/ingest.mjs"], {
+    run("node", [".context/scripts/ingest.mjs"], {
       cwd: fixtureRoot,
       env: {
         ...process.env,
@@ -461,21 +461,21 @@ function testIngestChunkMaxWindowCap() {
   const fixtureRoot = makeTempDir("cortex-ingest-overlap-cap-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
-    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
     const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
       'import { parseCode } from "./parsers/javascript.mjs";',
       'import { parseCode } from "./parsers/mock-parser.mjs";'
     );
-    fs.writeFileSync(path.join(fixtureRoot, "scripts", "ingest.mjs"), ingestSource, "utf8");
+    fs.writeFileSync(path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"), ingestSource, "utf8");
 
     const largeBody = Array.from(
       { length: 320 },
       (_, index) => `line-${String(index + 1).padStart(4, "0")}-${"x".repeat(32)}`
     ).join("\n");
     fs.writeFileSync(
-      path.join(fixtureRoot, "scripts", "parsers", "mock-parser.mjs"),
+      path.join(fixtureRoot, ".context", "scripts", "parsers", "mock-parser.mjs"),
       `export function parseCode() {
   return {
     errors: [],
@@ -530,7 +530,7 @@ ranking:
 
     fs.writeFileSync(path.join(fixtureRoot, "src", "sample.ts"), "export const x = 1;\n", "utf8");
 
-    run("node", ["scripts/ingest.mjs"], {
+    run("node", [".context/scripts/ingest.mjs"], {
       cwd: fixtureRoot,
       env: {
         ...process.env,
@@ -569,18 +569,18 @@ function testIngestChunkMetadataInheritanceInIncrementalMode() {
   const fixtureRoot = makeTempDir("cortex-ingest-meta-inherit-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context", "cache"), { recursive: true });
-    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
     const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
       'import { parseCode } from "./parsers/javascript.mjs";',
       'import { parseCode } from "./parsers/mock-parser.mjs";'
     );
-    fs.writeFileSync(path.join(fixtureRoot, "scripts", "ingest.mjs"), ingestSource, "utf8");
+    fs.writeFileSync(path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"), ingestSource, "utf8");
 
     const chunkBody = Array.from({ length: 12 }, (_, index) => `line-${index + 1}`).join("\n");
     fs.writeFileSync(
-      path.join(fixtureRoot, "scripts", "parsers", "mock-parser.mjs"),
+      path.join(fixtureRoot, ".context", "scripts", "parsers", "mock-parser.mjs"),
       `export function parseCode() {
   return {
     errors: [],
@@ -665,7 +665,7 @@ ranking:
 
     fs.writeFileSync(path.join(fixtureRoot, "notes.txt"), "trigger changed mode without touching src\n", "utf8");
 
-    run("node", ["scripts/ingest.mjs", "--changed"], {
+    run("node", [".context/scripts/ingest.mjs", "--changed"], {
       cwd: fixtureRoot,
       env: {
         ...process.env,
@@ -701,17 +701,17 @@ function testIngestIncrementalPreservesModuleExports() {
   const fixtureRoot = makeTempDir("cortex-ingest-module-exports-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
-    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src", "lib"), { recursive: true });
 
     const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
       'import { parseCode } from "./parsers/javascript.mjs";',
       'import { parseCode } from "./parsers/mock-parser.mjs";'
     );
-    fs.writeFileSync(path.join(fixtureRoot, "scripts", "ingest.mjs"), ingestSource, "utf8");
+    fs.writeFileSync(path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"), ingestSource, "utf8");
 
     fs.writeFileSync(
-      path.join(fixtureRoot, "scripts", "parsers", "mock-parser.mjs"),
+      path.join(fixtureRoot, ".context", "scripts", "parsers", "mock-parser.mjs"),
       `export function parseCode(_content, filePath) {
   if (filePath === "src/lib/a.ts") {
     return {
@@ -799,7 +799,7 @@ ranking:
     run("git", ["add", "."], { cwd: fixtureRoot });
     run("git", ["commit", "-m", "initial fixture"], { cwd: fixtureRoot });
 
-    run("node", ["scripts/ingest.mjs"], { cwd: fixtureRoot });
+    run("node", [".context/scripts/ingest.mjs"], { cwd: fixtureRoot });
 
     let modules = parseJsonl(path.join(fixtureRoot, ".context", "cache", "entities.module.jsonl"));
     let exports = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.exports.jsonl"));
@@ -814,7 +814,7 @@ ranking:
 
     fs.writeFileSync(path.join(fixtureRoot, "src", "lib", "a.ts"), "export const alpha = 3;\n", "utf8");
 
-    run("node", ["scripts/ingest.mjs", "--changed"], { cwd: fixtureRoot });
+    run("node", [".context/scripts/ingest.mjs", "--changed"], { cwd: fixtureRoot });
 
     modules = parseJsonl(path.join(fixtureRoot, ".context", "cache", "entities.module.jsonl"));
     exports = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.exports.jsonl"));
@@ -839,18 +839,18 @@ function testIngestWindowChunksKeepRelationsOnBaseChunk() {
   const fixtureRoot = makeTempDir("cortex-ingest-window-relations-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
-    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
     const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
       'import { parseCode } from "./parsers/javascript.mjs";',
       'import { parseCode } from "./parsers/mock-parser.mjs";'
     );
-    fs.writeFileSync(path.join(fixtureRoot, "scripts", "ingest.mjs"), ingestSource, "utf8");
+    fs.writeFileSync(path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"), ingestSource, "utf8");
 
     const mainBody = Array.from({ length: 14 }, (_, index) => `main-line-${index + 1}`).join("\n");
     fs.writeFileSync(
-      path.join(fixtureRoot, "scripts", "parsers", "mock-parser.mjs"),
+      path.join(fixtureRoot, ".context", "scripts", "parsers", "mock-parser.mjs"),
       `export function parseCode() {
   return {
     errors: [],
@@ -917,7 +917,7 @@ ranking:
     fs.writeFileSync(path.join(fixtureRoot, "src", "sample.ts"), "export const sample = 1;\n", "utf8");
     fs.writeFileSync(path.join(fixtureRoot, "src", "dep.ts"), "export const dep = 1;\n", "utf8");
 
-    run("node", ["scripts/ingest.mjs"], {
+    run("node", [".context/scripts/ingest.mjs"], {
       cwd: fixtureRoot,
       env: {
         ...process.env,
@@ -966,12 +966,12 @@ function testIngestIncrementalPreservesStructuredTargetRelations() {
   const fixtureRoot = makeTempDir("cortex-ingest-structured-targets-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
-    fs.mkdirSync(path.join(fixtureRoot, "scripts"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "legacy"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "db"), { recursive: true });
-    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
-    fs.cpSync(path.join(REPO_ROOT, "scaffold", "scripts", "parsers"), path.join(fixtureRoot, "scripts", "parsers"), {
+    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
+    fs.cpSync(path.join(REPO_ROOT, "scaffold", "scripts", "parsers"), path.join(fixtureRoot, ".context", "scripts", "parsers"), {
       recursive: true
     });
 
@@ -1087,7 +1087,7 @@ GO
     run("git", ["add", "."], { cwd: fixtureRoot });
     run("git", ["commit", "-m", "initial fixture"], { cwd: fixtureRoot });
 
-    run("node", ["scripts/ingest.mjs"], { cwd: fixtureRoot });
+    run("node", [".context/scripts/ingest.mjs"], { cwd: fixtureRoot });
 
     let chunkById = new Map(
       parseJsonl(path.join(fixtureRoot, ".context", "cache", "entities.chunk.jsonl")).map((chunk) => [chunk.id, chunk])
@@ -1155,7 +1155,7 @@ End Module
       "utf8"
     );
 
-    run("node", ["scripts/ingest.mjs", "--changed"], { cwd: fixtureRoot });
+    run("node", [".context/scripts/ingest.mjs", "--changed"], { cwd: fixtureRoot });
 
     chunkById = new Map(
       parseJsonl(path.join(fixtureRoot, ".context", "cache", "entities.chunk.jsonl")).map((chunk) => [chunk.id, chunk])
@@ -1343,12 +1343,12 @@ function testIngestPersistsImportEdgesForDeclarationHeaders() {
   const fixtureRoot = makeTempDir("cortex-ingest-header-imports-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
-    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
-    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
+    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
     fs.writeFileSync(
-      path.join(fixtureRoot, "scripts", "parsers", "javascript.mjs"),
+      path.join(fixtureRoot, ".context", "scripts", "parsers", "javascript.mjs"),
       `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scaffold", "scripts", "parsers", "javascript.mjs"))};\n`,
       "utf8"
     );
@@ -1399,7 +1399,7 @@ export class C extends Base {}
     fs.writeFileSync(path.join(fixtureRoot, "src", "dep.ts"), "export const dep = 1;\n", "utf8");
     fs.writeFileSync(path.join(fixtureRoot, "src", "Base.ts"), "export default class Base {}\n", "utf8");
 
-    run("node", ["scripts/ingest.mjs"], { cwd: fixtureRoot });
+    run("node", [".context/scripts/ingest.mjs"], { cwd: fixtureRoot });
 
     const imports = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.imports.jsonl"));
 
@@ -1458,12 +1458,12 @@ function testIngestPersistsImportEdgesForTypes() {
   const fixtureRoot = makeTempDir("cortex-ingest-type-imports-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
-    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
-    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
+    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
     fs.writeFileSync(
-      path.join(fixtureRoot, "scripts", "parsers", "javascript.mjs"),
+      path.join(fixtureRoot, ".context", "scripts", "parsers", "javascript.mjs"),
       `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scaffold", "scripts", "parsers", "javascript.mjs"))};\n`,
       "utf8"
     );
@@ -1512,7 +1512,7 @@ export class C implements Dep {}
     );
     fs.writeFileSync(path.join(fixtureRoot, "src", "dep.ts"), "export type Dep = { value: string };\n", "utf8");
 
-    run("node", ["scripts/ingest.mjs"], { cwd: fixtureRoot });
+    run("node", [".context/scripts/ingest.mjs"], { cwd: fixtureRoot });
 
     const imports = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.imports.jsonl"));
 
@@ -1534,12 +1534,12 @@ function testIngestDoesNotPersistTypeImportEdgesForGenericParameters() {
   const fixtureRoot = makeTempDir("cortex-ingest-generic-type-imports-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
-    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
-    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
+    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
     fs.writeFileSync(
-      path.join(fixtureRoot, "scripts", "parsers", "javascript.mjs"),
+      path.join(fixtureRoot, ".context", "scripts", "parsers", "javascript.mjs"),
       `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scaffold", "scripts", "parsers", "javascript.mjs"))};\n`,
       "utf8"
     );
@@ -1586,7 +1586,7 @@ export function run<T>(value: T): T {
     );
     fs.writeFileSync(path.join(fixtureRoot, "src", "dep.ts"), "export type T = { value: string };\n", "utf8");
 
-    run("node", ["scripts/ingest.mjs"], { cwd: fixtureRoot });
+    run("node", [".context/scripts/ingest.mjs"], { cwd: fixtureRoot });
 
     const imports = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.imports.jsonl"));
 
@@ -1604,12 +1604,12 @@ function testIngestResolvesNodeNextJsSpecifiersToTypescriptSources() {
   const fixtureRoot = makeTempDir("cortex-ingest-nodenext-imports-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
-    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
-    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
+    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
     fs.writeFileSync(
-      path.join(fixtureRoot, "scripts", "parsers", "javascript.mjs"),
+      path.join(fixtureRoot, ".context", "scripts", "parsers", "javascript.mjs"),
       `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scaffold", "scripts", "parsers", "javascript.mjs"))};\n`,
       "utf8"
     );
@@ -1663,7 +1663,7 @@ export function run() {
       "utf8"
     );
 
-    run("node", ["scripts/ingest.mjs"], { cwd: fixtureRoot });
+    run("node", [".context/scripts/ingest.mjs"], { cwd: fixtureRoot });
 
     const imports = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.imports.jsonl"));
 
@@ -1681,12 +1681,12 @@ function testIngestDoesNotResolveExplicitJsSpecifiersToJsonFiles() {
   const fixtureRoot = makeTempDir("cortex-ingest-js-to-json-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
-    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
-    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
+    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
     fs.writeFileSync(
-      path.join(fixtureRoot, "scripts", "parsers", "javascript.mjs"),
+      path.join(fixtureRoot, ".context", "scripts", "parsers", "javascript.mjs"),
       `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scaffold", "scripts", "parsers", "javascript.mjs"))};\n`,
       "utf8"
     );
@@ -1733,7 +1733,7 @@ export function run() {
     );
     fs.writeFileSync(path.join(fixtureRoot, "src", "graph.json"), "{\"ok\":true}\n", "utf8");
 
-    run("node", ["scripts/ingest.mjs"], { cwd: fixtureRoot });
+    run("node", [".context/scripts/ingest.mjs"], { cwd: fixtureRoot });
 
     const imports = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.imports.jsonl"));
 
@@ -1751,12 +1751,12 @@ function testIngestPersistsImportEdgesForModuleScopeRequireBindings() {
   const fixtureRoot = makeTempDir("cortex-ingest-require-bindings-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
-    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
-    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, "scripts", "ingest.mjs"));
+    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
     fs.writeFileSync(
-      path.join(fixtureRoot, "scripts", "parsers", "javascript.mjs"),
+      path.join(fixtureRoot, ".context", "scripts", "parsers", "javascript.mjs"),
       `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scaffold", "scripts", "parsers", "javascript.mjs"))};\n`,
       "utf8"
     );
@@ -1803,7 +1803,7 @@ export function run() {
     );
     fs.writeFileSync(path.join(fixtureRoot, "src", "dep.js"), "module.exports = () => 1;\n", "utf8");
 
-    run("node", ["scripts/ingest.mjs"], { cwd: fixtureRoot });
+    run("node", [".context/scripts/ingest.mjs"], { cwd: fixtureRoot });
 
     const imports = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.imports.jsonl"));
 
@@ -1821,17 +1821,17 @@ function testIngestResolvesDirectoryImportsToIndexFiles() {
   const fixtureRoot = makeTempDir("cortex-ingest-import-index-");
   try {
     fs.mkdirSync(path.join(fixtureRoot, ".context"), { recursive: true });
-    fs.mkdirSync(path.join(fixtureRoot, "scripts", "parsers"), { recursive: true });
+    fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src", "pkg"), { recursive: true });
 
     const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
       'import { parseCode } from "./parsers/javascript.mjs";',
       'import { parseCode } from "./parsers/mock-parser.mjs";'
     );
-    fs.writeFileSync(path.join(fixtureRoot, "scripts", "ingest.mjs"), ingestSource, "utf8");
+    fs.writeFileSync(path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"), ingestSource, "utf8");
 
     fs.writeFileSync(
-      path.join(fixtureRoot, "scripts", "parsers", "mock-parser.mjs"),
+      path.join(fixtureRoot, ".context", "scripts", "parsers", "mock-parser.mjs"),
       `export function parseCode() {
   return {
     errors: [],
@@ -1887,7 +1887,7 @@ ranking:
     fs.writeFileSync(path.join(fixtureRoot, "src", "sample.ts"), "export const sample = 1;\n", "utf8");
     fs.writeFileSync(path.join(fixtureRoot, "src", "pkg", "index.ts"), "export const pkg = 1;\n", "utf8");
 
-    run("node", ["scripts/ingest.mjs"], { cwd: fixtureRoot });
+    run("node", [".context/scripts/ingest.mjs"], { cwd: fixtureRoot });
 
     const imports = parseJsonl(path.join(fixtureRoot, ".context", "cache", "relations.imports.jsonl"));
 

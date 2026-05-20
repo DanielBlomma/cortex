@@ -91,7 +91,9 @@ async function loadOptionalParsers() {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const REPO_ROOT = path.resolve(__dirname, "..");
+const REPO_ROOT = process.env.CORTEX_PROJECT_ROOT
+  ? path.resolve(process.env.CORTEX_PROJECT_ROOT)
+  : path.resolve(__dirname, "..", "..");
 const CONTEXT_DIR = path.join(REPO_ROOT, ".context");
 const CACHE_DIR = path.join(CONTEXT_DIR, "cache");
 const DB_IMPORT_DIR = path.join(CONTEXT_DIR, "db", "import");

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 WATCH_DIR="$REPO_ROOT/.context/watch"
 PID_FILE="$WATCH_DIR/watch.pid"
 STAMP_FILE="$WATCH_DIR/last-stamp.sha1"
@@ -21,7 +22,7 @@ EVENT_BACKEND=""
 
 print_usage() {
   cat <<'USAGE'
-Usage: ./scripts/watch.sh [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>] [--mode <auto|event|poll>]
+Usage: cortex watch [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>] [--mode <auto|event|poll>]
 
 Commands:
   start     Start background watch loop
@@ -149,8 +150,8 @@ status_digest() {
   # .context/ excludes the relocated .context/mcp/ tree as well.
   find "$REPO_ROOT" -type f \
     ! -path "$REPO_ROOT/.context/*" \
-    ! -path "$REPO_ROOT/scripts/parsers/node_modules/*" \
-    ! -path "$REPO_ROOT/scripts/parsers/.npm-cache/*" \
+    ! -path "$REPO_ROOT/.context/scripts/parsers/node_modules/*" \
+    ! -path "$REPO_ROOT/.context/scripts/parsers/.npm-cache/*" \
     -print \
     | LC_ALL=C sort \
     | shasum -a 1 \
@@ -162,7 +163,7 @@ run_update() {
   start_ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   echo "[watch] update start at $start_ts"
 
-  if bash "$REPO_ROOT/scripts/context.sh" update; then
+  if bash "$SCRIPT_DIR/context.sh" update; then
     echo "[watch] update success"
     return 0
   fi
@@ -199,15 +200,13 @@ wait_for_change_event() {
     inotifywait)
       inotifywait -q -r \
         -e modify,create,delete,move \
-        --exclude '(^|/)\\.git(/|$)|(^|/)\\.context(/|$)|(^|/)scripts/parsers/(node_modules|\\.npm-cache)(/|$)' \
+        --exclude '(^|/)\\.git(/|$)|(^|/)\\.context(/|$)' \
         "$REPO_ROOT" >/dev/null 2>&1 || true
       ;;
     fswatch)
       fswatch -1 -r \
         --exclude '(^|/)\\.git(/|$)' \
         --exclude '(^|/)\\.context(/|$)' \
-        --exclude '(^|/)scripts/parsers/node_modules(/|$)' \
-        --exclude '(^|/)scripts/parsers/\\.npm-cache(/|$)' \
         "$REPO_ROOT" >/dev/null 2>&1 || true
       ;;
     *)

@@ -2,7 +2,8 @@
 # Keep in sync with scripts/memory-compile.sh
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONTEXT_DIR="$REPO_ROOT/.context"
 
 printf "[memory-compile] repo: %s\n" "$REPO_ROOT"
@@ -17,4 +18,4 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
-node "$REPO_ROOT/scripts/memory-compile.mjs" "$@"
+CORTEX_PROJECT_ROOT="$REPO_ROOT" node "$SCRIPT_DIR/memory-compile.mjs" "$@"

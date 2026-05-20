@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseFrontmatter, parseStringList } from "../.context/mcp/dist/frontmatter.js";
+import { parseFrontmatter, parseStringList } from "../mcp/dist/frontmatter.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,7 +17,7 @@ function normalizeForWsl(rawPath) {
 
 const REPO_ROOT = process.env.CORTEX_PROJECT_ROOT
   ? path.resolve(normalizeForWsl(process.env.CORTEX_PROJECT_ROOT))
-  : path.resolve(__dirname, "..");
+  : path.resolve(__dirname, "..", "..");
 const CONTEXT_DIR = path.join(REPO_ROOT, ".context");
 const MEMORY_DIR = path.join(CONTEXT_DIR, "memory");
 const RAW_DIR = path.join(MEMORY_DIR, "raw");

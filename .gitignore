@@ -25,6 +25,7 @@ scaffold/.context/telemetry/
 
 # Node
 node_modules/
+scripts/parsers/node_modules
 *.log
 mcp/.npm-cache/
 

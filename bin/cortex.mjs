@@ -27,6 +27,7 @@ const PACKAGE_JSON_PATH = path.join(PACKAGE_ROOT, "package.json");
 // only the three editable config files". Generated artifacts (db,
 // embeddings, cache, hooks, mcp/, govern.local.json) never land in git.
 const MCP_PROJECT_REL = path.join(".context", "mcp");
+const CONTEXT_SCRIPTS_REL = path.join(".context", "scripts");
 
 // `.context/*` (not `.context/`) so the !-negations below actually re-include
 // the config files — git can't re-include children of an excluded directory.
@@ -463,12 +464,73 @@ function migrateLegacyMcpLocation(targetDir) {
   );
 }
 
+const LEGACY_SCRIPT_ENTRIES = [
+  "bootstrap.sh",
+  "context.sh",
+  "dashboard.mjs",
+  "dashboard.sh",
+  "doctor.sh",
+  "embed.sh",
+  "ingest.mjs",
+  "ingest.sh",
+  "install-git-hooks.sh",
+  "load-kuzu.sh",
+  "load-ryu.sh",
+  "memory-compile.mjs",
+  "memory-compile.sh",
+  "memory-lint.mjs",
+  "memory-lint.sh",
+  "refresh.sh",
+  "status.sh",
+  "update-context.sh",
+  "watch.sh",
+  "lib",
+  "parsers"
+];
+
+function looksLikeLegacyCortexScriptsDir(scriptsDir) {
+  const contextScript = path.join(scriptsDir, "context.sh");
+  if (!fs.existsSync(contextScript)) {
+    return false;
+  }
+  try {
+    const contents = fs.readFileSync(contextScript, "utf8");
+    return contents.includes("bootstrap)") && contents.includes("graph-load)") && contents.includes("memory-lint)");
+  } catch {
+    return false;
+  }
+}
+
+function removeLegacyCortexScripts(targetDir) {
+  if (path.resolve(targetDir) === PACKAGE_ROOT) {
+    return;
+  }
+
+  const scriptsDir = path.join(targetDir, "scripts");
+  if (!looksLikeLegacyCortexScriptsDir(scriptsDir)) {
+    return;
+  }
+
+  for (const entry of LEGACY_SCRIPT_ENTRIES) {
+    fs.rmSync(path.join(scriptsDir, entry), { recursive: true, force: true });
+  }
+
+  try {
+    if (fs.existsSync(scriptsDir) && fs.readdirSync(scriptsDir).length === 0) {
+      fs.rmdirSync(scriptsDir);
+    }
+  } catch {
+    // Best effort. A user's own files in scripts/ must remain untouched.
+  }
+}
+
 function installScaffold(targetDir, force) {
   migrateLegacyMcpLocation(targetDir);
+  removeLegacyCortexScripts(targetDir);
 
   const copyMap = [
     [path.join(SCAFFOLD_ROOT, ".context"), path.join(targetDir, ".context")],
-    [path.join(SCAFFOLD_ROOT, "scripts"), path.join(targetDir, "scripts")],
+    [path.join(SCAFFOLD_ROOT, "scripts"), path.join(targetDir, CONTEXT_SCRIPTS_REL)],
     [path.join(SCAFFOLD_ROOT, "mcp"), path.join(targetDir, MCP_PROJECT_REL)],
     [path.join(SCAFFOLD_ROOT, ".githooks"), path.join(targetDir, ".githooks")]
   ];
@@ -722,7 +784,7 @@ async function connectMcpClients(targetDir, options = {}) {
 }
 
 async function maybeInstallGitHooks(targetDir) {
-  const installScript = path.join(targetDir, "scripts", "install-git-hooks.sh");
+  const installScript = path.join(targetDir, CONTEXT_SCRIPTS_REL, "install-git-hooks.sh");
   if (!fs.existsSync(installScript)) {
     return false;
   }
@@ -760,16 +822,17 @@ function isTruthyEnv(value) {
 function canAutoInitialize(targetDir) {
   // Legacy mcp/ at root no longer counted — pre-v2.0.5 projects are migrated
   // by installScaffold rather than blocking auto-init.
-  const scaffoldPaths = [".context", "scripts", ".githooks"].map((entry) => path.join(targetDir, entry));
+  const scaffoldPaths = [".context", ".githooks"].map((entry) => path.join(targetDir, entry));
   return scaffoldPaths.every((entryPath) => !fs.existsSync(entryPath));
 }
 
 function isScaffoldOutOfDate(targetDir) {
-  const contextScript = path.join(targetDir, "scripts", "context.sh");
+  const contextScript = path.join(targetDir, CONTEXT_SCRIPTS_REL, "context.sh");
+  const legacyContextScript = path.join(targetDir, "scripts", "context.sh");
   if (!fs.existsSync(contextScript)) {
-    return false;
+    return fs.existsSync(legacyContextScript);
   }
-  const doctorScript = path.join(targetDir, "scripts", "doctor.sh");
+  const doctorScript = path.join(targetDir, CONTEXT_SCRIPTS_REL, "doctor.sh");
   if (!fs.existsSync(doctorScript)) {
     return true;
   }
@@ -814,7 +877,7 @@ async function maybeMigrateScaffold(targetDir, command) {
 
   console.error(
     `[cortex] scaffold in ${targetDir} is out of date ` +
-      `(missing scripts/doctor.sh, .context/mcp/package.json, doctor subcommand in context.sh, ` +
+      `(missing .context/scripts/doctor.sh, .context/mcp/package.json, doctor subcommand in context.sh, ` +
       `or carries a legacy mcp/ directory at the project root).`
   );
 
@@ -883,7 +946,7 @@ async function ensureProjectInitializedForMcp(targetDir) {
 }
 
 async function runContextCommand(cwd, contextArgs) {
-  const contextScript = path.join(cwd, "scripts", "context.sh");
+  const contextScript = path.join(cwd, CONTEXT_SCRIPTS_REL, "context.sh");
   if (!fs.existsSync(contextScript)) {
     throw new Error(`Missing ${contextScript}. Run 'cortex init' first.`);
   }
@@ -917,7 +980,7 @@ async function run() {
     await maybeInstallGitHooks(target);
 
     console.log(`[cortex] initialized in ${target}`);
-    console.log("[cortex] scaffold copied: .context/, scripts/, mcp/, .githooks/, docs/");
+    console.log("[cortex] scaffold copied: .context/, .context/scripts/, .context/mcp/, .githooks/, docs/");
     console.log(`[cortex] Claude commands ready: /context-update (${helpers.claude.total} files)`);
     if (helpers.codex.changed) {
       console.log("[cortex] Codex workflow instructions added to AGENTS.md");

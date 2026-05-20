@@ -65,3 +65,48 @@ test("cortex init preserves existing AGENTS.md content while ensuring the Cortex
     fs.rmSync(repoRoot, { recursive: true, force: true });
   }
 });
+
+test("cortex init installs Cortex scripts under .context without touching project scripts", () => {
+  const repoRoot = makeRepo("cortex-init-script-layout-");
+  const projectScripts = path.join(repoRoot, "scripts");
+  const projectScript = path.join(projectScripts, "build.sh");
+
+  try {
+    fs.mkdirSync(projectScripts, { recursive: true });
+    fs.writeFileSync(projectScript, "#!/usr/bin/env bash\necho project build\n", "utf8");
+
+    runInit(repoRoot);
+
+    assert.equal(fs.readFileSync(projectScript, "utf8"), "#!/usr/bin/env bash\necho project build\n");
+    assert.equal(fs.existsSync(path.join(repoRoot, ".context", "scripts", "context.sh")), true);
+    assert.equal(fs.existsSync(path.join(projectScripts, "context.sh")), false);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test("cortex init cleans up legacy Cortex root scripts but keeps project scripts", () => {
+  const repoRoot = makeRepo("cortex-init-legacy-script-cleanup-");
+  const projectScripts = path.join(repoRoot, "scripts");
+
+  try {
+    fs.mkdirSync(projectScripts, { recursive: true });
+    fs.writeFileSync(path.join(projectScripts, "build.sh"), "#!/usr/bin/env bash\necho project build\n", "utf8");
+    fs.writeFileSync(
+      path.join(projectScripts, "context.sh"),
+      "case \"$1\" in\n  bootstrap)\n    ;;\n  graph-load)\n    ;;\n  memory-lint)\n    ;;\nesac\n",
+      "utf8",
+    );
+    fs.mkdirSync(path.join(projectScripts, "parsers"), { recursive: true });
+    fs.writeFileSync(path.join(projectScripts, "parsers", "package.json"), "{}\n", "utf8");
+
+    runInit(repoRoot);
+
+    assert.equal(fs.existsSync(path.join(repoRoot, ".context", "scripts", "context.sh")), true);
+    assert.equal(fs.existsSync(path.join(projectScripts, "context.sh")), false);
+    assert.equal(fs.existsSync(path.join(projectScripts, "parsers")), false);
+    assert.equal(fs.existsSync(path.join(projectScripts, "build.sh")), true);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
