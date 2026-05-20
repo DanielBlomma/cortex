@@ -13,9 +13,12 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.join(__dirname, "..");
+// ingest.mjs computes REPO_ROOT from its own __dirname (scaffold/scripts/..),
+// so it reads scaffold/.context/config.yaml and writes scaffold/.context/cache/.
+// The test must use the same root for paths to line up.
+const REPO_ROOT = path.join(__dirname, "..", "scaffold");
 const CACHE_DIR = path.join(REPO_ROOT, ".context", "cache");
-const INGEST_PATH = path.join(REPO_ROOT, "scaffold", "scripts", "ingest.mjs");
+const INGEST_PATH = path.join(REPO_ROOT, "scripts", "ingest.mjs");
 
 function readJsonl(filePath) {
   if (!fs.existsSync(filePath)) return [];
