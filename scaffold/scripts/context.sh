@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 print_help() {
   cat <<'EOF'
-Usage: ./scripts/context.sh <command> [options]
+Usage: cortex <command> [options]
 
 Commands:
   bootstrap                        Install deps + full ingest + graph load

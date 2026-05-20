@@ -5,14 +5,16 @@
 .claude/
 AGENTS.md
 
-# Local storage
-.context/db/
-.context/embeddings/
-.context/cache/
-.context/plan/
-.context/hooks/
-.context/telemetry/
-.context/enterprise.yml
+# Cortex local storage — ignore everything under .context/ except the three
+# editable config files. Matches the convention `cortex init` generates for
+# downstream repos (see bin/cortex.mjs:GITIGNORE_LINES).
+.context/*
+!.context/config.yaml
+!.context/rules.yaml
+!.context/ontology.cypher
+
+# scaffold/.context/ subdirs are narrow because the scaffold ships .context/
+# configs and notes as tracked files; we only ignore the generated subdirs.
 scaffold/.context/db/
 scaffold/.context/embeddings/
 scaffold/.context/cache/
@@ -23,6 +25,7 @@ scaffold/.context/telemetry/
 
 # Node
 node_modules/
+scripts/parsers/node_modules
 *.log
 mcp/.npm-cache/
 
@@ -38,7 +41,7 @@ scripts/parsers/dotnet/**/obj/
 *.tgz
 .mcpregistry_github_token
 .mcpregistry_registry_token
-# Cortex local storage
+
+# Stray mcp/ at repo root — legacy layout, kept in case dev tooling regenerates it
 mcp/node_modules/
 mcp/.context/
-

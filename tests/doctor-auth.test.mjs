@@ -43,17 +43,17 @@ function closeMock(server) {
 
 function makeTempProject(enterpriseYaml) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-doctor-auth-"));
-  fs.mkdirSync(path.join(root, "scripts"), { recursive: true });
+  fs.mkdirSync(path.join(root, ".context", "scripts"), { recursive: true });
   fs.mkdirSync(path.join(root, ".context"), { recursive: true });
-  fs.copyFileSync(DOCTOR_SH, path.join(root, "scripts", "doctor.sh"));
-  fs.chmodSync(path.join(root, "scripts", "doctor.sh"), 0o755);
+  fs.copyFileSync(DOCTOR_SH, path.join(root, ".context", "scripts", "doctor.sh"));
+  fs.chmodSync(path.join(root, ".context", "scripts", "doctor.sh"), 0o755);
   fs.writeFileSync(path.join(root, ".context", "enterprise.yaml"), enterpriseYaml);
   return root;
 }
 
 function runDoctor(projectRoot) {
   return new Promise((resolve) => {
-    const child = spawn("bash", [path.join(projectRoot, "scripts", "doctor.sh")], {
+    const child = spawn("bash", [path.join(projectRoot, ".context", "scripts", "doctor.sh")], {
       cwd: projectRoot,
     });
     let stdout = "";
@@ -64,7 +64,7 @@ function runDoctor(projectRoot) {
 }
 
 function yaml({ telemetryEndpoint, telemetryKey, policyEndpoint, policyKey }) {
-  const lines = ["telemetry:", `  endpoint: ${telemetryEndpoint}`];
+  const lines = ["enterprise:", `  api_key: ${VALID_KEY}`, "", "telemetry:", `  endpoint: ${telemetryEndpoint}`];
   if (telemetryKey !== undefined) lines.push(`  api_key: ${telemetryKey}`);
   lines.push("", "policy:", `  endpoint: ${policyEndpoint}`);
   if (policyKey !== undefined) lines.push(`  api_key: ${policyKey}`);

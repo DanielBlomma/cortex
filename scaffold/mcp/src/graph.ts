@@ -419,8 +419,8 @@ function readGraphSignature(): string | null {
 
 function buildMissingDbMessage(): string {
   const dbDir = path.dirname(DB_PATH);
-  const loadCommand = "./scripts/context.sh graph-load";
-  const bootstrapCommand = "./scripts/context.sh bootstrap";
+  const loadCommand = "cortex graph-load";
+  const bootstrapCommand = "cortex bootstrap";
 
   if (!fs.existsSync(dbDir)) {
     return `RyuGraph directory missing at ${dbDir}. Run ${bootstrapCommand}.`;
@@ -430,7 +430,7 @@ function buildMissingDbMessage(): string {
 }
 
 function buildIncompatibleGraphMessage(missingKeys: string[]): string {
-  const loadCommand = "./scripts/context.sh graph-load";
+  const loadCommand = "cortex graph-load";
   const missing = missingKeys.join(", ");
   return `RyuGraph manifest is missing schema keys (${missing}). Run ${loadCommand} to rebuild the graph DB.`;
 }

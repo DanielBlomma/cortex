@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "cortex": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        ".context/mcp/dist/server.js"
+      ],
+      "env": {}
+    }
+  }
+}

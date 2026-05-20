@@ -101,7 +101,7 @@ export function loadEmbeddingIndex(): EmbeddingIndex {
     embeddingsCache = {
       model: null,
       vectors: new Map(),
-      warning: "Embedding index missing (run: ./scripts/context.sh embed)"
+      warning: "Embedding index missing (run: cortex embed)"
     };
     return embeddingsCache;
   }

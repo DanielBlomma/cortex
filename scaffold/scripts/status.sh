@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MANIFEST="$REPO_ROOT/.context/cache/manifest.json"
 GRAPH_MANIFEST="$REPO_ROOT/.context/cache/graph-manifest.json"
 EMBED_MANIFEST="$REPO_ROOT/.context/embeddings/manifest.json"
 
 if [[ ! -f "$MANIFEST" ]]; then
   echo "[status] No ingest manifest found."
-  echo "[status] Run: ./scripts/context.sh ingest"
+  echo "[status] Run: cortex ingest"
   exit 0
 fi
 
@@ -47,7 +48,7 @@ console.log(`[status] graph files=${c.files ?? 0} rules=${c.rules ?? 0} adrs=${c
 console.log(`[status] graph rels constrains=${c.constrains ?? 0} implements=${c.implements ?? 0} supersedes=${c.supersedes ?? 0}`);
 ' "$GRAPH_MANIFEST"
 else
-  echo "[status] graph manifest missing (run: ./scripts/context.sh graph-load)"
+  echo "[status] graph manifest missing (run: cortex graph-load)"
 fi
 
 if [[ -f "$EMBED_MANIFEST" ]]; then
@@ -68,13 +69,13 @@ if (embedded > 0 && output > 0 && failed === 0) {
 } else if (embedded > 0 && output > 0) {
   console.log(`[status] semantic_search=embedding+lexical-partial (failed=${failed})`);
 } else if (entities > 0) {
-  console.log("[status] semantic_search=lexical-only (run: ./scripts/context.sh embed)");
+  console.log("[status] semantic_search=lexical-only (run: cortex embed)");
 } else {
   console.log("[status] semantic_search=lexical-only (no indexed entities)");
 }
 ' "$EMBED_MANIFEST"
 else
-  echo "[status] embeddings manifest missing (run: ./scripts/context.sh embed)"
+  echo "[status] embeddings manifest missing (run: cortex embed)"
   echo "[status] semantic_search=lexical-only (embeddings manifest missing)"
 fi
 
