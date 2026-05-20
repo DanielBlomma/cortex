@@ -28,10 +28,12 @@ const PACKAGE_JSON_PATH = path.join(PACKAGE_ROOT, "package.json");
 // embeddings, cache, hooks, mcp/, govern.local.json) never land in git.
 const MCP_PROJECT_REL = path.join(".context", "mcp");
 
+// `.context/*` (not `.context/`) so the !-negations below actually re-include
+// the config files — git can't re-include children of an excluded directory.
 const GITIGNORE_LINES = [
   "",
   "# Cortex local storage",
-  ".context/",
+  ".context/*",
   "!.context/config.yaml",
   "!.context/rules.yaml",
   "!.context/ontology.cypher",
