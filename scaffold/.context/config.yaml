@@ -1,11 +1,10 @@
 repo_id: cortex
 source_paths:
-  - src
+  - scripts
+  - mcp/src
   - docs
-  - design
   - .context/notes
   - .context/decisions
-  - README.md
 truth_order:
   - ADR
   - RULE
