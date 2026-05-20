@@ -1,0 +1,19 @@
+repo_id: cortex
+source_paths:
+  - bin
+  - scripts
+  - docs
+  - README.md
+truth_order:
+  - ADR
+  - RULE
+  - CODE
+  - WIKI
+ranking:
+  semantic: 0.40
+  graph: 0.25
+  trust: 0.20
+  recency: 0.15
+runtime:
+  top_k: 5
+  include_uncertainties: true

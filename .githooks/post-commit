@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "$REPO_ROOT" ]]; then
+  exit 0
+fi
+
+RUNNER="$REPO_ROOT/.githooks/_cortex-update-runner.sh"
+if [[ ! -x "$RUNNER" ]]; then
+  exit 0
+fi
+
+nohup bash "$RUNNER" >/dev/null 2>&1 &
