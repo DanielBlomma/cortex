@@ -10,9 +10,12 @@ truth_order:
   - RULE
   - CODE
   - WIKI
+# graph weight is low because graph degree mostly measures how many rules
+# constrain an entity (docs are hubs, leaf code is not). Tuned as a pair with
+# the midrank-percentile graph_score.
 ranking:
-  semantic: 0.40
-  graph: 0.25
+  semantic: 0.55
+  graph: 0.10
   trust: 0.20
   recency: 0.15
 runtime:

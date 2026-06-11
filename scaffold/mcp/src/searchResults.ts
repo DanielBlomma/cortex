@@ -33,6 +33,38 @@ export function buildSearchResults(params: {
   recencyScorer: (isoDate: string) => number;
   legacyDataAccessBooster: (entity: SearchEntity, queryTokens: string[], queryPhrase: string) => number;
 }): Record<string, unknown>[] {
+  // Graph score = midrank percentile of relation degree within the entity's
+  // own type. The previous min(1, degree/4) saturated at degree >= 4, which
+  // nearly every entity exceeds, making the graph weight a constant. Per-type
+  // percentiles discriminate by connectivity while staying type-neutral
+  // (every type averages ~0.5), so hub-heavy types like rules cannot drown
+  // out leaf code files or doc sections.
+  const sortedDegreesByType = new Map<string, number[]>();
+  for (const entity of params.candidates) {
+    const degree = params.degreeByEntity.get(entity.id) ?? 0;
+    const list = sortedDegreesByType.get(entity.entity_type);
+    if (list) {
+      list.push(degree);
+    } else {
+      sortedDegreesByType.set(entity.entity_type, [degree]);
+    }
+  }
+  for (const list of sortedDegreesByType.values()) {
+    list.sort((a, b) => a - b);
+  }
+  const midrankPercentile = (sorted: number[], value: number): number => {
+    let lo = 0;
+    let hi = sorted.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (sorted[mid] < value) lo = mid + 1;
+      else hi = mid;
+    }
+    let upper = lo;
+    while (upper < sorted.length && sorted[upper] === value) upper += 1;
+    return sorted.length > 0 ? (lo + upper) / (2 * sorted.length) : 0;
+  };
+
   const rawResults = params.candidates
     .map((entity) => {
       const lexicalSemantic = params.semanticScorer(params.queryTokens, params.queryPhrase, entity.text);
@@ -49,7 +81,8 @@ export function buildSearchResults(params: {
 
       const semantic =
         vectorSemantic > 0 ? vectorSemantic * 0.75 + lexicalSemantic * 0.25 : lexicalSemantic;
-      const graphScore = Math.min(1, (params.degreeByEntity.get(entity.id) ?? 0) / 4);
+      const degree = params.degreeByEntity.get(entity.id) ?? 0;
+      const graphScore = midrankPercentile(sortedDegreesByType.get(entity.entity_type) ?? [], degree);
       const trustScore = Math.max(0, Math.min(1, entity.trust_level / 100));
       const dateScore = params.recencyScorer(entity.updated_at);
 

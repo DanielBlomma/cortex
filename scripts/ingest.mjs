@@ -21,6 +21,7 @@ let parseJavaCode = null;
 let parseRubyCode = null;
 let parseBashCode = null;
 let parseVb6Code = null;
+let parseMarkdownCode = null;
 let isVbNetParserAvailable = () => false;
 let isCSharpParserAvailable = () => false;
 let isCppParserAvailable = () => false;
@@ -83,6 +84,9 @@ async function loadOptionalParsers() {
     }),
     import("./parsers/vb6.mjs").then((module) => {
       parseVb6Code = module.parseCode;
+    }),
+    import("./parsers/markdown.mjs").then((module) => {
+      parseMarkdownCode = module.parseCode;
     })
   ];
 
@@ -162,7 +166,7 @@ const LEGACY_DOTNET_METADATA_EXTENSIONS = new Set([
 ]);
 
 const PROJECT_DEFINITION_EXTENSIONS = new Set([".sln", ".vbproj", ".csproj", ".fsproj", ".vcxproj"]);
-const STRUCTURED_NON_CODE_CHUNK_EXTENSIONS = new Set([".config", ".resx", ".settings"]);
+const STRUCTURED_NON_CODE_CHUNK_EXTENSIONS = new Set([".config", ".resx", ".settings", ".md", ".mdx"]);
 
 const CODE_FILE_EXTENSIONS = new Set([
   ".ts",
@@ -294,6 +298,22 @@ const CHUNK_PARSERS = new Map([
       language: "sql",
       parse: (...args) => parseSqlCode(...args),
       isAvailable: () => typeof parseSqlCode === "function"
+    }
+  ],
+  [
+    ".md",
+    {
+      language: "markdown",
+      parse: (...args) => parseMarkdownCode(...args),
+      isAvailable: () => typeof parseMarkdownCode === "function"
+    }
+  ],
+  [
+    ".mdx",
+    {
+      language: "markdown",
+      parse: (...args) => parseMarkdownCode(...args),
+      isAvailable: () => typeof parseMarkdownCode === "function"
     }
   ],
   [

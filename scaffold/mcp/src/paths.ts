@@ -98,9 +98,12 @@ export const PATHS = {
   transformsConfigRelations: path.join(CACHE_DIR, "relations.transforms_config.jsonl")
 };
 
+// Graph degree mostly measures how many rules constrain an entity (docs are
+// hubs, leaf code is not), so it gets low weight. Tuned together with the
+// midrank-percentile graph_score in searchResults.ts.
 export const DEFAULT_RANKING: RankingWeights = {
-  semantic: 0.4,
-  graph: 0.25,
+  semantic: 0.55,
+  graph: 0.1,
   trust: 0.2,
   recency: 0.15
 };
