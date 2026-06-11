@@ -22,21 +22,22 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends git ca-certificates python3 make g++ cmake \
   && rm -rf /var/lib/apt/lists/*
 
-# Install cortex CLI from local source.
-COPY .build/cortex-local.tgz /opt/cortex/cortex-local.tgz
-RUN npm install -g /opt/cortex/cortex-local.tgz \
-  && cortex version
-
 # (arm64 only) Compile ryugraph natively in an isolated install: the published
 # linux-arm64 prebuilt contains x86_64 code. The env var is scoped to this
 # single npm invocation so no other native dependency (e.g. sharp) is forced
-# into a source build. One-time cost, cached as an image layer.
+# into a source build. One-time cost, cached as an image layer — kept BEFORE
+# the cortex tarball COPY so cortex source changes never invalidate it.
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
       mkdir -p /opt/ryu-prebuild && cd /opt/ryu-prebuild \
       && npm init -y >/dev/null 2>&1 \
       && npm_config_build_from_source=true npm install ryugraph@25.9.1 --no-fund --loglevel=warn \
       && node -e "require('ryugraph'); console.log('native ryugraph OK')"; \
     fi
+
+# Install cortex CLI from local source.
+COPY .build/cortex-local.tgz /opt/cortex/cortex-local.tgz
+RUN npm install -g /opt/cortex/cortex-local.tgz \
+  && cortex version
 
 # Warm per-project caches: bootstrap a minimal sample project, then keep the
 # reusable artifacts (npm deps, built MCP server, default embedding model).

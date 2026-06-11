@@ -82,7 +82,10 @@ echo "[container-run] tracked_files=$TRACKED_FILES tracked_bytes=$TRACKED_BYTES"
 # 3. Scaffold cortex into the repo (source path auto-detection happens here).
 #    --no-connect/--no-watch keep the run deterministic: no MCP client probing
 #    and no background watch daemon competing with the timed bootstrap.
-cortex init "$WORKSPACE" --no-connect --no-watch > "$BB_OUT/init.log" 2>&1 \
+#    --force handles repos that already track a .context/ (cortex's own repo
+#    does); init still preserves a repo's committed config.yaml, which is the
+#    representative behavior for such projects.
+cortex init "$WORKSPACE" --force --no-connect --no-watch > "$BB_OUT/init.log" 2>&1 \
   || fail "cortex init failed: $(tail -5 "$BB_OUT/init.log" | tr '\n' ' ')"
 
 # 4. Seed caches warmed at image build time so each run skips npm installs and
