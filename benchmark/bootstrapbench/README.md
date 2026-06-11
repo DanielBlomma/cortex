@@ -67,17 +67,19 @@ node benchmark/bootstrapbench/run.mjs --config benchmark/bootstrapbench/config.e
 | `timeout_minutes` | `90`                             | per-item timeout (container is killed)    |
 | `docker.image`    | `cortex-bootstrapbench:local`    | image tag                                 |
 | `docker.build`    | `true`                           | pack cortex + rebuild image before run    |
-| `docker.platform` | `linux/amd64`                    | container platform (see note below)       |
+| `docker.platform` | host platform                    | set e.g. `linux/amd64` to force emulation |
+| `docker.cpus`     | `"auto"`                         | CPU quota per container (`auto` = daemon CPUs / parallelism; `null` = unlimited) |
 | `results_dir`     | `benchmark/bootstrapbench/results` | output root                             |
 
 Non-default embedding models are downloaded inside the container at runtime
 (network required); the default model ships pre-cached in the image.
 
-> **Why linux/amd64?** ryugraph's npm package currently ships a
-> `linux-arm64` prebuilt whose ELF is actually x86_64, so graph loading
-> breaks on native arm64 containers. Pinning the platform makes runs work on
-> Apple Silicon (via Rosetta) and match amd64 CI runners. Treat timing
-> numbers measured under emulation as indicative, not absolute.
+> **Platform note.** ryugraph's npm package ships a `linux-arm64` prebuilt
+> whose ELF is actually x86_64 (and its x86_64 binary needs glibc ≥ 2.38).
+> On arm64 the image therefore compiles ryugraph from its bundled source at
+> build time — a one-time cost that makes eval containers run natively on
+> Apple Silicon (~10x faster embedding than under Rosetta). On amd64 hosts
+> and CI runners the prebuilt is used as-is.
 
 ## What gets measured (per repo × model)
 

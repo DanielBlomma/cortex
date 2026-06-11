@@ -72,10 +72,13 @@ function validateConfig(raw, configPath) {
     docker: {
       image: raw.docker?.image ?? "cortex-bootstrapbench:local",
       build: raw.docker?.build ?? true,
-      // ryugraph's npm package ships a linux-arm64 prebuilt that actually
-      // contains x86_64 code, so graph loading only works on amd64. Rosetta
-      // handles emulation on Apple Silicon; CI runners are amd64 natively.
-      platform: raw.docker?.platform ?? "linux/amd64"
+      // Default: host-native platform (the Dockerfile compiles ryugraph from
+      // source on arm64, where the published prebuilt is broken). Set
+      // explicitly, e.g. "linux/amd64", to force emulation.
+      platform: raw.docker?.platform ?? null,
+      // CPU quota per container; "auto" divides the daemon's CPUs by
+      // parallelism so co-located embedders don't oversubscribe cores.
+      cpus: raw.docker?.cpus ?? "auto"
     },
     results_dir: raw.results_dir ?? path.join("benchmark", "bootstrapbench", "results")
   };
@@ -133,17 +136,38 @@ async function packCortex() {
 }
 
 async function buildImage(imageTag, platform) {
-  console.log(`[run] building docker image ${imageTag} (${platform})`);
+  console.log(`[run] building docker image ${imageTag} (${platform ?? "host platform"})`);
+  const platformArgs = platform ? ["--platform", platform] : [];
   const result = await runCommand({
     command: "docker",
-    args: ["build", "--platform", platform, "-f", path.join("docker", "Dockerfile"), "-t", imageTag, "."],
+    args: ["build", ...platformArgs, "-f", path.join("docker", "Dockerfile"), "-t", imageTag, "."],
     cwd: HARNESS_DIR,
-    timeoutMs: 60 * 60 * 1000,
+    timeoutMs: 90 * 60 * 1000,
     onLine: (line) => console.log(`[docker-build] ${line}`)
   });
   if (!result.ok) {
     throw new Error(`docker build failed (exit ${result.code})`);
   }
+}
+
+async function resolveCpusPerContainer(config) {
+  if (config.docker.cpus === null || config.docker.cpus === false) {
+    return null;
+  }
+  if (Number.isFinite(config.docker.cpus) && config.docker.cpus > 0) {
+    return config.docker.cpus;
+  }
+  // "auto": split the daemon's CPUs across parallel containers.
+  const info = await runCommand({
+    command: "docker",
+    args: ["info", "--format", "{{.NCPU}}"],
+    timeoutMs: 30 * 1000
+  });
+  const total = Number.parseInt(info.stdout.trim(), 10);
+  if (!Number.isFinite(total) || total < 1) {
+    return null;
+  }
+  return Math.max(1, Math.floor(total / config.parallelism));
 }
 
 function buildWorkItems(repos, config, runId, cortexVersion) {
@@ -263,8 +287,10 @@ async function runItem(item, config, paths) {
     args: [
       "run",
       "--rm",
-      "--platform",
-      config.docker.platform,
+      ...(config.docker.platform ? ["--platform", config.docker.platform] : []),
+      ...(paths.cpusPerContainer
+        ? ["--cpus", String(paths.cpusPerContainer), "-e", `CORTEX_EMBED_THREADS=${paths.cpusPerContainer}`]
+        : []),
       "--name",
       item.containerName,
       "-v",
@@ -360,7 +386,15 @@ async function main() {
     ? config.results_dir
     : path.join(REPO_ROOT, config.results_dir);
   const runDir = path.join(resultsRoot, runId);
-  const paths = { runDir, itemsDir: path.join(runDir, "items"), resume: hasFlag(args, "--resume") };
+  const paths = {
+    runDir,
+    itemsDir: path.join(runDir, "items"),
+    resume: hasFlag(args, "--resume"),
+    cpusPerContainer: await resolveCpusPerContainer(config)
+  };
+  if (paths.cpusPerContainer) {
+    console.log(`[run] cpu quota per container: ${paths.cpusPerContainer}`);
+  }
 
   const items = buildWorkItems(repos, config, runId, cortexVersion);
   console.log(
