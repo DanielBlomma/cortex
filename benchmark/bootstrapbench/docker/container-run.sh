@@ -63,21 +63,26 @@ fi
 git -C "$WORKSPACE" -c advice.detachedHead=false checkout -q "$BB_REPO_SHA" \
   || fail "git checkout $BB_REPO_SHA failed"
 
-# 2. Workspace size from git metadata (count + blob bytes of tracked files).
+# 2. Workspace size from git metadata (count + blob bytes of tracked files),
+#    plus total newline count across all tracked blobs as the repo's raw LOC
+#    (binary blobs contribute whatever newlines they contain; this is the
+#    standard rough denominator, used for the cortex-coverage ratio).
 read -r TRACKED_FILES TRACKED_BYTES <<<"$(git -C "$WORKSPACE" ls-tree -r -l HEAD \
   | awk '$4 ~ /^[0-9]+$/ { files += 1; bytes += $4 } END { printf "%d %d", files, bytes }')"
-export TRACKED_FILES TRACKED_BYTES
+TRACKED_LINES=$(cd "$WORKSPACE" && git ls-files -z | xargs -0 -n 200 cat 2>/dev/null | wc -l | tr -d ' ')
+export TRACKED_FILES TRACKED_BYTES TRACKED_LINES
 node -e '
   const fs = require("node:fs");
   const meta = JSON.parse(fs.readFileSync("/tmp/meta.json", "utf8"));
   meta.workspace = {
     ...(meta.workspace ?? {}),
     tracked_files: Number(process.env.TRACKED_FILES),
-    tracked_bytes: Number(process.env.TRACKED_BYTES)
+    tracked_bytes: Number(process.env.TRACKED_BYTES),
+    tracked_lines: Number(process.env.TRACKED_LINES)
   };
   fs.writeFileSync("/tmp/meta.json", JSON.stringify(meta));
 ' || fail "failed to record workspace stats"
-echo "[container-run] tracked_files=$TRACKED_FILES tracked_bytes=$TRACKED_BYTES"
+echo "[container-run] tracked_files=$TRACKED_FILES tracked_bytes=$TRACKED_BYTES tracked_lines=$TRACKED_LINES"
 
 # 3. Scaffold cortex into the repo (source path auto-detection happens here).
 #    --no-connect/--no-watch keep the run deterministic: no MCP client probing

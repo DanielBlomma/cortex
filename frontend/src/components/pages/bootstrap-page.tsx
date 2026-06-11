@@ -9,15 +9,27 @@ import { SectionShell } from "@/components/section-shell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { BootstrapSummaryDoc, VersionIndexEntry } from "@/data/bootstrap-types";
-import { formatCount, formatDate, formatDuration, formatNumber, modelDisplayName } from "@/lib/format";
+import { formatCount, formatDate, formatDuration, formatNumber, formatPercent, modelDisplayName } from "@/lib/format";
 import { bootstrapHash } from "@/routes";
 
-/** Mean of a summed metric over the successfully bootstrapped repos. */
-function perRepoAverage(total: number | undefined, succeeded: number): number | null {
-  if (!Number.isFinite(total ?? NaN) || !Number.isFinite(succeeded) || succeeded < 1) {
+/** Metric per 1,000 lines of cortex-indexed code (suite volume-weighted). */
+function perKiloLine(total: number | undefined, indexedLines: number | undefined): number | null {
+  if (!Number.isFinite(total ?? NaN) || !Number.isFinite(indexedLines ?? NaN) || (indexedLines as number) < 1) {
     return null;
   }
-  return Math.round(((total as number) / succeeded) * 10) / 10;
+  return Math.round(((total as number) / ((indexedLines as number) / 1000)) * 10) / 10;
+}
+
+/** Share of all tracked repo lines that cortex actually ingested. */
+function coveragePct(indexedLines: number | undefined, trackedLines: number | undefined): number | null {
+  if (
+    !Number.isFinite(indexedLines ?? NaN) ||
+    !Number.isFinite(trackedLines ?? NaN) ||
+    (trackedLines as number) < 1
+  ) {
+    return null;
+  }
+  return Math.round(((indexedLines as number) / (trackedLines as number)) * 1000) / 10;
 }
 
 const TABS = [
@@ -137,42 +149,48 @@ export function BootstrapPage({
       {activeTab === "overview" ? (
         <>
           <StatCards
-        stats={[
-          {
-            label: "Repositories",
-            value: formatCount(aggregate.totals.repos),
-            hint: `${formatCount(aggregate.totals.succeeded)} bootstrapped ok`,
-            icon: Database
-          },
-          {
-            label: "Avg files / repo",
-            value: formatCount(perRepoAverage(aggregate.totals.files, aggregate.totals.succeeded)),
-            icon: FileCode2
-          },
-          {
-            label: "Avg chunks / repo",
-            value: formatCount(perRepoAverage(aggregate.totals.chunks, aggregate.totals.succeeded)),
-            icon: Boxes
-          },
-          {
-            label: "Avg edges / repo",
-            value: formatCount(perRepoAverage(aggregate.totals.edges, aggregate.totals.succeeded)),
-            icon: Network
-          },
-          {
-            label: "Embedding models",
-            value: String(aggregate.totals.models.length),
-            hint: aggregate.totals.models.map(modelDisplayName).join(", "),
-            icon: Share2
-          },
-          {
-            label: "Avg bootstrap time",
-            value: formatDuration(
-              perRepoAverage(aggregate.totals.duration_ms, aggregate.totals.succeeded)
-            ),
-            icon: Clock
-          }
-        ]}
+            stats={[
+              {
+                label: "Repositories",
+                value: formatCount(aggregate.totals.repos),
+                hint: `${formatCount(aggregate.totals.succeeded)} bootstrapped ok`,
+                icon: Database
+              },
+              {
+                label: "Chunks / 1k LOC",
+                value: formatNumber(perKiloLine(aggregate.totals.chunks, aggregate.totals.indexed_lines)),
+                hint: "per 1,000 indexed lines",
+                icon: Boxes
+              },
+              {
+                label: "Edges / 1k LOC",
+                value: formatNumber(perKiloLine(aggregate.totals.edges, aggregate.totals.indexed_lines)),
+                hint: "per 1,000 indexed lines",
+                icon: Network
+              },
+              {
+                label: "Cortex coverage",
+                value: formatPercent(
+                  coveragePct(aggregate.totals.indexed_lines, aggregate.totals.tracked_lines)
+                ),
+                hint: "indexed lines / repo lines",
+                icon: FileCode2
+              },
+              {
+                label: "Embedding models",
+                value: String(aggregate.totals.models.length),
+                hint: aggregate.totals.models.map(modelDisplayName).join(", "),
+                icon: Share2
+              },
+              {
+                label: "Time / 1k LOC",
+                value: formatDuration(
+                  perKiloLine(aggregate.totals.duration_ms, aggregate.totals.indexed_lines)
+                ),
+                hint: "bootstrap wall-clock",
+                icon: Clock
+              }
+            ]}
           />
           <SectionShell
             title="Repo size vs chunking output"

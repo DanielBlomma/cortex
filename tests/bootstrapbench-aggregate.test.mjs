@@ -34,9 +34,9 @@ function sampleItem(overrides = {}) {
       started_at: "2026-06-11T10:00:00.000Z",
       finished_at: "2026-06-11T10:10:00.000Z"
     },
-    workspace: { tracked_files: 300, tracked_bytes: 1_000_000, detected_source_paths: ["src"] },
+    workspace: { tracked_files: 300, tracked_bytes: 1_000_000, tracked_lines: 40_000, detected_source_paths: ["src"] },
     timings_ms: { deps: 1000, ingest: 2000, embed: 3000, graph_load: 500, status: 100, total: 6600 },
-    files: { total: 120, by_kind: { CODE: 100, DOC: 20, ADR: 0 } },
+    files: { total: 120, by_kind: { CODE: 100, DOC: 20, ADR: 0 }, indexed_lines: 25_000 },
     chunks: {
       total: lineValues.length,
       exported: 1,
@@ -107,6 +107,11 @@ test("aggregateResults: sums totals across successful items and tracks failures"
   assert.equal(summary.totals.edges, 100);
   assert.equal(summary.relations_by_type.CALLS, 40);
   assert.equal(summary.relations_by_type.DEFINES, 50);
+  // LOC denominators sum over succeeded items only (2 x sample values).
+  assert.equal(summary.totals.indexed_lines, 50_000);
+  assert.equal(summary.totals.tracked_lines, 80_000);
+  assert.equal(summary.repo_rows[0].indexed_lines, 25_000);
+  assert.equal(summary.repo_rows[0].tracked_lines, 40_000);
 
   const model = summary.by_model["Xenova/all-MiniLM-L6-v2"];
   assert.equal(model.items, 2);

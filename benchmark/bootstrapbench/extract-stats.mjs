@@ -163,17 +163,47 @@ async function main() {
     onError: (failure) => parseErrors.push(failure)
   });
 
-  const fileKinds = await streamJsonl(
+  const documents = await streamJsonl(
     path.join(cacheDir, "documents.jsonl"),
     (line) => {
       const record = JSON.parse(line);
-      return String(record.kind ?? "unknown");
+      return { kind: String(record.kind ?? "unknown"), path: String(record.path ?? "") };
     },
     { onError: (failure) => parseErrors.push(failure) }
   );
   const filesByKind = {};
-  for (const kind of fileKinds) {
-    filesByKind[kind] = (filesByKind[kind] ?? 0) + 1;
+  for (const doc of documents) {
+    filesByKind[doc.kind] = (filesByKind[doc.kind] ?? 0) + 1;
+  }
+
+  // Lines of code cortex actually ingested: newline count of exactly the
+  // files listed in documents.jsonl, read from the live workspace (document
+  // `content` is truncated for large files, so it cannot be used here).
+  // This is the denominator for per-LOC intensity metrics and, together with
+  // workspace.tracked_lines, the cortex-coverage ratio.
+  let indexedLines = 0;
+  const projectRoot = path.resolve(projectDir);
+  for (const doc of documents) {
+    if (!doc.path) {
+      continue;
+    }
+    const absolute = path.resolve(projectRoot, doc.path);
+    if (!absolute.startsWith(projectRoot + path.sep)) {
+      continue; // defensive: never follow paths escaping the workspace
+    }
+    try {
+      const content = fs.readFileSync(absolute);
+      let lines = 0;
+      for (let i = 0; i < content.length; i += 1) {
+        if (content[i] === 10) {
+          lines += 1;
+        }
+      }
+      indexedLines += lines;
+    } catch {
+      // File listed in the cache but unreadable on disk: skip silently; the
+      // count stays a lower bound.
+    }
   }
 
   const { relationCounts, callEdges } = await collectRelationStats(cacheDir, parseErrors);
@@ -189,7 +219,7 @@ async function main() {
   const chunkStats = computeChunkStats(chunkRecords);
   const graphStats = computeGraphStats({
     nodeCounts: {
-      files: graphManifest?.counts?.files ?? fileKinds.length,
+      files: graphManifest?.counts?.files ?? documents.length,
       chunks: graphManifest?.counts?.chunks ?? chunkRecords.length,
       rules: graphManifest?.counts?.rules ?? null,
       adrs: graphManifest?.counts?.adrs ?? null,
@@ -232,7 +262,7 @@ async function main() {
           parser_health: ingestManifest.parser_health ?? null
         }
       : null,
-    files: { total: fileKinds.length, by_kind: filesByKind },
+    files: { total: documents.length, by_kind: filesByKind, indexed_lines: indexedLines },
     chunks: chunkStats,
     embeddings,
     graph: graphStats,

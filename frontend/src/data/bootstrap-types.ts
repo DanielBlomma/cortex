@@ -103,6 +103,7 @@ export type StatsItem = {
   workspace: {
     tracked_files?: number | null;
     tracked_bytes?: number | null;
+    tracked_lines?: number | null;
     detected_source_paths?: string[];
   } | null;
   timings_ms: TimingsMs | null;
@@ -112,7 +113,7 @@ export type StatsItem = {
     skipped: Record<string, number> | null;
     parser_health: Record<string, unknown> | null;
   } | null;
-  files: { total: number; by_kind: Record<string, number> } | null;
+  files: { total: number; by_kind: Record<string, number>; indexed_lines?: number } | null;
   chunks: ChunkStats | null;
   embeddings: EmbeddingStats;
   graph: GraphStats;
@@ -129,6 +130,8 @@ export type RepoRow = {
   error: string | null;
   tracked_files: number | null;
   tracked_bytes: number | null;
+  tracked_lines: number | null;
+  indexed_lines: number | null;
   files: number | null;
   chunks: number | null;
   chunk_p50_lines: number | null;
@@ -174,6 +177,8 @@ export type Aggregate = {
     files?: number;
     edges?: number;
     duration_ms?: number;
+    indexed_lines?: number;
+    tracked_lines?: number;
   };
   by_model: Record<string, ModelRollup>;
   by_language: Record<string, LanguageRollup>;

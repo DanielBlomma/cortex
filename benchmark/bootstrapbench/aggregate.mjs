@@ -126,6 +126,8 @@ function buildRepoIndexRow(item) {
     error: item.run?.error ?? null,
     tracked_files: item.workspace?.tracked_files ?? null,
     tracked_bytes: item.workspace?.tracked_bytes ?? null,
+    tracked_lines: item.workspace?.tracked_lines ?? null,
+    indexed_lines: item.files?.indexed_lines ?? null,
     files: item.files?.total ?? null,
     chunks: item.chunks?.total ?? null,
     chunk_p50_lines: item.chunks?.lines?.p50 ?? null,
@@ -157,6 +159,8 @@ export function aggregateResults(items) {
     addTo(totals, "files", item.files?.total);
     addTo(totals, "edges", item.graph?.edges?.total);
     addTo(totals, "duration_ms", item.timings_ms?.total);
+    addTo(totals, "indexed_lines", item.files?.indexed_lines);
+    addTo(totals, "tracked_lines", item.workspace?.tracked_lines);
     for (const [type, count] of Object.entries(item.graph?.edges?.by_type ?? {})) {
       addTo(relationsByType, type, count);
     }
