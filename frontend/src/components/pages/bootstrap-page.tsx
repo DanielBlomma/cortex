@@ -20,6 +20,40 @@ function perRepoAverage(total: number | undefined, succeeded: number): number | 
   return Math.round(((total as number) / succeeded) * 10) / 10;
 }
 
+const TABS = [
+  { key: "overview", label: "Overview" },
+  { key: "chunks", label: "Chunks & models" },
+  { key: "graph", label: "Graph" },
+  { key: "languages", label: "Languages" },
+  { key: "repositories", label: "Repositories" },
+  { key: "methodology", label: "Methodology" }
+] as const;
+
+type TabKey = (typeof TABS)[number]["key"];
+
+function TabBar({ active, onSelect }: { active: TabKey; onSelect: (tab: TabKey) => void }) {
+  return (
+    <nav className="flex gap-1 overflow-x-auto border-b" aria-label="Metric sections">
+      {TABS.map((tab) => (
+        <button
+          key={tab.key}
+          type="button"
+          onClick={() => onSelect(tab.key)}
+          className={
+            "-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring " +
+            (active === tab.key
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground")
+          }
+          aria-current={active === tab.key ? "page" : undefined}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 export function BootstrapPage({
   summary,
   versions,
@@ -31,6 +65,7 @@ export function BootstrapPage({
 }) {
   const { aggregate, run } = summary;
   const [sizeUnit, setSizeUnit] = useState<"lines" | "chars">("lines");
+  const [activeTab, setActiveTab] = useState<TabKey>("overview");
 
   const models = Object.entries(aggregate.by_model);
   const okRows = useMemo(
@@ -97,7 +132,11 @@ export function BootstrapPage({
         </p>
       </section>
 
-      <StatCards
+      <TabBar active={activeTab} onSelect={setActiveTab} />
+
+      {activeTab === "overview" ? (
+        <>
+          <StatCards
         stats={[
           {
             label: "Repositories",
@@ -134,8 +173,21 @@ export function BootstrapPage({
             icon: Clock
           }
         ]}
-      />
+          />
+          <SectionShell
+            title="Repo size vs chunking output"
+            description="Relationship between repository size (tracked files at the pinned commit) and the number of chunks the ingest phase produced."
+          >
+            <Card>
+              <CardContent className="pt-6">
+                <RepoScatterChart points={sizeScatter} xLabel="tracked files" yLabel="chunks" height={340} />
+              </CardContent>
+            </Card>
+          </SectionShell>
+        </>
+      ) : null}
 
+      {activeTab === "chunks" ? (
       <SectionShell
         title="Chunk sizes vs embedding models"
         description="Distribution of chunk sizes produced by the ingest phase, grouped per embedding model run. Buckets are fixed so models and runs are directly comparable."
@@ -177,7 +229,9 @@ export function BootstrapPage({
           ))}
         </div>
       </SectionShell>
+      ) : null}
 
+      {activeTab === "graph" ? (
       <SectionShell
         title="Graph interconnection"
         description="How chunks relate to each other in the graph model: total edges per relation type across all repos, and per-repo chunk-to-chunk connectivity (CALLS edges)."
@@ -194,7 +248,9 @@ export function BootstrapPage({
           </ChartCard>
         </div>
       </SectionShell>
+      ) : null}
 
+      {activeTab === "languages" ? (
       <SectionShell
         title="Languages"
         description="Chunk volume and typical chunk size per language, aggregated over every repository in the run."
@@ -208,25 +264,18 @@ export function BootstrapPage({
           </ChartCard>
         </div>
       </SectionShell>
+      ) : null}
 
-      <SectionShell
-        title="Repo size vs chunking output"
-        description="Relationship between repository size (tracked files at the pinned commit) and the number of chunks the ingest phase produced."
-      >
-        <Card>
-          <CardContent className="pt-6">
-            <RepoScatterChart points={sizeScatter} xLabel="tracked files" yLabel="chunks" height={340} />
-          </CardContent>
-        </Card>
-      </SectionShell>
-
+      {activeTab === "repositories" ? (
       <SectionShell
         title="Per-repository results"
         description="Click a row for the full per-repo breakdown: timings, chunk histograms, relation types, degree distribution and most-connected chunks."
       >
         <RepoTable rows={aggregate.repo_rows} version={selectedVersion} />
       </SectionShell>
+      ) : null}
 
+      {activeTab === "methodology" ? (
       <SectionShell title="Methodology">
         <Card>
           <CardContent className="space-y-3 pt-6 text-sm text-muted-foreground">
@@ -248,6 +297,7 @@ export function BootstrapPage({
           </CardContent>
         </Card>
       </SectionShell>
+      ) : null}
     </main>
   );
 }
