@@ -238,3 +238,49 @@ export function buildSiteData({ runId, generatedAt, cortexVersion, items }) {
     }))
   };
 }
+
+/**
+ * Descending semver-ish comparator: numeric dot segments compared piecewise;
+ * a release sorts above its own pre-release ("2.1.0" > "2.1.0-rc.1").
+ */
+export function compareVersionsDesc(left, right) {
+  const parse = (value) => {
+    const [core, pre = null] = String(value).split("-", 2);
+    const nums = core.split(".").map((part) => Number.parseInt(part, 10) || 0);
+    return { nums, pre };
+  };
+  const a = parse(left);
+  const b = parse(right);
+  const length = Math.max(a.nums.length, b.nums.length);
+  for (let i = 0; i < length; i += 1) {
+    const diff = (b.nums[i] ?? 0) - (a.nums[i] ?? 0);
+    if (diff !== 0) {
+      return diff;
+    }
+  }
+  if (a.pre === b.pre) {
+    return 0;
+  }
+  if (a.pre === null) {
+    return -1; // release before pre-release in descending order
+  }
+  if (b.pre === null) {
+    return 1;
+  }
+  return a.pre < b.pre ? 1 : -1;
+}
+
+/**
+ * Adds or replaces one published-version entry in the site index. Returns a
+ * new index document (never mutates the input); entries are kept sorted by
+ * version, newest first.
+ */
+export function mergeVersionIndex(existing, entry) {
+  if (!entry || typeof entry.version !== "string" || !entry.version.trim()) {
+    throw new Error("mergeVersionIndex requires an entry with a version");
+  }
+  const current = Array.isArray(existing?.versions) ? existing.versions : [];
+  const others = current.filter((item) => item?.version !== entry.version);
+  const versions = [...others, { ...entry }].sort((a, b) => compareVersionsDesc(a.version, b.version));
+  return { schema_version: 1, versions };
+}

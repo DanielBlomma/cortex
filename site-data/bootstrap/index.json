@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "versions": [
+    {
+      "version": "2.0.19",
+      "run_id": "full-3",
+      "generated_at": "2026-06-11T19:01:43.815Z",
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "repos": 69
+    }
+  ]
+}

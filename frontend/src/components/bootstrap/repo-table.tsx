@@ -30,7 +30,7 @@ const COLUMNS: Array<{ key: SortKey; label: string; numeric: boolean }> = [
   { key: "total_ms", label: "Bootstrap", numeric: true }
 ];
 
-export function RepoTable({ rows }: { rows: RepoRow[] }) {
+export function RepoTable({ rows, version }: { rows: RepoRow[]; version?: string }) {
   const [sortKey, setSortKey] = useState<SortKey>("chunks");
   const [descending, setDescending] = useState(true);
 
@@ -91,7 +91,7 @@ export function RepoTable({ rows }: { rows: RepoRow[] }) {
               key={`${row.key}-${row.model ?? "default"}`}
               className="cursor-pointer"
               onClick={() => {
-                window.location.hash = repoDetailHash(row.key);
+                window.location.hash = repoDetailHash(row.key, version);
               }}
             >
               <TableCell>

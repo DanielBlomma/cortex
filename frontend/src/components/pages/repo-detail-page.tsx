@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { RepoDetailDoc, StatsItem, TimingsMs } from "@/data/bootstrap-types";
+import { bootstrapHash } from "@/routes";
 import {
   formatBytes,
   formatCount,
@@ -27,7 +28,7 @@ const PHASES: Array<{ key: keyof TimingsMs; label: string }> = [
   { key: "status", label: "Status" }
 ];
 
-export function RepoDetailPage({ detail }: { detail: RepoDetailDoc }) {
+export function RepoDetailPage({ detail, version }: { detail: RepoDetailDoc; version?: string }) {
   const models = detail.runs.map((run) => run.run.embed_model);
   const [selectedModel, setSelectedModel] = useState(models[0] ?? "");
   const item = useMemo(
@@ -59,7 +60,7 @@ export function RepoDetailPage({ detail }: { detail: RepoDetailDoc }) {
     <main className="mx-auto flex max-w-[96rem] flex-col gap-10 px-4 pb-16 pt-8">
       <section className="space-y-3">
         <a
-          href="#/bootstrap"
+          href={bootstrapHash(version)}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />

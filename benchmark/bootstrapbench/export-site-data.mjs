@@ -1,8 +1,14 @@
 #!/usr/bin/env node
 /**
- * Publishes a finished bootstrapbench run as static site data for the
- * frontend: site-data/bootstrap/summary.json plus one detail document per
- * repo under site-data/bootstrap/repos/.
+ * Publishes a finished bootstrapbench run as static site data, keyed by the
+ * cortex version the run measured so older results are never overwritten:
+ *
+ *   site-data/bootstrap/index.json                 - published versions (newest first)
+ *   site-data/bootstrap/<version>/summary.json     - aggregate page payload
+ *   site-data/bootstrap/<version>/repos/<key>.json - per-repo detail payloads
+ *
+ * Re-exporting a run for an already-published version replaces only that
+ * version's directory and its index entry; every other version stays intact.
  *
  * Usage:
  *   node benchmark/bootstrapbench/export-site-data.mjs --run-dir benchmark/bootstrapbench/results/<run-id>
@@ -11,12 +17,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ensureDir, loadJson, parseFlag, usageError, writeJson } from "./lib.mjs";
-import { buildSiteData } from "./aggregate.mjs";
+import { ensureDir, loadJson, loadJsonIfExists, parseFlag, usageError, writeJson } from "./lib.mjs";
+import { buildSiteData, mergeVersionIndex } from "./aggregate.mjs";
 
 const HARNESS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HARNESS_DIR, "..", "..");
 const DEFAULT_SITE_DIR = path.join(REPO_ROOT, "site-data", "bootstrap");
+const VERSION_DIR_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 
 function main() {
   const args = process.argv.slice(2);
@@ -51,23 +58,43 @@ function main() {
     throw usageError(`No stats.json documents under ${itemsDir}`);
   }
 
+  const cortexVersion = runSummary.run?.cortex_version ?? null;
+  if (!cortexVersion || !VERSION_DIR_PATTERN.test(cortexVersion)) {
+    throw usageError(
+      `Run summary has no usable cortex_version (${JSON.stringify(cortexVersion)}); cannot key the export`
+    );
+  }
+
   const site = buildSiteData({
     runId: runSummary.run?.id ?? path.basename(runDir),
     generatedAt: runSummary.run?.finished_at ?? new Date().toISOString(),
-    cortexVersion: runSummary.run?.cortex_version ?? null,
+    cortexVersion,
     items
   });
 
-  const reposDir = path.join(siteDir, "repos");
-  fs.rmSync(reposDir, { recursive: true, force: true });
+  // Only this version's directory is replaced; sibling versions are untouched.
+  const versionDir = path.join(siteDir, cortexVersion);
+  const reposDir = path.join(versionDir, "repos");
+  fs.rmSync(versionDir, { recursive: true, force: true });
   ensureDir(reposDir);
-  writeJson(path.join(siteDir, "summary.json"), site.summary);
+  writeJson(path.join(versionDir, "summary.json"), site.summary);
   for (const repo of site.repos) {
     writeJson(path.join(reposDir, `${repo.key}.json`), repo.data);
   }
 
+  const indexPath = path.join(siteDir, "index.json");
+  const index = mergeVersionIndex(loadJsonIfExists(indexPath), {
+    version: cortexVersion,
+    run_id: site.summary.run.id,
+    generated_at: site.summary.run.generated_at,
+    models: site.summary.run ? (runSummary.run?.embed_models ?? []) : [],
+    repos: site.repos.length
+  });
+  writeJson(indexPath, index);
+
   console.log(
-    `[export-site-data] wrote ${path.join(siteDir, "summary.json")} and ${site.repos.length} repo document(s)`
+    `[export-site-data] wrote ${path.join(versionDir, "summary.json")}, ` +
+      `${site.repos.length} repo document(s), index now lists ${index.versions.length} version(s)`
   );
 }
 

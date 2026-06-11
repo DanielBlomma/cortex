@@ -113,7 +113,11 @@ node benchmark/bootstrapbench/export-site-data.mjs \
   --run-dir benchmark/bootstrapbench/results/<run-id>
 ```
 
-writes `site-data/bootstrap/summary.json` and
-`site-data/bootstrap/repos/<repo-key>.json`, which the frontend serves as
-static assets. Commit the refreshed `site-data/` to publish on the next push
-to `main` (GitHub Pages deploys automatically).
+writes the results keyed by the cortex version the run measured:
+`site-data/bootstrap/<version>/summary.json`,
+`site-data/bootstrap/<version>/repos/<repo-key>.json`, and updates
+`site-data/bootstrap/index.json` (the version list the frontend's dropdown
+shows). Re-exporting a run for the same version replaces only that version;
+results for other cortex versions are never touched. Commit the refreshed
+`site-data/` to publish on the next push to `main` (GitHub Pages deploys
+automatically).

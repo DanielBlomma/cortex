@@ -7,7 +7,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildHistogram, CHUNK_LINE_BUCKETS } from "../benchmark/bootstrapbench/stats.mjs";
-import { aggregateResults, buildSiteData } from "../benchmark/bootstrapbench/aggregate.mjs";
+import {
+  aggregateResults,
+  buildSiteData,
+  compareVersionsDesc,
+  mergeVersionIndex
+} from "../benchmark/bootstrapbench/aggregate.mjs";
 
 function sampleItem(overrides = {}) {
   const lineValues = overrides.lineValues ?? [5, 10, 20];
@@ -157,4 +162,52 @@ test("buildSiteData: produces summary plus one detail file per repo", () => {
 
 test("buildSiteData: validates required run metadata", () => {
   assert.throws(() => buildSiteData({ items: [] }), /runId/);
+});
+
+// ─── version index ───────────────────────────────────────────────────────────
+
+test("compareVersionsDesc: semver-aware descending order", () => {
+  const versions = ["2.0.19", "2.1.0", "2.0.2", "10.0.0", "2.1.0-rc.1"];
+  const sorted = [...versions].sort(compareVersionsDesc);
+  assert.deepEqual(sorted, ["10.0.0", "2.1.0", "2.1.0-rc.1", "2.0.19", "2.0.2"]);
+});
+
+test("mergeVersionIndex: adds new versions and keeps existing entries", () => {
+  const existing = {
+    schema_version: 1,
+    versions: [{ version: "2.0.19", run_id: "full-3", generated_at: "2026-06-11T20:00:00.000Z" }]
+  };
+  const merged = mergeVersionIndex(existing, {
+    version: "2.1.0",
+    run_id: "full-4",
+    generated_at: "2026-06-12T08:00:00.000Z"
+  });
+  assert.equal(merged.versions.length, 2);
+  assert.equal(merged.versions[0].version, "2.1.0");
+  assert.equal(merged.versions[1].version, "2.0.19");
+  // Existing index object must not be mutated.
+  assert.equal(existing.versions.length, 1);
+});
+
+test("mergeVersionIndex: replaces the entry for a re-published version", () => {
+  const existing = {
+    schema_version: 1,
+    versions: [
+      { version: "2.1.0", run_id: "full-4", generated_at: "a" },
+      { version: "2.0.19", run_id: "full-3", generated_at: "b" }
+    ]
+  };
+  const merged = mergeVersionIndex(existing, { version: "2.1.0", run_id: "full-5", generated_at: "c" });
+  assert.equal(merged.versions.length, 2);
+  assert.equal(merged.versions[0].run_id, "full-5");
+});
+
+test("mergeVersionIndex: starts a fresh index from null", () => {
+  const merged = mergeVersionIndex(null, { version: "2.0.19", run_id: "full-3", generated_at: "x" });
+  assert.equal(merged.schema_version, 1);
+  assert.equal(merged.versions.length, 1);
+});
+
+test("mergeVersionIndex: rejects entries without a version", () => {
+  assert.throws(() => mergeVersionIndex(null, { run_id: "r" }), /version/);
 });

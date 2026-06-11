@@ -205,3 +205,16 @@ export type RepoDetailDoc = {
   repo: RepoMeta;
   runs: StatsItem[];
 };
+
+export type VersionIndexEntry = {
+  version: string;
+  run_id: string;
+  generated_at: string | null;
+  models?: string[];
+  repos?: number;
+};
+
+export type VersionIndex = {
+  schema_version: number;
+  versions: VersionIndexEntry[];
+};

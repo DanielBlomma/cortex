@@ -2,15 +2,25 @@ import { useMemo, useState } from "react";
 import { Boxes, Clock, Database, FileCode2, Network, Share2 } from "lucide-react";
 
 import { RepoTable } from "@/components/bootstrap/repo-table";
+import { VersionSelect } from "@/components/bootstrap/version-select";
 import { StatCards } from "@/components/bootstrap/stat-cards";
 import { CategoryBarChart, HistogramChart, RepoScatterChart, chartColor } from "@/components/charts";
 import { SectionShell } from "@/components/section-shell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import type { BootstrapSummaryDoc } from "@/data/bootstrap-types";
+import type { BootstrapSummaryDoc, VersionIndexEntry } from "@/data/bootstrap-types";
 import { formatCount, formatDate, formatDuration, formatNumber, modelDisplayName } from "@/lib/format";
+import { bootstrapHash } from "@/routes";
 
-export function BootstrapPage({ summary }: { summary: BootstrapSummaryDoc }) {
+export function BootstrapPage({
+  summary,
+  versions,
+  selectedVersion
+}: {
+  summary: BootstrapSummaryDoc;
+  versions: VersionIndexEntry[];
+  selectedVersion: string;
+}) {
   const { aggregate, run } = summary;
   const [sizeUnit, setSizeUnit] = useState<"lines" | "chars">("lines");
 
@@ -61,7 +71,16 @@ export function BootstrapPage({ summary }: { summary: BootstrapSummaryDoc }) {
   return (
     <main className="mx-auto flex max-w-[96rem] flex-col gap-10 px-4 pb-16 pt-8">
       <section className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Bootstrap metrics</h1>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h1 className="text-3xl font-semibold tracking-tight">Bootstrap metrics</h1>
+          <VersionSelect
+            versions={versions}
+            selected={selectedVersion}
+            onSelect={(version) => {
+              window.location.hash = bootstrapHash(version);
+            }}
+          />
+        </div>
         <p className="max-w-3xl text-sm text-muted-foreground">
           Every repository below was bootstrapped from scratch in an isolated container: cloned at a pinned
           commit, indexed, embedded and graph-loaded with cortex built from source. Run{" "}
@@ -174,7 +193,7 @@ export function BootstrapPage({ summary }: { summary: BootstrapSummaryDoc }) {
         title="Per-repository results"
         description="Click a row for the full per-repo breakdown: timings, chunk histograms, relation types, degree distribution and most-connected chunks."
       >
-        <RepoTable rows={aggregate.repo_rows} />
+        <RepoTable rows={aggregate.repo_rows} version={selectedVersion} />
       </SectionShell>
 
       <SectionShell title="Methodology">
