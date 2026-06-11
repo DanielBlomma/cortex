@@ -88,6 +88,7 @@ function main() {
     run_id: site.summary.run.id,
     generated_at: site.summary.run.generated_at,
     models: site.summary.run ? (runSummary.run?.embed_models ?? []) : [],
+    source: runSummary.run?.cortex_source ?? "local",
     repos: site.repos.length
   });
   writeJson(indexPath, index);

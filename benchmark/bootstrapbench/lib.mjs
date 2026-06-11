@@ -216,3 +216,29 @@ export function parseSourcePathsFromYaml(yamlText) {
   }
   return sourcePaths;
 }
+
+/**
+ * Parses `npm view <pkg>@<spec> version --json` output into one exact
+ * version: a JSON string for exact specs, a JSON array for ranges (newest
+ * entry wins, npm returns them sorted ascending), or bare text from older
+ * npm versions. Returns null when the output names no version.
+ */
+export function parseNpmViewVersion(stdout) {
+  const raw = String(stdout ?? "").trim();
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === "string" && parsed.trim()) {
+      return parsed.trim();
+    }
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      const last = parsed[parsed.length - 1];
+      return typeof last === "string" && last.trim() ? last.trim() : null;
+    }
+    return null;
+  } catch {
+    return /^[0-9a-zA-Z][0-9a-zA-Z._-]*$/.test(raw) ? raw : null;
+  }
+}

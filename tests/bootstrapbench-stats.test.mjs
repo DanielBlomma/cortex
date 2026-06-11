@@ -230,3 +230,23 @@ test("bucket constants are ascending", () => {
     assert.deepEqual(buckets, sorted);
   }
 });
+
+// ─── npm version resolution parsing ──────────────────────────────────────────
+
+test("parseNpmViewVersion: plain string output", async () => {
+  const { parseNpmViewVersion } = await import("../benchmark/bootstrapbench/lib.mjs");
+  assert.equal(parseNpmViewVersion('"2.0.19"'), "2.0.19");
+  assert.equal(parseNpmViewVersion('2.1.0\n'), "2.1.0");
+});
+
+test("parseNpmViewVersion: range output returns the newest match", async () => {
+  const { parseNpmViewVersion } = await import("../benchmark/bootstrapbench/lib.mjs");
+  assert.equal(parseNpmViewVersion('["2.0.18","2.0.19","2.1.0"]'), "2.1.0");
+});
+
+test("parseNpmViewVersion: empty or invalid output yields null", async () => {
+  const { parseNpmViewVersion } = await import("../benchmark/bootstrapbench/lib.mjs");
+  assert.equal(parseNpmViewVersion(""), null);
+  assert.equal(parseNpmViewVersion("[]"), null);
+  assert.equal(parseNpmViewVersion("not json or version !!"), null);
+});

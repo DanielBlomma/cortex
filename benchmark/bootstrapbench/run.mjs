@@ -24,6 +24,7 @@ import {
   modelSlug,
   nowIso,
   parseFlag,
+  parseNpmViewVersion,
   runCommand,
   usageError,
   writeJson
@@ -50,6 +51,9 @@ Config keys:
   run_name         string   prefix for generated run ids
   repos            "all" or array of "owner/name" entries from repos.json
   embed_models     array of embedding model ids (default ["${DEFAULT_EMBED_MODEL}"])
+  cortex.source    "local" (pack the working tree, default) or "npm"
+  cortex.version   npm version/dist-tag to fetch when source is "npm"
+                   (validated against the registry, exact version resolved)
   parallelism      max concurrent containers (default 1)
   timeout_minutes  per-item timeout (default 90)
   docker.image     image tag (default cortex-bootstrapbench:local)
@@ -80,9 +84,24 @@ function validateConfig(raw, configPath) {
       // parallelism so co-located embedders don't oversubscribe cores.
       cpus: raw.docker?.cpus ?? "auto"
     },
+    cortex: {
+      source: raw.cortex?.source ?? "local",
+      version: raw.cortex?.version ?? null
+    },
     results_dir: raw.results_dir ?? path.join("benchmark", "bootstrapbench", "results")
   };
 
+  if (!["local", "npm"].includes(config.cortex.source)) {
+    throw usageError(`Config 'cortex.source' must be "local" or "npm", got '${config.cortex.source}'`);
+  }
+  if (config.cortex.source === "npm") {
+    if (typeof config.cortex.version !== "string" || !config.cortex.version.trim()) {
+      throw usageError(`Config 'cortex.version' is required when cortex.source is "npm" (e.g. "2.0.19" or "latest")`);
+    }
+    if (!/^[0-9a-zA-Z][0-9a-zA-Z._^~><=* -]*$/.test(config.cortex.version)) {
+      throw usageError(`Config 'cortex.version' contains unsupported characters: '${config.cortex.version}'`);
+    }
+  }
   if (config.repos !== "all" && (!Array.isArray(config.repos) || config.repos.length === 0)) {
     throw usageError(`Config 'repos' must be "all" or a non-empty array of owner/name strings`);
   }
@@ -113,12 +132,46 @@ function selectRepos(manifest, selection) {
   });
 }
 
-async function packCortex() {
-  ensureDir(BUILD_DIR);
-  console.log("[run] packing cortex from local source (npm pack)");
+const CORTEX_NPM_PACKAGE = "@danielblomma/cortex-mcp";
+
+/**
+ * Resolves which cortex build this run measures. For "local" that is the
+ * working tree's package version; for "npm" the requested version/dist-tag is
+ * validated against the registry and resolved to one exact version, so the
+ * run fails fast on typos instead of after an hour of containers.
+ */
+async function resolveCortexSource(config) {
+  if (config.cortex.source === "local") {
+    return { source: "local", version: loadJson(path.join(REPO_ROOT, "package.json")).version ?? "unknown" };
+  }
+  const spec = config.cortex.version.trim();
   const result = await runCommand({
     command: "npm",
-    args: ["pack", "--pack-destination", BUILD_DIR],
+    args: ["view", `${CORTEX_NPM_PACKAGE}@${spec}`, "version", "--json"],
+    timeoutMs: 60 * 1000
+  });
+  const version = result.ok ? parseNpmViewVersion(result.stdout) : null;
+  if (!version) {
+    throw usageError(
+      `cortex.version '${spec}' does not resolve to a published ${CORTEX_NPM_PACKAGE} version: ` +
+        `${(result.stderr || result.stdout || "no matching version").trim().slice(0, 200)}`
+    );
+  }
+  return { source: "npm", version };
+}
+
+async function packCortex(cortexSource) {
+  ensureDir(BUILD_DIR);
+  const packTarget =
+    cortexSource.source === "local" ? null : `${CORTEX_NPM_PACKAGE}@${cortexSource.version}`;
+  console.log(
+    packTarget
+      ? `[run] fetching cortex ${packTarget} from npm (npm pack)`
+      : "[run] packing cortex from local source (npm pack)"
+  );
+  const result = await runCommand({
+    command: "npm",
+    args: ["pack", ...(packTarget ? [packTarget] : []), "--pack-destination", BUILD_DIR],
     cwd: REPO_ROOT,
     timeoutMs: 5 * 60 * 1000
   });
@@ -170,7 +223,7 @@ async function resolveCpusPerContainer(config) {
   return Math.max(1, Math.floor(total / config.parallelism));
 }
 
-function buildWorkItems(repos, config, runId, cortexVersion) {
+function buildWorkItems(repos, config, runId, cortexSource) {
   const items = [];
   for (const repo of repos) {
     if (!repo.pin?.sha) {
@@ -205,7 +258,8 @@ function buildWorkItems(repos, config, runId, cortexVersion) {
           },
           run: {
             embed_model: model,
-            cortex_version: cortexVersion,
+            cortex_version: cortexSource.version,
+            cortex_source: cortexSource.source,
             run_id: runId,
             started_at: null
           }
@@ -375,7 +429,8 @@ async function main() {
   const config = validateConfig(loadJson(configPath), configPath);
   const manifest = loadJson(MANIFEST_PATH);
   const repos = selectRepos(manifest, config.repos);
-  const cortexVersion = loadJson(path.join(REPO_ROOT, "package.json")).version ?? "unknown";
+  const cortexSource = await resolveCortexSource(config);
+  console.log(`[run] cortex under test: ${cortexSource.source} v${cortexSource.version}`);
 
   const startedAt = nowIso();
   const runId =
@@ -396,7 +451,7 @@ async function main() {
     console.log(`[run] cpu quota per container: ${paths.cpusPerContainer}`);
   }
 
-  const items = buildWorkItems(repos, config, runId, cortexVersion);
+  const items = buildWorkItems(repos, config, runId, cortexSource);
   console.log(
     `[run] run-id=${runId} repos=${repos.length} models=${config.embed_models.length} items=${items.length} parallelism=${config.parallelism}`
   );
@@ -413,7 +468,7 @@ async function main() {
   writeJson(path.join(runDir, "config.json"), { ...config, run_id: runId, started_at: startedAt });
 
   if (config.docker.build && !hasFlag(args, "--skip-build")) {
-    await packCortex();
+    await packCortex(cortexSource);
     await buildImage(config.docker.image, config.docker.platform);
   }
 
@@ -436,7 +491,8 @@ async function main() {
       id: runId,
       started_at: startedAt,
       finished_at: nowIso(),
-      cortex_version: cortexVersion,
+      cortex_version: cortexSource.version,
+      cortex_source: cortexSource.source,
       embed_models: config.embed_models,
       image: config.docker.image
     },

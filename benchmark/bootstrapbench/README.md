@@ -63,6 +63,8 @@ node benchmark/bootstrapbench/run.mjs --config benchmark/bootstrapbench/config.e
 | `run_name`        | `"run"`                          | prefix for generated run ids              |
 | `repos`           | `"all"`                          | `"all"` or array of `owner/name`          |
 | `embed_models`    | `["Xenova/all-MiniLM-L6-v2"]`    | embedding models (via `CORTEX_EMBED_MODEL`) |
+| `cortex.source`   | `"local"`                        | `"local"` packs the working tree; `"npm"` fetches a published release |
+| `cortex.version`  | —                                | npm version or dist-tag when `cortex.source` is `"npm"`; validated against the registry |
 | `parallelism`     | `1`                              | concurrent containers                     |
 | `timeout_minutes` | `90`                             | per-item timeout (container is killed)    |
 | `docker.image`    | `cortex-bootstrapbench:local`    | image tag                                 |

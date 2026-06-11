@@ -211,6 +211,8 @@ export type VersionIndexEntry = {
   run_id: string;
   generated_at: string | null;
   models?: string[];
+  /** Where the measured cortex build came from: "local" working tree or "npm". */
+  source?: string;
   repos?: number;
 };
 
