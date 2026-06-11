@@ -9,6 +9,7 @@
 [![npm version](https://img.shields.io/npm/v/%40danielblomma%2Fcortex-mcp)](https://www.npmjs.com/package/@danielblomma/cortex-mcp)
 [![npm downloads](https://img.shields.io/npm/dw/%40danielblomma%2Fcortex-mcp)](https://www.npmjs.com/package/@danielblomma/cortex-mcp)
 [![license](https://img.shields.io/npm/l/%40danielblomma%2Fcortex-mcp)](./LICENSE)
+[![website](https://img.shields.io/badge/website-cortex-2563eb)](https://danielblomma.github.io/cortex/)
 
 ---
 
