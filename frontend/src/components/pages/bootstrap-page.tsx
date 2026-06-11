@@ -12,6 +12,14 @@ import type { BootstrapSummaryDoc, VersionIndexEntry } from "@/data/bootstrap-ty
 import { formatCount, formatDate, formatDuration, formatNumber, modelDisplayName } from "@/lib/format";
 import { bootstrapHash } from "@/routes";
 
+/** Mean of a summed metric over the successfully bootstrapped repos. */
+function perRepoAverage(total: number | undefined, succeeded: number): number | null {
+  if (!Number.isFinite(total ?? NaN) || !Number.isFinite(succeeded) || succeeded < 1) {
+    return null;
+  }
+  return Math.round(((total as number) / succeeded) * 10) / 10;
+}
+
 export function BootstrapPage({
   summary,
   versions,
@@ -91,17 +99,40 @@ export function BootstrapPage({
 
       <StatCards
         stats={[
-          { label: "Repositories", value: formatCount(aggregate.totals.repos), icon: Database },
-          { label: "Files indexed", value: formatCount(aggregate.totals.files ?? null), icon: FileCode2 },
-          { label: "Chunks", value: formatCount(aggregate.totals.chunks ?? null), icon: Boxes },
-          { label: "Graph edges", value: formatCount(aggregate.totals.edges ?? null), icon: Network },
+          {
+            label: "Repositories",
+            value: formatCount(aggregate.totals.repos),
+            hint: `${formatCount(aggregate.totals.succeeded)} bootstrapped ok`,
+            icon: Database
+          },
+          {
+            label: "Avg files / repo",
+            value: formatCount(perRepoAverage(aggregate.totals.files, aggregate.totals.succeeded)),
+            icon: FileCode2
+          },
+          {
+            label: "Avg chunks / repo",
+            value: formatCount(perRepoAverage(aggregate.totals.chunks, aggregate.totals.succeeded)),
+            icon: Boxes
+          },
+          {
+            label: "Avg edges / repo",
+            value: formatCount(perRepoAverage(aggregate.totals.edges, aggregate.totals.succeeded)),
+            icon: Network
+          },
           {
             label: "Embedding models",
             value: String(aggregate.totals.models.length),
             hint: aggregate.totals.models.map(modelDisplayName).join(", "),
             icon: Share2
           },
-          { label: "Total bootstrap time", value: formatDuration(aggregate.totals.duration_ms ?? null), icon: Clock }
+          {
+            label: "Avg bootstrap time",
+            value: formatDuration(
+              perRepoAverage(aggregate.totals.duration_ms, aggregate.totals.succeeded)
+            ),
+            icon: Clock
+          }
         ]}
       />
 
