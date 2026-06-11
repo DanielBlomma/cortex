@@ -24,9 +24,10 @@ so eval runs are fast and do not depend on registry availability.
 
 ## Test-data repos
 
-`repos.json` lists 67 repositories across python/js/ts/go/rust/java/c/c++,
-extracted from the AgentStackBench task datasets (SWE-bench Verified,
-SWE-bench Pro, SWE-PolyBench, Multi-SWE-Bench). Unlike those benchmarks we do
+`repos.json` lists 69 repositories across python/js/ts/go/rust/java/c/c++:
+67 extracted from the AgentStackBench task datasets (SWE-bench Verified,
+SWE-bench Pro, SWE-PolyBench, Multi-SWE-Bench) plus cortex and
+AgentStackBench themselves. Unlike those benchmarks we do
 **not** use per-task base commits: each repo is pinned to the latest
 default-branch HEAD at pin time, so evals are repeatable on the exact same
 tree until pins are deliberately refreshed:

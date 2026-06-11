@@ -182,9 +182,9 @@ export function BootstrapPage({ summary }: { summary: BootstrapSummaryDoc }) {
           <CardContent className="space-y-3 pt-6 text-sm text-muted-foreground">
             <p>
               Test repositories come from the datasets behind SWE-bench Verified, SWE-bench Pro, SWE-PolyBench
-              and Multi-SWE-Bench — 67 large, actively developed projects across eight languages. Each repo is
-              pinned to a fixed commit so runs are repeatable on identical inputs; pins are refreshed
-              deliberately, never implicitly.
+              and Multi-SWE-Bench — 67 large, actively developed projects across eight languages — plus cortex
+              and AgentStackBench themselves. Each repo is pinned to a fixed commit so runs are repeatable on
+              identical inputs; pins are refreshed deliberately, never implicitly.
             </p>
             <p>
               For every (repository × embedding model) pair, an isolated Docker container clones the pinned

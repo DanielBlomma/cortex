@@ -160,7 +160,7 @@ export function OverviewPage() {
         <h2 className="text-xl font-semibold tracking-tight">How bootstrap works</h2>
         <p className="max-w-3xl text-sm text-muted-foreground">
           <code className="rounded bg-muted px-1.5 py-0.5 text-xs">cortex bootstrap</code> runs the full
-          indexing pipeline. The bootstrap metrics pages on this site measure exactly this phase across 67
+          indexing pipeline. The bootstrap metrics pages on this site measure exactly this phase across 69
           large open-source repositories.
         </p>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

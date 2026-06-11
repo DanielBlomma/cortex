@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "description": "Repos used as bootstrap-eval test data. Derived from the AgentStackBench task datasets (SWE-bench Verified, SWE-bench Pro, SWE-PolyBench, Multi-SWE-Bench); each repo is pinned to a concrete commit so evals are repeatable. Refresh pins with sync-repos.mjs --update.",
+  "description": "Repos used as bootstrap-eval test data. Derived from the AgentStackBench task datasets (SWE-bench Verified, SWE-bench Pro, SWE-PolyBench, Multi-SWE-Bench); each repo is pinned to a concrete commit so evals are repeatable. The cortex and AgentStackBench repos themselves are included as additional self-referential test subjects. Refresh pins with sync-repos.mjs --update.",
   "source": {
     "dataset": "AgentStackBench data/full.parquet (1136 task instances)",
     "extracted_at": "2026-06-11T10:03:40.547Z"
   },
-  "pinned_at": "2026-06-11T10:03:53.582Z",
+  "pinned_at": "2026-06-11T11:15:26.207Z",
   "repos": [
     {
       "key": "alibaba__fastjson2",
@@ -192,6 +192,22 @@
         "sha": "92a7dce46ffcd363798e5ef008991e8cc6426de5",
         "ref": "refs/heads/main",
         "pinned_at": "2026-06-11T10:03:48.558Z"
+      }
+    },
+    {
+      "key": "danielblomma__cortex",
+      "name": "DanielBlomma/cortex",
+      "url": "https://github.com/DanielBlomma/cortex.git",
+      "languages": [
+        "javascript",
+        "typescript"
+      ],
+      "benches": [],
+      "instances": null,
+      "pin": {
+        "sha": "051d4e6a87d968795482f65d900eda5dc8a94aae",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T11:15:26.203Z"
       }
     },
     {
@@ -686,6 +702,22 @@
         "sha": "a39f33b951dd18dc713ddffaa92a562b4a8b7937",
         "ref": "refs/heads/develop",
         "pinned_at": "2026-06-11T10:03:51.104Z"
+      }
+    },
+    {
+      "key": "nobbettt__agentstackbench",
+      "name": "Nobbettt/AgentStackBench",
+      "url": "https://github.com/Nobbettt/AgentStackBench.git",
+      "languages": [
+        "python",
+        "typescript"
+      ],
+      "benches": [],
+      "instances": null,
+      "pin": {
+        "sha": "66ee904e78eb840c48c3cb663ed9ff540d1fc381",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T11:15:26.207Z"
       }
     },
     {

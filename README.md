@@ -404,7 +404,7 @@ Required npm configuration:
 
 - `frontend/` hosts the cortex website (GitHub Pages, deployed on push to `main`):
   product overview plus bootstrap evaluation metrics.
-- `benchmark/bootstrapbench/` runs `cortex bootstrap` against 67 pinned
+- `benchmark/bootstrapbench/` runs `cortex bootstrap` against 69 pinned
   real-world repositories in isolated containers and extracts chunk, embedding
   and graph statistics. See [benchmark/bootstrapbench/README.md](benchmark/bootstrapbench/README.md).
 
