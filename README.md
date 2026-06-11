@@ -87,6 +87,32 @@ The result is an assistant that behaves as if it already knows your codebase, be
 npm i -g @danielblomma/cortex-mcp
 ```
 
+## Upgrading
+
+To upgrade an already-scaffolded project to a new Cortex version:
+
+```bash
+npm i -g @danielblomma/cortex-mcp
+cortex init --force   # re-scaffolds .context/mcp + .context/scripts
+cortex bootstrap
+cortex update
+```
+
+`cortex init --force` preserves per-project files: `.context/config.yaml`,
+`.context/rules.yaml`, and your notes/decisions.
+
+Version-specific notes (see [CHANGELOG.md](CHANGELOG.md) for details):
+
+- **2.1.0**: the default embedding model changed, so the first
+  `cortex update` after upgrading triggers a full re-embed automatically
+  (~2 min per 1000 entities plus a one-time model download). The
+  `CORTEX_EMBED_MAX_CHARS` env var is removed and silently ignored.
+  Existing projects keep their old ranking weights in `config.yaml`; the
+  recommended block is now `semantic: 0.55, graph: 0.10, trust: 0.20,
+  recency: 0.15`. After re-embedding, restart the MCP server, and note
+  that the first search after a re-embed can hit a stale embeddings
+  cache — re-run the query.
+
 ## Quick Start
 
 From the repository you want to index:

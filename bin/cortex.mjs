@@ -191,7 +191,7 @@ function ensureScaffoldExists() {
 
 // Files that should never be overwritten if they already exist in the target.
 // These contain user-specific configuration that would be lost on re-init.
-const PRESERVE_FILES = new Set(["config.yaml", "enterprise.yml", "enterprise.yaml", "CLAUDE.md", "AGENTS.md"]);
+const PRESERVE_FILES = new Set(["config.yaml", "rules.yaml", "enterprise.yml", "enterprise.yaml", "CLAUDE.md", "AGENTS.md"]);
 const DEFAULT_SOURCE_PATHS = [
   "src",
   "docs",
@@ -410,9 +410,12 @@ function buildInitialConfig(targetDir) {
     "  - RULE",
     "  - CODE",
     "  - WIKI",
+    "# graph weight is low because graph degree mostly measures how many rules",
+    "# constrain an entity (docs are hubs, leaf code is not). Tuned as a pair with",
+    "# the midrank-percentile graph_score.",
     "ranking:",
-    "  semantic: 0.40",
-    "  graph: 0.25",
+    "  semantic: 0.55",
+    "  graph: 0.10",
     "  trust: 0.20",
     "  recency: 0.15",
     "runtime:",

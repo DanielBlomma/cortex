@@ -13,9 +13,11 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// ingest.mjs computes REPO_ROOT from its own __dirname (scaffold/scripts/..),
-// so it reads scaffold/.context/config.yaml and writes scaffold/.context/cache/.
-// The test must use the same root for paths to line up.
+// The installed layout is <project>/.context/scripts/ingest.mjs, so the
+// scaffold ingest resolves REPO_ROOT as __dirname/../.. unless
+// CORTEX_PROJECT_ROOT overrides it. In the repo source tree the script lives
+// at scaffold/scripts/, so the override is required for the cache to land in
+// scaffold/.context/cache/ where this test reads it.
 const REPO_ROOT = path.join(__dirname, "..", "scaffold");
 const CACHE_DIR = path.join(REPO_ROOT, ".context", "cache");
 const INGEST_PATH = path.join(REPO_ROOT, "scripts", "ingest.mjs");
@@ -35,6 +37,7 @@ function ensureIngest() {
   if (ingestRan) return;
   execFileSync("node", [INGEST_PATH], {
     cwd: REPO_ROOT,
+    env: { ...process.env, CORTEX_PROJECT_ROOT: REPO_ROOT },
     encoding: "utf8",
     stdio: ["pipe", "pipe", "pipe"],
     timeout: 60000

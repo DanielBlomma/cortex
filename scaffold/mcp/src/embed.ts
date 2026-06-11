@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { env, pipeline } from "@huggingface/transformers";
 import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
 import { CACHE_DIR, PATHS } from "./paths.js";
@@ -11,9 +12,11 @@ const EMBEDDINGS_MANIFEST_PATH = PATHS.embeddingsManifest;
 const MODEL_CACHE_DIR = PATHS.embeddingsModelCache;
 const EMBEDDINGS_DIR = path.dirname(EMBEDDINGS_PATH);
 
-const DEFAULT_MODEL_ID = "Xenova/all-MiniLM-L6-v2";
-const DEFAULT_MAX_TEXT_CHARS = 7000;
-const CHUNK_BODY_PREVIEW_CHARS = 2000;
+export const DEFAULT_MODEL_ID = "jinaai/jina-embeddings-v2-base-code";
+
+export function resolveModelId(): string {
+  return (process.env.CORTEX_EMBED_MODEL ?? DEFAULT_MODEL_ID).trim() || DEFAULT_MODEL_ID;
+}
 
 type FileEntity = {
   id: string;
@@ -134,10 +137,6 @@ function normalizeText(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
-function clampText(value: string, maxChars: number): string {
-  return value.slice(0, maxChars);
-}
-
 function writeJsonl(filePath: string, records: EmbeddingRecord[]): void {
   const body = records.map((record) => JSON.stringify(record)).join("\n");
   fs.writeFileSync(filePath, body ? `${body}\n` : "", "utf8");
@@ -157,7 +156,7 @@ function ensureRequiredFiles(): void {
   }
 }
 
-function parseFileEntities(raw: JsonObject[], maxChars: number): FileEntity[] {
+export function parseFileEntities(raw: JsonObject[]): FileEntity[] {
   return raw
     .map((item) => {
       const id = asString(item.id);
@@ -170,7 +169,7 @@ function parseFileEntities(raw: JsonObject[], maxChars: number): FileEntity[] {
       const excerpt = asString(item.excerpt);
       const updatedAt = asString(item.updated_at);
       const checksum = asString(item.checksum, hashText(content));
-      const text = clampText(`${filePath}\n${excerpt}\n${content}`, maxChars);
+      const text = `${filePath}\n${excerpt}\n${content}`;
 
       return {
         id,
@@ -189,7 +188,7 @@ function parseFileEntities(raw: JsonObject[], maxChars: number): FileEntity[] {
     .filter((value): value is FileEntity => value !== null);
 }
 
-function parseRuleEntities(raw: JsonObject[], maxChars: number): RuleEntity[] {
+function parseRuleEntities(raw: JsonObject[]): RuleEntity[] {
   return raw
     .map((item) => {
       const id = asString(item.id);
@@ -200,7 +199,7 @@ function parseRuleEntities(raw: JsonObject[], maxChars: number): RuleEntity[] {
       const title = asString(item.title, id);
       const body = asString(item.body);
       const updatedAt = asString(item.updated_at, "");
-      const text = clampText(`${title}\n${body}`, maxChars);
+      const text = `${title}\n${body}`;
 
       return {
         id,
@@ -219,7 +218,7 @@ function parseRuleEntities(raw: JsonObject[], maxChars: number): RuleEntity[] {
     .filter((value): value is RuleEntity => value !== null);
 }
 
-function parseAdrEntities(raw: JsonObject[], maxChars: number): AdrEntity[] {
+function parseAdrEntities(raw: JsonObject[]): AdrEntity[] {
   return raw
     .map((item) => {
       const id = asString(item.id);
@@ -231,7 +230,7 @@ function parseAdrEntities(raw: JsonObject[], maxChars: number): AdrEntity[] {
       const body = asString(item.body);
       const adrPath = asString(item.path);
       const decisionDate = asString(item.decision_date, "");
-      const text = clampText(`${adrPath}\n${title}\n${body}`, maxChars);
+      const text = `${adrPath}\n${title}\n${body}`;
 
       return {
         id,
@@ -250,7 +249,7 @@ function parseAdrEntities(raw: JsonObject[], maxChars: number): AdrEntity[] {
     .filter((value): value is AdrEntity => value !== null);
 }
 
-function parseModuleEntities(raw: JsonObject[], maxChars: number): ModuleEntity[] {
+function parseModuleEntities(raw: JsonObject[]): ModuleEntity[] {
   return raw
     .map((item) => {
       const id = asString(item.id);
@@ -263,7 +262,7 @@ function parseModuleEntities(raw: JsonObject[], maxChars: number): ModuleEntity[
       const summary = asString(item.summary);
       const exportedSymbols = asString(item.exported_symbols);
       const updatedAt = asString(item.updated_at);
-      const text = clampText(`${modulePath}\n${name}\n${summary}\n${exportedSymbols}`, maxChars);
+      const text = `${modulePath}\n${name}\n${summary}\n${exportedSymbols}`;
 
       return {
         id,
@@ -282,7 +281,7 @@ function parseModuleEntities(raw: JsonObject[], maxChars: number): ModuleEntity[
     .filter((value): value is ModuleEntity => value !== null);
 }
 
-function parseChunkEntities(raw: JsonObject[], filePathById: Map<string, string>, maxChars: number): ChunkEntity[] {
+export function parseChunkEntities(raw: JsonObject[], filePathById: Map<string, string>): ChunkEntity[] {
   return raw
     .map((item) => {
       const id = asString(item.id);
@@ -298,7 +297,7 @@ function parseChunkEntities(raw: JsonObject[], filePathById: Map<string, string>
       const body = asString(item.body);
       const updatedAt = asString(item.updated_at);
       const checksum = asString(item.checksum, hashText(body));
-      const text = clampText(`${filePath}\n${name}\n${sig}\n${description}\n${body.slice(0, CHUNK_BODY_PREVIEW_CHARS)}`, maxChars);
+      const text = `${filePath}\n${name}\n${sig}\n${description}\n${body}`;
 
       return {
         id,
@@ -317,7 +316,7 @@ function parseChunkEntities(raw: JsonObject[], filePathById: Map<string, string>
     .filter((value): value is ChunkEntity => value !== null);
 }
 
-function parseProjectEntities(raw: JsonObject[], maxChars: number): ProjectEntity[] {
+function parseProjectEntities(raw: JsonObject[]): ProjectEntity[] {
   return raw
     .map((item) => {
       const id = asString(item.id);
@@ -332,10 +331,7 @@ function parseProjectEntities(raw: JsonObject[], maxChars: number): ProjectEntit
       const targetFramework = asString(item.target_framework);
       const summary = asString(item.summary);
       const updatedAt = asString(item.updated_at);
-      const text = clampText(
-        `${projectPath}\n${name}\n${kind}\n${language}\n${targetFramework}\n${summary}`,
-        maxChars
-      );
+      const text = `${projectPath}\n${name}\n${kind}\n${language}\n${targetFramework}\n${summary}`;
 
       return {
         id,
@@ -416,22 +412,20 @@ async function main(): Promise<void> {
   fs.mkdirSync(EMBEDDINGS_DIR, { recursive: true });
   fs.mkdirSync(MODEL_CACHE_DIR, { recursive: true });
 
-  const modelId = (process.env.CORTEX_EMBED_MODEL ?? DEFAULT_MODEL_ID).trim() || DEFAULT_MODEL_ID;
-  const maxChars = Number(process.env.CORTEX_EMBED_MAX_CHARS ?? DEFAULT_MAX_TEXT_CHARS);
-  const maxTextChars = Number.isFinite(maxChars) && maxChars > 0 ? Math.floor(maxChars) : DEFAULT_MAX_TEXT_CHARS;
+  const modelId = resolveModelId();
 
-  const documents = parseFileEntities(readJsonl(path.join(CACHE_DIR, "documents.jsonl")), maxTextChars);
-  const rules = parseRuleEntities(readJsonl(path.join(CACHE_DIR, "entities.rule.jsonl")), maxTextChars);
-  const adrs = parseAdrEntities(readJsonl(path.join(CACHE_DIR, "entities.adr.jsonl")), maxTextChars);
-  const modules = parseModuleEntities(readJsonl(path.join(CACHE_DIR, "entities.module.jsonl")), maxTextChars);
-  const projects = parseProjectEntities(readJsonl(path.join(CACHE_DIR, "entities.project.jsonl")), maxTextChars);
+  const documents = parseFileEntities(readJsonl(path.join(CACHE_DIR, "documents.jsonl")));
+  const rules = parseRuleEntities(readJsonl(path.join(CACHE_DIR, "entities.rule.jsonl")));
+  const adrs = parseAdrEntities(readJsonl(path.join(CACHE_DIR, "entities.adr.jsonl")));
+  const modules = parseModuleEntities(readJsonl(path.join(CACHE_DIR, "entities.module.jsonl")));
+  const projects = parseProjectEntities(readJsonl(path.join(CACHE_DIR, "entities.project.jsonl")));
 
   // Build file path lookup for chunk embedding text (reuse already-parsed documents)
   const filePathById = new Map<string, string>();
   for (const doc of documents) {
     filePathById.set(doc.id, doc.path);
   }
-  const chunks = parseChunkEntities(readJsonl(path.join(CACHE_DIR, "entities.chunk.jsonl")), filePathById, maxTextChars);
+  const chunks = parseChunkEntities(readJsonl(path.join(CACHE_DIR, "entities.chunk.jsonl")), filePathById);
 
   const entities: SearchEntity[] = [...documents, ...rules, ...adrs, ...modules, ...projects, ...chunks].sort((a, b) => a.id.localeCompare(b.id));
 
@@ -531,7 +525,10 @@ async function main(): Promise<void> {
   console.log(`[embed] manifest ${EMBEDDINGS_MANIFEST_PATH}`);
 }
 
-main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.message : "Embedding error"}\n`);
-  process.exit(1);
-});
+const isMain = process.argv[1] ? pathToFileURL(process.argv[1]).href === import.meta.url : false;
+if (isMain) {
+  main().catch((error) => {
+    process.stderr.write(`${error instanceof Error ? error.message : "Embedding error"}\n`);
+    process.exit(1);
+  });
+}
