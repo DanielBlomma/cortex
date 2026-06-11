@@ -1,14 +1,11 @@
 {
-  "run_name": "smoke",
-  "repos": [
-    "iamkun/dayjs",
-    "expressjs/express"
-  ],
+  "run_name": "full-jina",
+  "repos": "all",
   "embed_models": [
-    "Xenova/all-MiniLM-L6-v2"
+    "jinaai/jina-embeddings-v2-base-code"
   ],
-  "parallelism": 1,
-  "timeout_minutes": 45,
+  "parallelism": 3,
+  "timeout_minutes": 1440,
   "docker": {
     "image": "cortex-bootstrapbench:local",
     "build": true

@@ -188,12 +188,13 @@ async function packCortex(cortexSource) {
   console.log(`[run] packed ${packedName} -> .build/${TARBALL_NAME}`);
 }
 
-async function buildImage(imageTag, platform) {
+async function buildImage(imageTag, platform, warmupModel) {
   console.log(`[run] building docker image ${imageTag} (${platform ?? "host platform"})`);
   const platformArgs = platform ? ["--platform", platform] : [];
+  const warmupArgs = warmupModel ? ["--build-arg", `BB_WARMUP_MODEL=${warmupModel}`] : [];
   const result = await runCommand({
     command: "docker",
-    args: ["build", ...platformArgs, "-f", path.join("docker", "Dockerfile"), "-t", imageTag, "."],
+    args: ["build", ...platformArgs, ...warmupArgs, "-f", path.join("docker", "Dockerfile"), "-t", imageTag, "."],
     cwd: HARNESS_DIR,
     timeoutMs: 90 * 60 * 1000,
     onLine: (line) => console.log(`[docker-build] ${line}`)
@@ -469,7 +470,7 @@ async function main() {
 
   if (config.docker.build && !hasFlag(args, "--skip-build")) {
     await packCortex(cortexSource);
-    await buildImage(config.docker.image, config.docker.platform);
+    await buildImage(config.docker.image, config.docker.platform, config.embed_models[0]);
   }
 
   const results = await runQueue(items, config, paths);

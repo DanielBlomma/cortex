@@ -45,7 +45,11 @@ RUN npm install -g /opt/cortex/cortex-local.tgz \
 # (broken prebuilt); we then overlay the natively compiled binary and re-run
 # bootstrap, which reuses deps/ingest/embeddings and must fully succeed.
 COPY docker/warmup /opt/cortex/warmup-src
+# BB_WARMUP_MODEL pre-caches a specific embedding model during warmup (the
+# runner passes the first configured model); empty = cortex's own default.
+ARG BB_WARMUP_MODEL=""
 RUN cp -R /opt/cortex/warmup-src /tmp/warmup \
+  && if [ -n "$BB_WARMUP_MODEL" ]; then export CORTEX_EMBED_MODEL="$BB_WARMUP_MODEL"; fi \
   && { cortex init /tmp/warmup --bootstrap --no-connect --no-watch || [ "$TARGETARCH" = "arm64" ]; } \
   && if [ "$TARGETARCH" = "arm64" ]; then \
        cp /opt/ryu-prebuild/node_modules/ryugraph/ryujs.node /tmp/warmup/.context/mcp/node_modules/ryugraph/ryujs.node \

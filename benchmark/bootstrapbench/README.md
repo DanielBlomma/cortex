@@ -74,7 +74,15 @@ node benchmark/bootstrapbench/run.mjs --config benchmark/bootstrapbench/config.e
 | `results_dir`     | `benchmark/bootstrapbench/results` | output root                             |
 
 Non-default embedding models are downloaded inside the container at runtime
-(network required); the default model ships pre-cached in the image.
+(network required); the model the image warmup used ships pre-cached.
+
+> **Model cost note.** cortex 2.1.0's default embedding model
+> (`jinaai/jina-embeddings-v2-base-code`, 768-dim, 8k context) measured
+> ~20x slower per entity than `Xenova/all-MiniLM-L6-v2` in this harness —
+> a full 69-repo run is multi-day on a laptop. `config.example.json`
+> therefore pins MiniLM for cross-version comparability;
+> `config.full-jina.json` runs the 2.1.0 default model as shipped (use a
+> big machine or a repo subset).
 
 > **Platform note.** ryugraph's npm package ships a `linux-arm64` prebuilt
 > whose ELF is actually x86_64 (and its x86_64 binary needs glibc ≥ 2.38).
