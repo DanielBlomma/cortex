@@ -6,12 +6,12 @@
     "cortex_version": "2.0.19"
   },
   "repo": {
-    "key": "expressjs__express",
-    "name": "expressjs/express",
-    "url": "https://github.com/expressjs/express.git",
-    "sha": "dae209ae6559c29cfca2a1f4414c51d89ea643d5",
+    "key": "google__gson",
+    "name": "google/gson",
+    "url": "https://github.com/google/gson.git",
+    "sha": "004e7a4949e08b430e3c8996998ee5a17ff9423a",
     "languages": [
-      "javascript"
+      "java"
     ],
     "benches": [
       "Multi"
@@ -22,12 +22,12 @@
     {
       "schema_version": 1,
       "repo": {
-        "key": "expressjs__express",
-        "name": "expressjs/express",
-        "url": "https://github.com/expressjs/express.git",
-        "sha": "dae209ae6559c29cfca2a1f4414c51d89ea643d5",
+        "key": "google__gson",
+        "name": "google/gson",
+        "url": "https://github.com/google/gson.git",
+        "sha": "004e7a4949e08b430e3c8996998ee5a17ff9423a",
         "languages": [
-          "javascript"
+          "java"
         ],
         "benches": [
           "Multi"
@@ -38,57 +38,63 @@
         "embed_model": "Xenova/all-MiniLM-L6-v2",
         "cortex_version": "2.0.19",
         "run_id": "full-3",
-        "started_at": "2026-06-11T15:30:24.690Z",
+        "started_at": "2026-06-11T15:50:01.098Z",
         "status": "ok",
         "error": null,
-        "extracted_at": "2026-06-11T15:30:53.724Z"
+        "extracted_at": "2026-06-11T15:52:27.573Z"
       },
       "workspace": {
-        "tracked_files": 213,
-        "tracked_bytes": 706609,
+        "tracked_files": 311,
+        "tracked_bytes": 2292570,
         "detected_source_paths": [
           ".github",
-          "examples",
-          "lib",
-          "test",
-          ".eslintrc.yml",
-          "History.md",
-          "index.js",
-          "package.json",
+          ".mvn",
+          "extras",
+          "gson",
+          "metrics",
+          "proto",
+          "test-graal-native-image",
+          "test-jpms",
+          "test-shrinker",
+          "CHANGELOG.md",
+          "GsonDesignDocument.md",
+          "ReleaseProcess.md",
+          "Troubleshooting.md",
+          "UserGuide.md",
           ".context/notes",
           ".context/decisions",
-          "Readme.md"
+          "README.md"
         ]
       },
       "timings_ms": {
-        "deps": 1706,
-        "ingest": 622,
-        "embed": 16013,
-        "graph_load": 3890,
-        "status": 1584,
-        "total": 23816
+        "deps": 1255,
+        "ingest": 4308,
+        "embed": 102751,
+        "graph_load": 32127,
+        "status": 1678,
+        "total": 142120
       },
       "ingest": {
         "mode": "full",
         "counts": {
-          "files": 163,
+          "files": 288,
           "adrs": 0,
           "rules": 5,
-          "chunks": 127,
-          "relations_constrains": 112,
-          "relations_implements": 111,
+          "chunks": 4521,
+          "relations_constrains": 507,
+          "relations_implements": 494,
           "relations_supersedes": 0,
-          "relations_defines": 127,
-          "relations_calls": 6,
-          "relations_imports": 19,
+          "relations_defines": 4521,
+          "relations_calls": 74,
+          "relations_imports": 0,
           "relations_calls_sql": 0,
           "relations_uses_config_key": 0,
           "relations_uses_resource_key": 0,
           "relations_uses_setting_key": 0,
-          "modules": 15,
-          "relations_contains": 130,
-          "relations_contains_module": 5,
-          "relations_exports": 9,
+          "modules": 27,
+          "relations_contains": 264,
+          "relations_contains_module": 15,
+          "relations_exports": 2844,
           "projects": 0,
           "relations_includes_file": 0,
           "relations_references_project": 0,
@@ -98,131 +104,135 @@
           "relations_transforms_config": 0
         },
         "skipped": {
-          "unsupported": 45,
+          "unsupported": 19,
           "tooLarge": 0,
           "binary": 0
         },
         "parser_health": {}
       },
       "files": {
-        "total": 163,
+        "total": 288,
         "by_kind": {
-          "DOC": 22,
-          "CODE": 141
+          "DOC": 26,
+          "CODE": 262
         }
       },
       "chunks": {
-        "total": 127,
-        "exported": 9,
+        "total": 4521,
+        "exported": 3367,
         "by_kind": {
-          "function": 123,
-          "const": 4
+          "class": 1094,
+          "constructor": "function Object() { [native code] }111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+          "method": 2995,
+          "interface": 30,
+          "enum": 33,
+          "record": 33
         },
         "by_language": {
-          "javascript": {
-            "count": 127,
+          "java": {
+            "count": 4521,
             "lines": {
-              "count": 127,
+              "count": 4521,
               "min": 1,
-              "max": 89,
-              "mean": 8.05,
+              "max": 1131,
+              "mean": 25.66,
               "histogram": [
                 {
                   "label": "1-10",
                   "min": 1,
                   "max": 10,
-                  "count": 106
+                  "count": 2634
                 },
                 {
                   "label": "11-20",
                   "min": 11,
                   "max": 20,
-                  "count": 13
+                  "count": 800
                 },
                 {
                   "label": "21-40",
                   "min": 21,
                   "max": 40,
-                  "count": 5
+                  "count": 394
                 },
                 {
                   "label": "41-80",
                   "min": 41,
                   "max": 80,
-                  "count": 2
+                  "count": 537
                 },
                 {
                   "label": "81-160",
                   "min": 81,
                   "max": 160,
-                  "count": 1
+                  "count": 70
                 },
                 {
                   "label": "161-320",
                   "min": 161,
                   "max": 320,
-                  "count": 0
+                  "count": 46
                 },
                 {
                   "label": "321+",
                   "min": 321,
                   "max": null,
-                  "count": 0
+                  "count": 40
                 }
               ],
               "p25": 4,
-              "p50": 4,
-              "p75": 8,
-              "p90": 16,
-              "p99": 61.02
+              "p50": 8,
+              "p75": 19,
+              "p90": 80,
+              "p99": 282.6
             },
             "chars": {
-              "count": 127,
-              "min": 12,
-              "max": 1791,
-              "mean": 198.14,
+              "count": 4521,
+              "min": 8,
+              "max": 12000,
+              "mean": 838.62,
               "histogram": [
                 {
                   "label": "0-200",
                   "min": 0,
                   "max": 200,
-                  "count": 98
+                  "count": 1542
                 },
                 {
                   "label": "201-500",
                   "min": 201,
                   "max": 500,
-                  "count": 20
+                  "count": 1454
                 },
                 {
                   "label": "501-1000",
                   "min": 501,
                   "max": 1000,
-                  "count": 6
+                  "count": 634
                 },
                 {
                   "label": "1001-2000",
                   "min": 1001,
                   "max": 2000,
-                  "count": 3
+                  "count": 305
                 },
                 {
                   "label": "2001-4000",
                   "min": 2001,
                   "max": 4000,
-                  "count": 0
+                  "count": 461
                 },
                 {
                   "label": "4001-8000",
                   "min": 4001,
                   "max": 8000,
-                  "count": 0
+                  "count": 67
                 },
                 {
                   "label": "8001-12000",
                   "min": 8001,
                   "max": 12000,
-                  "count": 0
+                  "count": 58
                 },
                 {
                   "label": "12001+",
@@ -231,116 +241,116 @@
                   "count": 0
                 }
               ],
-              "p25": 91.5,
-              "p50": 101,
-              "p75": 187.5,
-              "p90": 412.6,
-              "p99": 1532.74
+              "p25": 150,
+              "p50": 310,
+              "p75": 708,
+              "p90": 2533,
+              "p99": 9389.8
             }
           }
         },
         "lines": {
-          "count": 127,
+          "count": 4521,
           "min": 1,
-          "max": 89,
-          "mean": 8.05,
+          "max": 1131,
+          "mean": 25.66,
           "histogram": [
             {
               "label": "1-10",
               "min": 1,
               "max": 10,
-              "count": 106
+              "count": 2634
             },
             {
               "label": "11-20",
               "min": 11,
               "max": 20,
-              "count": 13
+              "count": 800
             },
             {
               "label": "21-40",
               "min": 21,
               "max": 40,
-              "count": 5
+              "count": 394
             },
             {
               "label": "41-80",
               "min": 41,
               "max": 80,
-              "count": 2
+              "count": 537
             },
             {
               "label": "81-160",
               "min": 81,
               "max": 160,
-              "count": 1
+              "count": 70
             },
             {
               "label": "161-320",
               "min": 161,
               "max": 320,
-              "count": 0
+              "count": 46
             },
             {
               "label": "321+",
               "min": 321,
               "max": null,
-              "count": 0
+              "count": 40
             }
           ],
           "p25": 4,
-          "p50": 4,
-          "p75": 8,
-          "p90": 16,
-          "p99": 61.02
+          "p50": 8,
+          "p75": 19,
+          "p90": 80,
+          "p99": 282.6
         },
         "chars": {
-          "count": 127,
-          "min": 12,
-          "max": 1791,
-          "mean": 198.14,
+          "count": 4521,
+          "min": 8,
+          "max": 12000,
+          "mean": 838.62,
           "histogram": [
             {
               "label": "0-200",
               "min": 0,
               "max": 200,
-              "count": 98
+              "count": 1542
             },
             {
               "label": "201-500",
               "min": 201,
               "max": 500,
-              "count": 20
+              "count": 1454
             },
             {
               "label": "501-1000",
               "min": 501,
               "max": 1000,
-              "count": 6
+              "count": 634
             },
             {
               "label": "1001-2000",
               "min": 1001,
               "max": 2000,
-              "count": 3
+              "count": 305
             },
             {
               "label": "2001-4000",
               "min": 2001,
               "max": 4000,
-              "count": 0
+              "count": 461
             },
             {
               "label": "4001-8000",
               "min": 4001,
               "max": 8000,
-              "count": 0
+              "count": 67
             },
             {
               "label": "8001-12000",
               "min": 8001,
               "max": 12000,
-              "count": 0
+              "count": 58
             },
             {
               "label": "12001+",
@@ -349,11 +359,11 @@
               "count": 0
             }
           ],
-          "p25": 91.5,
-          "p50": 101,
-          "p75": 187.5,
-          "p90": 412.6,
-          "p99": 1532.74
+          "p25": 150,
+          "p50": 310,
+          "p75": 708,
+          "p90": 2533,
+          "p99": 9389.8
         }
       },
       "embeddings": {
@@ -361,41 +371,41 @@
         "dimensions": 384,
         "mode": "full",
         "counts": {
-          "entities": 310,
-          "output": 310,
-          "embedded": 310,
+          "entities": 4841,
+          "output": 4841,
+          "embedded": 4841,
           "reused": 0,
           "failed": 0
         },
         "by_entity_type": {
-          "Chunk": 127,
-          "File": 163,
-          "Module": 15,
+          "Chunk": 4521,
+          "File": 288,
+          "Module": 27,
           "Rule": 5
         },
-        "throughput_per_s": 19.36
+        "throughput_per_s": 47.11
       },
       "graph": {
         "nodes": {
-          "files": 163,
-          "chunks": 127,
+          "files": 288,
+          "chunks": 4521,
           "rules": 5,
           "adrs": 0,
-          "modules": 15,
+          "modules": 27,
           "projects": 0
         },
         "edges": {
-          "total": 519,
+          "total": 8719,
           "by_type": {
-            "CALLS": 6,
+            "CALLS": 74,
             "CALLS_SQL": 0,
-            "CONSTRAINS": 112,
-            "CONTAINS": 130,
-            "CONTAINS_MODULE": 5,
-            "DEFINES": 127,
-            "EXPORTS": 9,
-            "IMPLEMENTS": 111,
-            "IMPORTS": 19,
+            "CONSTRAINS": 507,
+            "CONTAINS": 264,
+            "CONTAINS_MODULE": 15,
+            "DEFINES": 4521,
+            "EXPORTS": 2844,
+            "IMPLEMENTS": 494,
+            "IMPORTS": 0,
             "INCLUDES_FILE": 0,
             "REFERENCES_PROJECT": 0,
             "SUPERSEDES": 0,
@@ -409,58 +419,58 @@
           }
         },
         "chunk_connectivity": {
-          "chunk_chunk_edges": 6,
-          "avg_degree": 0.09,
-          "max_degree": 2,
-          "isolated_count": 119,
-          "isolated_pct": 93.7,
+          "chunk_chunk_edges": 74,
+          "avg_degree": 0.03,
+          "max_degree": 20,
+          "isolated_count": 4482,
+          "isolated_pct": 99.14,
           "degree": {
-            "count": 127,
+            "count": 4521,
             "min": 0,
-            "max": 2,
-            "mean": 0.09,
+            "max": 20,
+            "mean": 0.03,
             "histogram": [
               {
                 "label": "0",
                 "min": 0,
                 "max": 0,
-                "count": 119
+                "count": 4482
               },
               {
                 "label": "1",
                 "min": 1,
                 "max": 1,
-                "count": 4
+                "count": 10
               },
               {
                 "label": "2",
                 "min": 2,
                 "max": 2,
-                "count": 4
+                "count": 6
               },
               {
                 "label": "3-4",
                 "min": 3,
                 "max": 4,
-                "count": 0
+                "count": 14
               },
               {
                 "label": "5-8",
                 "min": 5,
                 "max": 8,
-                "count": 0
+                "count": 7
               },
               {
                 "label": "9-16",
                 "min": 9,
                 "max": 16,
-                "count": 0
+                "count": 1
               },
               {
                 "label": "17-32",
                 "min": 17,
                 "max": 32,
-                "count": 0
+                "count": 1
               },
               {
                 "label": "33+",
@@ -473,40 +483,48 @@
             "p50": 0,
             "p75": 0,
             "p90": 0,
-            "p99": 2
+            "p99": 0
           },
           "top_connected": [
             {
-              "id": "chunk:lib/response.js:onaborted:926-933",
-              "degree": 2
+              "id": "chunk:gson/src/main/java/com/google/gson/stream/JsonReader.java:doPeek:581-730",
+              "degree": 20
             },
             {
-              "id": "chunk:lib/response.js:onerror:946-950",
-              "degree": 2
+              "id": "chunk:gson/src/main/java/com/google/gson/stream/JsonReader.java:fillBuffer:1512-1539",
+              "degree": 11
             },
             {
-              "id": "chunk:lib/response.js:onfinish:965-980",
-              "degree": 2
+              "id": "chunk:gson/src/main/java/com/google/gson/stream/JsonReader.java:locationString:1686-1690",
+              "degree": 8
             },
             {
-              "id": "chunk:lib/response.js:sendfile:921-1009",
-              "degree": 2
+              "id": "chunk:gson/src/main/java/com/google/gson/stream/JsonReader.java:nextQuotedValue:1141-1195",
+              "degree": 8
             },
             {
-              "id": "chunk:test/support/tmpl.js:generateVariableLookup:25-36",
-              "degree": 1
+              "id": "chunk:gson/src/main/java/com/google/gson/stream/JsonReader.java:nextUnquotedValue:1198-1255",
+              "degree": 8
             },
             {
-              "id": "chunk:test/support/tmpl.js:onReadFile:6-20",
-              "degree": 1
+              "id": "chunk:gson/src/main/java/com/google/gson/stream/JsonReader.java:nextNonWhitespace:1546-1633",
+              "degree": 6
             },
             {
-              "id": "chunk:test/support/utils.js:getMajorVersion:75-77",
-              "degree": 1
+              "id": "chunk:gson/src/main/java/com/google/gson/stream/JsonReader.java:checkLenient:1635-1640",
+              "degree": 5
             },
             {
-              "id": "chunk:test/support/utils.js:shouldSkipQuery:79-85",
-              "degree": 1
+              "id": "chunk:gson/src/main/java/com/google/gson/stream/JsonReader.java:getPath:1739-1741",
+              "degree": 5
+            },
+            {
+              "id": "chunk:gson/src/main/java/com/google/gson/stream/JsonReader.java:toString:1681-1684",
+              "degree": 5
+            },
+            {
+              "id": "chunk:gson/src/main/java/com/google/gson/stream/JsonReader.java:getPath:1692-1723",
+              "degree": 4
             }
           ]
         }

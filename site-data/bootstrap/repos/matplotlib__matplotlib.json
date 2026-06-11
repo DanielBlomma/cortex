@@ -1,0 +1,901 @@
+{
+  "schema_version": 1,
+  "run": {
+    "id": "full-3",
+    "generated_at": "2026-06-11T19:01:43.815Z",
+    "cortex_version": "2.0.19"
+  },
+  "repo": {
+    "key": "matplotlib__matplotlib",
+    "name": "matplotlib/matplotlib",
+    "url": "https://github.com/matplotlib/matplotlib.git",
+    "sha": "0677cc8c142eae9ea5dde9cd5487c106dff58cbb",
+    "languages": [
+      "python"
+    ],
+    "benches": [
+      "Verified"
+    ],
+    "instances": 27
+  },
+  "runs": [
+    {
+      "schema_version": 1,
+      "repo": {
+        "key": "matplotlib__matplotlib",
+        "name": "matplotlib/matplotlib",
+        "url": "https://github.com/matplotlib/matplotlib.git",
+        "sha": "0677cc8c142eae9ea5dde9cd5487c106dff58cbb",
+        "languages": [
+          "python"
+        ],
+        "benches": [
+          "Verified"
+        ],
+        "instances": 27
+      },
+      "run": {
+        "embed_model": "Xenova/all-MiniLM-L6-v2",
+        "cortex_version": "2.0.19",
+        "run_id": "full-3",
+        "started_at": "2026-06-11T16:42:51.081Z",
+        "status": "ok",
+        "error": null,
+        "extracted_at": "2026-06-11T16:58:11.766Z"
+      },
+      "workspace": {
+        "tracked_files": 4661,
+        "tracked_bytes": 62091817,
+        "detected_source_paths": [
+          ".circleci",
+          ".devcontainer",
+          ".github",
+          "ci",
+          "doc",
+          "extern",
+          "galleries",
+          "lib",
+          "src",
+          "tools",
+          ".appveyor.yml",
+          ".git_archival.txt",
+          ".meeseeksdev.yml",
+          ".pre-commit-config.yaml",
+          ".svglintrc.mjs",
+          ".yamllint.yml",
+          "azure-pipelines.yml",
+          "CODE_OF_CONDUCT.md",
+          "environment.yml",
+          "INSTALL.rst",
+          "pyproject.toml",
+          "SECURITY.md",
+          ".context/notes",
+          ".context/decisions",
+          "README.md"
+        ]
+      },
+      "timings_ms": {
+        "deps": 1474,
+        "ingest": 69744,
+        "embed": 731946,
+        "graph_load": 108391,
+        "status": 1772,
+        "total": 913331
+      },
+      "ingest": {
+        "mode": "full",
+        "counts": {
+          "files": 1759,
+          "adrs": 0,
+          "rules": 5,
+          "chunks": 16414,
+          "relations_constrains": 1765,
+          "relations_implements": 1535,
+          "relations_supersedes": 0,
+          "relations_defines": 16414,
+          "relations_calls": 1694,
+          "relations_imports": 7434,
+          "relations_calls_sql": 0,
+          "relations_uses_config_key": 0,
+          "relations_uses_resource_key": 0,
+          "relations_uses_setting_key": 0,
+          "modules": 109,
+          "relations_contains": 1740,
+          "relations_contains_module": 62,
+          "relations_exports": 12041,
+          "projects": 0,
+          "relations_includes_file": 0,
+          "relations_references_project": 0,
+          "relations_uses_resource": 0,
+          "relations_uses_setting": 0,
+          "relations_uses_config": 0,
+          "relations_transforms_config": 0
+        },
+        "skipped": {
+          "unsupported": 2858,
+          "tooLarge": 0,
+          "binary": 0
+        },
+        "parser_health": {}
+      },
+      "files": {
+        "total": 1759,
+        "by_kind": {
+          "DOC": 628,
+          "CODE": 1131
+        }
+      },
+      "chunks": {
+        "total": 16414,
+        "exported": 13846,
+        "by_kind": {
+          "function": 3898,
+          "class": 2221,
+          "method": 9194,
+          "enum": 120,
+          "struct": 275,
+          "namespace": 704,
+          "const": 2
+        },
+        "by_language": {
+          "python": {
+            "count": 10532,
+            "lines": {
+              "count": 10532,
+              "min": 1,
+              "max": 1516,
+              "mean": 26.36,
+              "histogram": [
+                {
+                  "label": "1-10",
+                  "min": 1,
+                  "max": 10,
+                  "count": 5244
+                },
+                {
+                  "label": "11-20",
+                  "min": 11,
+                  "max": 20,
+                  "count": 1995
+                },
+                {
+                  "label": "21-40",
+                  "min": 21,
+                  "max": 40,
+                  "count": 1501
+                },
+                {
+                  "label": "41-80",
+                  "min": 41,
+                  "max": 80,
+                  "count": 1396
+                },
+                {
+                  "label": "81-160",
+                  "min": 81,
+                  "max": 160,
+                  "count": 248
+                },
+                {
+                  "label": "161-320",
+                  "min": 161,
+                  "max": 320,
+                  "count": 94
+                },
+                {
+                  "label": "321+",
+                  "min": 321,
+                  "max": null,
+                  "count": 54
+                }
+              ],
+              "p25": 5,
+              "p50": 11,
+              "p75": 26.25,
+              "p90": 75,
+              "p99": 209.38
+            },
+            "chars": {
+              "count": 10532,
+              "min": 17,
+              "max": 12000,
+              "mean": 949.62,
+              "histogram": [
+                {
+                  "label": "0-200",
+                  "min": 0,
+                  "max": 200,
+                  "count": 2906
+                },
+                {
+                  "label": "201-500",
+                  "min": 201,
+                  "max": 500,
+                  "count": 3015
+                },
+                {
+                  "label": "501-1000",
+                  "min": 501,
+                  "max": 1000,
+                  "count": 1955
+                },
+                {
+                  "label": "1001-2000",
+                  "min": 1001,
+                  "max": 2000,
+                  "count": 1172
+                },
+                {
+                  "label": "2001-4000",
+                  "min": 2001,
+                  "max": 4000,
+                  "count": 1176
+                },
+                {
+                  "label": "4001-8000",
+                  "min": 4001,
+                  "max": 8000,
+                  "count": 204
+                },
+                {
+                  "label": "8001-12000",
+                  "min": 8001,
+                  "max": 12000,
+                  "count": 104
+                },
+                {
+                  "label": "12001+",
+                  "min": 12001,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 185,
+              "p50": 415,
+              "p75": 1012,
+              "p90": 2686.8,
+              "p99": 7943.28
+            }
+          },
+          "c": {
+            "count": 4840,
+            "lines": {
+              "count": 4840,
+              "min": 1,
+              "max": 1506,
+              "mean": 31.99,
+              "histogram": [
+                {
+                  "label": "1-10",
+                  "min": 1,
+                  "max": 10,
+                  "count": 2865
+                },
+                {
+                  "label": "11-20",
+                  "min": 11,
+                  "max": 20,
+                  "count": 487
+                },
+                {
+                  "label": "21-40",
+                  "min": 21,
+                  "max": 40,
+                  "count": 375
+                },
+                {
+                  "label": "41-80",
+                  "min": 41,
+                  "max": 80,
+                  "count": 844
+                },
+                {
+                  "label": "81-160",
+                  "min": 81,
+                  "max": 160,
+                  "count": 144
+                },
+                {
+                  "label": "161-320",
+                  "min": 161,
+                  "max": 320,
+                  "count": 71
+                },
+                {
+                  "label": "321+",
+                  "min": 321,
+                  "max": null,
+                  "count": 54
+                }
+              ],
+              "p25": 2,
+              "p50": 7,
+              "p75": 34,
+              "p90": 80,
+              "p99": 341.59
+            },
+            "chars": {
+              "count": 4840,
+              "min": 9,
+              "max": 12000,
+              "mean": 977.58,
+              "histogram": [
+                {
+                  "label": "0-200",
+                  "min": 0,
+                  "max": 200,
+                  "count": 2386
+                },
+                {
+                  "label": "201-500",
+                  "min": 201,
+                  "max": 500,
+                  "count": 787
+                },
+                {
+                  "label": "501-1000",
+                  "min": 501,
+                  "max": 1000,
+                  "count": 401
+                },
+                {
+                  "label": "1001-2000",
+                  "min": 1001,
+                  "max": 2000,
+                  "count": 354
+                },
+                {
+                  "label": "2001-4000",
+                  "min": 2001,
+                  "max": 4000,
+                  "count": 723
+                },
+                {
+                  "label": "4001-8000",
+                  "min": 4001,
+                  "max": 8000,
+                  "count": 105
+                },
+                {
+                  "label": "8001-12000",
+                  "min": 8001,
+                  "max": 12000,
+                  "count": 84
+                },
+                {
+                  "label": "12001+",
+                  "min": 12001,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 71,
+              "p50": 207.5,
+              "p75": 1135.25,
+              "p90": 2774.1,
+              "p99": 11622.74
+            }
+          },
+          "cpp": {
+            "count": 1028,
+            "lines": {
+              "count": 1028,
+              "min": 1,
+              "max": 1353,
+              "mean": 43.12,
+              "histogram": [
+                {
+                  "label": "1-10",
+                  "min": 1,
+                  "max": 10,
+                  "count": 406
+                },
+                {
+                  "label": "11-20",
+                  "min": 11,
+                  "max": 20,
+                  "count": 167
+                },
+                {
+                  "label": "21-40",
+                  "min": 21,
+                  "max": 40,
+                  "count": 128
+                },
+                {
+                  "label": "41-80",
+                  "min": 41,
+                  "max": 80,
+                  "count": 251
+                },
+                {
+                  "label": "81-160",
+                  "min": 81,
+                  "max": 160,
+                  "count": 37
+                },
+                {
+                  "label": "161-320",
+                  "min": 161,
+                  "max": 320,
+                  "count": 25
+                },
+                {
+                  "label": "321+",
+                  "min": 321,
+                  "max": null,
+                  "count": 14
+                }
+              ],
+              "p25": 6,
+              "p50": 16,
+              "p75": 67.25,
+              "p90": 80,
+              "p99": 358.92
+            },
+            "chars": {
+              "count": 1028,
+              "min": 14,
+              "max": 12000,
+              "mean": 1298.17,
+              "histogram": [
+                {
+                  "label": "0-200",
+                  "min": 0,
+                  "max": 200,
+                  "count": 326
+                },
+                {
+                  "label": "201-500",
+                  "min": 201,
+                  "max": 500,
+                  "count": 211
+                },
+                {
+                  "label": "501-1000",
+                  "min": 501,
+                  "max": 1000,
+                  "count": 120
+                },
+                {
+                  "label": "1001-2000",
+                  "min": 1001,
+                  "max": 2000,
+                  "count": 110
+                },
+                {
+                  "label": "2001-4000",
+                  "min": 2001,
+                  "max": 4000,
+                  "count": 205
+                },
+                {
+                  "label": "4001-8000",
+                  "min": 4001,
+                  "max": 8000,
+                  "count": 31
+                },
+                {
+                  "label": "8001-12000",
+                  "min": 8001,
+                  "max": 12000,
+                  "count": 25
+                },
+                {
+                  "label": "12001+",
+                  "min": 12001,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 161,
+              "p50": 456,
+              "p75": 2023.5,
+              "p90": 2952.4,
+              "p99": 12000
+            }
+          },
+          "javascript": {
+            "count": 14,
+            "lines": {
+              "count": 14,
+              "min": 3,
+              "max": 40,
+              "mean": 10.57,
+              "histogram": [
+                {
+                  "label": "1-10",
+                  "min": 1,
+                  "max": 10,
+                  "count": 10
+                },
+                {
+                  "label": "11-20",
+                  "min": 11,
+                  "max": 20,
+                  "count": 2
+                },
+                {
+                  "label": "21-40",
+                  "min": 21,
+                  "max": 40,
+                  "count": 2
+                },
+                {
+                  "label": "41-80",
+                  "min": 41,
+                  "max": 80,
+                  "count": 0
+                },
+                {
+                  "label": "81-160",
+                  "min": 81,
+                  "max": 160,
+                  "count": 0
+                },
+                {
+                  "label": "161-320",
+                  "min": 161,
+                  "max": 320,
+                  "count": 0
+                },
+                {
+                  "label": "321+",
+                  "min": 321,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 5,
+              "p50": 7,
+              "p75": 12.5,
+              "p90": 21.6,
+              "p99": 37.92
+            },
+            "chars": {
+              "count": 14,
+              "min": 80,
+              "max": 1370,
+              "mean": 349.93,
+              "histogram": [
+                {
+                  "label": "0-200",
+                  "min": 0,
+                  "max": 200,
+                  "count": 6
+                },
+                {
+                  "label": "201-500",
+                  "min": 201,
+                  "max": 500,
+                  "count": 6
+                },
+                {
+                  "label": "501-1000",
+                  "min": 501,
+                  "max": 1000,
+                  "count": 0
+                },
+                {
+                  "label": "1001-2000",
+                  "min": 1001,
+                  "max": 2000,
+                  "count": 2
+                },
+                {
+                  "label": "2001-4000",
+                  "min": 2001,
+                  "max": 4000,
+                  "count": 0
+                },
+                {
+                  "label": "4001-8000",
+                  "min": 4001,
+                  "max": 8000,
+                  "count": 0
+                },
+                {
+                  "label": "8001-12000",
+                  "min": 8001,
+                  "max": 12000,
+                  "count": 0
+                },
+                {
+                  "label": "12001+",
+                  "min": 12001,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 138,
+              "p50": 209.5,
+              "p75": 360,
+              "p90": 877.5,
+              "p99": 1331.91
+            }
+          }
+        },
+        "lines": {
+          "count": 16414,
+          "min": 1,
+          "max": 1516,
+          "mean": 29.06,
+          "histogram": [
+            {
+              "label": "1-10",
+              "min": 1,
+              "max": 10,
+              "count": 8525
+            },
+            {
+              "label": "11-20",
+              "min": 11,
+              "max": 20,
+              "count": 2651
+            },
+            {
+              "label": "21-40",
+              "min": 21,
+              "max": 40,
+              "count": 2006
+            },
+            {
+              "label": "41-80",
+              "min": 41,
+              "max": 80,
+              "count": 2491
+            },
+            {
+              "label": "81-160",
+              "min": 81,
+              "max": 160,
+              "count": 429
+            },
+            {
+              "label": "161-320",
+              "min": 161,
+              "max": 320,
+              "count": 190
+            },
+            {
+              "label": "321+",
+              "min": 321,
+              "max": null,
+              "count": 122
+            }
+          ],
+          "p25": 4,
+          "p50": 10,
+          "p75": 29,
+          "p90": 80,
+          "p99": 261
+        },
+        "chars": {
+          "count": 16414,
+          "min": 9,
+          "max": 12000,
+          "mean": 979.18,
+          "histogram": [
+            {
+              "label": "0-200",
+              "min": 0,
+              "max": 200,
+              "count": 5624
+            },
+            {
+              "label": "201-500",
+              "min": 201,
+              "max": 500,
+              "count": 4019
+            },
+            {
+              "label": "501-1000",
+              "min": 501,
+              "max": 1000,
+              "count": 2476
+            },
+            {
+              "label": "1001-2000",
+              "min": 1001,
+              "max": 2000,
+              "count": 1638
+            },
+            {
+              "label": "2001-4000",
+              "min": 2001,
+              "max": 4000,
+              "count": 2104
+            },
+            {
+              "label": "4001-8000",
+              "min": 4001,
+              "max": 8000,
+              "count": 340
+            },
+            {
+              "label": "8001-12000",
+              "min": 8001,
+              "max": 12000,
+              "count": 213
+            },
+            {
+              "label": "12001+",
+              "min": 12001,
+              "max": null,
+              "count": 0
+            }
+          ],
+          "p25": 138,
+          "p50": 365,
+          "p75": 1081,
+          "p90": 2744,
+          "p99": 9524.24
+        }
+      },
+      "embeddings": {
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "dimensions": 384,
+        "mode": "full",
+        "counts": {
+          "entities": 18287,
+          "output": 18287,
+          "embedded": 18287,
+          "reused": 0,
+          "failed": 0
+        },
+        "by_entity_type": {
+          "Chunk": 16414,
+          "File": 1759,
+          "Module": 109,
+          "Rule": 5
+        },
+        "throughput_per_s": 24.98
+      },
+      "graph": {
+        "nodes": {
+          "files": 1759,
+          "chunks": 16414,
+          "rules": 5,
+          "adrs": 0,
+          "modules": 109,
+          "projects": 0
+        },
+        "edges": {
+          "total": 42685,
+          "by_type": {
+            "CALLS": 1694,
+            "CALLS_SQL": 0,
+            "CONSTRAINS": 1765,
+            "CONTAINS": 1740,
+            "CONTAINS_MODULE": 62,
+            "DEFINES": 16414,
+            "EXPORTS": 12041,
+            "IMPLEMENTS": 1535,
+            "IMPORTS": 7434,
+            "INCLUDES_FILE": 0,
+            "REFERENCES_PROJECT": 0,
+            "SUPERSEDES": 0,
+            "TRANSFORMS_CONFIG": 0,
+            "USES_CONFIG": 0,
+            "USES_CONFIG_KEY": 0,
+            "USES_RESOURCE": 0,
+            "USES_RESOURCE_KEY": 0,
+            "USES_SETTING": 0,
+            "USES_SETTING_KEY": 0
+          }
+        },
+        "chunk_connectivity": {
+          "chunk_chunk_edges": 1694,
+          "avg_degree": 0.21,
+          "max_degree": 23,
+          "isolated_count": 14536,
+          "isolated_pct": 88.56,
+          "degree": {
+            "count": 16414,
+            "min": 0,
+            "max": 23,
+            "mean": 0.21,
+            "histogram": [
+              {
+                "label": "0",
+                "min": 0,
+                "max": 0,
+                "count": 14536
+              },
+              {
+                "label": "1",
+                "min": 1,
+                "max": 1,
+                "count": 1160
+              },
+              {
+                "label": "2",
+                "min": 2,
+                "max": 2,
+                "count": 417
+              },
+              {
+                "label": "3-4",
+                "min": 3,
+                "max": 4,
+                "count": 202
+              },
+              {
+                "label": "5-8",
+                "min": 5,
+                "max": 8,
+                "count": 76
+              },
+              {
+                "label": "9-16",
+                "min": 9,
+                "max": 16,
+                "count": 22
+              },
+              {
+                "label": "17-32",
+                "min": 17,
+                "max": 32,
+                "count": 1
+              },
+              {
+                "label": "33+",
+                "min": 33,
+                "max": null,
+                "count": 0
+              }
+            ],
+            "p25": 0,
+            "p50": 0,
+            "p75": 0,
+            "p90": 1,
+            "p99": 3
+          },
+          "top_connected": [
+            {
+              "id": "chunk:lib/matplotlib/backends/backend_pdf.py:Name:395-425",
+              "degree": 23
+            },
+            {
+              "id": "chunk:lib/matplotlib/transforms.py:Bbox:692-1129",
+              "degree": 16
+            },
+            {
+              "id": "chunk:extern/agg24-svn/include/agg_pixfmt_rgba.h:clip:37-44",
+              "degree": 13
+            },
+            {
+              "id": "chunk:galleries/examples/units/basic_units.py:TaggedValue:119-197",
+              "degree": 12
+            },
+            {
+              "id": "chunk:lib/matplotlib/tests/test_collections.py:generate_EventCollection_plot:29-66",
+              "degree": 12
+            },
+            {
+              "id": "chunk:lib/matplotlib/tests/test_constrainedlayout.py:example_pcolor:31-41",
+              "degree": 12
+            },
+            {
+              "id": "chunk:lib/matplotlib/_api/deprecation.py:warn_deprecated:48-94",
+              "degree": 11
+            },
+            {
+              "id": "chunk:lib/matplotlib/backends/backend_ps.py:_nums_to_str:71-72",
+              "degree": 11
+            },
+            {
+              "id": "chunk:lib/matplotlib/pyplot.py:gcf:1151-1164",
+              "degree": 11
+            },
+            {
+              "id": "chunk:lib/matplotlib/tests/test_constrainedlayout.py:example_plot:19-28",
+              "degree": 11
+            }
+          ]
+        }
+      },
+      "parse_errors": 0
+    }
+  ]
+}

@@ -1,0 +1,651 @@
+{
+  "schema_version": 1,
+  "run": {
+    "id": "full-3",
+    "generated_at": "2026-06-11T19:01:43.815Z",
+    "cortex_version": "2.0.19"
+  },
+  "repo": {
+    "key": "yt-dlp__yt-dlp",
+    "name": "yt-dlp/yt-dlp",
+    "url": "https://github.com/yt-dlp/yt-dlp.git",
+    "sha": "e47691215f75fe7e9684080d17fadf340c9a8450",
+    "languages": [
+      "python"
+    ],
+    "benches": [
+      "Poly"
+    ],
+    "instances": 5
+  },
+  "runs": [
+    {
+      "schema_version": 1,
+      "repo": {
+        "key": "yt-dlp__yt-dlp",
+        "name": "yt-dlp/yt-dlp",
+        "url": "https://github.com/yt-dlp/yt-dlp.git",
+        "sha": "e47691215f75fe7e9684080d17fadf340c9a8450",
+        "languages": [
+          "python"
+        ],
+        "benches": [
+          "Poly"
+        ],
+        "instances": 5
+      },
+      "run": {
+        "embed_model": "Xenova/all-MiniLM-L6-v2",
+        "cortex_version": "2.0.19",
+        "run_id": "full-3",
+        "started_at": "2026-06-11T18:49:38.425Z",
+        "status": "ok",
+        "error": null,
+        "extracted_at": "2026-06-11T18:59:08.501Z"
+      },
+      "workspace": {
+        "tracked_files": 1239,
+        "tracked_bytes": 12080401,
+        "detected_source_paths": [
+          ".github",
+          "bundle",
+          "devscripts",
+          "test",
+          "yt_dlp",
+          ".pre-commit-config.yaml",
+          ".pre-commit-hatch.yaml",
+          "Changelog.md",
+          "CONTRIBUTING.md",
+          "Maintainers.md",
+          "pyproject.toml",
+          "supportedsites.md",
+          "THIRD_PARTY_LICENSES.txt",
+          "yt-dlp.sh",
+          ".context/notes",
+          ".context/decisions",
+          "README.md"
+        ]
+      },
+      "timings_ms": {
+        "deps": 1310,
+        "ingest": 17012,
+        "embed": 516249,
+        "graph_load": 30653,
+        "status": 1776,
+        "total": 567000
+      },
+      "ingest": {
+        "mode": "full",
+        "counts": {
+          "files": 1201,
+          "adrs": 0,
+          "rules": 5,
+          "chunks": 9851,
+          "relations_constrains": 1920,
+          "relations_implements": 1907,
+          "relations_supersedes": 0,
+          "relations_defines": 9851,
+          "relations_calls": 789,
+          "relations_imports": 0,
+          "relations_calls_sql": 0,
+          "relations_uses_config_key": 0,
+          "relations_uses_resource_key": 0,
+          "relations_uses_setting_key": 0,
+          "modules": 31,
+          "relations_contains": 1192,
+          "relations_contains_module": 27,
+          "relations_exports": 4671,
+          "projects": 0,
+          "relations_includes_file": 0,
+          "relations_references_project": 0,
+          "relations_uses_resource": 0,
+          "relations_uses_setting": 0,
+          "relations_uses_config": 0,
+          "relations_transforms_config": 0
+        },
+        "skipped": {
+          "unsupported": 29,
+          "tooLarge": 0,
+          "binary": 0
+        },
+        "parser_health": {}
+      },
+      "files": {
+        "total": 1201,
+        "by_kind": {
+          "DOC": 65,
+          "CODE": 1136
+        }
+      },
+      "chunks": {
+        "total": 9851,
+        "exported": 5958,
+        "by_kind": {
+          "function": 664,
+          "class": 3694,
+          "method": 5493
+        },
+        "by_language": {
+          "python": {
+            "count": 9837,
+            "lines": {
+              "count": 9837,
+              "min": 1,
+              "max": 1251,
+              "mean": 40.97,
+              "histogram": [
+                {
+                  "label": "1-10",
+                  "min": 1,
+                  "max": 10,
+                  "count": 3322
+                },
+                {
+                  "label": "11-20",
+                  "min": 11,
+                  "max": 20,
+                  "count": 1446
+                },
+                {
+                  "label": "21-40",
+                  "min": 21,
+                  "max": 40,
+                  "count": 1616
+                },
+                {
+                  "label": "41-80",
+                  "min": 41,
+                  "max": 80,
+                  "count": 2562
+                },
+                {
+                  "label": "81-160",
+                  "min": 81,
+                  "max": 160,
+                  "count": 631
+                },
+                {
+                  "label": "161-320",
+                  "min": 161,
+                  "max": 320,
+                  "count": 188
+                },
+                {
+                  "label": "321+",
+                  "min": 321,
+                  "max": null,
+                  "count": 72
+                }
+              ],
+              "p25": 7,
+              "p50": 22,
+              "p75": 61,
+              "p90": 80,
+              "p99": 251.64
+            },
+            "chars": {
+              "count": 9837,
+              "min": 19,
+              "max": 12000,
+              "mean": 1709.12,
+              "histogram": [
+                {
+                  "label": "0-200",
+                  "min": 0,
+                  "max": 200,
+                  "count": 1479
+                },
+                {
+                  "label": "201-500",
+                  "min": 201,
+                  "max": 500,
+                  "count": 1931
+                },
+                {
+                  "label": "501-1000",
+                  "min": 501,
+                  "max": 1000,
+                  "count": 1567
+                },
+                {
+                  "label": "1001-2000",
+                  "min": 1001,
+                  "max": 2000,
+                  "count": 1753
+                },
+                {
+                  "label": "2001-4000",
+                  "min": 2001,
+                  "max": 4000,
+                  "count": 2246
+                },
+                {
+                  "label": "4001-8000",
+                  "min": 4001,
+                  "max": 8000,
+                  "count": 660
+                },
+                {
+                  "label": "8001-12000",
+                  "min": 8001,
+                  "max": 12000,
+                  "count": 201
+                },
+                {
+                  "label": "12001+",
+                  "min": 12001,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 334,
+              "p50": 978,
+              "p75": 2631,
+              "p90": 3821.4,
+              "p99": 11071.48
+            }
+          },
+          "javascript": {
+            "count": 14,
+            "lines": {
+              "count": 14,
+              "min": 3,
+              "max": 64,
+              "mean": 22.5,
+              "histogram": [
+                {
+                  "label": "1-10",
+                  "min": 1,
+                  "max": 10,
+                  "count": 5
+                },
+                {
+                  "label": "11-20",
+                  "min": 11,
+                  "max": 20,
+                  "count": 1
+                },
+                {
+                  "label": "21-40",
+                  "min": 21,
+                  "max": 40,
+                  "count": 6
+                },
+                {
+                  "label": "41-80",
+                  "min": 41,
+                  "max": 80,
+                  "count": 2
+                },
+                {
+                  "label": "81-160",
+                  "min": 81,
+                  "max": 160,
+                  "count": 0
+                },
+                {
+                  "label": "161-320",
+                  "min": 161,
+                  "max": 320,
+                  "count": 0
+                },
+                {
+                  "label": "321+",
+                  "min": 321,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 5,
+              "p50": 21,
+              "p75": 35,
+              "p90": 43.5,
+              "p99": 61.53
+            },
+            "chars": {
+              "count": 14,
+              "min": 67,
+              "max": 1714,
+              "mean": 728.93,
+              "histogram": [
+                {
+                  "label": "0-200",
+                  "min": 0,
+                  "max": 200,
+                  "count": 3
+                },
+                {
+                  "label": "201-500",
+                  "min": 201,
+                  "max": 500,
+                  "count": 1
+                },
+                {
+                  "label": "501-1000",
+                  "min": 501,
+                  "max": 1000,
+                  "count": 7
+                },
+                {
+                  "label": "1001-2000",
+                  "min": 1001,
+                  "max": 2000,
+                  "count": 3
+                },
+                {
+                  "label": "2001-4000",
+                  "min": 2001,
+                  "max": 4000,
+                  "count": 0
+                },
+                {
+                  "label": "4001-8000",
+                  "min": 4001,
+                  "max": 8000,
+                  "count": 0
+                },
+                {
+                  "label": "8001-12000",
+                  "min": 8001,
+                  "max": 12000,
+                  "count": 0
+                },
+                {
+                  "label": "12001+",
+                  "min": 12001,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 432,
+              "p50": 643,
+              "p75": 953.25,
+              "p90": 1365.6,
+              "p99": 1676.82
+            }
+          }
+        },
+        "lines": {
+          "count": 9851,
+          "min": 1,
+          "max": 1251,
+          "mean": 40.94,
+          "histogram": [
+            {
+              "label": "1-10",
+              "min": 1,
+              "max": 10,
+              "count": 3327
+            },
+            {
+              "label": "11-20",
+              "min": 11,
+              "max": 20,
+              "count": 1447
+            },
+            {
+              "label": "21-40",
+              "min": 21,
+              "max": 40,
+              "count": 1622
+            },
+            {
+              "label": "41-80",
+              "min": 41,
+              "max": 80,
+              "count": 2564
+            },
+            {
+              "label": "81-160",
+              "min": 81,
+              "max": 160,
+              "count": 631
+            },
+            {
+              "label": "161-320",
+              "min": 161,
+              "max": 320,
+              "count": 188
+            },
+            {
+              "label": "321+",
+              "min": 321,
+              "max": null,
+              "count": 72
+            }
+          ],
+          "p25": 7,
+          "p50": 22,
+          "p75": 60,
+          "p90": 80,
+          "p99": 251.5
+        },
+        "chars": {
+          "count": 9851,
+          "min": 19,
+          "max": 12000,
+          "mean": 1707.72,
+          "histogram": [
+            {
+              "label": "0-200",
+              "min": 0,
+              "max": 200,
+              "count": 1482
+            },
+            {
+              "label": "201-500",
+              "min": 201,
+              "max": 500,
+              "count": 1932
+            },
+            {
+              "label": "501-1000",
+              "min": 501,
+              "max": 1000,
+              "count": 1574
+            },
+            {
+              "label": "1001-2000",
+              "min": 1001,
+              "max": 2000,
+              "count": 1756
+            },
+            {
+              "label": "2001-4000",
+              "min": 2001,
+              "max": 4000,
+              "count": 2246
+            },
+            {
+              "label": "4001-8000",
+              "min": 4001,
+              "max": 8000,
+              "count": 660
+            },
+            {
+              "label": "8001-12000",
+              "min": 8001,
+              "max": 12000,
+              "count": 201
+            },
+            {
+              "label": "12001+",
+              "min": 12001,
+              "max": null,
+              "count": 0
+            }
+          ],
+          "p25": 334,
+          "p50": 976,
+          "p75": 2627.5,
+          "p90": 3820,
+          "p99": 11056.5
+        }
+      },
+      "embeddings": {
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "dimensions": 384,
+        "mode": "full",
+        "counts": {
+          "entities": 11088,
+          "output": 11088,
+          "embedded": 11088,
+          "reused": 0,
+          "failed": 0
+        },
+        "by_entity_type": {
+          "Chunk": 9851,
+          "File": 1201,
+          "Module": 31,
+          "Rule": 5
+        },
+        "throughput_per_s": 21.48
+      },
+      "graph": {
+        "nodes": {
+          "files": 1201,
+          "chunks": 9851,
+          "rules": 5,
+          "adrs": 0,
+          "modules": 31,
+          "projects": 0
+        },
+        "edges": {
+          "total": 20357,
+          "by_type": {
+            "CALLS": 789,
+            "CALLS_SQL": 0,
+            "CONSTRAINS": 1920,
+            "CONTAINS": 1192,
+            "CONTAINS_MODULE": 27,
+            "DEFINES": 9851,
+            "EXPORTS": 4671,
+            "IMPLEMENTS": 1907,
+            "IMPORTS": 0,
+            "INCLUDES_FILE": 0,
+            "REFERENCES_PROJECT": 0,
+            "SUPERSEDES": 0,
+            "TRANSFORMS_CONFIG": 0,
+            "USES_CONFIG": 0,
+            "USES_CONFIG_KEY": 0,
+            "USES_RESOURCE": 0,
+            "USES_RESOURCE_KEY": 0,
+            "USES_SETTING": 0,
+            "USES_SETTING_KEY": 0
+          }
+        },
+        "chunk_connectivity": {
+          "chunk_chunk_edges": 789,
+          "avg_degree": 0.16,
+          "max_degree": 22,
+          "isolated_count": 9044,
+          "isolated_pct": 91.81,
+          "degree": {
+            "count": 9851,
+            "min": 0,
+            "max": 22,
+            "mean": 0.16,
+            "histogram": [
+              {
+                "label": "0",
+                "min": 0,
+                "max": 0,
+                "count": 9044
+              },
+              {
+                "label": "1",
+                "min": 1,
+                "max": 1,
+                "count": 463
+              },
+              {
+                "label": "2",
+                "min": 2,
+                "max": 2,
+                "count": 188
+              },
+              {
+                "label": "3-4",
+                "min": 3,
+                "max": 4,
+                "count": 107
+              },
+              {
+                "label": "5-8",
+                "min": 5,
+                "max": 8,
+                "count": 37
+              },
+              {
+                "label": "9-16",
+                "min": 9,
+                "max": 16,
+                "count": 7
+              },
+              {
+                "label": "17-32",
+                "min": 17,
+                "max": 32,
+                "count": 5
+              },
+              {
+                "label": "33+",
+                "min": 33,
+                "max": null,
+                "count": 0
+              }
+            ],
+            "p25": 0,
+            "p50": 0,
+            "p75": 0,
+            "p90": 0,
+            "p99": 3
+          },
+          "top_connected": [
+            {
+              "id": "chunk:test/test_pot/test_pot_director.py:ExampleCacheSpecProviderPCSP:175-186",
+              "degree": 22
+            },
+            {
+              "id": "chunk:test/test_websockets.py:ws_validate_and_send:126-136",
+              "degree": 22
+            },
+            {
+              "id": "chunk:test/test_YoutubeDL.py:YDL:34-47",
+              "degree": 21
+            },
+            {
+              "id": "chunk:test/test_socks.py:socks_server:226-244",
+              "degree": 20
+            },
+            {
+              "id": "chunk:test/test_pot/test_pot_director.py:create_memory_pcp:306-310",
+              "degree": 17
+            },
+            {
+              "id": "chunk:test/test_YoutubeDL.py:_make_result:50-60",
+              "degree": 16
+            },
+            {
+              "id": "chunk:yt_dlp/__init__.py:validate_options:185-624",
+              "degree": 13
+            },
+            {
+              "id": "chunk:devscripts/update_requirements.py:update_requirements:572-671",
+              "degree": 11
+            },
+            {
+              "id": "chunk:yt_dlp/cookies.py:_extract_chrome_cookies:294-369",
+              "degree": 11
+            },
+            {
+              "id": "chunk:test/test_pot/test_pot_framework.py:ExamplePTP:35-52",
+              "degree": 10
+            }
+          ]
+        }
+      },
+      "parse_errors": 0
+    }
+  ]
+}

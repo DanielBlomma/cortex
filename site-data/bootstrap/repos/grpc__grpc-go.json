@@ -1,0 +1,722 @@
+{
+  "schema_version": 1,
+  "run": {
+    "id": "full-3",
+    "generated_at": "2026-06-11T19:01:43.815Z",
+    "cortex_version": "2.0.19"
+  },
+  "repo": {
+    "key": "grpc__grpc-go",
+    "name": "grpc/grpc-go",
+    "url": "https://github.com/grpc/grpc-go.git",
+    "sha": "f1864955bbb48efa131f6652933fa8b2189d9305",
+    "languages": [
+      "go"
+    ],
+    "benches": [
+      "Multi"
+    ],
+    "instances": 5
+  },
+  "runs": [
+    {
+      "schema_version": 1,
+      "repo": {
+        "key": "grpc__grpc-go",
+        "name": "grpc/grpc-go",
+        "url": "https://github.com/grpc/grpc-go.git",
+        "sha": "f1864955bbb48efa131f6652933fa8b2189d9305",
+        "languages": [
+          "go"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "instances": 5
+      },
+      "run": {
+        "embed_model": "Xenova/all-MiniLM-L6-v2",
+        "cortex_version": "2.0.19",
+        "run_id": "full-3",
+        "started_at": "2026-06-11T15:54:39.350Z",
+        "status": "ok",
+        "error": null,
+        "extracted_at": "2026-06-11T16:03:25.468Z"
+      },
+      "workspace": {
+        "tracked_files": 1340,
+        "tracked_bytes": 13716291,
+        "detected_source_paths": [
+          ".gemini",
+          ".github",
+          "admin",
+          "attributes",
+          "authz",
+          "backoff",
+          "balancer",
+          "benchmark",
+          "binarylog",
+          "channelz",
+          "cmd",
+          "codes",
+          "connectivity",
+          "credentials",
+          "Documentation",
+          "encoding",
+          "examples",
+          "experimental",
+          "gcp",
+          "grpclog",
+          "health",
+          "internal",
+          "interop",
+          "keepalive",
+          "mem",
+          "metadata",
+          "orca",
+          "peer",
+          "profiling",
+          "reflection",
+          "resolver",
+          "security",
+          "serviceconfig",
+          "stats",
+          "status",
+          "tap",
+          "test",
+          "testdata",
+          "xds",
+          "backoff.go",
+          "balancer_wrapper_test.go",
+          "balancer_wrapper.go",
+          "call.go",
+          "clientconn_authority_test.go",
+          "clientconn_parsed_target_test.go",
+          "clientconn_test.go",
+          "clientconn.go",
+          "CODE-OF-CONDUCT.md",
+          "codec_test.go",
+          "codec.go",
+          "CONTRIBUTING.md",
+          "default_dial_option_server_option_test.go",
+          "dial_test.go",
+          "dialoptions.go",
+          "doc.go",
+          "GOVERNANCE.md",
+          "grpc_test.go",
+          "interceptor.go",
+          "MAINTAINERS.md",
+          "NOTICE.txt",
+          "picker_wrapper_test.go",
+          "picker_wrapper.go",
+          "preloader.go",
+          "producer_ext_test.go",
+          "resolver_balancer_ext_test.go",
+          "resolver_test.go",
+          "resolver_wrapper.go",
+          "rpc_util_test.go",
+          "rpc_util.go",
+          "SECURITY.md",
+          "server_ext_test.go",
+          "server_test.go",
+          "server.go",
+          "service_config_test.go",
+          "service_config.go",
+          "stream_interfaces.go",
+          "stream_test.go",
+          "stream.go",
+          "trace_notrace.go",
+          "trace_test.go",
+          "trace_withtrace.go",
+          "trace.go",
+          "version.go",
+          ".context/notes",
+          ".context/decisions",
+          "README.md"
+        ]
+      },
+      "timings_ms": {
+        "deps": 1099,
+        "ingest": 10613,
+        "embed": 442404,
+        "graph_load": 66530,
+        "status": 1780,
+        "total": 522426
+      },
+      "ingest": {
+        "mode": "full",
+        "counts": {
+          "files": 1161,
+          "adrs": 0,
+          "rules": 5,
+          "chunks": 12888,
+          "relations_constrains": 1918,
+          "relations_implements": 1887,
+          "relations_supersedes": 0,
+          "relations_defines": 12888,
+          "relations_calls": 3245,
+          "relations_imports": 0,
+          "relations_calls_sql": 0,
+          "relations_uses_config_key": 0,
+          "relations_uses_resource_key": 0,
+          "relations_uses_setting_key": 0,
+          "modules": 192,
+          "relations_contains": 954,
+          "relations_contains_module": 151,
+          "relations_exports": 7034,
+          "projects": 0,
+          "relations_includes_file": 0,
+          "relations_references_project": 0,
+          "relations_uses_resource": 0,
+          "relations_uses_setting": 0,
+          "relations_uses_config": 0,
+          "relations_transforms_config": 0
+        },
+        "skipped": {
+          "unsupported": 160,
+          "tooLarge": 0,
+          "binary": 0
+        },
+        "parser_health": {}
+      },
+      "files": {
+        "total": 1161,
+        "by_kind": {
+          "DOC": 107,
+          "CODE": 1054
+        }
+      },
+      "chunks": {
+        "total": 12888,
+        "exported": 8331,
+        "by_kind": {
+          "function": 3118,
+          "struct": 1931,
+          "method": 7340,
+          "interface": 272,
+          "type": 227
+        },
+        "by_language": {
+          "go": {
+            "count": 12875,
+            "lines": {
+              "count": 12875,
+              "min": 1,
+              "max": 1095,
+              "mean": 21.66,
+              "histogram": [
+                {
+                  "label": "1-10",
+                  "min": 1,
+                  "max": 10,
+                  "count": 7607
+                },
+                {
+                  "label": "11-20",
+                  "min": 11,
+                  "max": 20,
+                  "count": 1838
+                },
+                {
+                  "label": "21-40",
+                  "min": 21,
+                  "max": 40,
+                  "count": 1335
+                },
+                {
+                  "label": "41-80",
+                  "min": 41,
+                  "max": 80,
+                  "count": 1553
+                },
+                {
+                  "label": "81-160",
+                  "min": 81,
+                  "max": 160,
+                  "count": 417
+                },
+                {
+                  "label": "161-320",
+                  "min": 161,
+                  "max": 320,
+                  "count": 107
+                },
+                {
+                  "label": "321+",
+                  "min": 321,
+                  "max": null,
+                  "count": 18
+                }
+              ],
+              "p25": 3,
+              "p50": 7,
+              "p75": 23,
+              "p90": 68,
+              "p99": 158.26
+            },
+            "chars": {
+              "count": 12875,
+              "min": 13,
+              "max": 12000,
+              "mean": 729.41,
+              "histogram": [
+                {
+                  "label": "0-200",
+                  "min": 0,
+                  "max": 200,
+                  "count": 6131
+                },
+                {
+                  "label": "201-500",
+                  "min": 201,
+                  "max": 500,
+                  "count": 2508
+                },
+                {
+                  "label": "501-1000",
+                  "min": 501,
+                  "max": 1000,
+                  "count": 1544
+                },
+                {
+                  "label": "1001-2000",
+                  "min": 1001,
+                  "max": 2000,
+                  "count": 1184
+                },
+                {
+                  "label": "2001-4000",
+                  "min": 2001,
+                  "max": 4000,
+                  "count": 1229
+                },
+                {
+                  "label": "4001-8000",
+                  "min": 4001,
+                  "max": 8000,
+                  "count": 227
+                },
+                {
+                  "label": "8001-12000",
+                  "min": 8001,
+                  "max": 12000,
+                  "count": 52
+                },
+                {
+                  "label": "12001+",
+                  "min": 12001,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 97,
+              "p50": 220,
+              "p75": 766.5,
+              "p90": 2273.6,
+              "p99": 5771.54
+            }
+          },
+          "bash": {
+            "count": 13,
+            "lines": {
+              "count": 13,
+              "min": 3,
+              "max": 19,
+              "mean": 9.31,
+              "histogram": [
+                {
+                  "label": "1-10",
+                  "min": 1,
+                  "max": 10,
+                  "count": 7
+                },
+                {
+                  "label": "11-20",
+                  "min": 11,
+                  "max": 20,
+                  "count": 6
+                },
+                {
+                  "label": "21-40",
+                  "min": 21,
+                  "max": 40,
+                  "count": 0
+                },
+                {
+                  "label": "41-80",
+                  "min": 41,
+                  "max": 80,
+                  "count": 0
+                },
+                {
+                  "label": "81-160",
+                  "min": 81,
+                  "max": 160,
+                  "count": 0
+                },
+                {
+                  "label": "161-320",
+                  "min": 161,
+                  "max": 320,
+                  "count": 0
+                },
+                {
+                  "label": "321+",
+                  "min": 321,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 5,
+              "p50": 5,
+              "p75": 14,
+              "p90": 17.2,
+              "p99": 18.88
+            },
+            "chars": {
+              "count": 13,
+              "min": 55,
+              "max": 476,
+              "mean": 224.69,
+              "histogram": [
+                {
+                  "label": "0-200",
+                  "min": 0,
+                  "max": 200,
+                  "count": 6
+                },
+                {
+                  "label": "201-500",
+                  "min": 201,
+                  "max": 500,
+                  "count": 7
+                },
+                {
+                  "label": "501-1000",
+                  "min": 501,
+                  "max": 1000,
+                  "count": 0
+                },
+                {
+                  "label": "1001-2000",
+                  "min": 1001,
+                  "max": 2000,
+                  "count": 0
+                },
+                {
+                  "label": "2001-4000",
+                  "min": 2001,
+                  "max": 4000,
+                  "count": 0
+                },
+                {
+                  "label": "4001-8000",
+                  "min": 4001,
+                  "max": 8000,
+                  "count": 0
+                },
+                {
+                  "label": "8001-12000",
+                  "min": 8001,
+                  "max": 12000,
+                  "count": 0
+                },
+                {
+                  "label": "12001+",
+                  "min": 12001,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 76,
+              "p50": 234,
+              "p75": 381,
+              "p90": 420.8,
+              "p99": 470.12
+            }
+          }
+        },
+        "lines": {
+          "count": 12888,
+          "min": 1,
+          "max": 1095,
+          "mean": 21.64,
+          "histogram": [
+            {
+              "label": "1-10",
+              "min": 1,
+              "max": 10,
+              "count": 7614
+            },
+            {
+              "label": "11-20",
+              "min": 11,
+              "max": 20,
+              "count": 1844
+            },
+            {
+              "label": "21-40",
+              "min": 21,
+              "max": 40,
+              "count": 1335
+            },
+            {
+              "label": "41-80",
+              "min": 41,
+              "max": 80,
+              "count": 1553
+            },
+            {
+              "label": "81-160",
+              "min": 81,
+              "max": 160,
+              "count": 417
+            },
+            {
+              "label": "161-320",
+              "min": 161,
+              "max": 320,
+              "count": 107
+            },
+            {
+              "label": "321+",
+              "min": 321,
+              "max": null,
+              "count": 18
+            }
+          ],
+          "p25": 3,
+          "p50": 7,
+          "p75": 23,
+          "p90": 68,
+          "p99": 158.13
+        },
+        "chars": {
+          "count": 12888,
+          "min": 13,
+          "max": 12000,
+          "mean": 728.9,
+          "histogram": [
+            {
+              "label": "0-200",
+              "min": 0,
+              "max": 200,
+              "count": 6137
+            },
+            {
+              "label": "201-500",
+              "min": 201,
+              "max": 500,
+              "count": 2515
+            },
+            {
+              "label": "501-1000",
+              "min": 501,
+              "max": 1000,
+              "count": 1544
+            },
+            {
+              "label": "1001-2000",
+              "min": 1001,
+              "max": 2000,
+              "count": 1184
+            },
+            {
+              "label": "2001-4000",
+              "min": 2001,
+              "max": 4000,
+              "count": 1229
+            },
+            {
+              "label": "4001-8000",
+              "min": 4001,
+              "max": 8000,
+              "count": 227
+            },
+            {
+              "label": "8001-12000",
+              "min": 8001,
+              "max": 12000,
+              "count": 52
+            },
+            {
+              "label": "12001+",
+              "min": 12001,
+              "max": null,
+              "count": 0
+            }
+          ],
+          "p25": 97,
+          "p50": 220,
+          "p75": 765,
+          "p90": 2273,
+          "p99": 5767.77
+        }
+      },
+      "embeddings": {
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "dimensions": 384,
+        "mode": "full",
+        "counts": {
+          "entities": 14246,
+          "output": 14246,
+          "embedded": 14246,
+          "reused": 0,
+          "failed": 0
+        },
+        "by_entity_type": {
+          "Chunk": 12888,
+          "File": 1161,
+          "Module": 192,
+          "Rule": 5
+        },
+        "throughput_per_s": 32.2
+      },
+      "graph": {
+        "nodes": {
+          "files": 1161,
+          "chunks": 12888,
+          "rules": 5,
+          "adrs": 0,
+          "modules": 192,
+          "projects": 0
+        },
+        "edges": {
+          "total": 28077,
+          "by_type": {
+            "CALLS": 3245,
+            "CALLS_SQL": 0,
+            "CONSTRAINS": 1918,
+            "CONTAINS": 954,
+            "CONTAINS_MODULE": 151,
+            "DEFINES": 12888,
+            "EXPORTS": 7034,
+            "IMPLEMENTS": 1887,
+            "IMPORTS": 0,
+            "INCLUDES_FILE": 0,
+            "REFERENCES_PROJECT": 0,
+            "SUPERSEDES": 0,
+            "TRANSFORMS_CONFIG": 0,
+            "USES_CONFIG": 0,
+            "USES_CONFIG_KEY": 0,
+            "USES_RESOURCE": 0,
+            "USES_RESOURCE_KEY": 0,
+            "USES_SETTING": 0,
+            "USES_SETTING_KEY": 0
+          }
+        },
+        "chunk_connectivity": {
+          "chunk_chunk_edges": 3245,
+          "avg_degree": 0.5,
+          "max_degree": 43,
+          "isolated_count": 9706,
+          "isolated_pct": 75.31,
+          "degree": {
+            "count": 12888,
+            "min": 0,
+            "max": 43,
+            "mean": 0.5,
+            "histogram": [
+              {
+                "label": "0",
+                "min": 0,
+                "max": 0,
+                "count": 9706
+              },
+              {
+                "label": "1",
+                "min": 1,
+                "max": 1,
+                "count": 1837
+              },
+              {
+                "label": "2",
+                "min": 2,
+                "max": 2,
+                "count": 638
+              },
+              {
+                "label": "3-4",
+                "min": 3,
+                "max": 4,
+                "count": 470
+              },
+              {
+                "label": "5-8",
+                "min": 5,
+                "max": 8,
+                "count": 176
+              },
+              {
+                "label": "9-16",
+                "min": 9,
+                "max": 16,
+                "count": 54
+              },
+              {
+                "label": "17-32",
+                "min": 17,
+                "max": 32,
+                "count": 6
+              },
+              {
+                "label": "33+",
+                "min": 33,
+                "max": null,
+                "count": 1
+              }
+            ],
+            "p25": 0,
+            "p50": 0,
+            "p75": 0,
+            "p90": 2,
+            "p99": 6
+          },
+          "top_connected": [
+            {
+              "id": "chunk:dialoptions.go:newFuncDialOption:152-156",
+              "degree": 43
+            },
+            {
+              "id": "chunk:server.go:newFuncServerOption:226-230",
+              "degree": 31
+            },
+            {
+              "id": "chunk:interop/grpc_testing/control.pb.go:file_grpc_testing_control_proto_rawDescGZIP:1950-1955",
+              "degree": 22
+            },
+            {
+              "id": "chunk:internal/xds/xdsdepmgr/xds_dependency_manager_test.go:setupManagementServerAndClient:144-150",
+              "degree": 20
+            },
+            {
+              "id": "chunk:internal/xds/xdsdepmgr/xds_dependency_manager_test.go:newTestWatcher:85-91",
+              "degree": 18
+            },
+            {
+              "id": "chunk:orca/server_metrics.go:copyServerMetrics:183-194",
+              "degree": 18
+            },
+            {
+              "id": "chunk:test/channelz_test.go:verifyResultWithDelay:55-65",
+              "degree": 18
+            },
+            {
+              "id": "chunk:balancer/ringhash/ringhash_e2e_test.go:setupManagementServerAndResolver:291-308",
+              "degree": 16
+            },
+            {
+              "id": "chunk:internal/transport/transport_test.go:newBufferSlice:80-82",
+              "degree": 16
+            },
+            {
+              "id": "chunk:balancer/grpclb/grpclb_test.go:startBackendsAndRemoteLoadBalancer:354-411",
+              "degree": 15
+            }
+          ]
+        }
+      },
+      "parse_errors": 0
+    }
+  ]
+}

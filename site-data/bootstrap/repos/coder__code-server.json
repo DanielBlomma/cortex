@@ -6,15 +6,15 @@
     "cortex_version": "2.0.19"
   },
   "repo": {
-    "key": "expressjs__express",
-    "name": "expressjs/express",
-    "url": "https://github.com/expressjs/express.git",
-    "sha": "dae209ae6559c29cfca2a1f4414c51d89ea643d5",
+    "key": "coder__code-server",
+    "name": "coder/code-server",
+    "url": "https://github.com/coder/code-server.git",
+    "sha": "92a7dce46ffcd363798e5ef008991e8cc6426de5",
     "languages": [
-      "javascript"
+      "typescript"
     ],
     "benches": [
-      "Multi"
+      "Poly"
     ],
     "instances": 2
   },
@@ -22,15 +22,15 @@
     {
       "schema_version": 1,
       "repo": {
-        "key": "expressjs__express",
-        "name": "expressjs/express",
-        "url": "https://github.com/expressjs/express.git",
-        "sha": "dae209ae6559c29cfca2a1f4414c51d89ea643d5",
+        "key": "coder__code-server",
+        "name": "coder/code-server",
+        "url": "https://github.com/coder/code-server.git",
+        "sha": "92a7dce46ffcd363798e5ef008991e8cc6426de5",
         "languages": [
-          "javascript"
+          "typescript"
         ],
         "benches": [
-          "Multi"
+          "Poly"
         ],
         "instances": 2
       },
@@ -38,57 +38,63 @@
         "embed_model": "Xenova/all-MiniLM-L6-v2",
         "cortex_version": "2.0.19",
         "run_id": "full-3",
-        "started_at": "2026-06-11T15:30:24.690Z",
+        "started_at": "2026-06-11T15:23:46.491Z",
         "status": "ok",
         "error": null,
-        "extracted_at": "2026-06-11T15:30:53.724Z"
+        "extracted_at": "2026-06-11T15:24:09.081Z"
       },
       "workspace": {
-        "tracked_files": 213,
-        "tracked_bytes": 706609,
+        "tracked_files": 256,
+        "tracked_bytes": 1738478,
         "detected_source_paths": [
           ".github",
-          "examples",
-          "lib",
+          "ci",
+          "src",
           "test",
-          ".eslintrc.yml",
-          "History.md",
-          "index.js",
+          "typings",
+          ".prettierrc.yaml",
+          "CHANGELOG.md",
+          "eslint.config.mjs",
+          "install.sh",
+          "package-lock.json",
           "package.json",
+          "renovate.json",
+          "ThirdPartyNotices.txt",
+          "tsconfig.json",
+          "docs",
           ".context/notes",
-          ".context/decisions",
-          "Readme.md"
+          ".context/decisions"
         ]
       },
       "timings_ms": {
-        "deps": 1706,
-        "ingest": 622,
-        "embed": 16013,
-        "graph_load": 3890,
-        "status": 1584,
-        "total": 23816
+        "deps": 1045,
+        "ingest": 531,
+        "embed": 8537,
+        "graph_load": 7234,
+        "status": 1406,
+        "total": 18754
       },
       "ingest": {
         "mode": "full",
         "counts": {
-          "files": 163,
+          "files": 167,
           "adrs": 0,
           "rules": 5,
-          "chunks": 127,
-          "relations_constrains": 112,
-          "relations_implements": 111,
+          "chunks": 31,
+          "relations_constrains": 113,
+          "relations_implements": 95,
           "relations_supersedes": 0,
-          "relations_defines": 127,
-          "relations_calls": 6,
-          "relations_imports": 19,
+          "relations_defines": 31,
+          "relations_calls": 1,
+          "relations_imports": 23,
           "relations_calls_sql": 0,
           "relations_uses_config_key": 0,
           "relations_uses_resource_key": 0,
           "relations_uses_setting_key": 0,
-          "modules": 15,
-          "relations_contains": 130,
-          "relations_contains_module": 5,
-          "relations_exports": 9,
+          "modules": 23,
+          "relations_contains": 161,
+          "relations_contains_module": 11,
+          "relations_exports": 22,
           "projects": 0,
           "relations_includes_file": 0,
           "relations_references_project": 0,
@@ -98,52 +104,171 @@
           "relations_transforms_config": 0
         },
         "skipped": {
-          "unsupported": 45,
+          "unsupported": 35,
           "tooLarge": 0,
           "binary": 0
         },
         "parser_health": {}
       },
       "files": {
-        "total": 163,
+        "total": 167,
         "by_kind": {
-          "DOC": 22,
-          "CODE": 141
+          "DOC": 69,
+          "CODE": 98
         }
       },
       "chunks": {
-        "total": 127,
-        "exported": 9,
+        "total": 31,
+        "exported": 25,
         "by_kind": {
-          "function": 123,
-          "const": 4
+          "function": 22,
+          "const": 9
         },
         "by_language": {
-          "javascript": {
-            "count": 127,
+          "bash": {
+            "count": 18,
             "lines": {
-              "count": 127,
-              "min": 1,
-              "max": 89,
-              "mean": 8.05,
+              "count": 18,
+              "min": 4,
+              "max": 43,
+              "mean": 14.17,
               "histogram": [
                 {
                   "label": "1-10",
                   "min": 1,
                   "max": 10,
-                  "count": 106
+                  "count": 11
                 },
                 {
                   "label": "11-20",
                   "min": 11,
                   "max": 20,
-                  "count": 13
+                  "count": 2
                 },
                 {
                   "label": "21-40",
                   "min": 21,
                   "max": 40,
+                  "count": 4
+                },
+                {
+                  "label": "41-80",
+                  "min": 41,
+                  "max": 80,
+                  "count": 1
+                },
+                {
+                  "label": "81-160",
+                  "min": 81,
+                  "max": 160,
+                  "count": 0
+                },
+                {
+                  "label": "161-320",
+                  "min": 161,
+                  "max": 320,
+                  "count": 0
+                },
+                {
+                  "label": "321+",
+                  "min": 321,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 6.5,
+              "p50": 9,
+              "p75": 20.5,
+              "p90": 27.5,
+              "p99": 42.15
+            },
+            "chars": {
+              "count": 18,
+              "min": 61,
+              "max": 2001,
+              "mean": 439,
+              "histogram": [
+                {
+                  "label": "0-200",
+                  "min": 0,
+                  "max": 200,
+                  "count": 6
+                },
+                {
+                  "label": "201-500",
+                  "min": 201,
+                  "max": 500,
+                  "count": 6
+                },
+                {
+                  "label": "501-1000",
+                  "min": 501,
+                  "max": 1000,
                   "count": 5
+                },
+                {
+                  "label": "1001-2000",
+                  "min": 1001,
+                  "max": 2000,
+                  "count": 0
+                },
+                {
+                  "label": "2001-4000",
+                  "min": 2001,
+                  "max": 4000,
+                  "count": 1
+                },
+                {
+                  "label": "4001-8000",
+                  "min": 4001,
+                  "max": 8000,
+                  "count": 0
+                },
+                {
+                  "label": "8001-12000",
+                  "min": 8001,
+                  "max": 12000,
+                  "count": 0
+                },
+                {
+                  "label": "12001+",
+                  "min": 12001,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 144,
+              "p50": 312,
+              "p75": 560.25,
+              "p90": 842.2,
+              "p99": 1814
+            }
+          },
+          "typescript": {
+            "count": 13,
+            "lines": {
+              "count": 13,
+              "min": 1,
+              "max": 159,
+              "mean": 36.54,
+              "histogram": [
+                {
+                  "label": "1-10",
+                  "min": 1,
+                  "max": 10,
+                  "count": 4
+                },
+                {
+                  "label": "11-20",
+                  "min": 11,
+                  "max": 20,
+                  "count": 3
+                },
+                {
+                  "label": "21-40",
+                  "min": 21,
+                  "max": 40,
+                  "count": 3
                 },
                 {
                   "label": "41-80",
@@ -170,53 +295,53 @@
                   "count": 0
                 }
               ],
-              "p25": 4,
-              "p50": 4,
-              "p75": 8,
-              "p90": 16,
-              "p99": 61.02
+              "p25": 10,
+              "p50": 18,
+              "p75": 34,
+              "p90": 80,
+              "p99": 149.52
             },
             "chars": {
-              "count": 127,
-              "min": 12,
-              "max": 1791,
-              "mean": 198.14,
+              "count": 13,
+              "min": 62,
+              "max": 5535,
+              "mean": 1291.15,
               "histogram": [
                 {
                   "label": "0-200",
                   "min": 0,
                   "max": 200,
-                  "count": 98
+                  "count": 3
                 },
                 {
                   "label": "201-500",
                   "min": 201,
                   "max": 500,
-                  "count": 20
+                  "count": 1
                 },
                 {
                   "label": "501-1000",
                   "min": 501,
                   "max": 1000,
-                  "count": 6
+                  "count": 4
                 },
                 {
                   "label": "1001-2000",
                   "min": 1001,
                   "max": 2000,
-                  "count": 3
+                  "count": 2
                 },
                 {
                   "label": "2001-4000",
                   "min": 2001,
                   "max": 4000,
-                  "count": 0
+                  "count": 2
                 },
                 {
                   "label": "4001-8000",
                   "min": 4001,
                   "max": 8000,
-                  "count": 0
+                  "count": 1
                 },
                 {
                   "label": "8001-12000",
@@ -231,43 +356,43 @@
                   "count": 0
                 }
               ],
-              "p25": 91.5,
-              "p50": 101,
-              "p75": 187.5,
-              "p90": 412.6,
-              "p99": 1532.74
+              "p25": 212,
+              "p50": 589,
+              "p75": 1141,
+              "p90": 2947.2,
+              "p99": 5225.28
             }
           }
         },
         "lines": {
-          "count": 127,
+          "count": 31,
           "min": 1,
-          "max": 89,
-          "mean": 8.05,
+          "max": 159,
+          "mean": 23.55,
           "histogram": [
             {
               "label": "1-10",
               "min": 1,
               "max": 10,
-              "count": 106
+              "count": 15
             },
             {
               "label": "11-20",
               "min": 11,
               "max": 20,
-              "count": 13
+              "count": 5
             },
             {
               "label": "21-40",
               "min": 21,
               "max": 40,
-              "count": 5
+              "count": 7
             },
             {
               "label": "41-80",
               "min": 41,
               "max": 80,
-              "count": 2
+              "count": 3
             },
             {
               "label": "81-160",
@@ -288,53 +413,53 @@
               "count": 0
             }
           ],
-          "p25": 4,
-          "p50": 4,
-          "p75": 8,
-          "p90": 16,
-          "p99": 61.02
+          "p25": 7,
+          "p50": 11,
+          "p75": 25.5,
+          "p90": 43,
+          "p99": 135.3
         },
         "chars": {
-          "count": 127,
-          "min": 12,
-          "max": 1791,
-          "mean": 198.14,
+          "count": 31,
+          "min": 61,
+          "max": 5535,
+          "mean": 796.35,
           "histogram": [
             {
               "label": "0-200",
               "min": 0,
               "max": 200,
-              "count": 98
+              "count": 9
             },
             {
               "label": "201-500",
               "min": 201,
               "max": 500,
-              "count": 20
+              "count": 7
             },
             {
               "label": "501-1000",
               "min": 501,
               "max": 1000,
-              "count": 6
+              "count": 9
             },
             {
               "label": "1001-2000",
               "min": 1001,
               "max": 2000,
-              "count": 3
+              "count": 2
             },
             {
               "label": "2001-4000",
               "min": 2001,
               "max": 4000,
-              "count": 0
+              "count": 3
             },
             {
               "label": "4001-8000",
               "min": 4001,
               "max": 8000,
-              "count": 0
+              "count": 1
             },
             {
               "label": "8001-12000",
@@ -349,11 +474,11 @@
               "count": 0
             }
           ],
-          "p25": 91.5,
-          "p50": 101,
-          "p75": 187.5,
-          "p90": 412.6,
-          "p99": 1532.74
+          "p25": 152.5,
+          "p50": 351,
+          "p75": 859,
+          "p90": 2001,
+          "p99": 4760.7
         }
       },
       "embeddings": {
@@ -361,41 +486,41 @@
         "dimensions": 384,
         "mode": "full",
         "counts": {
-          "entities": 310,
-          "output": 310,
-          "embedded": 310,
+          "entities": 226,
+          "output": 226,
+          "embedded": 226,
           "reused": 0,
           "failed": 0
         },
         "by_entity_type": {
-          "Chunk": 127,
-          "File": 163,
-          "Module": 15,
+          "Chunk": 31,
+          "File": 167,
+          "Module": 23,
           "Rule": 5
         },
-        "throughput_per_s": 19.36
+        "throughput_per_s": 26.47
       },
       "graph": {
         "nodes": {
-          "files": 163,
-          "chunks": 127,
+          "files": 167,
+          "chunks": 31,
           "rules": 5,
           "adrs": 0,
-          "modules": 15,
+          "modules": 23,
           "projects": 0
         },
         "edges": {
-          "total": 519,
+          "total": 457,
           "by_type": {
-            "CALLS": 6,
+            "CALLS": 1,
             "CALLS_SQL": 0,
-            "CONSTRAINS": 112,
-            "CONTAINS": 130,
-            "CONTAINS_MODULE": 5,
-            "DEFINES": 127,
-            "EXPORTS": 9,
-            "IMPLEMENTS": 111,
-            "IMPORTS": 19,
+            "CONSTRAINS": 113,
+            "CONTAINS": 161,
+            "CONTAINS_MODULE": 11,
+            "DEFINES": 31,
+            "EXPORTS": 22,
+            "IMPLEMENTS": 95,
+            "IMPORTS": 23,
             "INCLUDES_FILE": 0,
             "REFERENCES_PROJECT": 0,
             "SUPERSEDES": 0,
@@ -409,34 +534,34 @@
           }
         },
         "chunk_connectivity": {
-          "chunk_chunk_edges": 6,
-          "avg_degree": 0.09,
-          "max_degree": 2,
-          "isolated_count": 119,
-          "isolated_pct": 93.7,
+          "chunk_chunk_edges": 1,
+          "avg_degree": 0.06,
+          "max_degree": 1,
+          "isolated_count": 29,
+          "isolated_pct": 93.55,
           "degree": {
-            "count": 127,
+            "count": 31,
             "min": 0,
-            "max": 2,
-            "mean": 0.09,
+            "max": 1,
+            "mean": 0.06,
             "histogram": [
               {
                 "label": "0",
                 "min": 0,
                 "max": 0,
-                "count": 119
+                "count": 29
               },
               {
                 "label": "1",
                 "min": 1,
                 "max": 1,
-                "count": 4
+                "count": 2
               },
               {
                 "label": "2",
                 "min": 2,
                 "max": 2,
-                "count": 4
+                "count": 0
               },
               {
                 "label": "3-4",
@@ -473,39 +598,15 @@
             "p50": 0,
             "p75": 0,
             "p90": 0,
-            "p99": 2
+            "p99": 1
           },
           "top_connected": [
             {
-              "id": "chunk:lib/response.js:onaborted:926-933",
-              "degree": 2
-            },
-            {
-              "id": "chunk:lib/response.js:onerror:946-950",
-              "degree": 2
-            },
-            {
-              "id": "chunk:lib/response.js:onfinish:965-980",
-              "degree": 2
-            },
-            {
-              "id": "chunk:lib/response.js:sendfile:921-1009",
-              "degree": 2
-            },
-            {
-              "id": "chunk:test/support/tmpl.js:generateVariableLookup:25-36",
+              "id": "chunk:ci/dev/postinstall.sh:install-deps:5-23",
               "degree": 1
             },
             {
-              "id": "chunk:test/support/tmpl.js:onReadFile:6-20",
-              "degree": 1
-            },
-            {
-              "id": "chunk:test/support/utils.js:getMajorVersion:75-77",
-              "degree": 1
-            },
-            {
-              "id": "chunk:test/support/utils.js:shouldSkipQuery:79-85",
+              "id": "chunk:ci/dev/postinstall.sh:main:25-36",
               "degree": 1
             }
           ]

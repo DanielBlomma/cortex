@@ -6,89 +6,91 @@
     "cortex_version": "2.0.19"
   },
   "repo": {
-    "key": "expressjs__express",
-    "name": "expressjs/express",
-    "url": "https://github.com/expressjs/express.git",
-    "sha": "dae209ae6559c29cfca2a1f4414c51d89ea643d5",
+    "key": "mwaskom__seaborn",
+    "name": "mwaskom/seaborn",
+    "url": "https://github.com/mwaskom/seaborn.git",
+    "sha": "32088bbc3adc611b7118e57fce6d4ed096a76a29",
     "languages": [
-      "javascript"
+      "python"
     ],
     "benches": [
-      "Multi"
+      "Verified"
     ],
-    "instances": 2
+    "instances": 1
   },
   "runs": [
     {
       "schema_version": 1,
       "repo": {
-        "key": "expressjs__express",
-        "name": "expressjs/express",
-        "url": "https://github.com/expressjs/express.git",
-        "sha": "dae209ae6559c29cfca2a1f4414c51d89ea643d5",
+        "key": "mwaskom__seaborn",
+        "name": "mwaskom/seaborn",
+        "url": "https://github.com/mwaskom/seaborn.git",
+        "sha": "32088bbc3adc611b7118e57fce6d4ed096a76a29",
         "languages": [
-          "javascript"
+          "python"
         ],
         "benches": [
-          "Multi"
+          "Verified"
         ],
-        "instances": 2
+        "instances": 1
       },
       "run": {
         "embed_model": "Xenova/all-MiniLM-L6-v2",
         "cortex_version": "2.0.19",
         "run_id": "full-3",
-        "started_at": "2026-06-11T15:30:24.690Z",
+        "started_at": "2026-06-11T17:44:24.892Z",
         "status": "ok",
         "error": null,
-        "extracted_at": "2026-06-11T15:30:53.724Z"
+        "extracted_at": "2026-06-11T17:46:43.253Z"
       },
       "workspace": {
-        "tracked_files": 213,
-        "tracked_bytes": 706609,
+        "tracked_files": 327,
+        "tracked_bytes": 5502891,
         "detected_source_paths": [
           ".github",
+          "ci",
+          "doc",
           "examples",
-          "lib",
-          "test",
-          ".eslintrc.yml",
-          "History.md",
-          "index.js",
-          "package.json",
+          "seaborn",
+          "tests",
+          ".pre-commit-config.yaml",
+          "LICENSE.md",
+          "pyproject.toml",
+          "SECURITY.md",
           ".context/notes",
           ".context/decisions",
-          "Readme.md"
+          "README.md"
         ]
       },
       "timings_ms": {
-        "deps": 1706,
-        "ingest": 622,
-        "embed": 16013,
-        "graph_load": 3890,
-        "status": 1584,
-        "total": 23816
+        "deps": 2890,
+        "ingest": 8324,
+        "embed": 82901,
+        "graph_load": 26358,
+        "status": 1961,
+        "total": 122435
       },
       "ingest": {
         "mode": "full",
         "counts": {
-          "files": 163,
+          "files": 200,
           "adrs": 0,
           "rules": 5,
-          "chunks": 127,
-          "relations_constrains": 112,
-          "relations_implements": 111,
+          "chunks": 3010,
+          "relations_constrains": 182,
+          "relations_implements": 155,
           "relations_supersedes": 0,
-          "relations_defines": 127,
-          "relations_calls": 6,
-          "relations_imports": 19,
+          "relations_defines": 3010,
+          "relations_calls": 309,
+          "relations_imports": 0,
           "relations_calls_sql": 0,
           "relations_uses_config_key": 0,
           "relations_uses_resource_key": 0,
           "relations_uses_setting_key": 0,
-          "modules": 15,
-          "relations_contains": 130,
-          "relations_contains_module": 5,
-          "relations_exports": 9,
+          "modules": 19,
+          "relations_contains": 198,
+          "relations_contains_module": 17,
+          "relations_exports": 2238,
           "projects": 0,
           "relations_includes_file": 0,
           "relations_references_project": 0,
@@ -98,131 +100,132 @@
           "relations_transforms_config": 0
         },
         "skipped": {
-          "unsupported": 45,
+          "unsupported": 118,
           "tooLarge": 0,
           "binary": 0
         },
         "parser_health": {}
       },
       "files": {
-        "total": 163,
+        "total": 200,
         "by_kind": {
-          "DOC": 22,
-          "CODE": 141
+          "DOC": 47,
+          "CODE": 153
         }
       },
       "chunks": {
-        "total": 127,
-        "exported": 9,
+        "total": 3010,
+        "exported": 2556,
         "by_kind": {
-          "function": 123,
-          "const": 4
+          "function": 324,
+          "class": 574,
+          "method": 2112
         },
         "by_language": {
-          "javascript": {
-            "count": 127,
+          "python": {
+            "count": 3010,
             "lines": {
-              "count": 127,
+              "count": 3010,
               "min": 1,
-              "max": 89,
-              "mean": 8.05,
+              "max": 1312,
+              "mean": 31.33,
               "histogram": [
                 {
                   "label": "1-10",
                   "min": 1,
                   "max": 10,
-                  "count": 106
+                  "count": 1438
                 },
                 {
                   "label": "11-20",
                   "min": 11,
                   "max": 20,
-                  "count": 13
+                  "count": 651
                 },
                 {
                   "label": "21-40",
                   "min": 21,
                   "max": 40,
-                  "count": 5
+                  "count": 295
                 },
                 {
                   "label": "41-80",
                   "min": 41,
                   "max": 80,
-                  "count": 2
+                  "count": 471
                 },
                 {
                   "label": "81-160",
                   "min": 81,
                   "max": 160,
-                  "count": 1
+                  "count": 87
                 },
                 {
                   "label": "161-320",
                   "min": 161,
                   "max": 320,
-                  "count": 0
+                  "count": 40
                 },
                 {
                   "label": "321+",
                   "min": 321,
                   "max": null,
-                  "count": 0
+                  "count": 28
                 }
               ],
-              "p25": 4,
-              "p50": 4,
-              "p75": 8,
-              "p90": 16,
-              "p99": 61.02
+              "p25": 6,
+              "p50": 11,
+              "p75": 28,
+              "p90": 80,
+              "p99": 291.38
             },
             "chars": {
-              "count": 127,
-              "min": 12,
-              "max": 1791,
-              "mean": 198.14,
+              "count": 3010,
+              "min": 20,
+              "max": 12000,
+              "mean": 1035.22,
               "histogram": [
                 {
                   "label": "0-200",
                   "min": 0,
                   "max": 200,
-                  "count": 98
+                  "count": 676
                 },
                 {
                   "label": "201-500",
                   "min": 201,
                   "max": 500,
-                  "count": 20
+                  "count": 1089
                 },
                 {
                   "label": "501-1000",
                   "min": 501,
                   "max": 1000,
-                  "count": 6
+                  "count": 487
                 },
                 {
                   "label": "1001-2000",
                   "min": 1001,
                   "max": 2000,
-                  "count": 3
+                  "count": 230
                 },
                 {
                   "label": "2001-4000",
                   "min": 2001,
                   "max": 4000,
-                  "count": 0
+                  "count": 424
                 },
                 {
                   "label": "4001-8000",
                   "min": 4001,
                   "max": 8000,
-                  "count": 0
+                  "count": 62
                 },
                 {
                   "label": "8001-12000",
                   "min": 8001,
                   "max": 12000,
-                  "count": 0
+                  "count": 42
                 },
                 {
                   "label": "12001+",
@@ -231,116 +234,116 @@
                   "count": 0
                 }
               ],
-              "p25": 91.5,
-              "p50": 101,
-              "p75": 187.5,
-              "p90": 412.6,
-              "p99": 1532.74
+              "p25": 217.25,
+              "p50": 403,
+              "p75": 1008,
+              "p90": 2801.2,
+              "p99": 10782.73
             }
           }
         },
         "lines": {
-          "count": 127,
+          "count": 3010,
           "min": 1,
-          "max": 89,
-          "mean": 8.05,
+          "max": 1312,
+          "mean": 31.33,
           "histogram": [
             {
               "label": "1-10",
               "min": 1,
               "max": 10,
-              "count": 106
+              "count": 1438
             },
             {
               "label": "11-20",
               "min": 11,
               "max": 20,
-              "count": 13
+              "count": 651
             },
             {
               "label": "21-40",
               "min": 21,
               "max": 40,
-              "count": 5
+              "count": 295
             },
             {
               "label": "41-80",
               "min": 41,
               "max": 80,
-              "count": 2
+              "count": 471
             },
             {
               "label": "81-160",
               "min": 81,
               "max": 160,
-              "count": 1
+              "count": 87
             },
             {
               "label": "161-320",
               "min": 161,
               "max": 320,
-              "count": 0
+              "count": 40
             },
             {
               "label": "321+",
               "min": 321,
               "max": null,
-              "count": 0
+              "count": 28
             }
           ],
-          "p25": 4,
-          "p50": 4,
-          "p75": 8,
-          "p90": 16,
-          "p99": 61.02
+          "p25": 6,
+          "p50": 11,
+          "p75": 28,
+          "p90": 80,
+          "p99": 291.38
         },
         "chars": {
-          "count": 127,
-          "min": 12,
-          "max": 1791,
-          "mean": 198.14,
+          "count": 3010,
+          "min": 20,
+          "max": 12000,
+          "mean": 1035.22,
           "histogram": [
             {
               "label": "0-200",
               "min": 0,
               "max": 200,
-              "count": 98
+              "count": 676
             },
             {
               "label": "201-500",
               "min": 201,
               "max": 500,
-              "count": 20
+              "count": 1089
             },
             {
               "label": "501-1000",
               "min": 501,
               "max": 1000,
-              "count": 6
+              "count": 487
             },
             {
               "label": "1001-2000",
               "min": 1001,
               "max": 2000,
-              "count": 3
+              "count": 230
             },
             {
               "label": "2001-4000",
               "min": 2001,
               "max": 4000,
-              "count": 0
+              "count": 424
             },
             {
               "label": "4001-8000",
               "min": 4001,
               "max": 8000,
-              "count": 0
+              "count": 62
             },
             {
               "label": "8001-12000",
               "min": 8001,
               "max": 12000,
-              "count": 0
+              "count": 42
             },
             {
               "label": "12001+",
@@ -349,11 +352,11 @@
               "count": 0
             }
           ],
-          "p25": 91.5,
-          "p50": 101,
-          "p75": 187.5,
-          "p90": 412.6,
-          "p99": 1532.74
+          "p25": 217.25,
+          "p50": 403,
+          "p75": 1008,
+          "p90": 2801.2,
+          "p99": 10782.73
         }
       },
       "embeddings": {
@@ -361,41 +364,41 @@
         "dimensions": 384,
         "mode": "full",
         "counts": {
-          "entities": 310,
-          "output": 310,
-          "embedded": 310,
+          "entities": 3234,
+          "output": 3234,
+          "embedded": 3234,
           "reused": 0,
           "failed": 0
         },
         "by_entity_type": {
-          "Chunk": 127,
-          "File": 163,
-          "Module": 15,
+          "Chunk": 3010,
+          "File": 200,
+          "Module": 19,
           "Rule": 5
         },
-        "throughput_per_s": 19.36
+        "throughput_per_s": 39.01
       },
       "graph": {
         "nodes": {
-          "files": 163,
-          "chunks": 127,
+          "files": 200,
+          "chunks": 3010,
           "rules": 5,
           "adrs": 0,
-          "modules": 15,
+          "modules": 19,
           "projects": 0
         },
         "edges": {
-          "total": 519,
+          "total": 6109,
           "by_type": {
-            "CALLS": 6,
+            "CALLS": 309,
             "CALLS_SQL": 0,
-            "CONSTRAINS": 112,
-            "CONTAINS": 130,
-            "CONTAINS_MODULE": 5,
-            "DEFINES": 127,
-            "EXPORTS": 9,
-            "IMPLEMENTS": 111,
-            "IMPORTS": 19,
+            "CONSTRAINS": 182,
+            "CONTAINS": 198,
+            "CONTAINS_MODULE": 17,
+            "DEFINES": 3010,
+            "EXPORTS": 2238,
+            "IMPLEMENTS": 155,
+            "IMPORTS": 0,
             "INCLUDES_FILE": 0,
             "REFERENCES_PROJECT": 0,
             "SUPERSEDES": 0,
@@ -409,52 +412,52 @@
           }
         },
         "chunk_connectivity": {
-          "chunk_chunk_edges": 6,
-          "avg_degree": 0.09,
-          "max_degree": 2,
-          "isolated_count": 119,
-          "isolated_pct": 93.7,
+          "chunk_chunk_edges": 309,
+          "avg_degree": 0.21,
+          "max_degree": 66,
+          "isolated_count": 2693,
+          "isolated_pct": 89.47,
           "degree": {
-            "count": 127,
+            "count": 3010,
             "min": 0,
-            "max": 2,
-            "mean": 0.09,
+            "max": 66,
+            "mean": 0.21,
             "histogram": [
               {
                 "label": "0",
                 "min": 0,
                 "max": 0,
-                "count": 119
+                "count": 2693
               },
               {
                 "label": "1",
                 "min": 1,
                 "max": 1,
-                "count": 4
+                "count": 211
               },
               {
                 "label": "2",
                 "min": 2,
                 "max": 2,
-                "count": 4
+                "count": 52
               },
               {
                 "label": "3-4",
                 "min": 3,
                 "max": 4,
-                "count": 0
+                "count": 39
               },
               {
                 "label": "5-8",
                 "min": 5,
                 "max": 8,
-                "count": 0
+                "count": 10
               },
               {
                 "label": "9-16",
                 "min": 9,
                 "max": 16,
-                "count": 0
+                "count": 4
               },
               {
                 "label": "17-32",
@@ -466,47 +469,55 @@
                 "label": "33+",
                 "min": 33,
                 "max": null,
-                "count": 0
+                "count": 1
               }
             ],
             "p25": 0,
             "p50": 0,
             "p75": 0,
-            "p90": 0,
-            "p99": 2
+            "p90": 1,
+            "p99": 3
           },
           "top_connected": [
             {
-              "id": "chunk:lib/response.js:onaborted:926-933",
-              "degree": 2
+              "id": "chunk:tests/_core/test_plot.py:MockMark:43-73",
+              "degree": 66
             },
             {
-              "id": "chunk:lib/response.js:onerror:946-950",
-              "degree": 2
+              "id": "chunk:seaborn/widgets.py:_show_cmap:37-44",
+              "degree": 15
             },
             {
-              "id": "chunk:lib/response.js:onfinish:965-980",
-              "degree": 2
+              "id": "chunk:seaborn/widgets.py:_update_lut:31-34",
+              "degree": 15
             },
             {
-              "id": "chunk:lib/response.js:sendfile:921-1009",
-              "degree": 2
+              "id": "chunk:seaborn/palettes.py:color_palette:122-255",
+              "degree": 13
             },
             {
-              "id": "chunk:test/support/tmpl.js:generateVariableLookup:25-36",
-              "degree": 1
+              "id": "chunk:tests/_core/test_plot.py:assert_gridspec_shape:36-40",
+              "degree": 10
             },
             {
-              "id": "chunk:test/support/tmpl.js:onReadFile:6-20",
-              "degree": 1
+              "id": "chunk:seaborn/palettes.py:_ColorPalette:61-91",
+              "degree": 7
             },
             {
-              "id": "chunk:test/support/utils.js:getMajorVersion:75-77",
-              "degree": 1
+              "id": "chunk:seaborn/palettes.py:blend_palette:581-609",
+              "degree": 7
             },
             {
-              "id": "chunk:test/support/utils.js:shouldSkipQuery:79-85",
-              "degree": 1
+              "id": "chunk:seaborn/_core/scales.py:ContinuousBase._get_transform:491-522",
+              "degree": 6
+            },
+            {
+              "id": "chunk:seaborn/_core/scales.py:log:1036-1038",
+              "degree": 6
+            },
+            {
+              "id": "chunk:seaborn/_base.py:variable_type:1471-1549",
+              "degree": 5
             }
           ]
         }

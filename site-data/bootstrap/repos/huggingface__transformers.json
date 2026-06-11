@@ -6,89 +6,104 @@
     "cortex_version": "2.0.19"
   },
   "repo": {
-    "key": "expressjs__express",
-    "name": "expressjs/express",
-    "url": "https://github.com/expressjs/express.git",
-    "sha": "dae209ae6559c29cfca2a1f4414c51d89ea643d5",
+    "key": "huggingface__transformers",
+    "name": "huggingface/transformers",
+    "url": "https://github.com/huggingface/transformers.git",
+    "sha": "e524671628a524f0a330e2a7b448178219ad92e5",
     "languages": [
-      "javascript"
+      "python"
     ],
     "benches": [
-      "Multi"
+      "Poly"
     ],
-    "instances": 2
+    "instances": 67
   },
   "runs": [
     {
       "schema_version": 1,
       "repo": {
-        "key": "expressjs__express",
-        "name": "expressjs/express",
-        "url": "https://github.com/expressjs/express.git",
-        "sha": "dae209ae6559c29cfca2a1f4414c51d89ea643d5",
+        "key": "huggingface__transformers",
+        "name": "huggingface/transformers",
+        "url": "https://github.com/huggingface/transformers.git",
+        "sha": "e524671628a524f0a330e2a7b448178219ad92e5",
         "languages": [
-          "javascript"
+          "python"
         ],
         "benches": [
-          "Multi"
+          "Poly"
         ],
-        "instances": 2
+        "instances": 67
       },
       "run": {
         "embed_model": "Xenova/all-MiniLM-L6-v2",
         "cortex_version": "2.0.19",
         "run_id": "full-3",
-        "started_at": "2026-06-11T15:30:24.690Z",
+        "started_at": "2026-06-11T16:27:35.129Z",
         "status": "ok",
         "error": null,
-        "extracted_at": "2026-06-11T15:30:53.724Z"
+        "extracted_at": "2026-06-11T17:44:16.193Z"
       },
       "workspace": {
-        "tracked_files": 213,
-        "tracked_bytes": 706609,
+        "tracked_files": 6082,
+        "tracked_bytes": 88771461,
         "detected_source_paths": [
+          ".ai",
+          ".circleci",
           ".github",
+          "benchmark",
+          "benchmark_v2",
+          "docker",
           "examples",
-          "lib",
-          "test",
-          ".eslintrc.yml",
-          "History.md",
-          "index.js",
-          "package.json",
+          "i18n",
+          "notebooks",
+          "src",
+          "tests",
+          "utils",
+          "awesome-transformers.md",
+          "CODE_OF_CONDUCT.md",
+          "conftest.py",
+          "CONTRIBUTING.md",
+          "doctest_list.txt",
+          "ISSUES.md",
+          "MIGRATION_GUIDE_V5.md",
+          "pyproject.toml",
+          "SECURITY.md",
+          "setup.py",
+          "docs",
           ".context/notes",
           ".context/decisions",
-          "Readme.md"
+          "README.md"
         ]
       },
       "timings_ms": {
-        "deps": 1706,
-        "ingest": 622,
-        "embed": 16013,
-        "graph_load": 3890,
-        "status": 1584,
-        "total": 23816
+        "deps": 1313,
+        "ingest": 137897,
+        "embed": 4075255,
+        "graph_load": 367084,
+        "status": 4245,
+        "total": 4585794
       },
       "ingest": {
         "mode": "full",
         "counts": {
-          "files": 163,
+          "files": 6031,
           "adrs": 0,
           "rules": 5,
-          "chunks": 127,
-          "relations_constrains": 112,
-          "relations_implements": 111,
+          "chunks": 75821,
+          "relations_constrains": 6406,
+          "relations_implements": 5723,
           "relations_supersedes": 0,
-          "relations_defines": 127,
-          "relations_calls": 6,
-          "relations_imports": 19,
+          "relations_defines": 75821,
+          "relations_calls": 14886,
+          "relations_imports": 0,
           "relations_calls_sql": 0,
           "relations_uses_config_key": 0,
           "relations_uses_resource_key": 0,
           "relations_uses_setting_key": 0,
-          "modules": 15,
-          "relations_contains": 130,
-          "relations_contains_module": 5,
-          "relations_exports": 9,
+          "modules": 1096,
+          "relations_contains": 5998,
+          "relations_contains_module": 90,
+          "relations_exports": 52609,
           "projects": 0,
           "relations_includes_file": 0,
           "relations_references_project": 0,
@@ -98,131 +113,132 @@
           "relations_transforms_config": 0
         },
         "skipped": {
-          "unsupported": 45,
+          "unsupported": 39,
           "tooLarge": 0,
           "binary": 0
         },
         "parser_health": {}
       },
       "files": {
-        "total": 163,
+        "total": 6031,
         "by_kind": {
-          "DOC": 22,
-          "CODE": 141
+          "DOC": 1553,
+          "CODE": 4478
         }
       },
       "chunks": {
-        "total": 127,
-        "exported": 9,
+        "total": 75821,
+        "exported": 61409,
         "by_kind": {
-          "function": 123,
-          "const": 4
+          "class": 22524,
+          "method": 46065,
+          "function": 7232
         },
         "by_language": {
-          "javascript": {
-            "count": 127,
+          "python": {
+            "count": 75821,
             "lines": {
-              "count": 127,
+              "count": 75821,
               "min": 1,
-              "max": 89,
-              "mean": 8.05,
+              "max": 1342,
+              "mean": 36.08,
               "histogram": [
                 {
                   "label": "1-10",
                   "min": 1,
                   "max": 10,
-                  "count": 106
+                  "count": 27093
                 },
                 {
                   "label": "11-20",
                   "min": 11,
                   "max": 20,
-                  "count": 13
+                  "count": 13085
                 },
                 {
                   "label": "21-40",
                   "min": 21,
                   "max": 40,
-                  "count": 5
+                  "count": 12939
                 },
                 {
                   "label": "41-80",
                   "min": 41,
                   "max": 80,
-                  "count": 2
+                  "count": 16932
                 },
                 {
                   "label": "81-160",
                   "min": 81,
                   "max": 160,
-                  "count": 1
+                  "count": 4098
                 },
                 {
                   "label": "161-320",
                   "min": 161,
                   "max": 320,
-                  "count": 0
+                  "count": 1260
                 },
                 {
                   "label": "321+",
                   "min": 321,
                   "max": null,
-                  "count": 0
+                  "count": 414
                 }
               ],
-              "p25": 4,
-              "p50": 4,
-              "p75": 8,
-              "p90": 16,
-              "p99": 61.02
+              "p25": 6,
+              "p50": 18,
+              "p75": 51,
+              "p90": 80,
+              "p99": 242
             },
             "chars": {
-              "count": 127,
-              "min": 12,
-              "max": 1791,
-              "mean": 198.14,
+              "count": 75821,
+              "min": 18,
+              "max": 12000,
+              "mean": 1582.9,
               "histogram": [
                 {
                   "label": "0-200",
                   "min": 0,
                   "max": 200,
-                  "count": 98
+                  "count": 13743
                 },
                 {
                   "label": "201-500",
                   "min": 201,
                   "max": 500,
-                  "count": 20
+                  "count": 13779
                 },
                 {
                   "label": "501-1000",
                   "min": 501,
                   "max": 1000,
-                  "count": 6
+                  "count": 14382
                 },
                 {
                   "label": "1001-2000",
                   "min": 1001,
                   "max": 2000,
-                  "count": 3
+                  "count": 12886
                 },
                 {
                   "label": "2001-4000",
                   "min": 2001,
                   "max": 4000,
-                  "count": 0
+                  "count": 14543
                 },
                 {
                   "label": "4001-8000",
                   "min": 4001,
                   "max": 8000,
-                  "count": 0
+                  "count": 5029
                 },
                 {
                   "label": "8001-12000",
                   "min": 8001,
                   "max": 12000,
-                  "count": 0
+                  "count": 1459
                 },
                 {
                   "label": "12001+",
@@ -231,116 +247,116 @@
                   "count": 0
                 }
               ],
-              "p25": 91.5,
-              "p50": 101,
-              "p75": 187.5,
-              "p90": 412.6,
-              "p99": 1532.74
+              "p25": 294,
+              "p50": 827,
+              "p75": 2278,
+              "p90": 3816,
+              "p99": 11387.8
             }
           }
         },
         "lines": {
-          "count": 127,
+          "count": 75821,
           "min": 1,
-          "max": 89,
-          "mean": 8.05,
+          "max": 1342,
+          "mean": 36.08,
           "histogram": [
             {
               "label": "1-10",
               "min": 1,
               "max": 10,
-              "count": 106
+              "count": 27093
             },
             {
               "label": "11-20",
               "min": 11,
               "max": 20,
-              "count": 13
+              "count": 13085
             },
             {
               "label": "21-40",
               "min": 21,
               "max": 40,
-              "count": 5
+              "count": 12939
             },
             {
               "label": "41-80",
               "min": 41,
               "max": 80,
-              "count": 2
+              "count": 16932
             },
             {
               "label": "81-160",
               "min": 81,
               "max": 160,
-              "count": 1
+              "count": 4098
             },
             {
               "label": "161-320",
               "min": 161,
               "max": 320,
-              "count": 0
+              "count": 1260
             },
             {
               "label": "321+",
               "min": 321,
               "max": null,
-              "count": 0
+              "count": 414
             }
           ],
-          "p25": 4,
-          "p50": 4,
-          "p75": 8,
-          "p90": 16,
-          "p99": 61.02
+          "p25": 6,
+          "p50": 18,
+          "p75": 51,
+          "p90": 80,
+          "p99": 242
         },
         "chars": {
-          "count": 127,
-          "min": 12,
-          "max": 1791,
-          "mean": 198.14,
+          "count": 75821,
+          "min": 18,
+          "max": 12000,
+          "mean": 1582.9,
           "histogram": [
             {
               "label": "0-200",
               "min": 0,
               "max": 200,
-              "count": 98
+              "count": 13743
             },
             {
               "label": "201-500",
               "min": 201,
               "max": 500,
-              "count": 20
+              "count": 13779
             },
             {
               "label": "501-1000",
               "min": 501,
               "max": 1000,
-              "count": 6
+              "count": 14382
             },
             {
               "label": "1001-2000",
               "min": 1001,
               "max": 2000,
-              "count": 3
+              "count": 12886
             },
             {
               "label": "2001-4000",
               "min": 2001,
               "max": 4000,
-              "count": 0
+              "count": 14543
             },
             {
               "label": "4001-8000",
               "min": 4001,
               "max": 8000,
-              "count": 0
+              "count": 5029
             },
             {
               "label": "8001-12000",
               "min": 8001,
               "max": 12000,
-              "count": 0
+              "count": 1459
             },
             {
               "label": "12001+",
@@ -349,11 +365,11 @@
               "count": 0
             }
           ],
-          "p25": 91.5,
-          "p50": 101,
-          "p75": 187.5,
-          "p90": 412.6,
-          "p99": 1532.74
+          "p25": 294,
+          "p50": 827,
+          "p75": 2278,
+          "p90": 3816,
+          "p99": 11387.8
         }
       },
       "embeddings": {
@@ -361,41 +377,41 @@
         "dimensions": 384,
         "mode": "full",
         "counts": {
-          "entities": 310,
-          "output": 310,
-          "embedded": 310,
+          "entities": 82953,
+          "output": 82953,
+          "embedded": 82953,
           "reused": 0,
           "failed": 0
         },
         "by_entity_type": {
-          "Chunk": 127,
-          "File": 163,
-          "Module": 15,
+          "Chunk": 75821,
+          "File": 6031,
+          "Module": 1096,
           "Rule": 5
         },
-        "throughput_per_s": 19.36
+        "throughput_per_s": 20.36
       },
       "graph": {
         "nodes": {
-          "files": 163,
-          "chunks": 127,
+          "files": 6031,
+          "chunks": 75821,
           "rules": 5,
           "adrs": 0,
-          "modules": 15,
+          "modules": 1096,
           "projects": 0
         },
         "edges": {
-          "total": 519,
+          "total": 161533,
           "by_type": {
-            "CALLS": 6,
+            "CALLS": 14886,
             "CALLS_SQL": 0,
-            "CONSTRAINS": 112,
-            "CONTAINS": 130,
-            "CONTAINS_MODULE": 5,
-            "DEFINES": 127,
-            "EXPORTS": 9,
-            "IMPLEMENTS": 111,
-            "IMPORTS": 19,
+            "CONSTRAINS": 6406,
+            "CONTAINS": 5998,
+            "CONTAINS_MODULE": 90,
+            "DEFINES": 75821,
+            "EXPORTS": 52609,
+            "IMPLEMENTS": 5723,
+            "IMPORTS": 0,
             "INCLUDES_FILE": 0,
             "REFERENCES_PROJECT": 0,
             "SUPERSEDES": 0,
@@ -409,104 +425,112 @@
           }
         },
         "chunk_connectivity": {
-          "chunk_chunk_edges": 6,
-          "avg_degree": 0.09,
-          "max_degree": 2,
-          "isolated_count": 119,
-          "isolated_pct": 93.7,
+          "chunk_chunk_edges": 14886,
+          "avg_degree": 0.39,
+          "max_degree": 121,
+          "isolated_count": 55996,
+          "isolated_pct": 73.85,
           "degree": {
-            "count": 127,
+            "count": 75821,
             "min": 0,
-            "max": 2,
-            "mean": 0.09,
+            "max": 121,
+            "mean": 0.39,
             "histogram": [
               {
                 "label": "0",
                 "min": 0,
                 "max": 0,
-                "count": 119
+                "count": 55996
               },
               {
                 "label": "1",
                 "min": 1,
                 "max": 1,
-                "count": 4
+                "count": 14100
               },
               {
                 "label": "2",
                 "min": 2,
                 "max": 2,
-                "count": 4
+                "count": 3390
               },
               {
                 "label": "3-4",
                 "min": 3,
                 "max": 4,
-                "count": 0
+                "count": 1959
               },
               {
                 "label": "5-8",
                 "min": 5,
                 "max": 8,
-                "count": 0
+                "count": 337
               },
               {
                 "label": "9-16",
                 "min": 9,
                 "max": 16,
-                "count": 0
+                "count": 34
               },
               {
                 "label": "17-32",
                 "min": 17,
                 "max": 32,
-                "count": 0
+                "count": 4
               },
               {
                 "label": "33+",
                 "min": 33,
                 "max": null,
-                "count": 0
+                "count": 1
               }
             ],
             "p25": 0,
             "p50": 0,
-            "p75": 0,
-            "p90": 0,
-            "p99": 2
+            "p75": 1,
+            "p90": 1,
+            "p99": 4
           },
           "top_connected": [
             {
-              "id": "chunk:lib/response.js:onaborted:926-933",
-              "degree": 2
+              "id": "chunk:src/transformers/utils/import_utils.py:_is_package_available:50-83",
+              "degree": 121
             },
             {
-              "id": "chunk:lib/response.js:onerror:946-950",
-              "degree": 2
+              "id": "chunk:src/transformers/utils/import_utils.py:is_torch_available:148-156",
+              "degree": 31
             },
             {
-              "id": "chunk:lib/response.js:onfinish:965-980",
-              "degree": 2
+              "id": "chunk:src/transformers/models/sam/modeling_sam.py:__init__:1114-1123",
+              "degree": 23
             },
             {
-              "id": "chunk:lib/response.js:sendfile:921-1009",
-              "degree": 2
+              "id": "chunk:examples/pytorch/test_pytorch_examples.py:get_results:85-93",
+              "degree": 17
             },
             {
-              "id": "chunk:test/support/tmpl.js:generateVariableLookup:25-36",
-              "degree": 1
+              "id": "chunk:src/transformers/models/esm/openfold_utils/rigid_utils.py:Rotation:253-727",
+              "degree": 17
             },
             {
-              "id": "chunk:test/support/tmpl.js:onReadFile:6-20",
-              "degree": 1
+              "id": "chunk:src/transformers/models/esm/openfold_utils/rigid_utils.py:Rigid:730-1243",
+              "degree": 16
             },
             {
-              "id": "chunk:test/support/utils.js:getMajorVersion:75-77",
-              "degree": 1
+              "id": "chunk:src/transformers/models/longt5/modeling_longt5.py:__init__:1205-1226",
+              "degree": 16
             },
             {
-              "id": "chunk:test/support/utils.js:shouldSkipQuery:79-85",
-              "degree": 1
+              "id": "chunk:tests/repo_utils/test_tests_fetcher.py:create_tmp_repo:89-174",
+              "degree": 15
+            },
+            {
+              "id": "chunk:src/transformers/utils/logging.py:_get_library_root_logger:80-81",
+              "degree": 14
+            },
+            {
+              "id": "chunk:tests/models/sam_hq/test_modeling_sam_hq.py:prepare_image:769-772",
+              "degree": 14
             }
           ]
         }
