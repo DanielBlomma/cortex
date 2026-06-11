@@ -1,0 +1,1152 @@
+{
+  "schema_version": 1,
+  "description": "Repos used as bootstrap-eval test data. Derived from the AgentStackBench task datasets (SWE-bench Verified, SWE-bench Pro, SWE-PolyBench, Multi-SWE-Bench); each repo is pinned to a concrete commit so evals are repeatable. Refresh pins with sync-repos.mjs --update.",
+  "source": {
+    "dataset": "AgentStackBench data/full.parquet (1136 task instances)",
+    "extracted_at": "2026-06-11T10:03:40.547Z"
+  },
+  "pinned_at": "2026-06-11T10:03:53.582Z",
+  "repos": [
+    {
+      "key": "alibaba__fastjson2",
+      "name": "alibaba/fastjson2",
+      "url": "https://github.com/alibaba/fastjson2.git",
+      "languages": [
+        "java"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 3,
+      "pin": {
+        "sha": "3697c2d37cd659d2a94543093d0d08cb4baf4d73",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:48.054Z"
+      }
+    },
+    {
+      "key": "angular__angular",
+      "name": "angular/angular",
+      "url": "https://github.com/angular/angular.git",
+      "languages": [
+        "typescript"
+      ],
+      "benches": [
+        "Poly"
+      ],
+      "instances": 1,
+      "pin": {
+        "sha": "71bb19d772aa77a30922fb896f775b58a0862c36",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:48.525Z"
+      }
+    },
+    {
+      "key": "ansible__ansible",
+      "name": "ansible/ansible",
+      "url": "https://github.com/ansible/ansible.git",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Pro"
+      ],
+      "instances": 52,
+      "pin": {
+        "sha": "5e5d863173693ea7f6fc5f8f10ce13a11dd490fe",
+        "ref": "refs/heads/devel",
+        "pinned_at": "2026-06-11T10:03:48.463Z"
+      }
+    },
+    {
+      "key": "anuraghazra__github-readme-stats",
+      "name": "anuraghazra/github-readme-stats",
+      "url": "https://github.com/anuraghazra/github-readme-stats.git",
+      "languages": [
+        "javascript"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 3,
+      "pin": {
+        "sha": "5df91f9bfa89c356a55cbb3c2bbc164fdbf94a86",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:48.089Z"
+      }
+    },
+    {
+      "key": "astropy__astropy",
+      "name": "astropy/astropy",
+      "url": "https://github.com/astropy/astropy.git",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Verified"
+      ],
+      "instances": 15,
+      "pin": {
+        "sha": "03fc005a2b4cead91725f10056fcc7315882f0a1",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:48.134Z"
+      }
+    },
+    {
+      "key": "axios__axios",
+      "name": "axios/axios",
+      "url": "https://github.com/axios/axios.git",
+      "languages": [
+        "javascript"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 1,
+      "pin": {
+        "sha": "32fc489632377d214db55bfa4e2c48486a7d7ce2",
+        "ref": "refs/heads/v1.x",
+        "pinned_at": "2026-06-11T10:03:48.036Z"
+      }
+    },
+    {
+      "key": "burntsushi__ripgrep",
+      "name": "BurntSushi/ripgrep",
+      "url": "https://github.com/BurntSushi/ripgrep.git",
+      "languages": [
+        "rust"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 2,
+      "pin": {
+        "sha": "82313cf95849bfe425109ad9506a52154879b1b1",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:48.016Z"
+      }
+    },
+    {
+      "key": "catchorg__catch2",
+      "name": "catchorg/Catch2",
+      "url": "https://github.com/catchorg/Catch2.git",
+      "languages": [
+        "cpp"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 4,
+      "pin": {
+        "sha": "b7e0310fbe42d209630b262a1c76733a04e90e13",
+        "ref": "refs/heads/devel",
+        "pinned_at": "2026-06-11T10:03:48.182Z"
+      }
+    },
+    {
+      "key": "clap-rs__clap",
+      "name": "clap-rs/clap",
+      "url": "https://github.com/clap-rs/clap.git",
+      "languages": [
+        "rust"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 36,
+      "pin": {
+        "sha": "8387c812c4b9726474b8407f81ec97f0acf570ed",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:49.158Z"
+      }
+    },
+    {
+      "key": "cli__cli",
+      "name": "cli/cli",
+      "url": "https://github.com/cli/cli.git",
+      "languages": [
+        "go"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 70,
+      "pin": {
+        "sha": "57b9b207d900114092f30d78020c193b40621dfa",
+        "ref": "refs/heads/trunk",
+        "pinned_at": "2026-06-11T10:03:48.563Z"
+      }
+    },
+    {
+      "key": "coder__code-server",
+      "name": "coder/code-server",
+      "url": "https://github.com/coder/code-server.git",
+      "languages": [
+        "typescript"
+      ],
+      "benches": [
+        "Poly"
+      ],
+      "instances": 2,
+      "pin": {
+        "sha": "92a7dce46ffcd363798e5ef008991e8cc6426de5",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:48.558Z"
+      }
+    },
+    {
+      "key": "darkreader__darkreader",
+      "name": "darkreader/darkreader",
+      "url": "https://github.com/darkreader/darkreader.git",
+      "languages": [
+        "typescript"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 2,
+      "pin": {
+        "sha": "47660c45af2ddb05dec3f756e8f36c1f9d00eb5d",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:49.584Z"
+      }
+    },
+    {
+      "key": "django__django",
+      "name": "django/django",
+      "url": "https://github.com/django/django.git",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Verified"
+      ],
+      "instances": 129,
+      "pin": {
+        "sha": "e8cff2921ba169d806a15de18304f431f12700f4",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:50.382Z"
+      }
+    },
+    {
+      "key": "elastic__logstash",
+      "name": "elastic/logstash",
+      "url": "https://github.com/elastic/logstash.git",
+      "languages": [
+        "java"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 16,
+      "pin": {
+        "sha": "04868fe4ac0db4c663273f6494212a043e6a46b2",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:48.877Z"
+      }
+    },
+    {
+      "key": "element-hq__element-web",
+      "name": "element-hq/element-web",
+      "url": "https://github.com/element-hq/element-web.git",
+      "languages": [
+        "javascript"
+      ],
+      "benches": [
+        "Pro"
+      ],
+      "instances": 9,
+      "pin": {
+        "sha": "2d434c72d49be4de6d2c957f14fb97124839b80c",
+        "ref": "refs/heads/develop",
+        "pinned_at": "2026-06-11T10:03:48.986Z"
+      }
+    },
+    {
+      "key": "expressjs__express",
+      "name": "expressjs/express",
+      "url": "https://github.com/expressjs/express.git",
+      "languages": [
+        "javascript"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 2,
+      "pin": {
+        "sha": "dae209ae6559c29cfca2a1f4414c51d89ea643d5",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:49.043Z"
+      }
+    },
+    {
+      "key": "facebook__zstd",
+      "name": "facebook/zstd",
+      "url": "https://github.com/facebook/zstd.git",
+      "languages": [
+        "c"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 16,
+      "pin": {
+        "sha": "5233c58e6ca0b1c4c6b353ad79649191ed195bdc",
+        "ref": "refs/heads/dev",
+        "pinned_at": "2026-06-11T10:03:49.034Z"
+      }
+    },
+    {
+      "key": "fasterxml__jackson-core",
+      "name": "fasterxml/jackson-core",
+      "url": "https://github.com/fasterxml/jackson-core.git",
+      "languages": [
+        "java"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 6,
+      "pin": {
+        "sha": "4ba686eb7f00ce7fc63fafae75953625b2c8b542",
+        "ref": "refs/heads/3.x",
+        "pinned_at": "2026-06-11T10:03:48.987Z"
+      }
+    },
+    {
+      "key": "fasterxml__jackson-databind",
+      "name": "fasterxml/jackson-databind",
+      "url": "https://github.com/fasterxml/jackson-databind.git",
+      "languages": [
+        "java"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 21,
+      "pin": {
+        "sha": "caeb56f628e8cba6a8624d8c422fdbea69f86a0c",
+        "ref": "refs/heads/3.x",
+        "pinned_at": "2026-06-11T10:03:49.410Z"
+      }
+    },
+    {
+      "key": "fasterxml__jackson-dataformat-xml",
+      "name": "fasterxml/jackson-dataformat-xml",
+      "url": "https://github.com/fasterxml/jackson-dataformat-xml.git",
+      "languages": [
+        "java"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 4,
+      "pin": {
+        "sha": "4cd69b68bb47f24d28e484f5c7907a7449678f99",
+        "ref": "refs/heads/3.x",
+        "pinned_at": "2026-06-11T10:03:49.521Z"
+      }
+    },
+    {
+      "key": "flipt-io__flipt",
+      "name": "flipt-io/flipt",
+      "url": "https://github.com/flipt-io/flipt.git",
+      "languages": [
+        "go"
+      ],
+      "benches": [
+        "Pro"
+      ],
+      "instances": 13,
+      "pin": {
+        "sha": "0def52ea6ea02a9b632fdd29081c1e14beef716a",
+        "ref": "refs/heads/v2",
+        "pinned_at": "2026-06-11T10:03:49.477Z"
+      }
+    },
+    {
+      "key": "fmtlib__fmt",
+      "name": "fmtlib/fmt",
+      "url": "https://github.com/fmtlib/fmt.git",
+      "languages": [
+        "cpp"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 18,
+      "pin": {
+        "sha": "e8deaf2ec3b53ced589fce6f640061e5b32eeeaa",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:49.531Z"
+      }
+    },
+    {
+      "key": "future-architect__vuls",
+      "name": "future-architect/vuls",
+      "url": "https://github.com/future-architect/vuls.git",
+      "languages": [
+        "go"
+      ],
+      "benches": [
+        "Pro"
+      ],
+      "instances": 4,
+      "pin": {
+        "sha": "5ce56238223d505e7f99ab70c25644c6c39b620b",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:49.533Z"
+      }
+    },
+    {
+      "key": "google__gson",
+      "name": "google/gson",
+      "url": "https://github.com/google/gson.git",
+      "languages": [
+        "java"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 2,
+      "pin": {
+        "sha": "004e7a4949e08b430e3c8996998ee5a17ff9423a",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:49.627Z"
+      }
+    },
+    {
+      "key": "googlecontainertools__jib",
+      "name": "googlecontainertools/jib",
+      "url": "https://github.com/googlecontainertools/jib.git",
+      "languages": [
+        "java"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 2,
+      "pin": {
+        "sha": "6a851b6fb83a7399009a8bee7dec6323822eeca4",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:49.928Z"
+      }
+    },
+    {
+      "key": "gravitational__teleport",
+      "name": "gravitational/teleport",
+      "url": "https://github.com/gravitational/teleport.git",
+      "languages": [
+        "go"
+      ],
+      "benches": [
+        "Pro"
+      ],
+      "instances": 1,
+      "pin": {
+        "sha": "aedcd1d851cdf06eafd2d43f1eb33879539ac89e",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:50.698Z"
+      }
+    },
+    {
+      "key": "grpc__grpc-go",
+      "name": "grpc/grpc-go",
+      "url": "https://github.com/grpc/grpc-go.git",
+      "languages": [
+        "go"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 5,
+      "pin": {
+        "sha": "f1864955bbb48efa131f6652933fa8b2189d9305",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:50.029Z"
+      }
+    },
+    {
+      "key": "huggingface__transformers",
+      "name": "huggingface/transformers",
+      "url": "https://github.com/huggingface/transformers.git",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Poly"
+      ],
+      "instances": 67,
+      "pin": {
+        "sha": "e524671628a524f0a330e2a7b448178219ad92e5",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:50.237Z"
+      }
+    },
+    {
+      "key": "iamkun__dayjs",
+      "name": "iamkun/dayjs",
+      "url": "https://github.com/iamkun/dayjs.git",
+      "languages": [
+        "javascript"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 9,
+      "pin": {
+        "sha": "6609c5e54347a60bf8d327dee36190069012ba47",
+        "ref": "refs/heads/dev",
+        "pinned_at": "2026-06-11T10:03:50.105Z"
+      }
+    },
+    {
+      "key": "internetarchive__openlibrary",
+      "name": "internetarchive/openlibrary",
+      "url": "https://github.com/internetarchive/openlibrary.git",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Pro"
+      ],
+      "instances": 26,
+      "pin": {
+        "sha": "6eb91dc643d605e8527144da838cb65c59baa22f",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:50.174Z"
+      }
+    },
+    {
+      "key": "jqlang__jq",
+      "name": "jqlang/jq",
+      "url": "https://github.com/jqlang/jq.git",
+      "languages": [
+        "c"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 9,
+      "pin": {
+        "sha": "e987df0d463d85fd70825e042a082427e8275b86",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:50.199Z"
+      }
+    },
+    {
+      "key": "keras-team__keras",
+      "name": "keras-team/keras",
+      "url": "https://github.com/keras-team/keras.git",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Poly"
+      ],
+      "instances": 18,
+      "pin": {
+        "sha": "8f2ba6b9aec046f177102d4fb89dd21b24e89947",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:50.526Z"
+      }
+    },
+    {
+      "key": "langchain-ai__langchain",
+      "name": "langchain-ai/langchain",
+      "url": "https://github.com/langchain-ai/langchain.git",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Poly"
+      ],
+      "instances": 12,
+      "pin": {
+        "sha": "76c32db9b38dfc287c958dc2a914d4834f022c1c",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:50.636Z"
+      }
+    },
+    {
+      "key": "matplotlib__matplotlib",
+      "name": "matplotlib/matplotlib",
+      "url": "https://github.com/matplotlib/matplotlib.git",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Verified"
+      ],
+      "instances": 27,
+      "pin": {
+        "sha": "0677cc8c142eae9ea5dde9cd5487c106dff58cbb",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:50.722Z"
+      }
+    },
+    {
+      "key": "microsoft__vscode",
+      "name": "microsoft/vscode",
+      "url": "https://github.com/microsoft/vscode.git",
+      "languages": [
+        "typescript"
+      ],
+      "benches": [
+        "Poly"
+      ],
+      "instances": 14,
+      "pin": {
+        "sha": "a7680b0f0f5b02a4a8ff40e8e057565948b1a0c1",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:53.581Z"
+      }
+    },
+    {
+      "key": "mockito__mockito",
+      "name": "mockito/mockito",
+      "url": "https://github.com/mockito/mockito.git",
+      "languages": [
+        "java"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 3,
+      "pin": {
+        "sha": "9791e19830f967ec6ed0aa9f5aad7a946cc25b97",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:50.799Z"
+      }
+    },
+    {
+      "key": "mui__material-ui",
+      "name": "mui/material-ui",
+      "url": "https://github.com/mui/material-ui.git",
+      "languages": [
+        "typescript"
+      ],
+      "benches": [
+        "Multi",
+        "Poly"
+      ],
+      "instances": 84,
+      "pin": {
+        "sha": "0f9b43f4e001102e9aa94f10c3882e15277908a5",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:51.445Z"
+      }
+    },
+    {
+      "key": "mwaskom__seaborn",
+      "name": "mwaskom/seaborn",
+      "url": "https://github.com/mwaskom/seaborn.git",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Verified"
+      ],
+      "instances": 1,
+      "pin": {
+        "sha": "32088bbc3adc611b7118e57fce6d4ed096a76a29",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:50.799Z"
+      }
+    },
+    {
+      "key": "navidrome__navidrome",
+      "name": "navidrome/navidrome",
+      "url": "https://github.com/navidrome/navidrome.git",
+      "languages": [
+        "go"
+      ],
+      "benches": [
+        "Pro"
+      ],
+      "instances": 9,
+      "pin": {
+        "sha": "3b958dd6a725b10d227ada78d7840c968d240972",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:51.021Z"
+      }
+    },
+    {
+      "key": "nlohmann__json",
+      "name": "nlohmann/json",
+      "url": "https://github.com/nlohmann/json.git",
+      "languages": [
+        "cpp"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 26,
+      "pin": {
+        "sha": "a39f33b951dd18dc713ddffaa92a562b4a8b7937",
+        "ref": "refs/heads/develop",
+        "pinned_at": "2026-06-11T10:03:51.104Z"
+      }
+    },
+    {
+      "key": "nodebb__nodebb",
+      "name": "NodeBB/NodeBB",
+      "url": "https://github.com/NodeBB/NodeBB.git",
+      "languages": [
+        "javascript"
+      ],
+      "benches": [
+        "Pro"
+      ],
+      "instances": 11,
+      "pin": {
+        "sha": "55ae053f843f9d500c86e9860d555096520281e1",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:51.228Z"
+      }
+    },
+    {
+      "key": "nushell__nushell",
+      "name": "nushell/nushell",
+      "url": "https://github.com/nushell/nushell.git",
+      "languages": [
+        "rust"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 5,
+      "pin": {
+        "sha": "7a46679254b2874c7fe8884b5becb50efe914c0e",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:51.219Z"
+      }
+    },
+    {
+      "key": "pallets__flask",
+      "name": "pallets/flask",
+      "url": "https://github.com/pallets/flask.git",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Verified"
+      ],
+      "instances": 1,
+      "pin": {
+        "sha": "36e4a824f340fdee7ed50937ba8e7f6bc7d17f81",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:51.443Z"
+      }
+    },
+    {
+      "key": "ponylang__ponyc",
+      "name": "ponylang/ponyc",
+      "url": "https://github.com/ponylang/ponyc.git",
+      "languages": [
+        "c"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 43,
+      "pin": {
+        "sha": "69e33ba200df0bebe68f3b37f100586e395cc11d",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:51.452Z"
+      }
+    },
+    {
+      "key": "prettier__prettier",
+      "name": "prettier/prettier",
+      "url": "https://github.com/prettier/prettier.git",
+      "languages": [
+        "javascript"
+      ],
+      "benches": [
+        "Poly"
+      ],
+      "instances": 11,
+      "pin": {
+        "sha": "7dc924c58b2b8babcfc999e437a2b97b8549f0d4",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:51.662Z"
+      }
+    },
+    {
+      "key": "psf__requests",
+      "name": "psf/requests",
+      "url": "https://github.com/psf/requests.git",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Verified"
+      ],
+      "instances": 6,
+      "pin": {
+        "sha": "6f66281a1d6326b1b9c4ac09ca30de0fc4e6ef43",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:51.669Z"
+      }
+    },
+    {
+      "key": "pydata__xarray",
+      "name": "pydata/xarray",
+      "url": "https://github.com/pydata/xarray.git",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Verified"
+      ],
+      "instances": 17,
+      "pin": {
+        "sha": "a1408234d1dc786965bfb6311f8782561ee0e676",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:51.751Z"
+      }
+    },
+    {
+      "key": "pylint-dev__pylint",
+      "name": "pylint-dev/pylint",
+      "url": "https://github.com/pylint-dev/pylint.git",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Verified"
+      ],
+      "instances": 5,
+      "pin": {
+        "sha": "2f47d86123f35511587532556c009b436f71ca37",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:51.692Z"
+      }
+    },
+    {
+      "key": "pytest-dev__pytest",
+      "name": "pytest-dev/pytest",
+      "url": "https://github.com/pytest-dev/pytest.git",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Verified"
+      ],
+      "instances": 12,
+      "pin": {
+        "sha": "a8ac094e80df788aec844794170b126eab0be7a4",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:52.030Z"
+      }
+    },
+    {
+      "key": "qutebrowser__qutebrowser",
+      "name": "qutebrowser/qutebrowser",
+      "url": "https://github.com/qutebrowser/qutebrowser.git",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Pro"
+      ],
+      "instances": 18,
+      "pin": {
+        "sha": "c9e03ae5db592c03254d4eca196062d2ce358dc8",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:51.995Z"
+      }
+    },
+    {
+      "key": "rayon-rs__rayon",
+      "name": "rayon-rs/rayon",
+      "url": "https://github.com/rayon-rs/rayon.git",
+      "languages": [
+        "rust"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 1,
+      "pin": {
+        "sha": "9254f190aa7ee7521d528e839be3cd0921a04fd8",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:51.945Z"
+      }
+    },
+    {
+      "key": "scikit-learn__scikit-learn",
+      "name": "scikit-learn/scikit-learn",
+      "url": "https://github.com/scikit-learn/scikit-learn.git",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Verified"
+      ],
+      "instances": 22,
+      "pin": {
+        "sha": "2fd6fa45c2fc181233a75731aceb1def654743c3",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:52.486Z"
+      }
+    },
+    {
+      "key": "serverless__serverless",
+      "name": "serverless/serverless",
+      "url": "https://github.com/serverless/serverless.git",
+      "languages": [
+        "javascript"
+      ],
+      "benches": [
+        "Poly"
+      ],
+      "instances": 18,
+      "pin": {
+        "sha": "1dadff40c07e63da575c942f4a94850347e84e2b",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:52.251Z"
+      }
+    },
+    {
+      "key": "sharkdp__bat",
+      "name": "sharkdp/bat",
+      "url": "https://github.com/sharkdp/bat.git",
+      "languages": [
+        "rust"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 1,
+      "pin": {
+        "sha": "af1f53d9a977154216d01435991fe33631b74713",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:52.165Z"
+      }
+    },
+    {
+      "key": "sharkdp__fd",
+      "name": "sharkdp/fd",
+      "url": "https://github.com/sharkdp/fd.git",
+      "languages": [
+        "rust"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 6,
+      "pin": {
+        "sha": "25461e5ce13dc12ff2a75993285a87e99b33db2d",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:52.146Z"
+      }
+    },
+    {
+      "key": "significant-gravitas__autogpt",
+      "name": "Significant-Gravitas/AutoGPT",
+      "url": "https://github.com/Significant-Gravitas/AutoGPT.git",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Poly"
+      ],
+      "instances": 1,
+      "pin": {
+        "sha": "5b603c0bd04c8db2afc12098d5af2d391b7816e7",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:52.564Z"
+      }
+    },
+    {
+      "key": "simdjson__simdjson",
+      "name": "simdjson/simdjson",
+      "url": "https://github.com/simdjson/simdjson.git",
+      "languages": [
+        "cpp"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 12,
+      "pin": {
+        "sha": "812f8823d233a3189a06d6c117e1794d9c34fced",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:52.506Z"
+      }
+    },
+    {
+      "key": "sphinx-doc__sphinx",
+      "name": "sphinx-doc/sphinx",
+      "url": "https://github.com/sphinx-doc/sphinx.git",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Verified"
+      ],
+      "instances": 26,
+      "pin": {
+        "sha": "748a569f474f6295a95914d8729b6dd1aa02126b",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:52.664Z"
+      }
+    },
+    {
+      "key": "sveltejs__svelte",
+      "name": "sveltejs/svelte",
+      "url": "https://github.com/sveltejs/svelte.git",
+      "languages": [
+        "javascript"
+      ],
+      "benches": [
+        "Multi",
+        "Poly"
+      ],
+      "instances": 89,
+      "pin": {
+        "sha": "a9f48540e236d326714a1148b9d61cf785c0f98a",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:52.771Z"
+      }
+    },
+    {
+      "key": "sympy__sympy",
+      "name": "sympy/sympy",
+      "url": "https://github.com/sympy/sympy.git",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Verified"
+      ],
+      "instances": 52,
+      "pin": {
+        "sha": "301aa35b33dcfeee83387c7026b414a73a1c1109",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:52.779Z"
+      }
+    },
+    {
+      "key": "tailwindlabs__tailwindcss",
+      "name": "tailwindlabs/tailwindcss",
+      "url": "https://github.com/tailwindlabs/tailwindcss.git",
+      "languages": [
+        "typescript"
+      ],
+      "benches": [
+        "Poly"
+      ],
+      "instances": 1,
+      "pin": {
+        "sha": "6b0eb5193e3b05ab21e95dff908cb0bcaa4d916c",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:52.773Z"
+      }
+    },
+    {
+      "key": "tokio-rs__bytes",
+      "name": "tokio-rs/bytes",
+      "url": "https://github.com/tokio-rs/bytes.git",
+      "languages": [
+        "rust"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 3,
+      "pin": {
+        "sha": "2256e6dc3e82fc87600f2161658572b62bfdd214",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:52.996Z"
+      }
+    },
+    {
+      "key": "tokio-rs__tokio",
+      "name": "tokio-rs/tokio",
+      "url": "https://github.com/tokio-rs/tokio.git",
+      "languages": [
+        "rust"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 4,
+      "pin": {
+        "sha": "ecb5125a6787b9d8eb818b1b00973bcd55ae77c0",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:53.075Z"
+      }
+    },
+    {
+      "key": "tokio-rs__tracing",
+      "name": "tokio-rs/tracing",
+      "url": "https://github.com/tokio-rs/tracing.git",
+      "languages": [
+        "rust"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 5,
+      "pin": {
+        "sha": "d9d4c542de10f5d3a711b7a45ffe450fd0666437",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:53.076Z"
+      }
+    },
+    {
+      "key": "vuejs__core",
+      "name": "vuejs/core",
+      "url": "https://github.com/vuejs/core.git",
+      "languages": [
+        "typescript"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 15,
+      "pin": {
+        "sha": "478e3e83acd34dd213a860be4a2a2bf2090dc26b",
+        "ref": "refs/heads/main",
+        "pinned_at": "2026-06-11T10:03:53.270Z"
+      }
+    },
+    {
+      "key": "yt-dlp__yt-dlp",
+      "name": "yt-dlp/yt-dlp",
+      "url": "https://github.com/yt-dlp/yt-dlp.git",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Poly"
+      ],
+      "instances": 5,
+      "pin": {
+        "sha": "e47691215f75fe7e9684080d17fadf340c9a8450",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:53.360Z"
+      }
+    },
+    {
+      "key": "zeromicro__go-zero",
+      "name": "zeromicro/go-zero",
+      "url": "https://github.com/zeromicro/go-zero.git",
+      "languages": [
+        "go"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "instances": 2,
+      "pin": {
+        "sha": "ca8b50a7a579004cd6f032e71c21c2132f5cbcac",
+        "ref": "refs/heads/master",
+        "pinned_at": "2026-06-11T10:03:53.382Z"
+      }
+    }
+  ]
+}

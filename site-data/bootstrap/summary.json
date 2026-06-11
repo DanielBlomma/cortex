@@ -1,0 +1,298 @@
+{
+  "schema_version": 1,
+  "run": {
+    "id": "smoke-3",
+    "generated_at": "2026-06-11T10:54:49.977Z",
+    "cortex_version": "2.0.19"
+  },
+  "aggregate": {
+    "totals": {
+      "items": 2,
+      "succeeded": 2,
+      "failed": 0,
+      "chunks": 294,
+      "files": 532,
+      "edges": 1335,
+      "duration_ms": 97616,
+      "repos": 2,
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ]
+    },
+    "by_model": {
+      "Xenova/all-MiniLM-L6-v2": {
+        "items": 2,
+        "repos": 2,
+        "chunks": 294,
+        "embedded": 868,
+        "failed_embeddings": 0,
+        "dimensions": 384,
+        "avg_throughput_per_s": 12.83,
+        "chunk_lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 221
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 35
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 18
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 16
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 2
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 1
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 1
+          }
+        ],
+        "chunk_chars_histogram": [
+          {
+            "label": "0-200",
+            "min": 0,
+            "max": 200,
+            "count": 199
+          },
+          {
+            "label": "201-500",
+            "min": 201,
+            "max": 500,
+            "count": 48
+          },
+          {
+            "label": "501-1000",
+            "min": 501,
+            "max": 1000,
+            "count": 23
+          },
+          {
+            "label": "1001-2000",
+            "min": 1001,
+            "max": 2000,
+            "count": 15
+          },
+          {
+            "label": "2001-4000",
+            "min": 2001,
+            "max": 4000,
+            "count": 7
+          },
+          {
+            "label": "4001-8000",
+            "min": 4001,
+            "max": 8000,
+            "count": 1
+          },
+          {
+            "label": "8001-12000",
+            "min": 8001,
+            "max": 12000,
+            "count": 1
+          },
+          {
+            "label": "12001+",
+            "min": 12001,
+            "max": null,
+            "count": 0
+          }
+        ]
+      }
+    },
+    "by_language": {
+      "javascript": {
+        "chunks": 294,
+        "repos": 2,
+        "mean_chunk_lines": 12.66,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 221
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 35
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 18
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 16
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 2
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 1
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 1
+          }
+        ]
+      }
+    },
+    "relations_by_type": {
+      "CALLS": 85,
+      "CALLS_SQL": 0,
+      "CONSTRAINS": 225,
+      "CONTAINS": 451,
+      "CONTAINS_MODULE": 11,
+      "DEFINES": 294,
+      "EXPORTS": 12,
+      "IMPLEMENTS": 220,
+      "IMPORTS": 37,
+      "INCLUDES_FILE": 0,
+      "REFERENCES_PROJECT": 0,
+      "SUPERSEDES": 0,
+      "TRANSFORMS_CONFIG": 0,
+      "USES_CONFIG": 0,
+      "USES_CONFIG_KEY": 0,
+      "USES_RESOURCE": 0,
+      "USES_RESOURCE_KEY": 0,
+      "USES_SETTING": 0,
+      "USES_SETTING_KEY": 0
+    },
+    "repo_rows": [
+      {
+        "key": "expressjs__express",
+        "name": "expressjs/express",
+        "languages": [
+          "javascript"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "dae209ae6559c29cfca2a1f4414c51d89ea643d5",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 213,
+        "tracked_bytes": 706609,
+        "files": 163,
+        "chunks": 127,
+        "chunk_p50_lines": 4,
+        "chunk_mean_lines": 8.05,
+        "edges": 519,
+        "chunk_chunk_edges": 6,
+        "avg_degree": 0.09,
+        "isolated_pct": 93.7,
+        "embedded": 310,
+        "dimensions": 384,
+        "total_ms": 35542,
+        "ingest_ms": 1170,
+        "embed_ms": 22517
+      },
+      {
+        "key": "iamkun__dayjs",
+        "name": "iamkun/dayjs",
+        "languages": [
+          "javascript"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "6609c5e54347a60bf8d327dee36190069012ba47",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 380,
+        "tracked_bytes": 2481586,
+        "files": 369,
+        "chunks": 167,
+        "chunk_p50_lines": 5,
+        "chunk_mean_lines": 16.17,
+        "edges": 816,
+        "chunk_chunk_edges": 79,
+        "avg_degree": 0.95,
+        "isolated_pct": 51.5,
+        "embedded": 558,
+        "dimensions": 384,
+        "total_ms": 62074,
+        "ingest_ms": 1424,
+        "embed_ms": 46951
+      }
+    ]
+  },
+  "repos": [
+    {
+      "key": "expressjs__express",
+      "name": "expressjs/express",
+      "languages": [
+        "javascript"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 127,
+      "edges": 519
+    },
+    {
+      "key": "iamkun__dayjs",
+      "name": "iamkun/dayjs",
+      "languages": [
+        "javascript"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 167,
+      "edges": 816
+    }
+  ]
+}

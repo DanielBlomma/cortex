@@ -1,0 +1,12 @@
+{
+  "run_name": "full",
+  "repos": "all",
+  "embed_models": ["Xenova/all-MiniLM-L6-v2"],
+  "parallelism": 2,
+  "timeout_minutes": 120,
+  "docker": {
+    "image": "cortex-bootstrapbench:local",
+    "build": true
+  },
+  "results_dir": "benchmark/bootstrapbench/results"
+}

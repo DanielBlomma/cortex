@@ -400,6 +400,14 @@ Required npm configuration:
 - MCP tools return stale context:
   Run `cortex update`, then reconnect MCP or call `context.reload` from your MCP client.
 
+## Website and Benchmarks
+
+- `frontend/` hosts the cortex website (GitHub Pages, deployed on push to `main`):
+  product overview plus bootstrap evaluation metrics.
+- `benchmark/bootstrapbench/` runs `cortex bootstrap` against 67 pinned
+  real-world repositories in isolated containers and extracts chunk, embedding
+  and graph statistics. See [benchmark/bootstrapbench/README.md](benchmark/bootstrapbench/README.md).
+
 ## Support
 
 - Issues: https://github.com/DanielBlomma/cortex/issues
