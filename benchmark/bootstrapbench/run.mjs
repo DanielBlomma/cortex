@@ -41,7 +41,10 @@ function printHelp() {
   console.log(`Bootstrapbench Runner
 
 Usage:
-  node benchmark/bootstrapbench/run.mjs --config <config.json> [--run-id <id>] [--skip-build] [--dry-run]
+  node benchmark/bootstrapbench/run.mjs --config <config.json> [--run-id <id>] [--skip-build] [--dry-run] [--resume]
+
+  --resume   with a reused --run-id, skip items whose stats.json already
+             exists with a non-error status (continue an interrupted run)
 
 Config keys:
   run_name         string   prefix for generated run ids
@@ -194,6 +197,12 @@ function buildWorkItems(repos, config, runId, cortexVersion) {
 const activeContainers = new Set();
 let interrupted = false;
 
+// Set when the Docker daemon becomes unreachable. Infrastructure outages must
+// stop the queue immediately instead of burning every remaining item as a
+// fake repo failure; completed items stay on disk for --resume.
+const DAEMON_ERROR_PATTERN = /Cannot connect to the Docker daemon|docker daemon is not running/i;
+let infrastructureFailure = null;
+
 function installSignalHandlers() {
   const cleanup = (signal) => {
     if (interrupted) {
@@ -228,6 +237,21 @@ function synthesizeErrorItem(item, message) {
 async function runItem(item, config, paths) {
   const itemDir = path.join(paths.itemsDir, item.itemKey);
   ensureDir(itemDir);
+  const statsPathExisting = path.join(itemDir, "stats.json");
+
+  if (paths.resume) {
+    let existing = null;
+    try {
+      existing = loadJsonIfExists(statsPathExisting);
+    } catch {
+      existing = null; // unreadable stats.json -> rerun the item
+    }
+    if (existing && existing.run?.status !== "error") {
+      console.log(`[run] skip ${item.itemKey} (already complete: ${existing.run?.status})`);
+      return existing;
+    }
+  }
+
   const startedAt = nowIso();
   const meta = { ...item.meta, run: { ...item.meta.run, started_at: startedAt } };
 
@@ -267,6 +291,11 @@ async function runItem(item, config, paths) {
   }
   activeContainers.delete(item.containerName);
 
+  if (DAEMON_ERROR_PATTERN.test(`${result.stdout}\n${result.stderr}`)) {
+    infrastructureFailure = `docker daemon unreachable while running ${item.itemKey}`;
+    throw new Error(infrastructureFailure);
+  }
+
   const statsPath = path.join(itemDir, "stats.json");
   const stats = loadJsonIfExists(statsPath);
   if (stats) {
@@ -285,18 +314,25 @@ async function runQueue(items, config, paths) {
   let nextIndex = 0;
   const lanes = Array.from({ length: Math.min(config.parallelism, items.length) }, async () => {
     while (nextIndex < items.length) {
+      if (infrastructureFailure) {
+        return;
+      }
       const index = nextIndex;
       nextIndex += 1;
       try {
         results[index] = await runItem(items[index], config, paths);
       } catch (error) {
         console.error(`[run] ${items[index].itemKey} failed: ${error.message}`);
+        if (infrastructureFailure) {
+          // Not the repo's fault: leave no stats.json so --resume retries it.
+          return;
+        }
         results[index] = synthesizeErrorItem(items[index], error.message);
       }
     }
   });
   await Promise.all(lanes);
-  return results;
+  return results.filter(Boolean);
 }
 
 async function main() {
@@ -324,7 +360,7 @@ async function main() {
     ? config.results_dir
     : path.join(REPO_ROOT, config.results_dir);
   const runDir = path.join(resultsRoot, runId);
-  const paths = { runDir, itemsDir: path.join(runDir, "items") };
+  const paths = { runDir, itemsDir: path.join(runDir, "items"), resume: hasFlag(args, "--resume") };
 
   const items = buildWorkItems(repos, config, runId, cortexVersion);
   console.log(
@@ -348,6 +384,17 @@ async function main() {
   }
 
   const results = await runQueue(items, config, paths);
+
+  if (infrastructureFailure) {
+    console.error(`[run] ABORTED: ${infrastructureFailure}`);
+    console.error(
+      `[run] ${results.length}/${items.length} item(s) have results on disk; ` +
+        `relaunch with --run-id ${runId} --resume once Docker is back`
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   const aggregate = aggregateResults(results);
   const summary = {
     schema_version: 1,

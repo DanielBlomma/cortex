@@ -51,6 +51,9 @@ node benchmark/bootstrapbench/run.mjs --config benchmark/bootstrapbench/config.e
 #   --run-id <id>    stable run directory name
 #   --skip-build     reuse the existing docker image
 #   --dry-run        print the planned items without running
+#   --resume         with a reused --run-id, skip already-completed items
+#                    (a Docker daemon outage aborts the queue cleanly; resume
+#                    once the daemon is back)
 ```
 
 ### Config keys
