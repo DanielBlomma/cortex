@@ -78,6 +78,7 @@ export function BootstrapPage({
   const { aggregate, run } = summary;
   const [sizeUnit, setSizeUnit] = useState<"lines" | "chars">("lines");
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const [sizeAxis, setSizeAxis] = useState<"files" | "lines">("files");
 
   const models = Object.entries(aggregate.by_model);
   const okRows = useMemo(
@@ -106,13 +107,15 @@ export function BootstrapPage({
     .sort((left, right) => right.value - left.value);
 
   const sizeScatter = okRows
-    .filter((row) => row.tracked_files !== null && row.chunks !== null)
     .map((row) => ({
-      x: row.tracked_files as number,
-      y: row.chunks as number,
+      x: sizeAxis === "files" ? row.tracked_files : row.indexed_lines,
+      y: row.chunks,
       name: row.name,
       group: row.languages[0] ?? "other"
-    }));
+    }))
+    .filter((point): point is { x: number; y: number; name: string; group: string } =>
+      point.x !== null && Number.isFinite(point.x) && point.y !== null && Number.isFinite(point.y)
+    );
 
   const connectivityScatter = okRows
     .filter((row) => row.chunks !== null && row.chunk_chunk_edges !== null)
@@ -194,11 +197,26 @@ export function BootstrapPage({
           />
           <SectionShell
             title="Repo size vs chunking output"
-            description="Relationship between repository size (tracked files at the pinned commit) and the number of chunks the ingest phase produced."
+            description="Relationship between repository size and the number of chunks the ingest phase produced. Switch the size axis between all tracked files and the lines actually subject to cortex processing."
+            headerAside={
+              <ToggleGroup
+                type="single"
+                value={sizeAxis}
+                onValueChange={(value) => value && setSizeAxis(value as "files" | "lines")}
+              >
+                <ToggleGroupItem value="files">Tracked files</ToggleGroupItem>
+                <ToggleGroupItem value="lines">Indexed lines</ToggleGroupItem>
+              </ToggleGroup>
+            }
           >
             <Card>
               <CardContent className="pt-6">
-                <RepoScatterChart points={sizeScatter} xLabel="tracked files" yLabel="chunks" height={340} />
+                <RepoScatterChart
+                  points={sizeScatter}
+                  xLabel={sizeAxis === "files" ? "tracked files" : "indexed lines"}
+                  yLabel="chunks"
+                  height={340}
+                />
               </CardContent>
             </Card>
           </SectionShell>
