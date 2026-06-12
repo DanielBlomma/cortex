@@ -44,7 +44,12 @@ export type SchedulerOptions = {
 export const DEFAULT_SCHEDULER_OPTIONS: SchedulerOptions = {
   shortMaxTokens: 128,
   batchTokenBudget: 2048,
-  batchMaxItems: 32,
+  // Micro-batching is OFF by default: batched GEMM uses different tiling than
+  // batch-of-1, which flips ~1e-6 rounding boundaries in the stored vectors
+  // (measured: 76/120 rounded vectors differ; cosine impact ~1e-9). The pool
+  // and dedup deliver the throughput win with byte-identical output; set
+  // CORTEX_EMBED_BATCH_SIZE>1 to opt in where byte identity does not matter.
+  batchMaxItems: 1,
   maxPadWaste: 0.1
 };
 
@@ -156,7 +161,10 @@ export function resolvePoolConfig({
 }): PoolConfig {
   const budget = Number.isFinite(threadBudget) && threadBudget >= 1 ? Math.floor(threadBudget) : 1;
   if (poolOverride && Number.isFinite(poolOverride) && poolOverride >= 1) {
-    const sessions = Math.max(1, Math.floor(poolOverride));
+    // The override never exceeds the thread budget: CORTEX_EMBED_THREADS is a
+    // contract for co-located instances. Hard upper clamp keeps model-copy
+    // memory bounded even on huge machines.
+    const sessions = Math.max(1, Math.min(Math.floor(poolOverride), budget, 8));
     return { sessions, threadsPerSession: Math.max(1, Math.floor(budget / sessions)) };
   }
   if (uniqueCount < 64) {
@@ -241,11 +249,12 @@ export async function runWorkUnits(
   if (extractors.length === 0) {
     throw new Error("runWorkUnits requires at least one extractor");
   }
-  const maxInFlight = Math.max(
-    options.maxInFlightTokens ?? DEFAULT_MAX_IN_FLIGHT_TOKENS,
-    // never below the largest single unit, or it could never run
-    units.reduce((max, unit) => Math.max(max, unit.texts.length * unit.maxTokens), 1)
-  );
+  for (const unit of units) {
+    if (!Number.isFinite(unit.maxTokens) || unit.maxTokens < 1) {
+      throw new Error(`Work unit has invalid maxTokens: ${unit.maxTokens}`);
+    }
+  }
+  const maxInFlight = options.maxInFlightTokens ?? DEFAULT_MAX_IN_FLIGHT_TOKENS;
   const onUnitDone = options.onUnitDone;
   const vectors = new Map<number, number[]>();
   const failures: Array<{ index: number; message: string }> = [];
@@ -312,9 +321,18 @@ export async function runWorkUnits(
 
   const takeNext = (): number | null => {
     for (let i = 0; i < units.length; i += 1) {
-      if (!taken[i] && inFlight + unitTokens(units[i]) <= maxInFlight) {
+      if (taken[i]) {
+        continue;
+      }
+      // Normal admission: the unit fits the remaining budget. Oversized
+      // units (larger than the whole budget) run exclusively: they may only
+      // start when nothing is in flight, and their token mass then blocks
+      // every other unit until they release. This keeps one giant from
+      // silently disabling the gate for the rest of the run.
+      const tokens = unitTokens(units[i]);
+      if (inFlight + tokens <= maxInFlight || inFlight === 0) {
         taken[i] = true;
-        inFlight += unitTokens(units[i]);
+        inFlight += tokens;
         return i;
       }
     }
@@ -354,5 +372,16 @@ export async function runWorkUnits(
   });
   await Promise.all(lanes);
 
+  // Defensive: a unit that no lane ever took (cannot happen with the
+  // exclusive-admission rule, but silent loss would be worse than noise).
+  units.forEach((unit, index) => {
+    if (!taken[index]) {
+      for (const members of unit.members) {
+        recordFailure(members, new Error("work unit was never scheduled"));
+      }
+    }
+  });
+
+  failures.sort((a, b) => a.index - b.index);
   return { vectors, failures };
 }

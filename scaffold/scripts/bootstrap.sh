@@ -36,7 +36,12 @@ install_deps_if_changed() {
     current=$(node -e '
       const crypto = require("node:crypto");
       const fs = require("node:fs");
-      console.log(crypto.createHash("sha256").update(fs.readFileSync(process.argv[1])).digest("hex"));
+      // Node version is part of the key: native deps must reinstall after a
+      // runtime switch even when the lockfile is unchanged.
+      const hash = crypto.createHash("sha256");
+      hash.update(process.version);
+      hash.update(fs.readFileSync(process.argv[1]));
+      console.log(hash.digest("hex"));
     ' "$lock" 2>/dev/null || true)
   fi
   if [ -n "$current" ] && [ -d "$prefix/node_modules" ] && [ -f "$marker" ] \

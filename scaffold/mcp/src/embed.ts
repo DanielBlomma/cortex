@@ -489,46 +489,15 @@ async function main(): Promise<void> {
     uniqueCount: unique.length
   });
 
-  const makeExtractor = async (threads: number) =>
-    (await pipeline("feature-extraction", modelId, {
-      session_options: { intraOpNumThreads: threads, interOpNumThreads: 1 }
-    } as Parameters<typeof pipeline>[2])) as unknown as EmbedExtractor & {
-      tokenizer?: (text: string) => { input_ids?: { dims?: number[] } };
-    };
-
-  const extractors: EmbedExtractor[] = [];
-  const first = await makeExtractor(poolConfig.threadsPerSession);
-  extractors.push(first);
-  for (let i = 1; i < poolConfig.sessions; i += 1) {
-    extractors.push(await makeExtractor(poolConfig.threadsPerSession));
-  }
-
-  const countTokens = (text: string): number => {
-    try {
-      const tokenizer = first.tokenizer;
-      if (typeof tokenizer === "function") {
-        const encoded = tokenizer(text);
-        const dims = encoded?.input_ids?.dims;
-        const last = Array.isArray(dims) ? Number(dims[dims.length - 1]) : NaN;
-        if (Number.isFinite(last) && last > 0) {
-          return last;
-        }
-      }
-    } catch {
-      // fall through to the character estimate
-    }
-    return Math.max(1, Math.ceil(text.length / 4));
-  };
-
-  const measured: MeasuredText[] = unique.map((item) => ({ ...item, tokens: countTokens(item.text) }));
-
   const batchSizeRaw = Number(process.env.CORTEX_EMBED_BATCH_SIZE);
   const batchTokensRaw = Number(process.env.CORTEX_EMBED_BATCH_TOKENS);
   const shortTokensRaw = Number(process.env.CORTEX_EMBED_SHORT_TOKENS);
   const schedulerOptions = {
     ...DEFAULT_SCHEDULER_OPTIONS,
-    ...(Number.isFinite(batchSizeRaw) && batchSizeRaw >= 1
-      ? { batchMaxItems: Math.floor(batchSizeRaw) }
+    // 0 (or any value below 1) disables micro-batching rather than silently
+    // meaning "use the default".
+    ...(Number.isFinite(batchSizeRaw) && batchSizeRaw >= 0
+      ? { batchMaxItems: Math.max(1, Math.floor(batchSizeRaw)) }
       : {}),
     ...(Number.isFinite(batchTokensRaw) && batchTokensRaw >= 16
       ? { batchTokenBudget: Math.floor(batchTokensRaw) }
@@ -538,13 +507,67 @@ async function main(): Promise<void> {
       : {})
   };
 
-  const units = packWorkUnits(measured, schedulerOptions);
-  const inFlightRaw = Number(process.env.CORTEX_EMBED_INFLIGHT_TOKENS);
-  const result = await runWorkUnits(units, extractors, {
-    ...(Number.isFinite(inFlightRaw) && inFlightRaw >= 1024
-      ? { maxInFlightTokens: Math.floor(inFlightRaw) }
-      : {})
-  });
+  // Fully warm cache: nothing to embed, so skip model loading entirely —
+  // this is the common repeat-bootstrap / small-update path.
+  let result: { vectors: Map<number, number[]>; failures: Array<{ index: number; message: string }> } = {
+    vectors: new Map(),
+    failures: []
+  };
+
+  if (unique.length > 0) {
+    const makeExtractor = async (threads: number) =>
+      (await pipeline("feature-extraction", modelId, {
+        session_options: { intraOpNumThreads: threads, interOpNumThreads: 1 }
+      } as Parameters<typeof pipeline>[2])) as unknown as EmbedExtractor & {
+        tokenizer?: ((text: string) => { input_ids?: { dims?: number[] } }) & {
+          model_max_length?: number;
+        };
+      };
+
+    // First session loads (and caches) the model; the rest load in parallel.
+    const first = await makeExtractor(poolConfig.threadsPerSession);
+    const extractors: EmbedExtractor[] = [
+      first,
+      ...(await Promise.all(
+        Array.from({ length: poolConfig.sessions - 1 }, () =>
+          makeExtractor(poolConfig.threadsPerSession)
+        )
+      ))
+    ];
+
+    // Inference truncates at the model max; token counts must too, or one
+    // giant file inflates scheduling cost and gate mass far beyond reality.
+    const tokenizerMax = Number(first.tokenizer?.model_max_length);
+    const modelMaxTokens =
+      Number.isFinite(tokenizerMax) && tokenizerMax > 0 && tokenizerMax < 1e9 ? tokenizerMax : 8192;
+
+    const countTokens = (text: string): number => {
+      let tokens = Math.max(1, Math.ceil(text.length / 4));
+      try {
+        const tokenizer = first.tokenizer;
+        if (typeof tokenizer === "function") {
+          const encoded = tokenizer(text);
+          const dims = encoded?.input_ids?.dims;
+          const last = Array.isArray(dims) ? Number(dims[dims.length - 1]) : NaN;
+          if (Number.isFinite(last) && last > 0) {
+            tokens = last;
+          }
+        }
+      } catch {
+        // keep the character estimate
+      }
+      return Math.min(tokens, modelMaxTokens);
+    };
+
+    const measured: MeasuredText[] = unique.map((item) => ({ ...item, tokens: countTokens(item.text) }));
+    const units = packWorkUnits(measured, schedulerOptions);
+    const inFlightRaw = Number(process.env.CORTEX_EMBED_INFLIGHT_TOKENS);
+    result = await runWorkUnits(units, extractors, {
+      ...(Number.isFinite(inFlightRaw) && inFlightRaw >= 1024
+        ? { maxInFlightTokens: Math.floor(inFlightRaw) }
+        : {})
+    });
+  }
 
   let embedded = 0;
   for (const [index, rawVector] of result.vectors) {

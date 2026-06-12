@@ -263,11 +263,14 @@ try {
   let latestVersion = null;
   try {
     const cached = JSON.parse(fs.readFileSync(versionCheckCache, "utf8"));
+    const age = cached ? Date.now() - cached.checked_at : NaN;
     if (
       cached &&
       typeof cached.latest === "string" &&
       Number.isFinite(cached.checked_at) &&
-      Date.now() - cached.checked_at < VERSION_CHECK_TTL_MS
+      age >= 0 &&
+      age < VERSION_CHECK_TTL_MS &&
+      parseVersion(cached.latest)
     ) {
       latestVersion = cached.latest;
     }
@@ -293,14 +296,16 @@ try {
 
     const parsedLatest = JSON.parse(latestRaw);
     latestVersion = Array.isArray(parsedLatest) ? parsedLatest[parsedLatest.length - 1] : parsedLatest;
-    try {
-      fs.mkdirSync(cacheDir, { recursive: true });
-      fs.writeFileSync(
-        versionCheckCache,
-        JSON.stringify({ checked_at: Date.now(), latest: latestVersion })
-      );
-    } catch {
-      // Cache write failures must never break status reporting.
+    if (parseVersion(latestVersion)) {
+      try {
+        fs.mkdirSync(cacheDir, { recursive: true });
+        fs.writeFileSync(
+          versionCheckCache,
+          JSON.stringify({ checked_at: Date.now(), latest: latestVersion })
+        );
+      } catch {
+        // Cache write failures must never break status reporting.
+      }
     }
   }
 

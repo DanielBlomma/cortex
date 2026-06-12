@@ -380,6 +380,21 @@ Required npm configuration:
 - Use GitHub Actions publisher `DanielBlomma/cortex`
 - Workflow filename must match `release-publish.yml`
 
+## Embedding performance tuning
+
+Embedding generation tunes itself to the machine; these environment
+variables override the defaults when needed:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `CORTEX_EMBED_MODEL` | `jinaai/jina-embeddings-v2-base-code` | embedding model id |
+| `CORTEX_EMBED_THREADS` | all cores | total CPU threads embedding may use — set it when several cortex instances share a machine (CI, containers) |
+| `CORTEX_EMBED_POOL` | auto | number of parallel embedding workers (never exceeds the thread budget) |
+| `CORTEX_EMBED_BATCH_SIZE` | 1 (off) | opt-in: group up to N similar-length small texts per inference round; grouped results are semantically identical but may differ from ungrouped ones in the 6th decimal |
+| `CORTEX_EMBED_BATCH_TOKENS` | 2048 | token budget per grouped round |
+| `CORTEX_EMBED_SHORT_TOKENS` | 128 | texts at or below this token count are eligible for grouping |
+| `CORTEX_EMBED_INFLIGHT_TOKENS` | 12288 | cap on concurrent long-text work (memory guard); raise on big-RAM machines |
+
 ## Limitations
 
 - Requires repo initialization (`cortex init --bootstrap`).

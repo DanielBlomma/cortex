@@ -17,7 +17,10 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(ROOT, "dist");
 const MARKER = path.join(DIST, ".cortex-build-hash");
-const ENTRY = path.join(DIST, "server.js");
+const TSBUILDINFO = path.join(DIST, ".tsbuildinfo");
+// Every runtime entrypoint must exist for a build to count as current;
+// checking only one would let a partially deleted dist pass as fresh.
+const ENTRIES = ["server.js", "embed.js", "loadGraph.js"].map((name) => path.join(DIST, name));
 
 function collectSources(dir, files = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
@@ -33,7 +36,11 @@ function collectSources(dir, files = []) {
 
 function inputHash() {
   const hash = crypto.createHash("sha256");
-  const inputs = [path.join(ROOT, "tsconfig.json"), path.join(ROOT, "package-lock.json")];
+  const inputs = [
+    path.join(ROOT, "tsconfig.json"),
+    path.join(ROOT, "package.json"),
+    path.join(ROOT, "package-lock.json")
+  ];
   const srcDir = path.join(ROOT, "src");
   if (fs.existsSync(srcDir)) {
     inputs.push(...collectSources(srcDir));
@@ -53,7 +60,7 @@ function inputHash() {
 const force = process.argv.includes("--force");
 const current = inputHash();
 
-if (!force && fs.existsSync(ENTRY) && fs.existsSync(MARKER)) {
+if (!force && ENTRIES.every((entry) => fs.existsSync(entry)) && fs.existsSync(MARKER)) {
   try {
     if (fs.readFileSync(MARKER, "utf8").trim() === current) {
       console.log("[build] dist is up to date (sources unchanged)");
@@ -64,10 +71,24 @@ if (!force && fs.existsSync(ENTRY) && fs.existsSync(MARKER)) {
   }
 }
 
+// A stale incremental state can convince tsc nothing needs re-emitting even
+// though dist files are missing; reset it whenever we decided to rebuild.
+try {
+  fs.rmSync(TSBUILDINFO, { force: true });
+} catch {
+  // best effort
+}
+
 const tscLocal = path.join(ROOT, "node_modules", ".bin", "tsc");
-const command = fs.existsSync(tscLocal) ? tscLocal : "npx";
-const args = fs.existsSync(tscLocal) ? ["-p", "tsconfig.json"] : ["tsc", "-p", "tsconfig.json"];
-const result = spawnSync(command, args, { cwd: ROOT, stdio: "inherit" });
+if (!fs.existsSync(tscLocal)) {
+  console.error("[build] TypeScript not installed; run npm install in this directory first");
+  process.exit(1);
+}
+const result = spawnSync(tscLocal, ["-p", "tsconfig.json"], { cwd: ROOT, stdio: "inherit" });
+if (result.error) {
+  console.error(`[build] failed to launch tsc: ${result.error.message}`);
+  process.exit(1);
+}
 if (result.status !== 0) {
   process.exit(result.status ?? 1);
 }
