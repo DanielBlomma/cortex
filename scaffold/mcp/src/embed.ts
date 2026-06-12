@@ -1,10 +1,21 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { env, pipeline } from "@huggingface/transformers";
 import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
 import { CACHE_DIR, PATHS } from "./paths.js";
+import {
+  DEFAULT_SCHEDULER_OPTIONS,
+  groupDuplicates,
+  packWorkUnits,
+  resolvePoolConfig,
+  runWorkUnits,
+  type EmbedExtractor,
+  type MeasuredText,
+  type PendingText
+} from "./embedScheduler.js";
 import type { JsonObject, JsonValue } from "./types.js";
 
 const EMBEDDINGS_PATH = PATHS.embeddingsEntities;
@@ -432,33 +443,25 @@ async function main(): Promise<void> {
   const existing = parseExistingEmbeddings(readJsonl(EMBEDDINGS_PATH), modelId);
 
   env.cacheDir = MODEL_CACHE_DIR;
-  // Optional intra-op thread cap so co-located embedders (e.g. parallel CI
-  // jobs or eval containers) do not oversubscribe shared cores. Unset =
-  // library default (all cores), which is correct for a single instance.
+  // Total thread budget for embedding. CORTEX_EMBED_THREADS caps it so
+  // co-located embedders (parallel CI jobs, eval containers) do not
+  // oversubscribe shared cores; unset = all cores.
   const threadsRaw = Number(process.env.CORTEX_EMBED_THREADS);
-  const sessionOptions =
-    Number.isFinite(threadsRaw) && threadsRaw >= 1
-      ? { session_options: { intraOpNumThreads: Math.floor(threadsRaw), interOpNumThreads: 1 } }
-      : undefined;
-  const extractor = await pipeline(
-    "feature-extraction",
-    modelId,
-    sessionOptions as Parameters<typeof pipeline>[2]
-  );
+  const threadBudget =
+    Number.isFinite(threadsRaw) && threadsRaw >= 1 ? Math.floor(threadsRaw) : os.cpus().length;
 
   let reused = 0;
-  let embedded = 0;
-  let failed = 0;
-  const failures: string[] = [];
-  const output: EmbeddingRecord[] = [];
+  // Slot per entity keeps output in entity order; failed slots stay null.
+  const slots: Array<EmbeddingRecord | null> = entities.map(() => null);
+  const pending: PendingText[] = [];
   let dimensions = 0;
 
-  for (const entity of entities) {
+  entities.forEach((entity, index) => {
     const previous = existing.get(entity.id);
     if (previous && previous.signature === entity.signature && previous.vector.length > 0) {
       reused += 1;
       dimensions = dimensions || previous.vector.length;
-      output.push({
+      slots[index] = {
         ...previous,
         entity_type: entity.type,
         kind: entity.kind,
@@ -471,45 +474,107 @@ async function main(): Promise<void> {
         signature: entity.signature,
         model: modelId,
         dimensions: previous.vector.length
-      });
-      continue;
+      };
+      return;
     }
+    pending.push({ index, text: normalizeText(entity.text) });
+  });
 
-    try {
-      const embeddingOutput = await extractor(normalizeText(entity.text), {
-        pooling: "mean",
-        normalize: true
-      });
-      const vector = roundVector(toEmbeddingVector(embeddingOutput));
-      if (vector.length === 0) {
-        throw new Error("Empty embedding vector");
-      }
+  // Deduplicate identical texts (lossless: identical input -> identical
+  // vector), then measure token lengths for routing and batch packing.
+  const unique = groupDuplicates(pending);
+  const poolConfig = resolvePoolConfig({
+    threadBudget,
+    poolOverride: Number(process.env.CORTEX_EMBED_POOL) || null,
+    uniqueCount: unique.length
+  });
 
-      embedded += 1;
-      dimensions = dimensions || vector.length;
-      output.push({
-        id: entity.id,
-        entity_type: entity.type,
-        kind: entity.kind,
-        label: entity.label,
-        path: entity.path,
-        status: entity.status,
-        source_of_truth: entity.source_of_truth,
-        trust_level: entity.trust_level,
-        updated_at: entity.updated_at,
-        signature: entity.signature,
-        model: modelId,
-        dimensions: vector.length,
-        vector
-      });
-    } catch (error) {
-      failed += 1;
-      failures.push(
-        `${entity.id}: ${error instanceof Error ? error.message : "embedding generation failed"}`
-      );
-    }
+  const makeExtractor = async (threads: number) =>
+    (await pipeline("feature-extraction", modelId, {
+      session_options: { intraOpNumThreads: threads, interOpNumThreads: 1 }
+    } as Parameters<typeof pipeline>[2])) as unknown as EmbedExtractor & {
+      tokenizer?: (text: string) => { input_ids?: { dims?: number[] } };
+    };
+
+  const extractors: EmbedExtractor[] = [];
+  const first = await makeExtractor(poolConfig.threadsPerSession);
+  extractors.push(first);
+  for (let i = 1; i < poolConfig.sessions; i += 1) {
+    extractors.push(await makeExtractor(poolConfig.threadsPerSession));
   }
 
+  const countTokens = (text: string): number => {
+    try {
+      const tokenizer = first.tokenizer;
+      if (typeof tokenizer === "function") {
+        const encoded = tokenizer(text);
+        const dims = encoded?.input_ids?.dims;
+        const last = Array.isArray(dims) ? Number(dims[dims.length - 1]) : NaN;
+        if (Number.isFinite(last) && last > 0) {
+          return last;
+        }
+      }
+    } catch {
+      // fall through to the character estimate
+    }
+    return Math.max(1, Math.ceil(text.length / 4));
+  };
+
+  const measured: MeasuredText[] = unique.map((item) => ({ ...item, tokens: countTokens(item.text) }));
+
+  const batchSizeRaw = Number(process.env.CORTEX_EMBED_BATCH_SIZE);
+  const batchTokensRaw = Number(process.env.CORTEX_EMBED_BATCH_TOKENS);
+  const shortTokensRaw = Number(process.env.CORTEX_EMBED_SHORT_TOKENS);
+  const schedulerOptions = {
+    ...DEFAULT_SCHEDULER_OPTIONS,
+    ...(Number.isFinite(batchSizeRaw) && batchSizeRaw >= 1
+      ? { batchMaxItems: Math.floor(batchSizeRaw) }
+      : {}),
+    ...(Number.isFinite(batchTokensRaw) && batchTokensRaw >= 16
+      ? { batchTokenBudget: Math.floor(batchTokensRaw) }
+      : {}),
+    ...(Number.isFinite(shortTokensRaw) && shortTokensRaw >= 1
+      ? { shortMaxTokens: Math.floor(shortTokensRaw) }
+      : {})
+  };
+
+  const units = packWorkUnits(measured, schedulerOptions);
+  const inFlightRaw = Number(process.env.CORTEX_EMBED_INFLIGHT_TOKENS);
+  const result = await runWorkUnits(units, extractors, {
+    ...(Number.isFinite(inFlightRaw) && inFlightRaw >= 1024
+      ? { maxInFlightTokens: Math.floor(inFlightRaw) }
+      : {})
+  });
+
+  let embedded = 0;
+  for (const [index, rawVector] of result.vectors) {
+    const entity = entities[index];
+    const vector = roundVector(rawVector);
+    embedded += 1;
+    dimensions = dimensions || vector.length;
+    slots[index] = {
+      id: entity.id,
+      entity_type: entity.type,
+      kind: entity.kind,
+      label: entity.label,
+      path: entity.path,
+      status: entity.status,
+      source_of_truth: entity.source_of_truth,
+      trust_level: entity.trust_level,
+      updated_at: entity.updated_at,
+      signature: entity.signature,
+      model: modelId,
+      dimensions: vector.length,
+      vector
+    };
+  }
+
+  const failures = result.failures.map(
+    (failure) => `${entities[failure.index].id}: ${failure.message}`
+  );
+  const failed = result.failures.length;
+
+  const output = slots.filter((record): record is EmbeddingRecord => record !== null);
   writeJsonl(EMBEDDINGS_PATH, output);
 
   const manifest = {
@@ -529,7 +594,9 @@ async function main(): Promise<void> {
 
   fs.writeFileSync(EMBEDDINGS_MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 
-  console.log(`[embed] mode=${mode} model=${modelId} dim=${dimensions}`);
+  console.log(
+    `[embed] mode=${mode} model=${modelId} dim=${dimensions} pool=${poolConfig.sessions}x${poolConfig.threadsPerSession} batch<=${schedulerOptions.batchMaxItems}`
+  );
   console.log(
     `[embed] entities=${entities.length} embedded=${embedded} reused=${reused} failed=${failed}`
   );
