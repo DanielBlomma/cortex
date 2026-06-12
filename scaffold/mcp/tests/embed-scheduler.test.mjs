@@ -33,7 +33,7 @@ test("groupDuplicates: identical texts share one unique entry with all indexes",
 
 // ─── packing ─────────────────────────────────────────────────────────────────
 
-test("packWorkUnits: long texts become singles, shorts are batched", () => {
+test("packWorkUnits: long texts become singles, shorts are batched when enabled", () => {
   const units = packWorkUnits(
     [
       measured("long", 4000, [0]),
@@ -41,7 +41,7 @@ test("packWorkUnits: long texts become singles, shorts are batched", () => {
       measured("s2", 21, [2]),
       measured("s3", 22, [3])
     ],
-    DEFAULT_SCHEDULER_OPTIONS
+    { ...DEFAULT_SCHEDULER_OPTIONS, batchMaxItems: 32 }
   );
   const single = units.find((u) => u.texts.includes("long"));
   assert.equal(single.kind, "single");
@@ -53,7 +53,7 @@ test("packWorkUnits: respects the pad-waste bound", () => {
   // 10-token and 100-token texts in one batch would waste 45% padding.
   const units = packWorkUnits(
     [measured("tiny", 10, [0]), measured("bigger", 100, [1])],
-    { ...DEFAULT_SCHEDULER_OPTIONS, shortMaxTokens: 128 }
+    { ...DEFAULT_SCHEDULER_OPTIONS, shortMaxTokens: 128, batchMaxItems: 32 }
   );
   assert.equal(units.length, 2);
   assert.ok(units.every((u) => u.texts.length === 1));
@@ -70,6 +70,14 @@ test("packWorkUnits: respects token budget and max items", () => {
   assert.ok(units.every((u) => u.texts.length * u.maxTokens <= 64 * 8));
   const total = units.reduce((acc, u) => acc + u.texts.length, 0);
   assert.equal(total, 100);
+});
+
+test("packWorkUnits: default options produce no batches (byte-identity default)", () => {
+  const units = packWorkUnits(
+    [measured("a", 10, [0]), measured("b", 11, [1]), measured("c", 12, [2])],
+    DEFAULT_SCHEDULER_OPTIONS
+  );
+  assert.ok(units.every((u) => u.kind === "single"));
 });
 
 test("packWorkUnits: batchMaxItems=1 disables batching entirely", () => {
@@ -130,7 +138,7 @@ test("runWorkUnits: assigns vectors to every duplicate index", async () => {
   };
   const units = packWorkUnits(
     [measured("aaa", 3, [0, 5]), measured("bb", 2, [1])],
-    DEFAULT_SCHEDULER_OPTIONS
+    { ...DEFAULT_SCHEDULER_OPTIONS, batchMaxItems: 32 }
   );
   const result = await runWorkUnits(units, [extractor]);
   assert.equal(result.failures.length, 0);
@@ -253,4 +261,101 @@ test("runWorkUnits: gate never deadlocks on units larger than the budget", async
   ];
   const result = await runWorkUnits(units, [extractor], { maxInFlightTokens: 1000 });
   assert.equal(result.vectors.size, 1);
+});
+
+// ─── review fixes ────────────────────────────────────────────────────────────
+
+test("resolvePoolConfig: override never exceeds the thread budget", () => {
+  const config = resolvePoolConfig({ threadBudget: 4, poolOverride: 8, uniqueCount: 10 });
+  assert.ok(
+    config.sessions * config.threadsPerSession <= 4,
+    `cap violated: ${JSON.stringify(config)}`
+  );
+  assert.deepEqual(config, { sessions: 4, threadsPerSession: 1 });
+  // and an absurd override cannot demand absurd model copies
+  const huge = resolvePoolConfig({ threadBudget: 64, poolOverride: 100, uniqueCount: 1000 });
+  assert.ok(huge.sessions <= 8);
+});
+
+test("runWorkUnits: an oversized unit does not unlock the gate for others", async () => {
+  let concurrent = 0;
+  let peak = 0;
+  const extractor = async (texts) => {
+    concurrent += 1;
+    peak = Math.max(peak, concurrent);
+    await new Promise((resolve) => setTimeout(resolve, 8));
+    concurrent -= 1;
+    const list = Array.isArray(texts) ? texts : [texts];
+    return { dims: [list.length, 1], data: Float32Array.from(list.map((t) => t.length)) };
+  };
+  const units = [
+    { kind: "single", texts: ["mega"], members: [[0]], maxTokens: 50000, cost: 25e8 },
+    ...Array.from({ length: 3 }, (_, i) => ({
+      kind: "single",
+      texts: [`giant${i}`],
+      members: [[i + 1]],
+      maxTokens: 8000,
+      cost: 64e6
+    }))
+  ];
+  const result = await runWorkUnits(units, [extractor, extractor, extractor], {
+    maxInFlightTokens: 12288
+  });
+  assert.equal(result.vectors.size, 4);
+  assert.equal(peak, 1, `mega must not disable the gate; saw peak ${peak}`);
+});
+
+test("runWorkUnits: rejects units with invalid token counts", async () => {
+  const extractor = async () => ({ dims: [1, 1], data: Float32Array.from([1]) });
+  for (const bad of [NaN, 0, -5, Infinity]) {
+    await assert.rejects(
+      () =>
+        runWorkUnits(
+          [{ kind: "single", texts: ["x"], members: [[0]], maxTokens: bad, cost: 1 }],
+          [extractor]
+        ),
+      /invalid maxTokens/
+    );
+  }
+});
+
+test("runWorkUnits: empty units resolve, empty extractors throw", async () => {
+  const extractor = async () => ({ dims: [1, 1], data: Float32Array.from([1]) });
+  const empty = await runWorkUnits([], [extractor]);
+  assert.equal(empty.vectors.size, 0);
+  assert.equal(empty.failures.length, 0);
+  await assert.rejects(() => runWorkUnits([], []), /at least one extractor/);
+});
+
+test("runWorkUnits: failures are reported in slot-index order", async () => {
+  const extractor = async (texts) => {
+    const text = Array.isArray(texts) ? texts[0] : texts;
+    await new Promise((resolve) => setTimeout(resolve, text === "fail-late" ? 1 : 15));
+    throw new Error(`boom:${text}`);
+  };
+  const units = [
+    { kind: "single", texts: ["fail-early"], members: [[7]], maxTokens: 10, cost: 100 },
+    { kind: "single", texts: ["fail-late"], members: [[2]], maxTokens: 10, cost: 100 }
+  ];
+  const result = await runWorkUnits(units, [extractor, extractor]);
+  assert.deepEqual(result.failures.map((f) => f.index), [2, 7]);
+});
+
+test("sliceBatchVectors: infers dimensions when dims metadata is missing", () => {
+  const rows = sliceBatchVectors({ data: Float32Array.from([1, 2, 3, 4]) }, 2);
+  assert.deepEqual(rows, [
+    [1, 2],
+    [3, 4]
+  ]);
+});
+
+test("packWorkUnits: a lone short over the token budget still packs as batch-of-1", () => {
+  const units = packWorkUnits([measured("wide", 100, [0])], {
+    ...DEFAULT_SCHEDULER_OPTIONS,
+    shortMaxTokens: 128,
+    batchTokenBudget: 64,
+    batchMaxItems: 32
+  });
+  assert.equal(units.length, 1);
+  assert.equal(units[0].texts.length, 1);
 });
