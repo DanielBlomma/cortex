@@ -384,8 +384,11 @@ Required npm configuration:
 
 Embedding generation tunes itself to the machine: the number of parallel
 workers, memory limits for long files, and skip-work caching are all derived
-from the available CPU cores and RAM at run time. No configuration is needed
-— on a laptop or a CI runner, cortex picks safe, fast settings by itself.
+from the available CPU cores and RAM at run time (container memory limits
+included). No configuration is needed — on a laptop or a CI runner, cortex
+picks safe, fast settings by itself. The one exception worth knowing:
+when several cortex instances share one machine, set `CORTEX_EMBED_THREADS`
+to give each its fair share of cores.
 
 ## Limitations
 

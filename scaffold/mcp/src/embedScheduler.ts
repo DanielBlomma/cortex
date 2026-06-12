@@ -145,6 +145,77 @@ export function packWorkUnits(unique: MeasuredText[], options: SchedulerOptions)
 
 export type PoolConfig = { sessions: number; threadsPerSession: number };
 
+/**
+ * Usable memory for embedding work, from raw OS/process signals:
+ * - container limits (cgroups) cap everything: os.totalmem()/freemem() see
+ *   the HOST, which would size pools/gates dangerously large inside a
+ *   limited container;
+ * - "free" memory understates reality on platforms that count reclaimable
+ *   cache as used (macOS reports ~0.5GB free on an idle 24GB laptop), so it
+ *   is floored at a fraction of the effective total;
+ * - never plan beyond half of the effective total.
+ */
+export function resolveMemoryHeadroom({
+  freeMemory,
+  totalMemory,
+  constrainedMemory,
+  availableMemory
+}: {
+  freeMemory: number;
+  totalMemory: number;
+  constrainedMemory?: number | null;
+  availableMemory?: number | null;
+}): number {
+  const total = Number.isFinite(totalMemory) && totalMemory > 0 ? totalMemory : 8e9;
+  const limit =
+    Number.isFinite(constrainedMemory ?? NaN) && (constrainedMemory as number) > 0
+      ? (constrainedMemory as number)
+      : Infinity;
+  const effectiveTotal = Math.min(total, limit);
+  const free = Number.isFinite(freeMemory) && freeMemory >= 0 ? freeMemory : 0;
+  const available =
+    Number.isFinite(availableMemory ?? NaN) && (availableMemory as number) > 0
+      ? (availableMemory as number)
+      : free;
+  return Math.min(effectiveTotal * 0.5, Math.max(available, effectiveTotal * 0.375));
+}
+
+/** Sanitizes a tokenizer-reported maximum sequence length. Sentinel and
+ * absurd values (some configs report 1e30) fall back to 8192; anything
+ * beyond 128k tokens is treated as absurd. */
+export function resolveModelMaxTokens(raw: unknown): number {
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 1 && value <= 131072 ? Math.floor(value) : 8192;
+}
+
+/**
+ * Builds a token counter from a tokenizer callable. Falls back to a
+ * chars/4 estimate when the tokenizer is unavailable, misbehaves, or
+ * returns an unexpected shape; always clamps at the model maximum, since
+ * inference truncates there anyway.
+ */
+export function createTokenCounter(
+  tokenizer: unknown,
+  modelMaxTokens: number
+): (text: string) => number {
+  return (text: string): number => {
+    let tokens = Math.max(1, Math.ceil(text.length / 4));
+    try {
+      if (typeof tokenizer === "function") {
+        const encoded = (tokenizer as (t: string) => { input_ids?: { dims?: number[] } })(text);
+        const dims = encoded?.input_ids?.dims;
+        const last = Array.isArray(dims) ? Number(dims[dims.length - 1]) : NaN;
+        if (Number.isFinite(last) && last > 0) {
+          tokens = last;
+        }
+      }
+    } catch {
+      // keep the character estimate
+    }
+    return Math.min(tokens, modelMaxTokens);
+  };
+}
+
 /** Estimated working memory one full pool session needs (model copy plus
  * inference activations for a base-size model). Used only as a derating
  * heuristic; deliberately conservative. */
@@ -177,7 +248,9 @@ export function resolvePoolConfig({
   if (poolOverride && Number.isFinite(poolOverride) && poolOverride >= 1) {
     // The override never exceeds the thread budget: CORTEX_EMBED_THREADS is a
     // contract for co-located instances. Hard upper clamp keeps model-copy
-    // memory bounded even on huge machines.
+    // memory bounded even on huge machines. Deliberately NOT memory-derated:
+    // the explicit override is the operator's escape hatch when the
+    // heuristics misjudge a machine.
     const sessions = Math.max(1, Math.min(Math.floor(poolOverride), budget, 8));
     return { sessions, threadsPerSession: Math.max(1, Math.floor(budget / sessions)) };
   }
@@ -272,7 +345,6 @@ export type RunOptions = {
    * lane busy. Default keeps roughly one 8k giant plus a stream of shorts.
    */
   maxInFlightTokens?: number;
-  onUnitDone?: (unit: WorkUnit) => void;
 };
 
 export const DEFAULT_MAX_IN_FLIGHT_TOKENS = 12288;
@@ -298,7 +370,6 @@ export async function runWorkUnits(
     }
   }
   const maxInFlight = options.maxInFlightTokens ?? DEFAULT_MAX_IN_FLIGHT_TOKENS;
-  const onUnitDone = options.onUnitDone;
   const vectors = new Map<number, number[]>();
   const failures: Array<{ index: number; message: string }> = [];
 
@@ -357,13 +428,18 @@ export async function runWorkUnits(
   // work is always further down the list). Single-threaded JS makes the
   // take-then-increment bookkeeping race-free.
   const taken = new Array<boolean>(units.length).fill(false);
+  let untakenCount = units.length;
+  let scanHead = 0; // first possibly-untaken index; avoids O(U^2) rescans
   let inFlight = 0;
   let waiters: Array<() => void> = [];
 
   const unitTokens = (unit: WorkUnit) => unit.texts.length * unit.maxTokens;
 
   const takeNext = (): number | null => {
-    for (let i = 0; i < units.length; i += 1) {
+    while (scanHead < units.length && taken[scanHead]) {
+      scanHead += 1;
+    }
+    for (let i = scanHead; i < units.length; i += 1) {
       if (taken[i]) {
         continue;
       }
@@ -375,13 +451,14 @@ export async function runWorkUnits(
       const tokens = unitTokens(units[i]);
       if (inFlight + tokens <= maxInFlight || inFlight === 0) {
         taken[i] = true;
+        untakenCount -= 1;
         inFlight += tokens;
         return i;
       }
     }
     return null;
   };
-  const remaining = () => taken.some((t) => !t);
+  const remaining = () => untakenCount > 0;
   const release = (unit: WorkUnit) => {
     inFlight -= unitTokens(unit);
     const wake = waiters;
@@ -407,9 +484,6 @@ export async function runWorkUnits(
         await runUnit(extractor, unit);
       } finally {
         release(unit);
-      }
-      if (onUnitDone) {
-        onUnitDone(unit);
       }
     }
   });
