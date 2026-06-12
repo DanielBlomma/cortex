@@ -432,7 +432,19 @@ async function main(): Promise<void> {
   const existing = parseExistingEmbeddings(readJsonl(EMBEDDINGS_PATH), modelId);
 
   env.cacheDir = MODEL_CACHE_DIR;
-  const extractor = await pipeline("feature-extraction", modelId);
+  // Optional intra-op thread cap so co-located embedders (e.g. parallel CI
+  // jobs or eval containers) do not oversubscribe shared cores. Unset =
+  // library default (all cores), which is correct for a single instance.
+  const threadsRaw = Number(process.env.CORTEX_EMBED_THREADS);
+  const sessionOptions =
+    Number.isFinite(threadsRaw) && threadsRaw >= 1
+      ? { session_options: { intraOpNumThreads: Math.floor(threadsRaw), interOpNumThreads: 1 } }
+      : undefined;
+  const extractor = await pipeline(
+    "feature-extraction",
+    modelId,
+    sessionOptions as Parameters<typeof pipeline>[2]
+  );
 
   let reused = 0;
   let embedded = 0;
