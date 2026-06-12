@@ -1,10 +1,25 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { env, pipeline } from "@huggingface/transformers";
 import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
 import { CACHE_DIR, PATHS } from "./paths.js";
+import {
+  createTokenCounter,
+  DEFAULT_SCHEDULER_OPTIONS,
+  groupDuplicates,
+  packWorkUnits,
+  resolveInFlightTokens,
+  resolveMemoryHeadroom,
+  resolveModelMaxTokens,
+  resolvePoolConfig,
+  runWorkUnits,
+  type EmbedExtractor,
+  type MeasuredText,
+  type PendingText
+} from "./embedScheduler.js";
 import type { JsonObject, JsonValue } from "./types.js";
 
 const EMBEDDINGS_PATH = PATHS.embeddingsEntities;
@@ -388,19 +403,6 @@ function parseExistingEmbeddings(raw: JsonObject[], modelId: string): Map<string
   return index;
 }
 
-function toEmbeddingVector(output: unknown): number[] {
-  if (!output || typeof output !== "object") {
-    throw new Error("Invalid embedding output type");
-  }
-
-  const data = (output as { data?: unknown }).data;
-  if (!data || typeof (data as ArrayLike<number>).length !== "number") {
-    throw new Error("Missing embedding data");
-  }
-
-  return Array.from(data as ArrayLike<number>).map((value) => Number(value));
-}
-
 function roundVector(values: number[]): number[] {
   return values.map((value) => Number(value.toFixed(6)));
 }
@@ -432,33 +434,25 @@ async function main(): Promise<void> {
   const existing = parseExistingEmbeddings(readJsonl(EMBEDDINGS_PATH), modelId);
 
   env.cacheDir = MODEL_CACHE_DIR;
-  // Optional intra-op thread cap so co-located embedders (e.g. parallel CI
-  // jobs or eval containers) do not oversubscribe shared cores. Unset =
-  // library default (all cores), which is correct for a single instance.
+  // Total thread budget for embedding. CORTEX_EMBED_THREADS caps it so
+  // co-located embedders (parallel CI jobs, eval containers) do not
+  // oversubscribe shared cores; unset = all cores.
   const threadsRaw = Number(process.env.CORTEX_EMBED_THREADS);
-  const sessionOptions =
-    Number.isFinite(threadsRaw) && threadsRaw >= 1
-      ? { session_options: { intraOpNumThreads: Math.floor(threadsRaw), interOpNumThreads: 1 } }
-      : undefined;
-  const extractor = await pipeline(
-    "feature-extraction",
-    modelId,
-    sessionOptions as Parameters<typeof pipeline>[2]
-  );
+  const threadBudget =
+    Number.isFinite(threadsRaw) && threadsRaw >= 1 ? Math.floor(threadsRaw) : os.cpus().length;
 
   let reused = 0;
-  let embedded = 0;
-  let failed = 0;
-  const failures: string[] = [];
-  const output: EmbeddingRecord[] = [];
+  // Slot per entity keeps output in entity order; failed slots stay null.
+  const slots: Array<EmbeddingRecord | null> = entities.map(() => null);
+  const pending: PendingText[] = [];
   let dimensions = 0;
 
-  for (const entity of entities) {
+  entities.forEach((entity, index) => {
     const previous = existing.get(entity.id);
     if (previous && previous.signature === entity.signature && previous.vector.length > 0) {
       reused += 1;
       dimensions = dimensions || previous.vector.length;
-      output.push({
+      slots[index] = {
         ...previous,
         entity_type: entity.type,
         kind: entity.kind,
@@ -471,45 +465,145 @@ async function main(): Promise<void> {
         signature: entity.signature,
         model: modelId,
         dimensions: previous.vector.length
-      });
-      continue;
+      };
+      return;
     }
+    pending.push({ index, text: normalizeText(entity.text) });
+  });
 
-    try {
-      const embeddingOutput = await extractor(normalizeText(entity.text), {
-        pooling: "mean",
-        normalize: true
-      });
-      const vector = roundVector(toEmbeddingVector(embeddingOutput));
-      if (vector.length === 0) {
-        throw new Error("Empty embedding vector");
-      }
+  // Deduplicate identical texts (lossless: identical input -> identical
+  // vector), then measure token lengths for routing and batch packing.
+  const unique = groupDuplicates(pending);
+  // Memory headroom drives pool size and the concurrency gate; everything
+  // adapts to the machine so no tuning is expected from users. Container
+  // limits (cgroups) and platforms that under-report free memory are both
+  // handled inside resolveMemoryHeadroom.
+  const readHeadroom = () =>
+    resolveMemoryHeadroom({
+      freeMemory: os.freemem(),
+      totalMemory: os.totalmem(),
+      constrainedMemory: process.constrainedMemory?.() ?? null,
+      availableMemory: process.availableMemory?.() ?? null
+    });
+  const memoryHeadroom = readHeadroom();
+  const poolConfig = resolvePoolConfig({
+    threadBudget,
+    poolOverride: Number(process.env.CORTEX_EMBED_POOL) || null,
+    uniqueCount: unique.length,
+    memoryBytes: memoryHeadroom
+  });
 
-      embedded += 1;
-      dimensions = dimensions || vector.length;
-      output.push({
-        id: entity.id,
-        entity_type: entity.type,
-        kind: entity.kind,
-        label: entity.label,
-        path: entity.path,
-        status: entity.status,
-        source_of_truth: entity.source_of_truth,
-        trust_level: entity.trust_level,
-        updated_at: entity.updated_at,
-        signature: entity.signature,
-        model: modelId,
-        dimensions: vector.length,
-        vector
-      });
-    } catch (error) {
-      failed += 1;
-      failures.push(
-        `${entity.id}: ${error instanceof Error ? error.message : "embedding generation failed"}`
+  const batchSizeRaw = Number(process.env.CORTEX_EMBED_BATCH_SIZE);
+  const batchTokensRaw = Number(process.env.CORTEX_EMBED_BATCH_TOKENS);
+  const shortTokensRaw = Number(process.env.CORTEX_EMBED_SHORT_TOKENS);
+  const schedulerOptions = {
+    ...DEFAULT_SCHEDULER_OPTIONS,
+    // 0 (or any value below 1) disables micro-batching rather than silently
+    // meaning "use the default".
+    ...(Number.isFinite(batchSizeRaw) && batchSizeRaw >= 0
+      ? { batchMaxItems: Math.max(1, Math.floor(batchSizeRaw)) }
+      : {}),
+    ...(Number.isFinite(batchTokensRaw) && batchTokensRaw >= 16
+      ? { batchTokenBudget: Math.floor(batchTokensRaw) }
+      : {}),
+    ...(Number.isFinite(shortTokensRaw) && shortTokensRaw >= 1
+      ? { shortMaxTokens: Math.floor(shortTokensRaw) }
+      : {})
+  };
+
+  // Fully warm cache: nothing to embed, so skip model loading entirely —
+  // this is the common repeat-bootstrap / small-update path.
+  let result: { vectors: Map<number, number[]>; failures: Array<{ index: number; message: string }> } = {
+    vectors: new Map(),
+    failures: []
+  };
+
+  if (unique.length > 0) {
+    const makeExtractor = async (threads: number) =>
+      (await pipeline("feature-extraction", modelId, {
+        session_options: { intraOpNumThreads: threads, interOpNumThreads: 1 }
+      } as Parameters<typeof pipeline>[2])) as unknown as EmbedExtractor & {
+        tokenizer?: ((text: string) => { input_ids?: { dims?: number[] } }) & {
+          model_max_length?: number;
+        };
+      };
+
+    // First session loads (and caches) the model; the rest load in parallel.
+    // Extra sessions failing (e.g. memory pressure) degrades the pool instead
+    // of aborting the run — one session can always finish the work.
+    const first = await makeExtractor(poolConfig.threadsPerSession);
+    const extraSessions = await Promise.allSettled(
+      Array.from({ length: poolConfig.sessions - 1 }, () =>
+        makeExtractor(poolConfig.threadsPerSession)
+      )
+    );
+    const extractors: EmbedExtractor[] = [
+      first,
+      ...extraSessions
+        .filter(
+          (settled): settled is PromiseFulfilledResult<Awaited<ReturnType<typeof makeExtractor>>> =>
+            settled.status === "fulfilled"
+        )
+        .map((settled) => settled.value)
+    ];
+    const failedSessions = extraSessions.length + 1 - extractors.length;
+    if (failedSessions > 0) {
+      const firstFailure = extraSessions.find(
+        (settled): settled is PromiseRejectedResult => settled.status === "rejected"
+      );
+      const reason =
+        firstFailure?.reason instanceof Error ? firstFailure.reason.message : String(firstFailure?.reason ?? "unknown");
+      console.warn(
+        `[embed] ${failedSessions} pool session(s) failed to load (${reason}); continuing with ${extractors.length}`
       );
     }
+
+    // Inference truncates at the model max; token counts must too, or one
+    // giant file inflates scheduling cost and gate mass far beyond reality.
+    const modelMaxTokens = resolveModelMaxTokens(first.tokenizer?.model_max_length);
+    const countTokens = createTokenCounter(first.tokenizer, modelMaxTokens);
+
+    const measured: MeasuredText[] = unique.map((item) => ({ ...item, tokens: countTokens(item.text) }));
+    const units = packWorkUnits(measured, schedulerOptions);
+    // Recompute headroom after the model copies are resident so the gate
+    // reflects what is actually left for inference activations.
+    const inFlightRaw = Number(process.env.CORTEX_EMBED_INFLIGHT_TOKENS);
+    const maxInFlightTokens =
+      Number.isFinite(inFlightRaw) && inFlightRaw >= 1024
+        ? Math.floor(inFlightRaw)
+        : resolveInFlightTokens({ memoryBytes: readHeadroom(), modelMaxTokens });
+    result = await runWorkUnits(units, extractors, { maxInFlightTokens });
   }
 
+  let embedded = 0;
+  for (const [index, rawVector] of result.vectors) {
+    const entity = entities[index];
+    const vector = roundVector(rawVector);
+    embedded += 1;
+    dimensions = dimensions || vector.length;
+    slots[index] = {
+      id: entity.id,
+      entity_type: entity.type,
+      kind: entity.kind,
+      label: entity.label,
+      path: entity.path,
+      status: entity.status,
+      source_of_truth: entity.source_of_truth,
+      trust_level: entity.trust_level,
+      updated_at: entity.updated_at,
+      signature: entity.signature,
+      model: modelId,
+      dimensions: vector.length,
+      vector
+    };
+  }
+
+  const failures = result.failures.map(
+    (failure) => `${entities[failure.index].id}: ${failure.message}`
+  );
+  const failed = result.failures.length;
+
+  const output = slots.filter((record): record is EmbeddingRecord => record !== null);
   writeJsonl(EMBEDDINGS_PATH, output);
 
   const manifest = {
@@ -529,7 +623,9 @@ async function main(): Promise<void> {
 
   fs.writeFileSync(EMBEDDINGS_MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 
-  console.log(`[embed] mode=${mode} model=${modelId} dim=${dimensions}`);
+  console.log(
+    `[embed] mode=${mode} model=${modelId} dim=${dimensions} pool=${poolConfig.sessions}x${poolConfig.threadsPerSession} batch<=${schedulerOptions.batchMaxItems}`
+  );
   console.log(
     `[embed] entities=${entities.length} embedded=${embedded} reused=${reused} failed=${failed}`
   );

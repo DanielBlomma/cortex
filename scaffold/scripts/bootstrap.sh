@@ -23,10 +23,42 @@ info "pipeline: deps -> ingest -> embeddings -> graph -> status"
 
 mkdir -p "$MCP_DIR/.npm-cache"
 
+# Runs `npm install` for a prefix only when its package-lock.json changed
+# since the last successful install (or node_modules is missing). A warm
+# no-op install still costs npm tens of seconds per prefix; the lockfile-hash
+# marker makes repeat bootstraps and updates skip it entirely.
+install_deps_if_changed() {
+  local prefix="$1" cache="$2"
+  local lock="$prefix/package-lock.json"
+  local marker="$prefix/node_modules/.cortex-lock-hash"
+  local current=""
+  if [ -f "$lock" ]; then
+    current=$(node -e '
+      const crypto = require("node:crypto");
+      const fs = require("node:fs");
+      // Node version is part of the key: native deps must reinstall after a
+      // runtime switch even when the lockfile is unchanged.
+      const hash = crypto.createHash("sha256");
+      hash.update(process.version);
+      hash.update(fs.readFileSync(process.argv[1]));
+      console.log(hash.digest("hex"));
+    ' "$lock" 2>/dev/null || true)
+  fi
+  if [ -n "$current" ] && [ -d "$prefix/node_modules" ] && [ -f "$marker" ] \
+    && [ "$(cat "$marker" 2>/dev/null)" = "$current" ]; then
+    info "dependencies up to date in $prefix (lockfile unchanged)"
+    return 0
+  fi
+  NPM_CONFIG_CACHE="$cache" npm --prefix "$prefix" install --no-fund --no-update-notifier --loglevel=warn
+  if [ -n "$current" ]; then
+    printf '%s' "$current" > "$marker" || true
+  fi
+}
+
 step "Installing MCP dependencies"
 info "note: upstream RyuGraph dependencies may print deprecation warnings during install"
-NPM_CONFIG_CACHE="$MCP_DIR/.npm-cache" npm --prefix "$MCP_DIR" install --no-fund --no-update-notifier --loglevel=warn
-NPM_CONFIG_CACHE="$REPO_ROOT/.context/scripts/parsers/.npm-cache" npm --prefix "$REPO_ROOT/.context/scripts/parsers" install --no-fund --no-update-notifier --loglevel=warn
+install_deps_if_changed "$MCP_DIR" "$MCP_DIR/.npm-cache"
+install_deps_if_changed "$REPO_ROOT/.context/scripts/parsers" "$REPO_ROOT/.context/scripts/parsers/.npm-cache"
 
 source "$SCRIPT_DIR/lib/enterprise-check.sh"
 

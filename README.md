@@ -9,6 +9,7 @@
 [![npm version](https://img.shields.io/npm/v/%40danielblomma%2Fcortex-mcp)](https://www.npmjs.com/package/@danielblomma/cortex-mcp)
 [![npm downloads](https://img.shields.io/npm/dw/%40danielblomma%2Fcortex-mcp)](https://www.npmjs.com/package/@danielblomma/cortex-mcp)
 [![license](https://img.shields.io/npm/l/%40danielblomma%2Fcortex-mcp)](./LICENSE)
+[![website](https://img.shields.io/badge/website-cortex-2563eb)](https://danielblomma.github.io/cortex/)
 
 ---
 
@@ -380,6 +381,16 @@ Required npm configuration:
 - Use GitHub Actions publisher `DanielBlomma/cortex`
 - Workflow filename must match `release-publish.yml`
 
+## Embedding performance
+
+Embedding generation tunes itself to the machine: the number of parallel
+workers, memory limits for long files, and skip-work caching are all derived
+from the available CPU cores and RAM at run time (container memory limits
+included). No configuration is needed — on a laptop or a CI runner, cortex
+picks safe, fast settings by itself. The one exception worth knowing:
+when several cortex instances share one machine, set `CORTEX_EMBED_THREADS`
+to give each its fair share of cores.
+
 ## Limitations
 
 - Requires repo initialization (`cortex init --bootstrap`).
@@ -399,6 +410,14 @@ Required npm configuration:
   Auto-registration is skipped; use manual config above.
 - MCP tools return stale context:
   Run `cortex update`, then reconnect MCP or call `context.reload` from your MCP client.
+
+## Website and Benchmarks
+
+- `frontend/` hosts the cortex website (GitHub Pages, deployed on push to `main`):
+  product overview plus bootstrap evaluation metrics.
+- `benchmark/bootstrapbench/` runs `cortex bootstrap` against 69 pinned
+  real-world repositories in isolated containers and extracts chunk, embedding
+  and graph statistics. See [benchmark/bootstrapbench/README.md](benchmark/bootstrapbench/README.md).
 
 ## Support
 
