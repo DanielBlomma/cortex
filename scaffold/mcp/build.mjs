@@ -17,7 +17,6 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(ROOT, "dist");
 const MARKER = path.join(DIST, ".cortex-build-hash");
-const TSBUILDINFO = path.join(DIST, ".tsbuildinfo");
 // Every runtime entrypoint must exist for a build to count as current;
 // checking only one would let a partially deleted dist pass as fresh.
 const ENTRIES = ["server.js", "embed.js", "loadGraph.js"].map((name) => path.join(DIST, name));
@@ -69,14 +68,6 @@ if (!force && ENTRIES.every((entry) => fs.existsSync(entry)) && fs.existsSync(MA
   } catch {
     // unreadable marker -> rebuild
   }
-}
-
-// A stale incremental state can convince tsc nothing needs re-emitting even
-// though dist files are missing; reset it whenever we decided to rebuild.
-try {
-  fs.rmSync(TSBUILDINFO, { force: true });
-} catch {
-  // best effort
 }
 
 const tscLocal = path.join(ROOT, "node_modules", ".bin", "tsc");

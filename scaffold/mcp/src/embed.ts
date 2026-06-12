@@ -403,19 +403,6 @@ function parseExistingEmbeddings(raw: JsonObject[], modelId: string): Map<string
   return index;
 }
 
-function toEmbeddingVector(output: unknown): number[] {
-  if (!output || typeof output !== "object") {
-    throw new Error("Invalid embedding output type");
-  }
-
-  const data = (output as { data?: unknown }).data;
-  if (!data || typeof (data as ArrayLike<number>).length !== "number") {
-    throw new Error("Missing embedding data");
-  }
-
-  return Array.from(data as ArrayLike<number>).map((value) => Number(value));
-}
-
 function roundVector(values: number[]): number[] {
   return values.map((value) => Number(value.toFixed(6)));
 }
@@ -561,7 +548,14 @@ async function main(): Promise<void> {
     ];
     const failedSessions = extraSessions.length + 1 - extractors.length;
     if (failedSessions > 0) {
-      console.warn(`[embed] ${failedSessions} pool session(s) failed to load; continuing with ${extractors.length}`);
+      const firstFailure = extraSessions.find(
+        (settled): settled is PromiseRejectedResult => settled.status === "rejected"
+      );
+      const reason =
+        firstFailure?.reason instanceof Error ? firstFailure.reason.message : String(firstFailure?.reason ?? "unknown");
+      console.warn(
+        `[embed] ${failedSessions} pool session(s) failed to load (${reason}); continuing with ${extractors.length}`
+      );
     }
 
     // Inference truncates at the model max; token counts must too, or one
