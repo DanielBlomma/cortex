@@ -359,3 +359,28 @@ test("packWorkUnits: a lone short over the token budget still packs as batch-of-
   assert.equal(units.length, 1);
   assert.equal(units[0].texts.length, 1);
 });
+
+test("resolvePoolConfig: derates sessions on low-memory machines", () => {
+  const lowMem = resolvePoolConfig({ threadBudget: 12, uniqueCount: 1000, memoryBytes: 4e9 });
+  assert.equal(lowMem.sessions, 1);
+  const midMem = resolvePoolConfig({ threadBudget: 12, uniqueCount: 1000, memoryBytes: 7e9 });
+  assert.equal(midMem.sessions, 2);
+  const bigMem = resolvePoolConfig({ threadBudget: 12, uniqueCount: 1000, memoryBytes: 64e9 });
+  assert.equal(bigMem.sessions, 3);
+  // unknown memory keeps the thread-derived shape
+  const unknown = resolvePoolConfig({ threadBudget: 12, uniqueCount: 1000 });
+  assert.equal(unknown.sessions, 3);
+});
+
+test("resolveInFlightTokens: adapts to memory within model-max bounds", async () => {
+  const { resolveInFlightTokens } = await import("../dist/embedScheduler.js");
+  // plenty of memory: capped at 8x model max
+  assert.equal(resolveInFlightTokens({ memoryBytes: 64e9, modelMaxTokens: 8192 }), 8 * 8192);
+  // tight memory: never below one model-max unit
+  assert.equal(resolveInFlightTokens({ memoryBytes: 1e9, modelMaxTokens: 8192 }), 8192);
+  // mid memory: proportional
+  const mid = resolveInFlightTokens({ memoryBytes: 12e9, modelMaxTokens: 8192 });
+  assert.ok(mid > 8192 && mid < 8 * 8192, `expected proportional gate, got ${mid}`);
+  // unknown memory: static default floor
+  assert.equal(resolveInFlightTokens({ modelMaxTokens: 512 }), 12288);
+});

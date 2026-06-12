@@ -145,21 +145,35 @@ export function packWorkUnits(unique: MeasuredText[], options: SchedulerOptions)
 
 export type PoolConfig = { sessions: number; threadsPerSession: number };
 
+/** Estimated working memory one full pool session needs (model copy plus
+ * inference activations for a base-size model). Used only as a derating
+ * heuristic; deliberately conservative. */
+const BYTES_PER_SESSION_ESTIMATE = 3e9;
+
 /**
- * Chooses the session-pool shape from a total thread budget. Four threads per
- * session is the measured sweet spot; tiny workloads skip the pool to avoid
- * paying several model loads for seconds of inference.
+ * Chooses the session-pool shape from a total thread budget and available
+ * memory. Four threads per session is the measured sweet spot; the session
+ * count derates on low-memory machines (each session holds its own model
+ * copy); tiny workloads skip the pool to avoid paying several model loads
+ * for seconds of inference. Everything is derived from the machine — no
+ * user configuration expected.
  */
 export function resolvePoolConfig({
   threadBudget,
   poolOverride,
-  uniqueCount
+  uniqueCount,
+  memoryBytes
 }: {
   threadBudget: number;
   poolOverride?: number | null;
   uniqueCount: number;
+  memoryBytes?: number;
 }): PoolConfig {
   const budget = Number.isFinite(threadBudget) && threadBudget >= 1 ? Math.floor(threadBudget) : 1;
+  const memorySessionCap =
+    Number.isFinite(memoryBytes) && (memoryBytes as number) > 0
+      ? Math.max(1, Math.floor((memoryBytes as number) / BYTES_PER_SESSION_ESTIMATE))
+      : 4;
   if (poolOverride && Number.isFinite(poolOverride) && poolOverride >= 1) {
     // The override never exceeds the thread budget: CORTEX_EMBED_THREADS is a
     // contract for co-located instances. Hard upper clamp keeps model-copy
@@ -171,8 +185,37 @@ export function resolvePoolConfig({
     return { sessions: 1, threadsPerSession: budget };
   }
   const threadsPerSession = Math.min(4, budget);
-  const sessions = Math.min(4, Math.max(1, Math.floor(budget / threadsPerSession)));
+  const sessions = Math.min(
+    4,
+    memorySessionCap,
+    Math.max(1, Math.floor(budget / threadsPerSession))
+  );
   return { sessions, threadsPerSession };
+}
+
+/** Estimated activation memory per padded token for a base-size model at
+ * full context (linearized from a measured ~3GB per 8k-token inference;
+ * overcharges short texts, which is the safe direction). */
+const BYTES_PER_IN_FLIGHT_TOKEN = 366_000;
+
+/**
+ * Adapts the concurrent-token gate to the machine: enough budget to overlap
+ * several long texts when memory allows, never less than one model-max unit
+ * (so the largest possible text can always run), never more than eight.
+ */
+export function resolveInFlightTokens({
+  memoryBytes,
+  modelMaxTokens
+}: {
+  memoryBytes?: number;
+  modelMaxTokens: number;
+}): number {
+  const maxUnit = Number.isFinite(modelMaxTokens) && modelMaxTokens >= 1 ? Math.floor(modelMaxTokens) : 8192;
+  if (!Number.isFinite(memoryBytes) || (memoryBytes as number) <= 0) {
+    return Math.max(DEFAULT_MAX_IN_FLIGHT_TOKENS, maxUnit);
+  }
+  const affordable = Math.floor((memoryBytes as number) / BYTES_PER_IN_FLIGHT_TOKEN);
+  return Math.min(Math.max(affordable, maxUnit), 8 * maxUnit);
 }
 
 export function toEmbeddingVector(output: unknown): number[] {

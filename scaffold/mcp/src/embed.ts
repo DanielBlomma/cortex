@@ -10,6 +10,7 @@ import {
   DEFAULT_SCHEDULER_OPTIONS,
   groupDuplicates,
   packWorkUnits,
+  resolveInFlightTokens,
   resolvePoolConfig,
   runWorkUnits,
   type EmbedExtractor,
@@ -483,10 +484,14 @@ async function main(): Promise<void> {
   // Deduplicate identical texts (lossless: identical input -> identical
   // vector), then measure token lengths for routing and batch packing.
   const unique = groupDuplicates(pending);
+  // Memory headroom drives pool size and the concurrency gate; everything
+  // adapts to the machine so no tuning is expected from users.
+  const memoryHeadroom = Math.min(os.freemem(), os.totalmem() * 0.5);
   const poolConfig = resolvePoolConfig({
     threadBudget,
     poolOverride: Number(process.env.CORTEX_EMBED_POOL) || null,
-    uniqueCount: unique.length
+    uniqueCount: unique.length,
+    memoryBytes: memoryHeadroom
   });
 
   const batchSizeRaw = Number(process.env.CORTEX_EMBED_BATCH_SIZE);
@@ -561,12 +566,17 @@ async function main(): Promise<void> {
 
     const measured: MeasuredText[] = unique.map((item) => ({ ...item, tokens: countTokens(item.text) }));
     const units = packWorkUnits(measured, schedulerOptions);
+    // Recompute headroom after the model copies are resident so the gate
+    // reflects what is actually left for inference activations.
     const inFlightRaw = Number(process.env.CORTEX_EMBED_INFLIGHT_TOKENS);
-    result = await runWorkUnits(units, extractors, {
-      ...(Number.isFinite(inFlightRaw) && inFlightRaw >= 1024
-        ? { maxInFlightTokens: Math.floor(inFlightRaw) }
-        : {})
-    });
+    const maxInFlightTokens =
+      Number.isFinite(inFlightRaw) && inFlightRaw >= 1024
+        ? Math.floor(inFlightRaw)
+        : resolveInFlightTokens({
+            memoryBytes: Math.min(os.freemem(), os.totalmem() * 0.5),
+            modelMaxTokens
+          });
+    result = await runWorkUnits(units, extractors, { maxInFlightTokens });
   }
 
   let embedded = 0;
