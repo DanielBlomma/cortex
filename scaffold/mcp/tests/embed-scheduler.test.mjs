@@ -439,3 +439,14 @@ test("createTokenCounter: uses the tokenizer, clamps at model max, survives fail
   const missing = createTokenCounter(undefined, 100);
   assert.equal(missing("x".repeat(40)), 10);
 });
+
+test("resolveMemoryHeadroom: constrainedMemory 0 means unconstrained (Node sentinel)", async () => {
+  const { resolveMemoryHeadroom } = await import("../dist/embedScheduler.js");
+  const unconstrained = resolveMemoryHeadroom({ freeMemory: 50e9, totalMemory: 64e9 });
+  const zeroSentinel = resolveMemoryHeadroom({
+    freeMemory: 50e9,
+    totalMemory: 64e9,
+    constrainedMemory: 0
+  });
+  assert.equal(zeroSentinel, unconstrained);
+});
