@@ -255,23 +255,54 @@ try {
     return raw.split(/\r?\n/)[0].trim();
   };
 
-  const npmCache = path.join(cacheDir, "npm-cache");
-  let latestRaw = "";
+  // The latest-version lookup is a network call; cache it for a day so
+  // repeated bootstraps/status checks stay fast and offline-friendly.
+  const fs = require("node:fs");
+  const versionCheckCache = path.join(cacheDir, "version-check.json");
+  const VERSION_CHECK_TTL_MS = 24 * 60 * 60 * 1000;
+  let latestVersion = null;
   try {
-    latestRaw = execSync("npm view github:DanielBlomma/cortex version --json", {
-      cwd: repoRoot,
-      stdio: ["ignore", "pipe", "pipe"],
-      encoding: "utf8",
-      timeout: 2500,
-      env: { ...process.env, NPM_CONFIG_CACHE: npmCache }
-    }).trim();
-  } catch (error) {
-    console.log(`[status] cortex_update_check=unavailable (${summarizeError(error)})`);
-    process.exit(0);
+    const cached = JSON.parse(fs.readFileSync(versionCheckCache, "utf8"));
+    if (
+      cached &&
+      typeof cached.latest === "string" &&
+      Number.isFinite(cached.checked_at) &&
+      Date.now() - cached.checked_at < VERSION_CHECK_TTL_MS
+    ) {
+      latestVersion = cached.latest;
+    }
+  } catch {
+    // No usable cache; fall through to the live lookup.
   }
 
-  const parsedLatest = JSON.parse(latestRaw);
-  const latestVersion = Array.isArray(parsedLatest) ? parsedLatest[parsedLatest.length - 1] : parsedLatest;
+  if (!latestVersion) {
+    const npmCache = path.join(cacheDir, "npm-cache");
+    let latestRaw = "";
+    try {
+      latestRaw = execSync("npm view github:DanielBlomma/cortex version --json", {
+        cwd: repoRoot,
+        stdio: ["ignore", "pipe", "pipe"],
+        encoding: "utf8",
+        timeout: 2500,
+        env: { ...process.env, NPM_CONFIG_CACHE: npmCache }
+      }).trim();
+    } catch (error) {
+      console.log(`[status] cortex_update_check=unavailable (${summarizeError(error)})`);
+      process.exit(0);
+    }
+
+    const parsedLatest = JSON.parse(latestRaw);
+    latestVersion = Array.isArray(parsedLatest) ? parsedLatest[parsedLatest.length - 1] : parsedLatest;
+    try {
+      fs.mkdirSync(cacheDir, { recursive: true });
+      fs.writeFileSync(
+        versionCheckCache,
+        JSON.stringify({ checked_at: Date.now(), latest: latestVersion })
+      );
+    } catch {
+      // Cache write failures must never break status reporting.
+    }
+  }
 
   const localParsed = parseVersion(localVersion);
   const latestParsed = parseVersion(latestVersion);

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { env, pipeline } from "@huggingface/transformers";
+import { LruCache } from "./lruCache.js";
 import { PATHS } from "./paths.js";
 import type { EmbeddingIndex, JsonObject } from "./types.js";
 
@@ -162,7 +163,19 @@ async function getEmbeddingExtractor(modelId: string): Promise<unknown | null> {
   return embeddingExtractorPromise;
 }
 
+// Agents repeat queries verbatim within a session; the model pipeline is
+// cached but each call still pays full inference. A small LRU keyed on
+// (model, query) makes repeats free. Cached vectors are treated as
+// immutable by all callers.
+const queryEmbeddingCache = new LruCache<string, number[]>(256);
+
 export async function embedQuery(query: string, modelId: string): Promise<number[] | null> {
+  const cacheKey = `${modelId}\u0000${query}`;
+  const cached = queryEmbeddingCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const extractor = await getEmbeddingExtractor(modelId);
   if (!extractor) {
     return null;
@@ -180,6 +193,7 @@ export async function embedQuery(query: string, modelId: string): Promise<number
     }
 
     embeddingRuntimeWarning = null;
+    queryEmbeddingCache.set(cacheKey, vector);
     return vector;
   } catch (error) {
     embeddingRuntimeWarning = error instanceof Error ? error.message : "Failed to embed query text";
