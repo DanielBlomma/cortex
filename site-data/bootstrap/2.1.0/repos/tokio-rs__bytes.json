@@ -1,0 +1,654 @@
+{
+  "schema_version": 1,
+  "run": {
+    "id": "full-4",
+    "generated_at": "2026-06-12T01:19:03.325Z",
+    "cortex_version": "2.1.0"
+  },
+  "repo": {
+    "key": "tokio-rs__bytes",
+    "name": "tokio-rs/bytes",
+    "url": "https://github.com/tokio-rs/bytes.git",
+    "sha": "2256e6dc3e82fc87600f2161658572b62bfdd214",
+    "languages": [
+      "rust"
+    ],
+    "benches": [
+      "Multi"
+    ],
+    "instances": 3
+  },
+  "runs": [
+    {
+      "schema_version": 1,
+      "repo": {
+        "key": "tokio-rs__bytes",
+        "name": "tokio-rs/bytes",
+        "url": "https://github.com/tokio-rs/bytes.git",
+        "sha": "2256e6dc3e82fc87600f2161658572b62bfdd214",
+        "languages": [
+          "rust"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "instances": 3
+      },
+      "run": {
+        "embed_model": "Xenova/all-MiniLM-L6-v2",
+        "cortex_version": "2.1.0",
+        "cortex_source": "local",
+        "run_id": "full-4",
+        "started_at": "2026-06-12T01:00:35.245Z",
+        "status": "ok",
+        "error": null,
+        "extracted_at": "2026-06-12T01:01:17.790Z"
+      },
+      "workspace": {
+        "tracked_files": 46,
+        "tracked_bytes": 407016,
+        "tracked_lines": 14594,
+        "detected_source_paths": [
+          ".github",
+          "benches",
+          "ci",
+          "src",
+          "tests",
+          "Cargo.toml",
+          "CHANGELOG.md",
+          "clippy.toml",
+          "SECURITY.md",
+          ".context/notes",
+          ".context/decisions",
+          "README.md"
+        ]
+      },
+      "timings_ms": {
+        "deps": 1207,
+        "ingest": 3841,
+        "embed": 27409,
+        "graph_load": 5888,
+        "status": 1592,
+        "total": 39938
+      },
+      "ingest": {
+        "mode": "full",
+        "counts": {
+          "files": 44,
+          "adrs": 0,
+          "rules": 5,
+          "chunks": 1020,
+          "relations_constrains": 38,
+          "relations_implements": 37,
+          "relations_supersedes": 0,
+          "relations_defines": 1020,
+          "relations_calls": 388,
+          "relations_imports": 0,
+          "relations_calls_sql": 0,
+          "relations_uses_config_key": 0,
+          "relations_uses_resource_key": 0,
+          "relations_uses_setting_key": 0,
+          "modules": 7,
+          "relations_contains": 43,
+          "relations_contains_module": 6,
+          "relations_exports": 102,
+          "projects": 0,
+          "relations_includes_file": 0,
+          "relations_references_project": 0,
+          "relations_uses_resource": 0,
+          "relations_uses_setting": 0,
+          "relations_uses_config": 0,
+          "relations_transforms_config": 0
+        },
+        "skipped": {
+          "unsupported": 0,
+          "tooLarge": 0,
+          "binary": 0
+        },
+        "parser_health": {}
+      },
+      "files": {
+        "total": 44,
+        "by_kind": {
+          "DOC": 6,
+          "CODE": 38
+        },
+        "indexed_lines": 14567
+      },
+      "chunks": {
+        "total": 1020,
+        "exported": 116,
+        "by_kind": {
+          "macro": 17,
+          "impl": 145,
+          "module": 40,
+          "method": 256,
+          "struct": 25,
+          "function": 438,
+          "section": 81,
+          "trait": 18
+        },
+        "by_language": {
+          "rust": {
+            "count": 939,
+            "lines": {
+              "count": 939,
+              "min": 1,
+              "max": 1861,
+              "mean": 17.65,
+              "histogram": [
+                {
+                  "label": "1-10",
+                  "min": 1,
+                  "max": 10,
+                  "count": 674
+                },
+                {
+                  "label": "11-20",
+                  "min": 11,
+                  "max": 20,
+                  "count": 136
+                },
+                {
+                  "label": "21-40",
+                  "min": 21,
+                  "max": 40,
+                  "count": 65
+                },
+                {
+                  "label": "41-80",
+                  "min": 41,
+                  "max": 80,
+                  "count": 52
+                },
+                {
+                  "label": "81-160",
+                  "min": 81,
+                  "max": 160,
+                  "count": 5
+                },
+                {
+                  "label": "161-320",
+                  "min": 161,
+                  "max": 320,
+                  "count": 3
+                },
+                {
+                  "label": "321+",
+                  "min": 321,
+                  "max": null,
+                  "count": 4
+                }
+              ],
+              "p25": 3,
+              "p50": 5,
+              "p75": 12,
+              "p90": 29,
+              "p99": 91.72
+            },
+            "chars": {
+              "count": 939,
+              "min": 8,
+              "max": 12000,
+              "mean": 426.35,
+              "histogram": [
+                {
+                  "label": "0-200",
+                  "min": 0,
+                  "max": 200,
+                  "count": 569
+                },
+                {
+                  "label": "201-500",
+                  "min": 201,
+                  "max": 500,
+                  "count": 215
+                },
+                {
+                  "label": "501-1000",
+                  "min": 501,
+                  "max": 1000,
+                  "count": 77
+                },
+                {
+                  "label": "1001-2000",
+                  "min": 1001,
+                  "max": 2000,
+                  "count": 32
+                },
+                {
+                  "label": "2001-4000",
+                  "min": 2001,
+                  "max": 4000,
+                  "count": 38
+                },
+                {
+                  "label": "4001-8000",
+                  "min": 4001,
+                  "max": 8000,
+                  "count": 3
+                },
+                {
+                  "label": "8001-12000",
+                  "min": 8001,
+                  "max": 12000,
+                  "count": 5
+                },
+                {
+                  "label": "12001+",
+                  "min": 12001,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 87,
+              "p50": 151,
+              "p75": 330.5,
+              "p90": 845.6,
+              "p99": 3438.06
+            }
+          },
+          "markdown": {
+            "count": 81,
+            "lines": {
+              "count": 81,
+              "min": 3,
+              "max": 23,
+              "mean": 6.07,
+              "histogram": [
+                {
+                  "label": "1-10",
+                  "min": 1,
+                  "max": 10,
+                  "count": 73
+                },
+                {
+                  "label": "11-20",
+                  "min": 11,
+                  "max": 20,
+                  "count": 7
+                },
+                {
+                  "label": "21-40",
+                  "min": 21,
+                  "max": 40,
+                  "count": 1
+                },
+                {
+                  "label": "41-80",
+                  "min": 41,
+                  "max": 80,
+                  "count": 0
+                },
+                {
+                  "label": "81-160",
+                  "min": 81,
+                  "max": 160,
+                  "count": 0
+                },
+                {
+                  "label": "161-320",
+                  "min": 161,
+                  "max": 320,
+                  "count": 0
+                },
+                {
+                  "label": "321+",
+                  "min": 321,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 4,
+              "p50": 5,
+              "p75": 7,
+              "p90": 9,
+              "p99": 16.6
+            },
+            "chars": {
+              "count": 81,
+              "min": 42,
+              "max": 881,
+              "mean": 168.4,
+              "histogram": [
+                {
+                  "label": "0-200",
+                  "min": 0,
+                  "max": 200,
+                  "count": 60
+                },
+                {
+                  "label": "201-500",
+                  "min": 201,
+                  "max": 500,
+                  "count": 18
+                },
+                {
+                  "label": "501-1000",
+                  "min": 501,
+                  "max": 1000,
+                  "count": 3
+                },
+                {
+                  "label": "1001-2000",
+                  "min": 1001,
+                  "max": 2000,
+                  "count": 0
+                },
+                {
+                  "label": "2001-4000",
+                  "min": 2001,
+                  "max": 4000,
+                  "count": 0
+                },
+                {
+                  "label": "4001-8000",
+                  "min": 4001,
+                  "max": 8000,
+                  "count": 0
+                },
+                {
+                  "label": "8001-12000",
+                  "min": 8001,
+                  "max": 12000,
+                  "count": 0
+                },
+                {
+                  "label": "12001+",
+                  "min": 12001,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 76,
+              "p50": 120,
+              "p75": 210,
+              "p90": 282,
+              "p99": 735.4
+            }
+          }
+        },
+        "lines": {
+          "count": 1020,
+          "min": 1,
+          "max": 1861,
+          "mean": 16.73,
+          "histogram": [
+            {
+              "label": "1-10",
+              "min": 1,
+              "max": 10,
+              "count": 747
+            },
+            {
+              "label": "11-20",
+              "min": 11,
+              "max": 20,
+              "count": 143
+            },
+            {
+              "label": "21-40",
+              "min": 21,
+              "max": 40,
+              "count": 66
+            },
+            {
+              "label": "41-80",
+              "min": 41,
+              "max": 80,
+              "count": 52
+            },
+            {
+              "label": "81-160",
+              "min": 81,
+              "max": 160,
+              "count": 5
+            },
+            {
+              "label": "161-320",
+              "min": 161,
+              "max": 320,
+              "count": 3
+            },
+            {
+              "label": "321+",
+              "min": 321,
+              "max": null,
+              "count": 4
+            }
+          ],
+          "p25": 3,
+          "p50": 5,
+          "p75": 11,
+          "p90": 27,
+          "p99": 86.67
+        },
+        "chars": {
+          "count": 1020,
+          "min": 8,
+          "max": 12000,
+          "mean": 405.86,
+          "histogram": [
+            {
+              "label": "0-200",
+              "min": 0,
+              "max": 200,
+              "count": 629
+            },
+            {
+              "label": "201-500",
+              "min": 201,
+              "max": 500,
+              "count": 233
+            },
+            {
+              "label": "501-1000",
+              "min": 501,
+              "max": 1000,
+              "count": 80
+            },
+            {
+              "label": "1001-2000",
+              "min": 1001,
+              "max": 2000,
+              "count": 32
+            },
+            {
+              "label": "2001-4000",
+              "min": 2001,
+              "max": 4000,
+              "count": 38
+            },
+            {
+              "label": "4001-8000",
+              "min": 4001,
+              "max": 8000,
+              "count": 3
+            },
+            {
+              "label": "8001-12000",
+              "min": 8001,
+              "max": 12000,
+              "count": 5
+            },
+            {
+              "label": "12001+",
+              "min": 12001,
+              "max": null,
+              "count": 0
+            }
+          ],
+          "p25": 86,
+          "p50": 151,
+          "p75": 310.25,
+          "p90": 798.1,
+          "p99": 3203.31
+        }
+      },
+      "embeddings": {
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "dimensions": 384,
+        "mode": "full",
+        "counts": {
+          "entities": 1076,
+          "output": 1076,
+          "embedded": 1076,
+          "reused": 0,
+          "failed": 0
+        },
+        "by_entity_type": {
+          "Chunk": 1020,
+          "File": 44,
+          "Module": 7,
+          "Rule": 5
+        },
+        "throughput_per_s": 39.26
+      },
+      "graph": {
+        "nodes": {
+          "files": 44,
+          "chunks": 1020,
+          "rules": 5,
+          "adrs": 0,
+          "modules": 7,
+          "projects": 0
+        },
+        "edges": {
+          "total": 1634,
+          "by_type": {
+            "CALLS": 388,
+            "CALLS_SQL": 0,
+            "CONSTRAINS": 38,
+            "CONTAINS": 43,
+            "CONTAINS_MODULE": 6,
+            "DEFINES": 1020,
+            "EXPORTS": 102,
+            "IMPLEMENTS": 37,
+            "IMPORTS": 0,
+            "INCLUDES_FILE": 0,
+            "REFERENCES_PROJECT": 0,
+            "SUPERSEDES": 0,
+            "TRANSFORMS_CONFIG": 0,
+            "USES_CONFIG": 0,
+            "USES_CONFIG_KEY": 0,
+            "USES_RESOURCE": 0,
+            "USES_RESOURCE_KEY": 0,
+            "USES_SETTING": 0,
+            "USES_SETTING_KEY": 0
+          }
+        },
+        "chunk_connectivity": {
+          "chunk_chunk_edges": 388,
+          "avg_degree": 0.76,
+          "max_degree": 36,
+          "isolated_count": 782,
+          "isolated_pct": 76.67,
+          "degree": {
+            "count": 1020,
+            "min": 0,
+            "max": 36,
+            "mean": 0.76,
+            "histogram": [
+              {
+                "label": "0",
+                "min": 0,
+                "max": 0,
+                "count": 782
+              },
+              {
+                "label": "1",
+                "min": 1,
+                "max": 1,
+                "count": 101
+              },
+              {
+                "label": "2",
+                "min": 2,
+                "max": 2,
+                "count": 45
+              },
+              {
+                "label": "3-4",
+                "min": 3,
+                "max": 4,
+                "count": 66
+              },
+              {
+                "label": "5-8",
+                "min": 5,
+                "max": 8,
+                "count": 12
+              },
+              {
+                "label": "9-16",
+                "min": 9,
+                "max": 16,
+                "count": 9
+              },
+              {
+                "label": "17-32",
+                "min": 17,
+                "max": 32,
+                "count": 4
+              },
+              {
+                "label": "33+",
+                "min": 33,
+                "max": null,
+                "count": 1
+              }
+            ],
+            "p25": 0,
+            "p50": 0,
+            "p75": 0,
+            "p90": 2,
+            "p99": 15
+          },
+          "top_connected": [
+            {
+              "id": "chunk:src/buf/buf_mut.rs:put_slice:246-264",
+              "degree": 36
+            },
+            {
+              "id": "chunk:src/buf/buf_mut.rs:put_slice:1511-1522",
+              "degree": 32
+            },
+            {
+              "id": "chunk:src/buf/buf_mut.rs:put_slice:1567-1580",
+              "degree": 32
+            },
+            {
+              "id": "chunk:tests/test_bytes.rs:split_off:166-178",
+              "degree": 28
+            },
+            {
+              "id": "chunk:tests/test_bytes.rs:len:101-113",
+              "degree": 27
+            },
+            {
+              "id": "chunk:src/bytes_mut.rs:partial_cmp:1676-1678",
+              "degree": 15
+            },
+            {
+              "id": "chunk:src/bytes_mut.rs:partial_cmp:1700-1702",
+              "degree": 15
+            },
+            {
+              "id": "chunk:src/bytes_mut.rs:partial_cmp:1778-1780",
+              "degree": 15
+            },
+            {
+              "id": "chunk:src/bytes_mut.rs:partial_cmp:1790-1792",
+              "degree": 15
+            },
+            {
+              "id": "chunk:src/bytes.rs:partial_cmp:807-809",
+              "degree": 15
+            }
+          ]
+        }
+      },
+      "parse_errors": 0
+    }
+  ]
+}

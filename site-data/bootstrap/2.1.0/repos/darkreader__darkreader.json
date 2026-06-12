@@ -1,0 +1,775 @@
+{
+  "schema_version": 1,
+  "run": {
+    "id": "full-4",
+    "generated_at": "2026-06-12T01:19:03.325Z",
+    "cortex_version": "2.1.0"
+  },
+  "repo": {
+    "key": "darkreader__darkreader",
+    "name": "darkreader/darkreader",
+    "url": "https://github.com/darkreader/darkreader.git",
+    "sha": "47660c45af2ddb05dec3f756e8f36c1f9d00eb5d",
+    "languages": [
+      "typescript"
+    ],
+    "benches": [
+      "Multi"
+    ],
+    "instances": 2
+  },
+  "runs": [
+    {
+      "schema_version": 1,
+      "repo": {
+        "key": "darkreader__darkreader",
+        "name": "darkreader/darkreader",
+        "url": "https://github.com/darkreader/darkreader.git",
+        "sha": "47660c45af2ddb05dec3f756e8f36c1f9d00eb5d",
+        "languages": [
+          "typescript"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "instances": 2
+      },
+      "run": {
+        "embed_model": "Xenova/all-MiniLM-L6-v2",
+        "cortex_version": "2.1.0",
+        "cortex_source": "local",
+        "run_id": "full-4",
+        "started_at": "2026-06-11T22:01:27.959Z",
+        "status": "ok",
+        "error": null,
+        "extracted_at": "2026-06-11T22:02:20.412Z"
+      },
+      "workspace": {
+        "tracked_files": 979,
+        "tracked_bytes": 4346013,
+        "tracked_lines": 120152,
+        "detected_source_paths": [
+          ".github",
+          "integrity",
+          "src",
+          "tasks",
+          "tests",
+          "CHANGELOG.md",
+          "CODE_OF_CONDUCT.md",
+          "CONTRIBUTING.md",
+          "eslint-plugin-local.js",
+          "eslint.config.js",
+          "index.d.ts",
+          "package-lock.json",
+          "package.json",
+          "SECURITY.md",
+          ".context/notes",
+          ".context/decisions",
+          "README.md"
+        ]
+      },
+      "timings_ms": {
+        "deps": 973,
+        "ingest": 774,
+        "embed": 40974,
+        "graph_load": 5195,
+        "status": 1415,
+        "total": 49332
+      },
+      "ingest": {
+        "mode": "full",
+        "counts": {
+          "files": 666,
+          "adrs": 0,
+          "rules": 5,
+          "chunks": 492,
+          "relations_constrains": 409,
+          "relations_implements": 397,
+          "relations_supersedes": 0,
+          "relations_defines": 492,
+          "relations_calls": 227,
+          "relations_imports": 184,
+          "relations_calls_sql": 0,
+          "relations_uses_config_key": 0,
+          "relations_uses_resource_key": 0,
+          "relations_uses_setting_key": 0,
+          "modules": 137,
+          "relations_contains": 559,
+          "relations_contains_module": 36,
+          "relations_exports": 49,
+          "projects": 0,
+          "relations_includes_file": 0,
+          "relations_references_project": 0,
+          "relations_uses_resource": 0,
+          "relations_uses_setting": 0,
+          "relations_uses_config": 0,
+          "relations_transforms_config": 0
+        },
+        "skipped": {
+          "unsupported": 308,
+          "tooLarge": 0,
+          "binary": 0
+        },
+        "parser_health": {}
+      },
+      "files": {
+        "total": 666,
+        "by_kind": {
+          "DOC": 348,
+          "CODE": 318
+        },
+        "indexed_lines": 108403
+      },
+      "chunks": {
+        "total": 492,
+        "exported": 64,
+        "by_kind": {
+          "section": 142,
+          "const": 64,
+          "function": 239,
+          "class": 14,
+          "method": 33
+        },
+        "by_language": {
+          "markdown": {
+            "count": 142,
+            "lines": {
+              "count": 142,
+              "min": 4,
+              "max": 63,
+              "mean": 8.94,
+              "histogram": [
+                {
+                  "label": "1-10",
+                  "min": 1,
+                  "max": 10,
+                  "count": 114
+                },
+                {
+                  "label": "11-20",
+                  "min": 11,
+                  "max": 20,
+                  "count": 17
+                },
+                {
+                  "label": "21-40",
+                  "min": 21,
+                  "max": 40,
+                  "count": 9
+                },
+                {
+                  "label": "41-80",
+                  "min": 41,
+                  "max": 80,
+                  "count": 2
+                },
+                {
+                  "label": "81-160",
+                  "min": 81,
+                  "max": 160,
+                  "count": 0
+                },
+                {
+                  "label": "161-320",
+                  "min": 161,
+                  "max": 320,
+                  "count": 0
+                },
+                {
+                  "label": "321+",
+                  "min": 321,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 5,
+              "p50": 6,
+              "p75": 9,
+              "p90": 13.9,
+              "p99": 47.39
+            },
+            "chars": {
+              "count": 142,
+              "min": 51,
+              "max": 6607,
+              "mean": 365.27,
+              "histogram": [
+                {
+                  "label": "0-200",
+                  "min": 0,
+                  "max": 200,
+                  "count": 76
+                },
+                {
+                  "label": "201-500",
+                  "min": 201,
+                  "max": 500,
+                  "count": 44
+                },
+                {
+                  "label": "501-1000",
+                  "min": 501,
+                  "max": 1000,
+                  "count": 11
+                },
+                {
+                  "label": "1001-2000",
+                  "min": 1001,
+                  "max": 2000,
+                  "count": 7
+                },
+                {
+                  "label": "2001-4000",
+                  "min": 2001,
+                  "max": 4000,
+                  "count": 3
+                },
+                {
+                  "label": "4001-8000",
+                  "min": 4001,
+                  "max": 8000,
+                  "count": 1
+                },
+                {
+                  "label": "8001-12000",
+                  "min": 8001,
+                  "max": 12000,
+                  "count": 0
+                },
+                {
+                  "label": "12001+",
+                  "min": 12001,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 117.75,
+              "p50": 176.5,
+              "p75": 337.25,
+              "p90": 747.5,
+              "p99": 2140.82
+            }
+          },
+          "javascript": {
+            "count": 215,
+            "lines": {
+              "count": 215,
+              "min": 1,
+              "max": 453,
+              "mean": 23.04,
+              "histogram": [
+                {
+                  "label": "1-10",
+                  "min": 1,
+                  "max": 10,
+                  "count": 97
+                },
+                {
+                  "label": "11-20",
+                  "min": 11,
+                  "max": 20,
+                  "count": 52
+                },
+                {
+                  "label": "21-40",
+                  "min": 21,
+                  "max": 40,
+                  "count": 34
+                },
+                {
+                  "label": "41-80",
+                  "min": 41,
+                  "max": 80,
+                  "count": 25
+                },
+                {
+                  "label": "81-160",
+                  "min": 81,
+                  "max": 160,
+                  "count": 6
+                },
+                {
+                  "label": "161-320",
+                  "min": 161,
+                  "max": 320,
+                  "count": 0
+                },
+                {
+                  "label": "321+",
+                  "min": 321,
+                  "max": null,
+                  "count": 1
+                }
+              ],
+              "p25": 6,
+              "p50": 12,
+              "p75": 24,
+              "p90": 62.8,
+              "p99": 121.48
+            },
+            "chars": {
+              "count": 215,
+              "min": 40,
+              "max": 12000,
+              "mean": 854.02,
+              "histogram": [
+                {
+                  "label": "0-200",
+                  "min": 0,
+                  "max": 200,
+                  "count": 50
+                },
+                {
+                  "label": "201-500",
+                  "min": 201,
+                  "max": 500,
+                  "count": 67
+                },
+                {
+                  "label": "501-1000",
+                  "min": 501,
+                  "max": 1000,
+                  "count": 48
+                },
+                {
+                  "label": "1001-2000",
+                  "min": 1001,
+                  "max": 2000,
+                  "count": 25
+                },
+                {
+                  "label": "2001-4000",
+                  "min": 2001,
+                  "max": 4000,
+                  "count": 20
+                },
+                {
+                  "label": "4001-8000",
+                  "min": 4001,
+                  "max": 8000,
+                  "count": 4
+                },
+                {
+                  "label": "8001-12000",
+                  "min": 8001,
+                  "max": 12000,
+                  "count": 1
+                },
+                {
+                  "label": "12001+",
+                  "min": 12001,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 213,
+              "p50": 459,
+              "p75": 908,
+              "p90": 2169.2,
+              "p99": 4601.58
+            }
+          },
+          "typescript": {
+            "count": 135,
+            "lines": {
+              "count": 135,
+              "min": 1,
+              "max": 333,
+              "mean": 21.28,
+              "histogram": [
+                {
+                  "label": "1-10",
+                  "min": 1,
+                  "max": 10,
+                  "count": 77
+                },
+                {
+                  "label": "11-20",
+                  "min": 11,
+                  "max": 20,
+                  "count": 29
+                },
+                {
+                  "label": "21-40",
+                  "min": 21,
+                  "max": 40,
+                  "count": 7
+                },
+                {
+                  "label": "41-80",
+                  "min": 41,
+                  "max": 80,
+                  "count": 19
+                },
+                {
+                  "label": "81-160",
+                  "min": 81,
+                  "max": 160,
+                  "count": 1
+                },
+                {
+                  "label": "161-320",
+                  "min": 161,
+                  "max": 320,
+                  "count": 1
+                },
+                {
+                  "label": "321+",
+                  "min": 321,
+                  "max": null,
+                  "count": 1
+                }
+              ],
+              "p25": 3,
+              "p50": 7,
+              "p75": 18,
+              "p90": 56.2,
+              "p99": 234.6
+            },
+            "chars": {
+              "count": 135,
+              "min": 13,
+              "max": 12000,
+              "mean": 799.82,
+              "histogram": [
+                {
+                  "label": "0-200",
+                  "min": 0,
+                  "max": 200,
+                  "count": 65
+                },
+                {
+                  "label": "201-500",
+                  "min": 201,
+                  "max": 500,
+                  "count": 30
+                },
+                {
+                  "label": "501-1000",
+                  "min": 501,
+                  "max": 1000,
+                  "count": 14
+                },
+                {
+                  "label": "1001-2000",
+                  "min": 1001,
+                  "max": 2000,
+                  "count": 10
+                },
+                {
+                  "label": "2001-4000",
+                  "min": 2001,
+                  "max": 4000,
+                  "count": 13
+                },
+                {
+                  "label": "4001-8000",
+                  "min": 4001,
+                  "max": 8000,
+                  "count": 1
+                },
+                {
+                  "label": "8001-12000",
+                  "min": 8001,
+                  "max": 12000,
+                  "count": 2
+                },
+                {
+                  "label": "12001+",
+                  "min": 12001,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 102,
+              "p50": 247,
+              "p75": 548,
+              "p90": 2149.6,
+              "p99": 9298.36
+            }
+          }
+        },
+        "lines": {
+          "count": 492,
+          "min": 1,
+          "max": 453,
+          "mean": 18.49,
+          "histogram": [
+            {
+              "label": "1-10",
+              "min": 1,
+              "max": 10,
+              "count": 288
+            },
+            {
+              "label": "11-20",
+              "min": 11,
+              "max": 20,
+              "count": 98
+            },
+            {
+              "label": "21-40",
+              "min": 21,
+              "max": 40,
+              "count": 50
+            },
+            {
+              "label": "41-80",
+              "min": 41,
+              "max": 80,
+              "count": 46
+            },
+            {
+              "label": "81-160",
+              "min": 81,
+              "max": 160,
+              "count": 7
+            },
+            {
+              "label": "161-320",
+              "min": 161,
+              "max": 320,
+              "count": 1
+            },
+            {
+              "label": "321+",
+              "min": 321,
+              "max": null,
+              "count": 2
+            }
+          ],
+          "p25": 4,
+          "p50": 8,
+          "p75": 18,
+          "p90": 46,
+          "p99": 107.62
+        },
+        "chars": {
+          "count": 492,
+          "min": 13,
+          "max": 12000,
+          "mean": 698.09,
+          "histogram": [
+            {
+              "label": "0-200",
+              "min": 0,
+              "max": 200,
+              "count": 191
+            },
+            {
+              "label": "201-500",
+              "min": 201,
+              "max": 500,
+              "count": 141
+            },
+            {
+              "label": "501-1000",
+              "min": 501,
+              "max": 1000,
+              "count": 73
+            },
+            {
+              "label": "1001-2000",
+              "min": 1001,
+              "max": 2000,
+              "count": 42
+            },
+            {
+              "label": "2001-4000",
+              "min": 2001,
+              "max": 4000,
+              "count": 36
+            },
+            {
+              "label": "4001-8000",
+              "min": 4001,
+              "max": 8000,
+              "count": 6
+            },
+            {
+              "label": "8001-12000",
+              "min": 8001,
+              "max": 12000,
+              "count": 3
+            },
+            {
+              "label": "12001+",
+              "min": 12001,
+              "max": null,
+              "count": 0
+            }
+          ],
+          "p25": 137,
+          "p50": 291.5,
+          "p75": 663.75,
+          "p90": 1754.5,
+          "p99": 4824.61
+        }
+      },
+      "embeddings": {
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "dimensions": 384,
+        "mode": "full",
+        "counts": {
+          "entities": 1300,
+          "output": 1300,
+          "embedded": 1300,
+          "reused": 0,
+          "failed": 0
+        },
+        "by_entity_type": {
+          "Chunk": 492,
+          "File": 666,
+          "Module": 137,
+          "Rule": 5
+        },
+        "throughput_per_s": 31.73
+      },
+      "graph": {
+        "nodes": {
+          "files": 666,
+          "chunks": 492,
+          "rules": 5,
+          "adrs": 0,
+          "modules": 137,
+          "projects": 0
+        },
+        "edges": {
+          "total": 2353,
+          "by_type": {
+            "CALLS": 227,
+            "CALLS_SQL": 0,
+            "CONSTRAINS": 409,
+            "CONTAINS": 559,
+            "CONTAINS_MODULE": 36,
+            "DEFINES": 492,
+            "EXPORTS": 49,
+            "IMPLEMENTS": 397,
+            "IMPORTS": 184,
+            "INCLUDES_FILE": 0,
+            "REFERENCES_PROJECT": 0,
+            "SUPERSEDES": 0,
+            "TRANSFORMS_CONFIG": 0,
+            "USES_CONFIG": 0,
+            "USES_CONFIG_KEY": 0,
+            "USES_RESOURCE": 0,
+            "USES_RESOURCE_KEY": 0,
+            "USES_SETTING": 0,
+            "USES_SETTING_KEY": 0
+          }
+        },
+        "chunk_connectivity": {
+          "chunk_chunk_edges": 227,
+          "avg_degree": 0.92,
+          "max_degree": 11,
+          "isolated_count": 299,
+          "isolated_pct": 60.77,
+          "degree": {
+            "count": 492,
+            "min": 0,
+            "max": 11,
+            "mean": 0.92,
+            "histogram": [
+              {
+                "label": "0",
+                "min": 0,
+                "max": 0,
+                "count": 299
+              },
+              {
+                "label": "1",
+                "min": 1,
+                "max": 1,
+                "count": 80
+              },
+              {
+                "label": "2",
+                "min": 2,
+                "max": 2,
+                "count": 49
+              },
+              {
+                "label": "3-4",
+                "min": 3,
+                "max": 4,
+                "count": 46
+              },
+              {
+                "label": "5-8",
+                "min": 5,
+                "max": 8,
+                "count": 14
+              },
+              {
+                "label": "9-16",
+                "min": 9,
+                "max": 16,
+                "count": 4
+              },
+              {
+                "label": "17-32",
+                "min": 17,
+                "max": 32,
+                "count": 0
+              },
+              {
+                "label": "33+",
+                "min": 33,
+                "max": null,
+                "count": 0
+              }
+            ],
+            "p25": 0,
+            "p50": 0,
+            "p75": 1,
+            "p90": 3,
+            "p99": 8
+          },
+          "top_connected": [
+            {
+              "id": "chunk:src/inject/dynamic-theme/stylesheet-modifier.ts:createStyleSheetModifier:46-378",
+              "degree": 11
+            },
+            {
+              "id": "chunk:src/inject/dynamic-theme/stylesheet-modifier.ts:modifySheet:70-375",
+              "degree": 11
+            },
+            {
+              "id": "chunk:tasks/bundle-signature.js:createHashes:131-164",
+              "degree": 9
+            },
+            {
+              "id": "chunk:tasks/cli.js:run:146-206",
+              "degree": 9
+            },
+            {
+              "id": "chunk:tasks/ping.js:pingSites:129-216",
+              "degree": 8
+            },
+            {
+              "id": "chunk:tests/browser/environment.js:CustomJestEnvironment:14-466",
+              "degree": 8
+            },
+            {
+              "id": "chunk:src/inject/dynamic-theme/stylesheet-modifier.ts:iterateReadyRules:332-345",
+              "degree": 6
+            },
+            {
+              "id": "chunk:src/inject/dynamic-theme/watch/sheet-changes.ts:createRAFSheetWatcher:69-114",
+              "degree": 6
+            },
+            {
+              "id": "chunk:tasks/integrity.js:firefoxExtractHashMetaInfOrder:46-142",
+              "degree": 6
+            },
+            {
+              "id": "chunk:tests/browser/environment.js:CustomJestEnvironment.createMessageServer:310-439",
+              "degree": 6
+            }
+          ]
+        }
+      },
+      "parse_errors": 0
+    }
+  ]
+}
