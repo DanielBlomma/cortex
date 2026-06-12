@@ -7,10 +7,13 @@ import { env, pipeline } from "@huggingface/transformers";
 import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
 import { CACHE_DIR, PATHS } from "./paths.js";
 import {
+  createTokenCounter,
   DEFAULT_SCHEDULER_OPTIONS,
   groupDuplicates,
   packWorkUnits,
   resolveInFlightTokens,
+  resolveMemoryHeadroom,
+  resolveModelMaxTokens,
   resolvePoolConfig,
   runWorkUnits,
   type EmbedExtractor,
@@ -485,8 +488,17 @@ async function main(): Promise<void> {
   // vector), then measure token lengths for routing and batch packing.
   const unique = groupDuplicates(pending);
   // Memory headroom drives pool size and the concurrency gate; everything
-  // adapts to the machine so no tuning is expected from users.
-  const memoryHeadroom = Math.min(os.freemem(), os.totalmem() * 0.5);
+  // adapts to the machine so no tuning is expected from users. Container
+  // limits (cgroups) and platforms that under-report free memory are both
+  // handled inside resolveMemoryHeadroom.
+  const readHeadroom = () =>
+    resolveMemoryHeadroom({
+      freeMemory: os.freemem(),
+      totalMemory: os.totalmem(),
+      constrainedMemory: process.constrainedMemory?.() ?? null,
+      availableMemory: process.availableMemory?.() ?? null
+    });
+  const memoryHeadroom = readHeadroom();
   const poolConfig = resolvePoolConfig({
     threadBudget,
     poolOverride: Number(process.env.CORTEX_EMBED_POOL) || null,
@@ -530,39 +542,32 @@ async function main(): Promise<void> {
       };
 
     // First session loads (and caches) the model; the rest load in parallel.
+    // Extra sessions failing (e.g. memory pressure) degrades the pool instead
+    // of aborting the run — one session can always finish the work.
     const first = await makeExtractor(poolConfig.threadsPerSession);
+    const extraSessions = await Promise.allSettled(
+      Array.from({ length: poolConfig.sessions - 1 }, () =>
+        makeExtractor(poolConfig.threadsPerSession)
+      )
+    );
     const extractors: EmbedExtractor[] = [
       first,
-      ...(await Promise.all(
-        Array.from({ length: poolConfig.sessions - 1 }, () =>
-          makeExtractor(poolConfig.threadsPerSession)
+      ...extraSessions
+        .filter(
+          (settled): settled is PromiseFulfilledResult<Awaited<ReturnType<typeof makeExtractor>>> =>
+            settled.status === "fulfilled"
         )
-      ))
+        .map((settled) => settled.value)
     ];
+    const failedSessions = extraSessions.length + 1 - extractors.length;
+    if (failedSessions > 0) {
+      console.warn(`[embed] ${failedSessions} pool session(s) failed to load; continuing with ${extractors.length}`);
+    }
 
     // Inference truncates at the model max; token counts must too, or one
     // giant file inflates scheduling cost and gate mass far beyond reality.
-    const tokenizerMax = Number(first.tokenizer?.model_max_length);
-    const modelMaxTokens =
-      Number.isFinite(tokenizerMax) && tokenizerMax > 0 && tokenizerMax < 1e9 ? tokenizerMax : 8192;
-
-    const countTokens = (text: string): number => {
-      let tokens = Math.max(1, Math.ceil(text.length / 4));
-      try {
-        const tokenizer = first.tokenizer;
-        if (typeof tokenizer === "function") {
-          const encoded = tokenizer(text);
-          const dims = encoded?.input_ids?.dims;
-          const last = Array.isArray(dims) ? Number(dims[dims.length - 1]) : NaN;
-          if (Number.isFinite(last) && last > 0) {
-            tokens = last;
-          }
-        }
-      } catch {
-        // keep the character estimate
-      }
-      return Math.min(tokens, modelMaxTokens);
-    };
+    const modelMaxTokens = resolveModelMaxTokens(first.tokenizer?.model_max_length);
+    const countTokens = createTokenCounter(first.tokenizer, modelMaxTokens);
 
     const measured: MeasuredText[] = unique.map((item) => ({ ...item, tokens: countTokens(item.text) }));
     const units = packWorkUnits(measured, schedulerOptions);
@@ -572,10 +577,7 @@ async function main(): Promise<void> {
     const maxInFlightTokens =
       Number.isFinite(inFlightRaw) && inFlightRaw >= 1024
         ? Math.floor(inFlightRaw)
-        : resolveInFlightTokens({
-            memoryBytes: Math.min(os.freemem(), os.totalmem() * 0.5),
-            modelMaxTokens
-          });
+        : resolveInFlightTokens({ memoryBytes: readHeadroom(), modelMaxTokens });
     result = await runWorkUnits(units, extractors, { maxInFlightTokens });
   }
 

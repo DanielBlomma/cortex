@@ -384,3 +384,58 @@ test("resolveInFlightTokens: adapts to memory within model-max bounds", async ()
   // unknown memory: static default floor
   assert.equal(resolveInFlightTokens({ modelMaxTokens: 512 }), 12288);
 });
+
+// ─── round-2 review fixes ────────────────────────────────────────────────────
+
+test("resolveMemoryHeadroom: floors macOS-style tiny freemem at a share of total", async () => {
+  const { resolveMemoryHeadroom } = await import("../dist/embedScheduler.js");
+  // 24GB laptop reporting 0.5GB free (reclaimable cache counted as used)
+  const mac = resolveMemoryHeadroom({ freeMemory: 0.5e9, totalMemory: 24e9 });
+  assert.ok(mac >= 24e9 * 0.375 && mac <= 24e9 * 0.5, `got ${mac}`);
+});
+
+test("resolveMemoryHeadroom: container limits cap host-sized memory", async () => {
+  const { resolveMemoryHeadroom } = await import("../dist/embedScheduler.js");
+  // 4GB cgroup limit inside a 64GB host: headroom must reflect the limit
+  const container = resolveMemoryHeadroom({
+    freeMemory: 50e9,
+    totalMemory: 64e9,
+    constrainedMemory: 4e9,
+    availableMemory: 3e9
+  });
+  assert.ok(container <= 4e9 * 0.5, `container headroom leaked host memory: ${container}`);
+});
+
+test("resolveMemoryHeadroom: big idle host plans within half of total", async () => {
+  const { resolveMemoryHeadroom } = await import("../dist/embedScheduler.js");
+  const big = resolveMemoryHeadroom({ freeMemory: 50e9, totalMemory: 64e9 });
+  assert.equal(big, 32e9);
+  // garbage inputs stay sane
+  const garbage = resolveMemoryHeadroom({ freeMemory: NaN, totalMemory: -1 });
+  assert.ok(garbage > 0 && garbage <= 8e9);
+});
+
+test("resolveModelMaxTokens: sane values pass, sentinels and absurdities fall back", async () => {
+  const { resolveModelMaxTokens } = await import("../dist/embedScheduler.js");
+  assert.equal(resolveModelMaxTokens(512), 512);
+  assert.equal(resolveModelMaxTokens(8192), 8192);
+  assert.equal(resolveModelMaxTokens(131072), 131072);
+  assert.equal(resolveModelMaxTokens(1e8), 8192);
+  assert.equal(resolveModelMaxTokens(1e30), 8192);
+  assert.equal(resolveModelMaxTokens(undefined), 8192);
+  assert.equal(resolveModelMaxTokens(0), 8192);
+});
+
+test("createTokenCounter: uses the tokenizer, clamps at model max, survives failures", async () => {
+  const { createTokenCounter } = await import("../dist/embedScheduler.js");
+  const tokenizer = (text) => ({ input_ids: { dims: [1, text.length * 2] } });
+  const count = createTokenCounter(tokenizer, 100);
+  assert.equal(count("abc"), 6);
+  assert.equal(count("x".repeat(200)), 100); // clamped
+  const broken = createTokenCounter(() => {
+    throw new Error("boom");
+  }, 100);
+  assert.equal(broken("x".repeat(40)), 10); // chars/4 fallback
+  const missing = createTokenCounter(undefined, 100);
+  assert.equal(missing("x".repeat(40)), 10);
+});
