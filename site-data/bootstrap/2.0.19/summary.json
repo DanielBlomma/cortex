@@ -1,75 +1,77 @@
 {
   "schema_version": 1,
   "run": {
-    "id": "full-3",
-    "generated_at": "2026-06-11T19:01:43.815Z",
+    "id": "full-2019",
+    "generated_at": "2026-06-12T05:34:50.388Z",
     "cortex_version": "2.0.19"
   },
   "aggregate": {
     "totals": {
-      "items": 69,
-      "succeeded": 69,
+      "items": 32,
+      "succeeded": 32,
       "failed": 0,
-      "chunks": 733294,
-      "files": 154776,
-      "edges": 1852027,
-      "duration_ms": 46309692,
-      "repos": 69,
+      "chunks": 269627,
+      "files": 42850,
+      "edges": 644633,
+      "duration_ms": 31001922,
+      "indexed_lines": 8129123,
+      "tracked_lines": 11705859,
+      "repos": 32,
       "models": [
         "Xenova/all-MiniLM-L6-v2"
       ]
     },
     "by_model": {
       "Xenova/all-MiniLM-L6-v2": {
-        "items": 69,
-        "repos": 69,
-        "chunks": 733294,
-        "embedded": 906539,
+        "items": 32,
+        "repos": 32,
+        "chunks": 269627,
+        "embedded": 318190,
         "failed_embeddings": 0,
         "dimensions": 384,
-        "avg_throughput_per_s": 27.84,
+        "avg_throughput_per_s": 10.56,
         "chunk_lines_histogram": [
           {
             "label": "1-10",
             "min": 1,
             "max": 10,
-            "count": 389663
+            "count": 150046
           },
           {
             "label": "11-20",
             "min": 11,
             "max": 20,
-            "count": 123614
+            "count": 45561
           },
           {
             "label": "21-40",
             "min": 21,
             "max": 40,
-            "count": 88468
+            "count": 29129
           },
           {
             "label": "41-80",
             "min": 41,
             "max": 80,
-            "count": 100126
+            "count": 34249
           },
           {
             "label": "81-160",
             "min": 81,
             "max": 160,
-            "count": 20442
+            "count": 6479
           },
           {
             "label": "161-320",
             "min": 161,
             "max": 320,
-            "count": 7367
+            "count": 2676
           },
           {
             "label": "321+",
             "min": 321,
             "max": null,
-            "count": 3614
+            "count": 1487
           }
         ],
         "chunk_chars_histogram": [
@@ -77,333 +79,333 @@
             "label": "0-200",
             "min": 0,
             "max": 200,
-            "count": 262956
+            "count": 100379
           },
           {
             "label": "201-500",
             "min": 201,
             "max": 500,
-            "count": 179809
+            "count": 69550
           },
           {
             "label": "501-1000",
             "min": 501,
             "max": 1000,
-            "count": 112259
+            "count": 40350
           },
           {
             "label": "1001-2000",
             "min": 1001,
             "max": 2000,
-            "count": 74318
+            "count": 24333
           },
           {
             "label": "2001-4000",
             "min": 2001,
             "max": 4000,
-            "count": 79612
+            "count": 27447
           },
           {
             "label": "4001-8000",
             "min": 4001,
             "max": 8000,
-            "count": 16912
+            "count": 4814
           },
           {
             "label": "8001-12000",
             "min": 8001,
             "max": 12000,
-            "count": 7395
+            "count": 2752
           },
           {
             "label": "12001+",
             "min": 12001,
             "max": null,
-            "count": 33
+            "count": 2
           }
         ]
       }
     },
     "by_language": {
       "java": {
-        "chunks": 106083,
-        "repos": 11,
-        "mean_chunk_lines": 24.12,
+        "chunks": 96447,
+        "repos": 7,
+        "mean_chunk_lines": 24.53,
         "lines_histogram": [
           {
             "label": "1-10",
             "min": 1,
             "max": 10,
-            "count": 62786
+            "count": 56839
           },
           {
             "label": "11-20",
             "min": 11,
             "max": 20,
-            "count": 17705
+            "count": 15935
           },
           {
             "label": "21-40",
             "min": 21,
             "max": 40,
-            "count": 9313
+            "count": 8565
           },
           {
             "label": "41-80",
             "min": 41,
             "max": 80,
-            "count": 12370
+            "count": 11507
           },
           {
             "label": "81-160",
             "min": 81,
             "max": 160,
-            "count": 2203
+            "count": 2021
           },
           {
             "label": "161-320",
             "min": 161,
             "max": 320,
-            "count": 1051
+            "count": 964
           },
           {
             "label": "321+",
             "min": 321,
             "max": null,
-            "count": 655
+            "count": 616
           }
         ]
       },
       "go": {
-        "chunks": 146491,
-        "repos": 12,
-        "mean_chunk_lines": 18.7,
+        "chunks": 26719,
+        "repos": 6,
+        "mean_chunk_lines": 27.1,
         "lines_histogram": [
           {
             "label": "1-10",
             "min": 1,
             "max": 10,
-            "count": 92380
+            "count": 13913
           },
           {
             "label": "11-20",
             "min": 11,
             "max": 20,
-            "count": 22097
+            "count": 3936
           },
           {
             "label": "21-40",
             "min": 21,
             "max": 40,
-            "count": 13884
+            "count": 3313
           },
           {
             "label": "41-80",
             "min": 41,
             "max": 80,
-            "count": 13604
+            "count": 4114
           },
           {
             "label": "81-160",
             "min": 81,
             "max": 160,
-            "count": 3326
+            "count": 1048
           },
           {
             "label": "161-320",
             "min": 161,
             "max": 320,
-            "count": 926
+            "count": 301
           },
           {
             "label": "321+",
             "min": 321,
             "max": null,
-            "count": 274
+            "count": 94
           }
         ]
       },
       "javascript": {
-        "chunks": 16510,
-        "repos": 30,
-        "mean_chunk_lines": 36.09,
+        "chunks": 2988,
+        "repos": 12,
+        "mean_chunk_lines": 23.66,
         "lines_histogram": [
           {
             "label": "1-10",
             "min": 1,
             "max": 10,
-            "count": 7097
+            "count": 1566
           },
           {
             "label": "11-20",
             "min": 11,
             "max": 20,
-            "count": 2969
+            "count": 594
           },
           {
             "label": "21-40",
             "min": 21,
             "max": 40,
-            "count": 2281
+            "count": 357
           },
           {
             "label": "41-80",
             "min": 41,
             "max": 80,
-            "count": 3248
+            "count": 376
           },
           {
             "label": "81-160",
             "min": 81,
             "max": 160,
-            "count": 496
+            "count": 54
           },
           {
             "label": "161-320",
             "min": 161,
             "max": 320,
-            "count": 228
+            "count": 26
           },
           {
             "label": "321+",
             "min": 321,
             "max": null,
-            "count": 191
+            "count": 15
           }
         ]
       },
       "typescript": {
-        "chunks": 13879,
-        "repos": 17,
-        "mean_chunk_lines": 18.3,
+        "chunks": 6938,
+        "repos": 6,
+        "mean_chunk_lines": 12.32,
         "lines_histogram": [
           {
             "label": "1-10",
             "min": 1,
             "max": 10,
-            "count": 8243
+            "count": 4848
           },
           {
             "label": "11-20",
             "min": 11,
             "max": 20,
-            "count": 2493
+            "count": 1158
           },
           {
             "label": "21-40",
             "min": 21,
             "max": 40,
-            "count": 1502
+            "count": 527
           },
           {
             "label": "41-80",
             "min": 41,
             "max": 80,
-            "count": 1294
+            "count": 344
           },
           {
             "label": "81-160",
             "min": 81,
             "max": 160,
-            "count": 254
+            "count": 46
           },
           {
             "label": "161-320",
             "min": 161,
             "max": 320,
-            "count": 75
+            "count": 11
           },
           {
             "label": "321+",
             "min": 321,
             "max": null,
-            "count": 18
+            "count": 4
           }
         ]
       },
       "python": {
-        "chunks": 354129,
-        "repos": 37,
-        "mean_chunk_lines": 29.45,
+        "chunks": 113192,
+        "repos": 13,
+        "mean_chunk_lines": 26.26,
         "lines_histogram": [
           {
             "label": "1-10",
             "min": 1,
             "max": 10,
-            "count": 164098
+            "count": 58965
           },
           {
             "label": "11-20",
             "min": 11,
             "max": 20,
-            "count": 62738
+            "count": 20518
           },
           {
             "label": "21-40",
             "min": 21,
             "max": 40,
-            "count": 51056
+            "count": 13945
           },
           {
             "label": "41-80",
             "min": 41,
             "max": 80,
-            "count": 58113
+            "count": 15195
           },
           {
             "label": "81-160",
             "min": 81,
             "max": 160,
-            "count": 11885
+            "count": 2756
           },
           {
             "label": "161-320",
             "min": 161,
             "max": 320,
-            "count": 4232
+            "count": 1151
           },
           {
             "label": "321+",
             "min": 321,
             "max": null,
-            "count": 2007
+            "count": 662
           }
         ]
       },
       "bash": {
-        "chunks": 282,
-        "repos": 19,
-        "mean_chunk_lines": 12.81,
+        "chunks": 142,
+        "repos": 8,
+        "mean_chunk_lines": 7.78,
         "lines_histogram": [
           {
             "label": "1-10",
             "min": 1,
             "max": 10,
-            "count": 182
+            "count": 111
           },
           {
             "label": "11-20",
             "min": 11,
             "max": 20,
-            "count": 61
+            "count": 23
           },
           {
             "label": "21-40",
             "min": 21,
             "max": 40,
-            "count": 24
+            "count": 7
           },
           {
             "label": "41-80",
             "min": 41,
             "max": 80,
-            "count": 11
+            "count": 1
           },
           {
             "label": "81-160",
             "min": 81,
             "max": 160,
-            "count": 4
+            "count": 0
           },
           {
             "label": "161-320",
@@ -420,131 +422,131 @@
         ]
       },
       "c": {
-        "chunks": 20460,
-        "repos": 15,
-        "mean_chunk_lines": 28.89,
+        "chunks": 6820,
+        "repos": 6,
+        "mean_chunk_lines": 22.23,
         "lines_histogram": [
           {
             "label": "1-10",
             "min": 1,
             "max": 10,
-            "count": 11449
+            "count": 3967
           },
           {
             "label": "11-20",
             "min": 11,
             "max": 20,
-            "count": 2518
+            "count": 965
           },
           {
             "label": "21-40",
             "min": 21,
             "max": 40,
-            "count": 2070
+            "count": 755
           },
           {
             "label": "41-80",
             "min": 41,
             "max": 80,
-            "count": 3324
+            "count": 835
           },
           {
             "label": "81-160",
             "min": 81,
             "max": 160,
-            "count": 681
+            "count": 215
           },
           {
             "label": "161-320",
             "min": 161,
             "max": 320,
-            "count": 256
+            "count": 68
           },
           {
             "label": "321+",
             "min": 321,
             "max": null,
-            "count": 162
+            "count": 15
           }
         ]
       },
       "rust": {
-        "chunks": 58769,
-        "repos": 14,
-        "mean_chunk_lines": 20.51,
+        "chunks": 7365,
+        "repos": 2,
+        "mean_chunk_lines": 20.7,
         "lines_histogram": [
           {
             "label": "1-10",
             "min": 1,
             "max": 10,
-            "count": 34585
+            "count": 4203
           },
           {
             "label": "11-20",
             "min": 11,
             "max": 20,
-            "count": 9982
+            "count": 1326
           },
           {
             "label": "21-40",
             "min": 21,
             "max": 40,
-            "count": 6607
+            "count": 948
           },
           {
             "label": "41-80",
             "min": 41,
             "max": 80,
-            "count": 5799
+            "count": 695
           },
           {
             "label": "81-160",
             "min": 81,
             "max": 160,
-            "count": 1205
+            "count": 117
           },
           {
             "label": "161-320",
             "min": 161,
             "max": 320,
-            "count": 408
+            "count": 48
           },
           {
             "label": "321+",
             "min": 321,
             "max": null,
-            "count": 183
+            "count": 28
           }
         ]
       },
       "ruby": {
-        "chunks": 3854,
-        "repos": 5,
-        "mean_chunk_lines": 28.91,
+        "chunks": 3821,
+        "repos": 2,
+        "mean_chunk_lines": 29.03,
         "lines_histogram": [
           {
             "label": "1-10",
             "min": 1,
             "max": 10,
-            "count": 2214
+            "count": 2193
           },
           {
             "label": "11-20",
             "min": 11,
             "max": 20,
-            "count": 473
+            "count": 469
           },
           {
             "label": "21-40",
             "min": 21,
             "max": 40,
-            "count": 317
+            "count": 312
           },
           {
             "label": "41-80",
             "min": 41,
             "max": 80,
-            "count": 639
+            "count": 636
           },
           {
             "label": "81-160",
@@ -567,137 +569,88 @@
         ]
       },
       "cpp": {
-        "chunks": 12614,
-        "repos": 12,
-        "mean_chunk_lines": 26.46,
+        "chunks": 5125,
+        "repos": 4,
+        "mean_chunk_lines": 20.05,
         "lines_histogram": [
           {
             "label": "1-10",
             "min": 1,
             "max": 10,
-            "count": 6559
+            "count": 3393
           },
           {
             "label": "11-20",
             "min": 11,
             "max": 20,
-            "count": 2506
+            "count": 618
           },
           {
             "label": "21-40",
             "min": 21,
             "max": 40,
-            "count": 1376
+            "count": 397
           },
           {
             "label": "41-80",
             "min": 41,
             "max": 80,
-            "count": 1689
+            "count": 546
           },
           {
             "label": "81-160",
             "min": 81,
             "max": 160,
-            "count": 261
+            "count": 99
           },
           {
             "label": "161-320",
             "min": 161,
             "max": 320,
-            "count": 133
+            "count": 53
           },
           {
             "label": "321+",
             "min": 321,
             "max": null,
-            "count": 90
+            "count": 19
           }
         ]
       },
       "sql": {
-        "chunks": 219,
-        "repos": 9,
-        "mean_chunk_lines": 26.27,
+        "chunks": 70,
+        "repos": 2,
+        "mean_chunk_lines": 10.97,
         "lines_histogram": [
           {
             "label": "1-10",
             "min": 1,
             "max": 10,
-            "count": 70
+            "count": 48
           },
           {
             "label": "11-20",
             "min": 11,
             "max": 20,
-            "count": 72
+            "count": 19
           },
           {
             "label": "21-40",
             "min": 21,
             "max": 40,
-            "count": 38
+            "count": 3
           },
           {
             "label": "41-80",
             "min": 41,
             "max": 80,
-            "count": 33
+            "count": 0
           },
           {
             "label": "81-160",
             "min": 81,
             "max": 160,
-            "count": 2
-          },
-          {
-            "label": "161-320",
-            "min": 161,
-            "max": 320,
-            "count": 4
-          },
-          {
-            "label": "321+",
-            "min": 321,
-            "max": null,
             "count": 0
-          }
-        ]
-      },
-      "vb6": {
-        "chunks": 4,
-        "repos": 1,
-        "mean_chunk_lines": 93.75,
-        "lines_histogram": [
-          {
-            "label": "1-10",
-            "min": 1,
-            "max": 10,
-            "count": 0
-          },
-          {
-            "label": "11-20",
-            "min": 11,
-            "max": 20,
-            "count": 0
-          },
-          {
-            "label": "21-40",
-            "min": 21,
-            "max": 40,
-            "count": 0
-          },
-          {
-            "label": "41-80",
-            "min": 41,
-            "max": 80,
-            "count": 2
-          },
-          {
-            "label": "81-160",
-            "min": 81,
-            "max": 160,
-            "count": 2
           },
           {
             "label": "161-320",
@@ -715,16 +668,16 @@
       }
     },
     "relations_by_type": {
-      "CALLS": 122863,
+      "CALLS": 36067,
       "CALLS_SQL": 0,
-      "CONSTRAINS": 150378,
-      "CONTAINS": 143792,
-      "CONTAINS_MODULE": 9882,
-      "DEFINES": 733294,
-      "EXPORTS": 481747,
-      "IMPLEMENTS": 143222,
-      "IMPORTS": 66845,
-      "INCLUDES_FILE": 4,
+      "CONSTRAINS": 44975,
+      "CONTAINS": 39423,
+      "CONTAINS_MODULE": 3512,
+      "DEFINES": 269627,
+      "EXPORTS": 187715,
+      "IMPLEMENTS": 43172,
+      "IMPORTS": 20140,
+      "INCLUDES_FILE": 2,
       "REFERENCES_PROJECT": 0,
       "SUPERSEDES": 0,
       "TRANSFORMS_CONFIG": 0,
@@ -751,6 +704,8 @@
         "error": null,
         "tracked_files": 4870,
         "tracked_bytes": 149452863,
+        "tracked_lines": 1961542,
+        "indexed_lines": 692764,
         "files": 4745,
         "chunks": 40865,
         "chunk_p50_lines": 8,
@@ -761,9 +716,9 @@
         "isolated_pct": 98.29,
         "embedded": 45966,
         "dimensions": 384,
-        "total_ms": 4022613,
-        "ingest_ms": 42438,
-        "embed_ms": 3692610
+        "total_ms": 4202000,
+        "ingest_ms": 41273,
+        "embed_ms": 3922649
       },
       {
         "key": "angular__angular",
@@ -780,6 +735,8 @@
         "error": null,
         "tracked_files": 10589,
         "tracked_bytes": 111344856,
+        "tracked_lines": 1848032,
+        "indexed_lines": 1452594,
         "files": 8248,
         "chunks": 6633,
         "chunk_p50_lines": 7,
@@ -790,9 +747,9 @@
         "isolated_pct": 93.35,
         "embedded": 15994,
         "dimensions": 384,
-        "total_ms": 797185,
-        "ingest_ms": 14096,
-        "embed_ms": 699362
+        "total_ms": 1697208,
+        "ingest_ms": 15412,
+        "embed_ms": 1571734
       },
       {
         "key": "ansible__ansible",
@@ -809,6 +766,8 @@
         "error": null,
         "tracked_files": 5764,
         "tracked_bytes": 15020443,
+        "tracked_lines": 428605,
+        "indexed_lines": 398540,
         "files": 4665,
         "chunks": 13565,
         "chunk_p50_lines": 9,
@@ -819,9 +778,9 @@
         "isolated_pct": 79.37,
         "embedded": 18884,
         "dimensions": 384,
-        "total_ms": 826187,
-        "ingest_ms": 28353,
-        "embed_ms": 724916
+        "total_ms": 1801332,
+        "ingest_ms": 29005,
+        "embed_ms": 1697017
       },
       {
         "key": "anuraghazra__github-readme-stats",
@@ -838,6 +797,8 @@
         "error": null,
         "tracked_files": 132,
         "tracked_bytes": 1130928,
+        "tracked_lines": 32478,
+        "indexed_lines": 30706,
         "files": 114,
         "chunks": 164,
         "chunk_p50_lines": 17,
@@ -848,9 +809,9 @@
         "isolated_pct": 53.05,
         "embedded": 296,
         "dimensions": 384,
-        "total_ms": 19537,
-        "ingest_ms": 471,
-        "embed_ms": 13156
+        "total_ms": 45339,
+        "ingest_ms": 504,
+        "embed_ms": 37758
       },
       {
         "key": "astropy__astropy",
@@ -867,6 +828,8 @@
         "error": null,
         "tracked_files": 2033,
         "tracked_bytes": 29649903,
+        "tracked_lines": 746270,
+        "indexed_lines": 626896,
         "files": 1652,
         "chunks": 21690,
         "chunk_p50_lines": 12,
@@ -877,9 +840,9 @@
         "isolated_pct": 83.32,
         "embedded": 23539,
         "dimensions": 384,
-        "total_ms": 3226898,
-        "ingest_ms": 52319,
-        "embed_ms": 2967162
+        "total_ms": 2418269,
+        "ingest_ms": 47940,
+        "embed_ms": 2253981
       },
       {
         "key": "axios__axios",
@@ -896,6 +859,8 @@
         "error": null,
         "tracked_files": 449,
         "tracked_bytes": 3236890,
+        "tracked_lines": 86638,
+        "indexed_lines": 81877,
         "files": 411,
         "chunks": 621,
         "chunk_p50_lines": 9,
@@ -906,9 +871,9 @@
         "isolated_pct": 67.15,
         "embedded": 1089,
         "dimensions": 384,
-        "total_ms": 49243,
-        "ingest_ms": 906,
-        "embed_ms": 41026
+        "total_ms": 126281,
+        "ingest_ms": 890,
+        "embed_ms": 114044
       },
       {
         "key": "burntsushi__ripgrep",
@@ -925,6 +890,8 @@
         "error": null,
         "tracked_files": 222,
         "tracked_bytes": 3117867,
+        "tracked_lines": 72943,
+        "indexed_lines": 67294,
         "files": 160,
         "chunks": 2885,
         "chunk_p50_lines": 7,
@@ -935,9 +902,9 @@
         "isolated_pct": 78.3,
         "embedded": 3085,
         "dimensions": 384,
-        "total_ms": 147810,
-        "ingest_ms": 10772,
-        "embed_ms": 117410
+        "total_ms": 291515,
+        "ingest_ms": 10735,
+        "embed_ms": 260314
       },
       {
         "key": "catchorg__catch2",
@@ -954,6 +921,8 @@
         "error": null,
         "tracked_files": 580,
         "tracked_bytes": 8943547,
+        "tracked_lines": 213605,
+        "indexed_lines": 207143,
         "files": 541,
         "chunks": 4110,
         "chunk_p50_lines": 5,
@@ -964,9 +933,9 @@
         "isolated_pct": 95.64,
         "embedded": 4684,
         "dimensions": 384,
-        "total_ms": 2386782,
-        "ingest_ms": 33946,
-        "embed_ms": 2324472
+        "total_ms": 464094,
+        "ingest_ms": 31279,
+        "embed_ms": 400413
       },
       {
         "key": "clap-rs__clap",
@@ -983,6 +952,8 @@
         "error": null,
         "tracked_files": 618,
         "tracked_bytes": 3523509,
+        "tracked_lines": 111866,
+        "indexed_lines": 99451,
         "files": 485,
         "chunks": 4497,
         "chunk_p50_lines": 9,
@@ -993,9 +964,9 @@
         "isolated_pct": 81.92,
         "embedded": 5037,
         "dimensions": 384,
-        "total_ms": 207318,
-        "ingest_ms": 17761,
-        "embed_ms": 165142
+        "total_ms": 460648,
+        "ingest_ms": 18209,
+        "embed_ms": 415413
       },
       {
         "key": "cli__cli",
@@ -1012,6 +983,8 @@
         "error": null,
         "tracked_files": 1280,
         "tracked_bytes": 22209216,
+        "tracked_lines": 326850,
+        "indexed_lines": 277471,
         "files": 1043,
         "chunks": 7806,
         "chunk_p50_lines": 18,
@@ -1022,9 +995,9 @@
         "isolated_pct": 66.96,
         "embedded": 9134,
         "dimensions": 384,
-        "total_ms": 358072,
-        "ingest_ms": 7623,
-        "embed_ms": 280086
+        "total_ms": 1043490,
+        "ingest_ms": 7593,
+        "embed_ms": 970241
       },
       {
         "key": "coder__code-server",
@@ -1041,6 +1014,8 @@
         "error": null,
         "tracked_files": 256,
         "tracked_bytes": 1738478,
+        "tracked_lines": 37998,
+        "indexed_lines": 30956,
         "files": 167,
         "chunks": 31,
         "chunk_p50_lines": 11,
@@ -1051,9 +1026,9 @@
         "isolated_pct": 93.55,
         "embedded": 226,
         "dimensions": 384,
-        "total_ms": 18754,
-        "ingest_ms": 531,
-        "embed_ms": 8537
+        "total_ms": 31928,
+        "ingest_ms": 637,
+        "embed_ms": 25221
       },
       {
         "key": "danielblomma__cortex",
@@ -1069,6 +1044,8 @@
         "error": null,
         "tracked_files": 363,
         "tracked_bytes": 2793599,
+        "tracked_lines": 71842,
+        "indexed_lines": 3017,
         "files": 7,
         "chunks": 116,
         "chunk_p50_lines": 8.5,
@@ -1079,9 +1056,9 @@
         "isolated_pct": 5.17,
         "embedded": 130,
         "dimensions": 384,
-        "total_ms": 14474,
-        "ingest_ms": 394,
-        "embed_ms": 6256
+        "total_ms": 17756,
+        "ingest_ms": 182,
+        "embed_ms": 11452
       },
       {
         "key": "darkreader__darkreader",
@@ -1098,6 +1075,8 @@
         "error": null,
         "tracked_files": 979,
         "tracked_bytes": 4346013,
+        "tracked_lines": 120152,
+        "indexed_lines": 108403,
         "files": 666,
         "chunks": 350,
         "chunk_p50_lines": 11,
@@ -1108,9 +1087,9 @@
         "isolated_pct": 44.86,
         "embedded": 1158,
         "dimensions": 384,
-        "total_ms": 46598,
-        "ingest_ms": 855,
-        "embed_ms": 33497
+        "total_ms": 132547,
+        "ingest_ms": 894,
+        "embed_ms": 119830
       },
       {
         "key": "django__django",
@@ -1127,6 +1106,8 @@
         "error": null,
         "tracked_files": 7066,
         "tracked_bytes": 46602784,
+        "tracked_lines": 1138393,
+        "indexed_lines": 723628,
         "files": 3833,
         "chunks": 41494,
         "chunk_p50_lines": 8,
@@ -1137,9 +1118,9 @@
         "isolated_pct": 93.46,
         "embedded": 45981,
         "dimensions": 384,
-        "total_ms": 1791393,
-        "ingest_ms": 78498,
-        "embed_ms": 1346152
+        "total_ms": 3862741,
+        "ingest_ms": 71856,
+        "embed_ms": 3555961
       },
       {
         "key": "elastic__logstash",
@@ -1156,6 +1137,8 @@
         "error": null,
         "tracked_files": 2219,
         "tracked_bytes": 31514223,
+        "tracked_lines": 279694,
+        "indexed_lines": 221395,
         "files": 1891,
         "chunks": 10869,
         "chunk_p50_lines": 7,
@@ -1166,9 +1149,9 @@
         "isolated_pct": 98.23,
         "embedded": 12982,
         "dimensions": 384,
-        "total_ms": 568084,
-        "ingest_ms": 38790,
-        "embed_ms": 470473
+        "total_ms": 1263548,
+        "ingest_ms": 37468,
+        "embed_ms": 1162113
       },
       {
         "key": "element-hq__element-web",
@@ -1185,6 +1168,8 @@
         "error": null,
         "tracked_files": 4900,
         "tracked_bytes": 67146081,
+        "tracked_lines": 954536,
+        "indexed_lines": 654840,
         "files": 3297,
         "chunks": 593,
         "chunk_p50_lines": 6,
@@ -1195,9 +1180,9 @@
         "isolated_pct": 80.94,
         "embedded": 4300,
         "dimensions": 384,
-        "total_ms": 310646,
-        "ingest_ms": 8011,
-        "embed_ms": 275716
+        "total_ms": 658080,
+        "ingest_ms": 5246,
+        "embed_ms": 621303
       },
       {
         "key": "expressjs__express",
@@ -1214,6 +1199,8 @@
         "error": null,
         "tracked_files": 213,
         "tracked_bytes": 706609,
+        "tracked_lines": 26505,
+        "indexed_lines": 26040,
         "files": 163,
         "chunks": 127,
         "chunk_p50_lines": 4,
@@ -1224,9 +1211,9 @@
         "isolated_pct": 93.7,
         "embedded": 310,
         "dimensions": 384,
-        "total_ms": 23816,
+        "total_ms": 39000,
         "ingest_ms": 622,
-        "embed_ms": 16013
+        "embed_ms": 31178
       },
       {
         "key": "facebook__zstd",
@@ -1243,6 +1230,8 @@
         "error": null,
         "tracked_files": 658,
         "tracked_bytes": 8503787,
+        "tracked_lines": 183007,
+        "indexed_lines": 155795,
         "files": 409,
         "chunks": 3004,
         "chunk_p50_lines": 11,
@@ -1253,9 +1242,9 @@
         "isolated_pct": 39.85,
         "embedded": 3467,
         "dimensions": 384,
-        "total_ms": 205990,
-        "ingest_ms": 34289,
-        "embed_ms": 141455
+        "total_ms": 430065,
+        "ingest_ms": 31506,
+        "embed_ms": 359485
       },
       {
         "key": "fasterxml__jackson-core",
@@ -1272,6 +1261,8 @@
         "error": null,
         "tracked_files": 472,
         "tracked_bytes": 5741925,
+        "tracked_lines": 159138,
+        "indexed_lines": 151780,
         "files": 421,
         "chunks": 6288,
         "chunk_p50_lines": 11,
@@ -1282,9 +1273,9 @@
         "isolated_pct": 96.29,
         "embedded": 6754,
         "dimensions": 384,
-        "total_ms": 328327,
-        "ingest_ms": 6755,
-        "embed_ms": 282664
+        "total_ms": 699677,
+        "ingest_ms": 7012,
+        "embed_ms": 653143
       },
       {
         "key": "fasterxml__jackson-databind",
@@ -1301,6 +1292,8 @@
         "error": null,
         "tracked_files": 1424,
         "tracked_bytes": 13192482,
+        "tracked_lines": 366537,
+        "indexed_lines": 307390,
         "files": 1376,
         "chunks": 29442,
         "chunk_p50_lines": 7,
@@ -1311,9 +1304,9 @@
         "isolated_pct": 98.42,
         "embedded": 30921,
         "dimensions": 384,
-        "total_ms": 1211187,
-        "ingest_ms": 27390,
-        "embed_ms": 922652
+        "total_ms": 2658153,
+        "ingest_ms": 26903,
+        "embed_ms": 2502120
       },
       {
         "key": "fasterxml__jackson-dataformat-xml",
@@ -1330,6 +1323,8 @@
         "error": null,
         "tracked_files": 267,
         "tracked_bytes": 1251189,
+        "tracked_lines": 34858,
+        "indexed_lines": 32308,
         "files": 246,
         "chunks": 2801,
         "chunk_p50_lines": 8,
@@ -1340,9 +1335,9 @@
         "isolated_pct": 100,
         "embedded": 3080,
         "dimensions": 384,
-        "total_ms": 148091,
-        "ingest_ms": 2781,
-        "embed_ms": 126560
+        "total_ms": 306032,
+        "ingest_ms": 2675,
+        "embed_ms": 281232
       },
       {
         "key": "flipt-io__flipt",
@@ -1359,6 +1354,8 @@
         "error": null,
         "tracked_files": 862,
         "tracked_bytes": 10292445,
+        "tracked_lines": 190149,
+        "indexed_lines": 134639,
         "files": 743,
         "chunks": 4413,
         "chunk_p50_lines": 6,
@@ -1369,9 +1366,9 @@
         "isolated_pct": 84.75,
         "embedded": 5293,
         "dimensions": 384,
-        "total_ms": 233677,
-        "ingest_ms": 4364,
-        "embed_ms": 198083
+        "total_ms": 514915,
+        "ingest_ms": 4039,
+        "embed_ms": 473814
       },
       {
         "key": "fmtlib__fmt",
@@ -1388,6 +1385,8 @@
         "error": null,
         "tracked_files": 142,
         "tracked_bytes": 3091494,
+        "tracked_lines": 84849,
+        "indexed_lines": 82173,
         "files": 115,
         "chunks": 2443,
         "chunk_p50_lines": 5,
@@ -1398,9 +1397,9 @@
         "isolated_pct": 73.6,
         "embedded": 2578,
         "dimensions": 384,
-        "total_ms": 122087,
-        "ingest_ms": 21920,
-        "embed_ms": 77931
+        "total_ms": 231454,
+        "ingest_ms": 19858,
+        "embed_ms": 185144
       },
       {
         "key": "future-architect__vuls",
@@ -1417,6 +1416,8 @@
         "error": null,
         "tracked_files": 291,
         "tracked_bytes": 4972104,
+        "tracked_lines": 132849,
+        "indexed_lines": 126177,
         "files": 272,
         "chunks": 1716,
         "chunk_p50_lines": 16,
@@ -1427,9 +1428,9 @@
         "isolated_pct": 80.07,
         "embedded": 2019,
         "dimensions": 384,
-        "total_ms": 86854,
-        "ingest_ms": 1565,
-        "embed_ms": 63252
+        "total_ms": 239794,
+        "ingest_ms": 1650,
+        "embed_ms": 220912
       },
       {
         "key": "google__gson",
@@ -1446,6 +1447,8 @@
         "error": null,
         "tracked_files": 311,
         "tracked_bytes": 2292570,
+        "tracked_lines": 61383,
+        "indexed_lines": 58252,
         "files": 288,
         "chunks": 4521,
         "chunk_p50_lines": 8,
@@ -1456,9 +1459,9 @@
         "isolated_pct": 99.14,
         "embedded": 4841,
         "dimensions": 384,
-        "total_ms": 142120,
-        "ingest_ms": 4308,
-        "embed_ms": 102751
+        "total_ms": 447237,
+        "ingest_ms": 4331,
+        "embed_ms": 417174
       },
       {
         "key": "googlecontainertools__jib",
@@ -1475,6 +1478,8 @@
         "error": null,
         "tracked_files": 1221,
         "tracked_bytes": 8231363,
+        "tracked_lines": 124438,
+        "indexed_lines": 96255,
         "files": 759,
         "chunks": 5680,
         "chunk_p50_lines": 11,
@@ -1485,38 +1490,9 @@
         "isolated_pct": 100,
         "embedded": 6546,
         "dimensions": 384,
-        "total_ms": 211374,
-        "ingest_ms": 5885,
-        "embed_ms": 176044
-      },
-      {
-        "key": "gravitational__teleport",
-        "name": "gravitational/teleport",
-        "languages": [
-          "go"
-        ],
-        "benches": [
-          "Pro"
-        ],
-        "sha": "aedcd1d851cdf06eafd2d43f1eb33879539ac89e",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 14463,
-        "tracked_bytes": 253851078,
-        "files": 11466,
-        "chunks": 107666,
-        "chunk_p50_lines": 6,
-        "chunk_mean_lines": 17.24,
-        "edges": 239912,
-        "chunk_chunk_edges": 14470,
-        "avg_degree": 0.27,
-        "isolated_pct": 85.56,
-        "embedded": 120767,
-        "dimensions": 384,
-        "total_ms": 4825533,
-        "ingest_ms": 106952,
-        "embed_ms": 4107786
+        "total_ms": 721933,
+        "ingest_ms": 6183,
+        "embed_ms": 676076
       },
       {
         "key": "grpc__grpc-go",
@@ -1533,6 +1509,8 @@
         "error": null,
         "tracked_files": 1340,
         "tracked_bytes": 13716291,
+        "tracked_lines": 357294,
+        "indexed_lines": 327289,
         "files": 1161,
         "chunks": 12888,
         "chunk_p50_lines": 7,
@@ -1543,38 +1521,9 @@
         "isolated_pct": 75.31,
         "embedded": 14246,
         "dimensions": 384,
-        "total_ms": 522426,
-        "ingest_ms": 10613,
-        "embed_ms": 442404
-      },
-      {
-        "key": "huggingface__transformers",
-        "name": "huggingface/transformers",
-        "languages": [
-          "python"
-        ],
-        "benches": [
-          "Poly"
-        ],
-        "sha": "e524671628a524f0a330e2a7b448178219ad92e5",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 6082,
-        "tracked_bytes": 88771461,
-        "files": 6031,
-        "chunks": 75821,
-        "chunk_p50_lines": 18,
-        "chunk_mean_lines": 36.08,
-        "edges": 161533,
-        "chunk_chunk_edges": 14886,
-        "avg_degree": 0.39,
-        "isolated_pct": 73.85,
-        "embedded": 82953,
-        "dimensions": 384,
-        "total_ms": 4585794,
-        "ingest_ms": 137897,
-        "embed_ms": 4075255
+        "total_ms": 1342998,
+        "ingest_ms": 11393,
+        "embed_ms": 1244498
       },
       {
         "key": "iamkun__dayjs",
@@ -1591,6 +1540,8 @@
         "error": null,
         "tracked_files": 380,
         "tracked_bytes": 2481586,
+        "tracked_lines": 65582,
+        "indexed_lines": 22412,
         "files": 369,
         "chunks": 167,
         "chunk_p50_lines": 5,
@@ -1601,9 +1552,9 @@
         "isolated_pct": 51.5,
         "embedded": 558,
         "dimensions": 384,
-        "total_ms": 40418,
-        "ingest_ms": 905,
-        "embed_ms": 31951
+        "total_ms": 80201,
+        "ingest_ms": 776,
+        "embed_ms": 70740
       },
       {
         "key": "internetarchive__openlibrary",
@@ -1620,6 +1571,8 @@
         "error": null,
         "tracked_files": 1913,
         "tracked_bytes": 28446910,
+        "tracked_lines": 443908,
+        "indexed_lines": 144808,
         "files": 747,
         "chunks": 6544,
         "chunk_p50_lines": 9,
@@ -1630,9 +1583,9 @@
         "isolated_pct": 70.2,
         "embedded": 7382,
         "dimensions": 384,
-        "total_ms": 335562,
-        "ingest_ms": 12019,
-        "embed_ms": 282157
+        "total_ms": 738066,
+        "ingest_ms": 11404,
+        "embed_ms": 677594
       },
       {
         "key": "jqlang__jq",
@@ -1649,6 +1602,8 @@
         "error": null,
         "tracked_files": 399,
         "tracked_bytes": 4726358,
+        "tracked_lines": 177244,
+        "indexed_lines": 71345,
         "files": 127,
         "chunks": 1194,
         "chunk_p50_lines": 6,
@@ -1659,9 +1614,9 @@
         "isolated_pct": 56.62,
         "embedded": 1332,
         "dimensions": 384,
-        "total_ms": 74857,
-        "ingest_ms": 10037,
-        "embed_ms": 46393
+        "total_ms": 142830,
+        "ingest_ms": 9258,
+        "embed_ms": 111670
       },
       {
         "key": "keras-team__keras",
@@ -1678,6 +1633,8 @@
         "error": null,
         "tracked_files": 1016,
         "tracked_bytes": 11569295,
+        "tracked_lines": 323847,
+        "indexed_lines": 323602,
         "files": 1012,
         "chunks": 15961,
         "chunk_p50_lines": 13,
@@ -1688,9 +1645,9 @@
         "isolated_pct": 75.67,
         "embedded": 17046,
         "dimensions": 384,
-        "total_ms": 820084,
-        "ingest_ms": 32454,
-        "embed_ms": 699866
+        "total_ms": 1856379,
+        "ingest_ms": 29270,
+        "embed_ms": 1719787
       },
       {
         "key": "langchain-ai__langchain",
@@ -1707,6 +1664,8 @@
         "error": null,
         "tracked_files": 2937,
         "tracked_bytes": 38046947,
+        "tracked_lines": 542827,
+        "indexed_lines": 391883,
         "files": 2717,
         "chunks": 16149,
         "chunk_p50_lines": 12,
@@ -1717,1025 +1676,9 @@
         "isolated_pct": 80.35,
         "embedded": 19332,
         "dimensions": 384,
-        "total_ms": 888415,
-        "ingest_ms": 32339,
-        "embed_ms": 747282
-      },
-      {
-        "key": "matplotlib__matplotlib",
-        "name": "matplotlib/matplotlib",
-        "languages": [
-          "python"
-        ],
-        "benches": [
-          "Verified"
-        ],
-        "sha": "0677cc8c142eae9ea5dde9cd5487c106dff58cbb",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 4661,
-        "tracked_bytes": 62091817,
-        "files": 1759,
-        "chunks": 16414,
-        "chunk_p50_lines": 10,
-        "chunk_mean_lines": 29.06,
-        "edges": 42685,
-        "chunk_chunk_edges": 1694,
-        "avg_degree": 0.21,
-        "isolated_pct": 88.56,
-        "embedded": 18287,
-        "dimensions": 384,
-        "total_ms": 913331,
-        "ingest_ms": 69744,
-        "embed_ms": 731946
-      },
-      {
-        "key": "microsoft__vscode",
-        "name": "microsoft/vscode",
-        "languages": [
-          "typescript"
-        ],
-        "benches": [
-          "Poly"
-        ],
-        "sha": "a7680b0f0f5b02a4a8ff40e8e057565948b1a0c1",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 15655,
-        "tracked_bytes": 220964133,
-        "files": 13105,
-        "chunks": 5321,
-        "chunk_p50_lines": 10,
-        "chunk_mean_lines": 21.36,
-        "edges": 58918,
-        "chunk_chunk_edges": 976,
-        "avg_degree": 0.37,
-        "isolated_pct": 77.34,
-        "embedded": 20144,
-        "dimensions": 384,
-        "total_ms": 1416392,
-        "ingest_ms": 66501,
-        "embed_ms": 1212131
-      },
-      {
-        "key": "mockito__mockito",
-        "name": "mockito/mockito",
-        "languages": [
-          "java"
-        ],
-        "benches": [
-          "Multi"
-        ],
-        "sha": "9791e19830f967ec6ed0aa9f5aad7a946cc25b97",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 1125,
-        "tracked_bytes": 4258295,
-        "files": 1033,
-        "chunks": 9474,
-        "chunk_p50_lines": 7,
-        "chunk_mean_lines": 20.13,
-        "edges": 18960,
-        "chunk_chunk_edges": 17,
-        "avg_degree": 0,
-        "isolated_pct": 99.74,
-        "embedded": 10656,
-        "dimensions": 384,
-        "total_ms": 462492,
-        "ingest_ms": 12030,
-        "embed_ms": 393690
-      },
-      {
-        "key": "mui__material-ui",
-        "name": "mui/material-ui",
-        "languages": [
-          "typescript"
-        ],
-        "benches": [
-          "Multi",
-          "Poly"
-        ],
-        "sha": "0f9b43f4e001102e9aa94f10c3882e15277908a5",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 41117,
-        "tracked_bytes": 285197871,
-        "files": 28569,
-        "chunks": 1181,
-        "chunk_p50_lines": 14,
-        "chunk_mean_lines": 36.75,
-        "edges": 80215,
-        "chunk_chunk_edges": 477,
-        "avg_degree": 0.81,
-        "isolated_pct": 61.47,
-        "embedded": 30711,
-        "dimensions": 384,
-        "total_ms": 1673578,
-        "ingest_ms": 20410,
-        "embed_ms": 1505965
-      },
-      {
-        "key": "mwaskom__seaborn",
-        "name": "mwaskom/seaborn",
-        "languages": [
-          "python"
-        ],
-        "benches": [
-          "Verified"
-        ],
-        "sha": "32088bbc3adc611b7118e57fce6d4ed096a76a29",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 327,
-        "tracked_bytes": 5502891,
-        "files": 200,
-        "chunks": 3010,
-        "chunk_p50_lines": 11,
-        "chunk_mean_lines": 31.33,
-        "edges": 6109,
-        "chunk_chunk_edges": 309,
-        "avg_degree": 0.21,
-        "isolated_pct": 89.47,
-        "embedded": 3234,
-        "dimensions": 384,
-        "total_ms": 122435,
-        "ingest_ms": 8324,
-        "embed_ms": 82901
-      },
-      {
-        "key": "navidrome__navidrome",
-        "name": "navidrome/navidrome",
-        "languages": [
-          "go"
-        ],
-        "benches": [
-          "Pro"
-        ],
-        "sha": "3b958dd6a725b10d227ada78d7840c968d240972",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 1843,
-        "tracked_bytes": 16578776,
-        "files": 1585,
-        "chunks": 6511,
-        "chunk_p50_lines": 7,
-        "chunk_mean_lines": 12.29,
-        "edges": 16450,
-        "chunk_chunk_edges": 1457,
-        "avg_degree": 0.45,
-        "isolated_pct": 75.56,
-        "embedded": 8254,
-        "dimensions": 384,
-        "total_ms": 265946,
-        "ingest_ms": 7326,
-        "embed_ms": 223749
-      },
-      {
-        "key": "nlohmann__json",
-        "name": "nlohmann/json",
-        "languages": [
-          "cpp"
-        ],
-        "benches": [
-          "Multi"
-        ],
-        "sha": "a39f33b951dd18dc713ddffaa92a562b4a8b7937",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 1205,
-        "tracked_bytes": 16204680,
-        "files": 840,
-        "chunks": 2159,
-        "chunk_p50_lines": 5,
-        "chunk_mean_lines": 25.38,
-        "edges": 7754,
-        "chunk_chunk_edges": 449,
-        "avg_degree": 0.42,
-        "isolated_pct": 85.13,
-        "embedded": 3068,
-        "dimensions": 384,
-        "total_ms": 159021,
-        "ingest_ms": 21549,
-        "embed_ms": 119379
-      },
-      {
-        "key": "nobbettt__agentstackbench",
-        "name": "Nobbettt/AgentStackBench",
-        "languages": [
-          "python",
-          "typescript"
-        ],
-        "benches": [],
-        "sha": "66ee904e78eb840c48c3cb663ed9ff540d1fc381",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 7990,
-        "tracked_bytes": 332446857,
-        "files": 7096,
-        "chunks": 26041,
-        "chunk_p50_lines": 16,
-        "chunk_mean_lines": 32.72,
-        "edges": 71968,
-        "chunk_chunk_edges": 5301,
-        "avg_degree": 0.41,
-        "isolated_pct": 78.68,
-        "embedded": 34237,
-        "dimensions": 384,
-        "total_ms": 1497888,
-        "ingest_ms": 62707,
-        "embed_ms": 1312332
-      },
-      {
-        "key": "nodebb__nodebb",
-        "name": "NodeBB/NodeBB",
-        "languages": [
-          "javascript"
-        ],
-        "benches": [
-          "Pro"
-        ],
-        "sha": "55ae053f843f9d500c86e9860d555096520281e1",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 5722,
-        "tracked_bytes": 19875099,
-        "files": 5352,
-        "chunks": 1816,
-        "chunk_p50_lines": 12,
-        "chunk_mean_lines": 19.32,
-        "edges": 12529,
-        "chunk_chunk_edges": 820,
-        "avg_degree": 0.9,
-        "isolated_pct": 49.06,
-        "embedded": 7794,
-        "dimensions": 384,
-        "total_ms": 367858,
-        "ingest_ms": 4038,
-        "embed_ms": 336530
-      },
-      {
-        "key": "nushell__nushell",
-        "name": "nushell/nushell",
-        "languages": [
-          "rust"
-        ],
-        "benches": [
-          "Multi"
-        ],
-        "sha": "7a46679254b2874c7fe8884b5becb50efe914c0e",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 2322,
-        "tracked_bytes": 15892836,
-        "files": 1975,
-        "chunks": 25757,
-        "chunk_p50_lines": 9,
-        "chunk_mean_lines": 21.96,
-        "edges": 41167,
-        "chunk_chunk_edges": 5342,
-        "avg_degree": 0.41,
-        "isolated_pct": 79.78,
-        "embedded": 28015,
-        "dimensions": 384,
-        "total_ms": 1037927,
-        "ingest_ms": 100344,
-        "embed_ms": 829483
-      },
-      {
-        "key": "pallets__flask",
-        "name": "pallets/flask",
-        "languages": [
-          "python"
-        ],
-        "benches": [
-          "Verified"
-        ],
-        "sha": "36e4a824f340fdee7ed50937ba8e7f6bc7d17f81",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 236,
-        "tracked_bytes": 1814815,
-        "files": 197,
-        "chunks": 1670,
-        "chunk_p50_lines": 5,
-        "chunk_mean_lines": 15.94,
-        "edges": 3870,
-        "chunk_chunk_edges": 251,
-        "avg_degree": 0.3,
-        "isolated_pct": 83.77,
-        "embedded": 1898,
-        "dimensions": 384,
-        "total_ms": 58562,
-        "ingest_ms": 4606,
-        "embed_ms": 43592
-      },
-      {
-        "key": "ponylang__ponyc",
-        "name": "ponylang/ponyc",
-        "languages": [
-          "c"
-        ],
-        "benches": [
-          "Multi"
-        ],
-        "sha": "69e33ba200df0bebe68f3b37f100586e395cc11d",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 1614,
-        "tracked_bytes": 8657851,
-        "files": 708,
-        "chunks": 4738,
-        "chunk_p50_lines": 14,
-        "chunk_mean_lines": 25.33,
-        "edges": 34517,
-        "chunk_chunk_edges": 2687,
-        "avg_degree": 1.13,
-        "isolated_pct": 60.41,
-        "embedded": 5504,
-        "dimensions": 384,
-        "total_ms": 332250,
-        "ingest_ms": 49788,
-        "embed_ms": 215209
-      },
-      {
-        "key": "prettier__prettier",
-        "name": "prettier/prettier",
-        "languages": [
-          "javascript"
-        ],
-        "benches": [
-          "Poly"
-        ],
-        "sha": "7dc924c58b2b8babcfc999e437a2b97b8549f0d4",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 9331,
-        "tracked_bytes": 23385070,
-        "files": 6580,
-        "chunks": 3459,
-        "chunk_p50_lines": 6,
-        "chunk_mean_lines": 17.34,
-        "edges": 17045,
-        "chunk_chunk_edges": 1169,
-        "avg_degree": 0.68,
-        "isolated_pct": 65.6,
-        "embedded": 11256,
-        "dimensions": 384,
-        "total_ms": 343094,
-        "ingest_ms": 4860,
-        "embed_ms": 290333
-      },
-      {
-        "key": "psf__requests",
-        "name": "psf/requests",
-        "languages": [
-          "python"
-        ],
-        "benches": [
-          "Verified"
-        ],
-        "sha": "6f66281a1d6326b1b9c4ac09ca30de0fc4e6ef43",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 130,
-        "tracked_bytes": 4451407,
-        "files": 82,
-        "chunks": 712,
-        "chunk_p50_lines": 8,
-        "chunk_mean_lines": 23.03,
-        "edges": 1547,
-        "chunk_chunk_edges": 72,
-        "avg_degree": 0.2,
-        "isolated_pct": 87.78,
-        "embedded": 810,
-        "dimensions": 384,
-        "total_ms": 40244,
-        "ingest_ms": 1613,
-        "embed_ms": 29447
-      },
-      {
-        "key": "pydata__xarray",
-        "name": "pydata/xarray",
-        "languages": [
-          "python"
-        ],
-        "benches": [
-          "Verified"
-        ],
-        "sha": "a1408234d1dc786965bfb6311f8782561ee0e676",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 432,
-        "tracked_bytes": 9970995,
-        "files": 374,
-        "chunks": 7741,
-        "chunk_p50_lines": 10,
-        "chunk_mean_lines": 27.41,
-        "edges": 16209,
-        "chunk_chunk_edges": 1944,
-        "avg_degree": 0.5,
-        "isolated_pct": 76.98,
-        "embedded": 8151,
-        "dimensions": 384,
-        "total_ms": 275582,
-        "ingest_ms": 15984,
-        "embed_ms": 226268
-      },
-      {
-        "key": "pylint-dev__pylint",
-        "name": "pylint-dev/pylint",
-        "languages": [
-          "python"
-        ],
-        "benches": [
-          "Verified"
-        ],
-        "sha": "2f47d86123f35511587532556c009b436f71ca37",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 4091,
-        "tracked_bytes": 5749020,
-        "files": 3551,
-        "chunks": 9979,
-        "chunk_p50_lines": 4,
-        "chunk_mean_lines": 13.21,
-        "edges": 25142,
-        "chunk_chunk_edges": 1197,
-        "avg_degree": 0.24,
-        "isolated_pct": 86.03,
-        "embedded": 14260,
-        "dimensions": 384,
-        "total_ms": 373174,
-        "ingest_ms": 19063,
-        "embed_ms": 304423
-      },
-      {
-        "key": "pytest-dev__pytest",
-        "name": "pytest-dev/pytest",
-        "languages": [
-          "python"
-        ],
-        "benches": [
-          "Verified"
-        ],
-        "sha": "a8ac094e80df788aec844794170b126eab0be7a4",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 697,
-        "tracked_bytes": 6820965,
-        "files": 633,
-        "chunks": 6740,
-        "chunk_p50_lines": 12,
-        "chunk_mean_lines": 25.43,
-        "edges": 14628,
-        "chunk_chunk_edges": 1279,
-        "avg_degree": 0.38,
-        "isolated_pct": 80.27,
-        "embedded": 7431,
-        "dimensions": 384,
-        "total_ms": 300268,
-        "ingest_ms": 12619,
-        "embed_ms": 256902
-      },
-      {
-        "key": "qutebrowser__qutebrowser",
-        "name": "qutebrowser/qutebrowser",
-        "languages": [
-          "python"
-        ],
-        "benches": [
-          "Pro"
-        ],
-        "sha": "c9e03ae5db592c03254d4eca196062d2ce358dc8",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 947,
-        "tracked_bytes": 16986744,
-        "files": 523,
-        "chunks": 8259,
-        "chunk_p50_lines": 8,
-        "chunk_mean_lines": 20.47,
-        "edges": 17490,
-        "chunk_chunk_edges": 1373,
-        "avg_degree": 0.33,
-        "isolated_pct": 80.99,
-        "embedded": 8845,
-        "dimensions": 384,
-        "total_ms": 313009,
-        "ingest_ms": 18245,
-        "embed_ms": 264797
-      },
-      {
-        "key": "rayon-rs__rayon",
-        "name": "rayon-rs/rayon",
-        "languages": [
-          "rust"
-        ],
-        "benches": [
-          "Multi"
-        ],
-        "sha": "9254f190aa7ee7521d528e839be3cd0921a04fd8",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 217,
-        "tracked_bytes": 1341269,
-        "files": 209,
-        "chunks": 3738,
-        "chunk_p50_lines": 6,
-        "chunk_mean_lines": 12.31,
-        "edges": 5709,
-        "chunk_chunk_edges": 786,
-        "avg_degree": 0.42,
-        "isolated_pct": 81.22,
-        "embedded": 3984,
-        "dimensions": 384,
-        "total_ms": 118335,
-        "ingest_ms": 12745,
-        "embed_ms": 83326
-      },
-      {
-        "key": "scikit-learn__scikit-learn",
-        "name": "scikit-learn/scikit-learn",
-        "languages": [
-          "python"
-        ],
-        "benches": [
-          "Verified"
-        ],
-        "sha": "2fd6fa45c2fc181233a75731aceb1def654743c3",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 1765,
-        "tracked_bytes": 24196269,
-        "files": 1337,
-        "chunks": 13669,
-        "chunk_p50_lines": 18,
-        "chunk_mean_lines": 36.95,
-        "edges": 31458,
-        "chunk_chunk_edges": 2948,
-        "avg_degree": 0.43,
-        "isolated_pct": 76.43,
-        "embedded": 15164,
-        "dimensions": 384,
-        "total_ms": 740102,
-        "ingest_ms": 29278,
-        "embed_ms": 626752
-      },
-      {
-        "key": "serverless__serverless",
-        "name": "serverless/serverless",
-        "languages": [
-          "javascript"
-        ],
-        "benches": [
-          "Poly"
-        ],
-        "sha": "1dadff40c07e63da575c942f4a94850347e84e2b",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 2043,
-        "tracked_bytes": 11359290,
-        "files": 1853,
-        "chunks": 4046,
-        "chunk_p50_lines": 29,
-        "chunk_mean_lines": 57.74,
-        "edges": 12165,
-        "chunk_chunk_edges": 1035,
-        "avg_degree": 0.51,
-        "isolated_pct": 72.94,
-        "embedded": 6306,
-        "dimensions": 384,
-        "total_ms": 316430,
-        "ingest_ms": 5713,
-        "embed_ms": 277614
-      },
-      {
-        "key": "sharkdp__bat",
-        "name": "sharkdp/bat",
-        "languages": [
-          "rust"
-        ],
-        "benches": [
-          "Multi"
-        ],
-        "sha": "af1f53d9a977154216d01435991fe33631b74713",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 909,
-        "tracked_bytes": 7546709,
-        "files": 419,
-        "chunks": 1251,
-        "chunk_p50_lines": 9,
-        "chunk_mean_lines": 21.4,
-        "edges": 2540,
-        "chunk_chunk_edges": 215,
-        "avg_degree": 0.34,
-        "isolated_pct": 82.41,
-        "embedded": 1713,
-        "dimensions": 384,
-        "total_ms": 81694,
-        "ingest_ms": 8782,
-        "embed_ms": 60433
-      },
-      {
-        "key": "sharkdp__fd",
-        "name": "sharkdp/fd",
-        "languages": [
-          "rust"
-        ],
-        "benches": [
-          "Multi"
-        ],
-        "sha": "25461e5ce13dc12ff2a75993285a87e99b33db2d",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 57,
-        "tracked_bytes": 562132,
-        "files": 42,
-        "chunks": 443,
-        "chunk_p50_lines": 12,
-        "chunk_mean_lines": 25.3,
-        "edges": 760,
-        "chunk_chunk_edges": 96,
-        "avg_degree": 0.43,
-        "isolated_pct": 73.81,
-        "embedded": 498,
-        "dimensions": 384,
-        "total_ms": 30836,
-        "ingest_ms": 2284,
-        "embed_ms": 20501
-      },
-      {
-        "key": "significant-gravitas__autogpt",
-        "name": "Significant-Gravitas/AutoGPT",
-        "languages": [
-          "python"
-        ],
-        "benches": [
-          "Poly"
-        ],
-        "sha": "5b603c0bd04c8db2afc12098d5af2d391b7816e7",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 4162,
-        "tracked_bytes": 60554249,
-        "files": 3637,
-        "chunks": 23495,
-        "chunk_p50_lines": 15,
-        "chunk_mean_lines": 31.31,
-        "edges": 61077,
-        "chunk_chunk_edges": 6368,
-        "avg_degree": 0.54,
-        "isolated_pct": 75.52,
-        "embedded": 27753,
-        "dimensions": 384,
-        "total_ms": 1256025,
-        "ingest_ms": 44794,
-        "embed_ms": 1055987
-      },
-      {
-        "key": "simdjson__simdjson",
-        "name": "simdjson/simdjson",
-        "languages": [
-          "cpp"
-        ],
-        "benches": [
-          "Multi"
-        ],
-        "sha": "812f8823d233a3189a06d6c117e1794d9c34fced",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 757,
-        "tracked_bytes": 30582016,
-        "files": 671,
-        "chunks": 7778,
-        "chunk_p50_lines": 11,
-        "chunk_mean_lines": 36.44,
-        "edges": 18959,
-        "chunk_chunk_edges": 298,
-        "avg_degree": 0.08,
-        "isolated_pct": 95.63,
-        "embedded": 8516,
-        "dimensions": 384,
-        "total_ms": 448516,
-        "ingest_ms": 65268,
-        "embed_ms": 336267
-      },
-      {
-        "key": "sphinx-doc__sphinx",
-        "name": "sphinx-doc/sphinx",
-        "languages": [
-          "python"
-        ],
-        "benches": [
-          "Verified"
-        ],
-        "sha": "748a569f474f6295a95914d8729b6dd1aa02126b",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 2059,
-        "tracked_bytes": 23423025,
-        "files": 1539,
-        "chunks": 9074,
-        "chunk_p50_lines": 9,
-        "chunk_mean_lines": 28.54,
-        "edges": 20333,
-        "chunk_chunk_edges": 1828,
-        "avg_degree": 0.4,
-        "isolated_pct": 80.6,
-        "embedded": 10901,
-        "dimensions": 384,
-        "total_ms": 416434,
-        "ingest_ms": 18008,
-        "embed_ms": 354963
-      },
-      {
-        "key": "sveltejs__svelte",
-        "name": "sveltejs/svelte",
-        "languages": [
-          "javascript"
-        ],
-        "benches": [
-          "Multi",
-          "Poly"
-        ],
-        "sha": "a9f48540e236d326714a1148b9d61cf785c0f98a",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 8937,
-        "tracked_bytes": 6943606,
-        "files": 4050,
-        "chunks": 2464,
-        "chunk_p50_lines": 12,
-        "chunk_mean_lines": 32.5,
-        "edges": 14630,
-        "chunk_chunk_edges": 905,
-        "avg_degree": 0.73,
-        "isolated_pct": 63.31,
-        "embedded": 6715,
-        "dimensions": 384,
-        "total_ms": 343932,
-        "ingest_ms": 4435,
-        "embed_ms": 308658
-      },
-      {
-        "key": "sympy__sympy",
-        "name": "sympy/sympy",
-        "languages": [
-          "python"
-        ],
-        "benches": [
-          "Verified"
-        ],
-        "sha": "301aa35b33dcfeee83387c7026b414a73a1c1109",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 2070,
-        "tracked_bytes": 33187418,
-        "files": 1930,
-        "chunks": 36448,
-        "chunk_p50_lines": 9,
-        "chunk_mean_lines": 27.06,
-        "edges": 75575,
-        "chunk_chunk_edges": 9565,
-        "avg_degree": 0.52,
-        "isolated_pct": 77.33,
-        "embedded": 38595,
-        "dimensions": 384,
-        "total_ms": 1262445,
-        "ingest_ms": 80316,
-        "embed_ms": 1090824
-      },
-      {
-        "key": "tailwindlabs__tailwindcss",
-        "name": "tailwindlabs/tailwindcss",
-        "languages": [
-          "typescript"
-        ],
-        "benches": [
-          "Poly"
-        ],
-        "sha": "6b0eb5193e3b05ab21e95dff908cb0bcaa4d916c",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 541,
-        "tracked_bytes": 5405228,
-        "files": 468,
-        "chunks": 1346,
-        "chunk_p50_lines": 16,
-        "chunk_mean_lines": 36.03,
-        "edges": 3731,
-        "chunk_chunk_edges": 376,
-        "avg_degree": 0.56,
-        "isolated_pct": 75.71,
-        "embedded": 1887,
-        "dimensions": 384,
-        "total_ms": 89842,
-        "ingest_ms": 4544,
-        "embed_ms": 70174
-      },
-      {
-        "key": "tokio-rs__bytes",
-        "name": "tokio-rs/bytes",
-        "languages": [
-          "rust"
-        ],
-        "benches": [
-          "Multi"
-        ],
-        "sha": "2256e6dc3e82fc87600f2161658572b62bfdd214",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 46,
-        "tracked_bytes": 407016,
-        "files": 44,
-        "chunks": 939,
-        "chunk_p50_lines": 5,
-        "chunk_mean_lines": 17.65,
-        "edges": 1553,
-        "chunk_chunk_edges": 388,
-        "avg_degree": 0.83,
-        "isolated_pct": 74.65,
-        "embedded": 995,
-        "dimensions": 384,
-        "total_ms": 45291,
-        "ingest_ms": 4213,
-        "embed_ms": 30122
-      },
-      {
-        "key": "tokio-rs__tokio",
-        "name": "tokio-rs/tokio",
-        "languages": [
-          "rust"
-        ],
-        "benches": [
-          "Multi"
-        ],
-        "sha": "ecb5125a6787b9d8eb818b1b00973bcd55ae77c0",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 856,
-        "tracked_bytes": 5895218,
-        "files": 838,
-        "chunks": 10872,
-        "chunk_p50_lines": 7,
-        "chunk_mean_lines": 19.51,
-        "edges": 18837,
-        "chunk_chunk_edges": 2074,
-        "avg_degree": 0.38,
-        "isolated_pct": 81.72,
-        "embedded": 11807,
-        "dimensions": 384,
-        "total_ms": 389863,
-        "ingest_ms": 38157,
-        "embed_ms": 305010
-      },
-      {
-        "key": "tokio-rs__tracing",
-        "name": "tokio-rs/tracing",
-        "languages": [
-          "rust"
-        ],
-        "benches": [
-          "Multi"
-        ],
-        "sha": "d9d4c542de10f5d3a711b7a45ffe450fd0666437",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 345,
-        "tracked_bytes": 2969250,
-        "files": 318,
-        "chunks": 4870,
-        "chunk_p50_lines": 7,
-        "chunk_mean_lines": 19.16,
-        "edges": 8055,
-        "chunk_chunk_edges": 1096,
-        "avg_degree": 0.45,
-        "isolated_pct": 81.58,
-        "embedded": 5250,
-        "dimensions": 384,
-        "total_ms": 201343,
-        "ingest_ms": 18001,
-        "embed_ms": 162922
-      },
-      {
-        "key": "vuejs__core",
-        "name": "vuejs/core",
-        "languages": [
-          "typescript"
-        ],
-        "benches": [
-          "Multi"
-        ],
-        "sha": "478e3e83acd34dd213a860be4a2a2bf2090dc26b",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 703,
-        "tracked_bytes": 6191878,
-        "files": 586,
-        "chunks": 491,
-        "chunk_p50_lines": 9,
-        "chunk_mean_lines": 27.18,
-        "edges": 3396,
-        "chunk_chunk_edges": 155,
-        "avg_degree": 0.63,
-        "isolated_pct": 70.88,
-        "embedded": 1160,
-        "dimensions": 384,
-        "total_ms": 68499,
-        "ingest_ms": 2667,
-        "embed_ms": 53122
-      },
-      {
-        "key": "yt-dlp__yt-dlp",
-        "name": "yt-dlp/yt-dlp",
-        "languages": [
-          "python"
-        ],
-        "benches": [
-          "Poly"
-        ],
-        "sha": "e47691215f75fe7e9684080d17fadf340c9a8450",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 1239,
-        "tracked_bytes": 12080401,
-        "files": 1201,
-        "chunks": 9851,
-        "chunk_p50_lines": 22,
-        "chunk_mean_lines": 40.94,
-        "edges": 20357,
-        "chunk_chunk_edges": 789,
-        "avg_degree": 0.16,
-        "isolated_pct": 91.81,
-        "embedded": 11088,
-        "dimensions": 384,
-        "total_ms": 567000,
-        "ingest_ms": 17012,
-        "embed_ms": 516249
-      },
-      {
-        "key": "zeromicro__go-zero",
-        "name": "zeromicro/go-zero",
-        "languages": [
-          "go"
-        ],
-        "benches": [
-          "Multi"
-        ],
-        "sha": "ca8b50a7a579004cd6f032e71c21c2132f5cbcac",
-        "model": "Xenova/all-MiniLM-L6-v2",
-        "status": "ok",
-        "error": null,
-        "tracked_files": 1353,
-        "tracked_bytes": 20254443,
-        "files": 1125,
-        "chunks": 8423,
-        "chunk_p50_lines": 8,
-        "chunk_mean_lines": 15.61,
-        "edges": 19611,
-        "chunk_chunk_edges": 1704,
-        "avg_degree": 0.4,
-        "isolated_pct": 78.39,
-        "embedded": 9742,
-        "dimensions": 384,
-        "total_ms": 381848,
-        "ingest_ms": 7750,
-        "embed_ms": 316331
+        "total_ms": 2036412,
+        "ingest_ms": 33189,
+        "embed_ms": 1882009
       }
     ]
   },
@@ -3208,24 +2151,6 @@
       "edges": 11663
     },
     {
-      "key": "gravitational__teleport",
-      "name": "gravitational/teleport",
-      "languages": [
-        "go"
-      ],
-      "benches": [
-        "Pro"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 107666,
-      "edges": 239912
-    },
-    {
       "key": "grpc__grpc-go",
       "name": "grpc/grpc-go",
       "languages": [
@@ -3242,24 +2167,6 @@
       ],
       "chunks": 12888,
       "edges": 28077
-    },
-    {
-      "key": "huggingface__transformers",
-      "name": "huggingface/transformers",
-      "languages": [
-        "python"
-      ],
-      "benches": [
-        "Poly"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 75821,
-      "edges": 161533
     },
     {
       "key": "iamkun__dayjs",
@@ -3350,637 +2257,6 @@
       ],
       "chunks": 16149,
       "edges": 40229
-    },
-    {
-      "key": "matplotlib__matplotlib",
-      "name": "matplotlib/matplotlib",
-      "languages": [
-        "python"
-      ],
-      "benches": [
-        "Verified"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 16414,
-      "edges": 42685
-    },
-    {
-      "key": "microsoft__vscode",
-      "name": "microsoft/vscode",
-      "languages": [
-        "typescript"
-      ],
-      "benches": [
-        "Poly"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 5321,
-      "edges": 58918
-    },
-    {
-      "key": "mockito__mockito",
-      "name": "mockito/mockito",
-      "languages": [
-        "java"
-      ],
-      "benches": [
-        "Multi"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 9474,
-      "edges": 18960
-    },
-    {
-      "key": "mui__material-ui",
-      "name": "mui/material-ui",
-      "languages": [
-        "typescript"
-      ],
-      "benches": [
-        "Multi",
-        "Poly"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 1181,
-      "edges": 80215
-    },
-    {
-      "key": "mwaskom__seaborn",
-      "name": "mwaskom/seaborn",
-      "languages": [
-        "python"
-      ],
-      "benches": [
-        "Verified"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 3010,
-      "edges": 6109
-    },
-    {
-      "key": "navidrome__navidrome",
-      "name": "navidrome/navidrome",
-      "languages": [
-        "go"
-      ],
-      "benches": [
-        "Pro"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 6511,
-      "edges": 16450
-    },
-    {
-      "key": "nlohmann__json",
-      "name": "nlohmann/json",
-      "languages": [
-        "cpp"
-      ],
-      "benches": [
-        "Multi"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 2159,
-      "edges": 7754
-    },
-    {
-      "key": "nobbettt__agentstackbench",
-      "name": "Nobbettt/AgentStackBench",
-      "languages": [
-        "python",
-        "typescript"
-      ],
-      "benches": [],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 26041,
-      "edges": 71968
-    },
-    {
-      "key": "nodebb__nodebb",
-      "name": "NodeBB/NodeBB",
-      "languages": [
-        "javascript"
-      ],
-      "benches": [
-        "Pro"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 1816,
-      "edges": 12529
-    },
-    {
-      "key": "nushell__nushell",
-      "name": "nushell/nushell",
-      "languages": [
-        "rust"
-      ],
-      "benches": [
-        "Multi"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 25757,
-      "edges": 41167
-    },
-    {
-      "key": "pallets__flask",
-      "name": "pallets/flask",
-      "languages": [
-        "python"
-      ],
-      "benches": [
-        "Verified"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 1670,
-      "edges": 3870
-    },
-    {
-      "key": "ponylang__ponyc",
-      "name": "ponylang/ponyc",
-      "languages": [
-        "c"
-      ],
-      "benches": [
-        "Multi"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 4738,
-      "edges": 34517
-    },
-    {
-      "key": "prettier__prettier",
-      "name": "prettier/prettier",
-      "languages": [
-        "javascript"
-      ],
-      "benches": [
-        "Poly"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 3459,
-      "edges": 17045
-    },
-    {
-      "key": "psf__requests",
-      "name": "psf/requests",
-      "languages": [
-        "python"
-      ],
-      "benches": [
-        "Verified"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 712,
-      "edges": 1547
-    },
-    {
-      "key": "pydata__xarray",
-      "name": "pydata/xarray",
-      "languages": [
-        "python"
-      ],
-      "benches": [
-        "Verified"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 7741,
-      "edges": 16209
-    },
-    {
-      "key": "pylint-dev__pylint",
-      "name": "pylint-dev/pylint",
-      "languages": [
-        "python"
-      ],
-      "benches": [
-        "Verified"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 9979,
-      "edges": 25142
-    },
-    {
-      "key": "pytest-dev__pytest",
-      "name": "pytest-dev/pytest",
-      "languages": [
-        "python"
-      ],
-      "benches": [
-        "Verified"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 6740,
-      "edges": 14628
-    },
-    {
-      "key": "qutebrowser__qutebrowser",
-      "name": "qutebrowser/qutebrowser",
-      "languages": [
-        "python"
-      ],
-      "benches": [
-        "Pro"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 8259,
-      "edges": 17490
-    },
-    {
-      "key": "rayon-rs__rayon",
-      "name": "rayon-rs/rayon",
-      "languages": [
-        "rust"
-      ],
-      "benches": [
-        "Multi"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 3738,
-      "edges": 5709
-    },
-    {
-      "key": "scikit-learn__scikit-learn",
-      "name": "scikit-learn/scikit-learn",
-      "languages": [
-        "python"
-      ],
-      "benches": [
-        "Verified"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 13669,
-      "edges": 31458
-    },
-    {
-      "key": "serverless__serverless",
-      "name": "serverless/serverless",
-      "languages": [
-        "javascript"
-      ],
-      "benches": [
-        "Poly"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 4046,
-      "edges": 12165
-    },
-    {
-      "key": "sharkdp__bat",
-      "name": "sharkdp/bat",
-      "languages": [
-        "rust"
-      ],
-      "benches": [
-        "Multi"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 1251,
-      "edges": 2540
-    },
-    {
-      "key": "sharkdp__fd",
-      "name": "sharkdp/fd",
-      "languages": [
-        "rust"
-      ],
-      "benches": [
-        "Multi"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 443,
-      "edges": 760
-    },
-    {
-      "key": "significant-gravitas__autogpt",
-      "name": "Significant-Gravitas/AutoGPT",
-      "languages": [
-        "python"
-      ],
-      "benches": [
-        "Poly"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 23495,
-      "edges": 61077
-    },
-    {
-      "key": "simdjson__simdjson",
-      "name": "simdjson/simdjson",
-      "languages": [
-        "cpp"
-      ],
-      "benches": [
-        "Multi"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 7778,
-      "edges": 18959
-    },
-    {
-      "key": "sphinx-doc__sphinx",
-      "name": "sphinx-doc/sphinx",
-      "languages": [
-        "python"
-      ],
-      "benches": [
-        "Verified"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 9074,
-      "edges": 20333
-    },
-    {
-      "key": "sveltejs__svelte",
-      "name": "sveltejs/svelte",
-      "languages": [
-        "javascript"
-      ],
-      "benches": [
-        "Multi",
-        "Poly"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 2464,
-      "edges": 14630
-    },
-    {
-      "key": "sympy__sympy",
-      "name": "sympy/sympy",
-      "languages": [
-        "python"
-      ],
-      "benches": [
-        "Verified"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 36448,
-      "edges": 75575
-    },
-    {
-      "key": "tailwindlabs__tailwindcss",
-      "name": "tailwindlabs/tailwindcss",
-      "languages": [
-        "typescript"
-      ],
-      "benches": [
-        "Poly"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 1346,
-      "edges": 3731
-    },
-    {
-      "key": "tokio-rs__bytes",
-      "name": "tokio-rs/bytes",
-      "languages": [
-        "rust"
-      ],
-      "benches": [
-        "Multi"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 939,
-      "edges": 1553
-    },
-    {
-      "key": "tokio-rs__tokio",
-      "name": "tokio-rs/tokio",
-      "languages": [
-        "rust"
-      ],
-      "benches": [
-        "Multi"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 10872,
-      "edges": 18837
-    },
-    {
-      "key": "tokio-rs__tracing",
-      "name": "tokio-rs/tracing",
-      "languages": [
-        "rust"
-      ],
-      "benches": [
-        "Multi"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 4870,
-      "edges": 8055
-    },
-    {
-      "key": "vuejs__core",
-      "name": "vuejs/core",
-      "languages": [
-        "typescript"
-      ],
-      "benches": [
-        "Multi"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 491,
-      "edges": 3396
-    },
-    {
-      "key": "yt-dlp__yt-dlp",
-      "name": "yt-dlp/yt-dlp",
-      "languages": [
-        "python"
-      ],
-      "benches": [
-        "Poly"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 9851,
-      "edges": 20357
-    },
-    {
-      "key": "zeromicro__go-zero",
-      "name": "zeromicro/go-zero",
-      "languages": [
-        "go"
-      ],
-      "benches": [
-        "Multi"
-      ],
-      "models": [
-        "Xenova/all-MiniLM-L6-v2"
-      ],
-      "statuses": [
-        "ok"
-      ],
-      "chunks": 8423,
-      "edges": 19611
     }
   ]
 }
