@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "run": {
-    "id": "full-3",
-    "generated_at": "2026-06-11T19:01:43.815Z",
+    "id": "full-2019",
+    "generated_at": "2026-06-12T05:34:50.388Z",
     "cortex_version": "2.0.19"
   },
   "repo": {
@@ -37,15 +37,17 @@
       "run": {
         "embed_model": "Xenova/all-MiniLM-L6-v2",
         "cortex_version": "2.0.19",
-        "run_id": "full-3",
-        "started_at": "2026-06-11T15:17:42.926Z",
+        "cortex_source": "npm",
+        "run_id": "full-2019",
+        "started_at": "2026-06-12T02:14:29.143Z",
         "status": "ok",
         "error": null,
-        "extracted_at": "2026-06-11T15:23:45.452Z"
+        "extracted_at": "2026-06-12T02:31:57.069Z"
       },
       "workspace": {
         "tracked_files": 1280,
         "tracked_bytes": 22209216,
+        "tracked_lines": 326850,
         "detected_source_paths": [
           ".devcontainer",
           ".github",
@@ -70,12 +72,12 @@
         ]
       },
       "timings_ms": {
-        "deps": 1329,
-        "ingest": 7623,
-        "embed": 280086,
-        "graph_load": 67271,
-        "status": 1761,
-        "total": 358072
+        "deps": 1372,
+        "ingest": 7593,
+        "embed": 970241,
+        "graph_load": 62608,
+        "status": 1675,
+        "total": 1043490
       },
       "ingest": {
         "mode": "full",
@@ -118,7 +120,8 @@
         "by_kind": {
           "DOC": 143,
           "CODE": 900
-        }
+        },
+        "indexed_lines": 277471
       },
       "chunks": {
         "total": 7806,
@@ -624,7 +627,7 @@
           "Module": 280,
           "Rule": 5
         },
-        "throughput_per_s": 32.61
+        "throughput_per_s": 9.41
       },
       "graph": {
         "nodes": {

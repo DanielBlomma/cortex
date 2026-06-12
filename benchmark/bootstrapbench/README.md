@@ -76,13 +76,14 @@ node benchmark/bootstrapbench/run.mjs --config benchmark/bootstrapbench/config.e
 Non-default embedding models are downloaded inside the container at runtime
 (network required); the model the image warmup used ships pre-cached.
 
-> **Model cost note.** cortex 2.1.0's default embedding model
-> (`jinaai/jina-embeddings-v2-base-code`, 768-dim, 8k context) measured
-> ~20x slower per entity than `Xenova/all-MiniLM-L6-v2` in this harness —
-> a full 69-repo run is multi-day on a laptop. `config.example.json`
-> therefore pins MiniLM for cross-version comparability;
-> `config.full-jina.json` runs the 2.1.0 default model as shipped (use a
-> big machine or a repo subset).
+> **Model cost note.** Each cortex version is measured with its own
+> shipped default embedding model (`config.example.json` currently pins
+> 2.1.0's `jinaai/jina-embeddings-v2-base-code`, 768-dim). That model
+> measures ~20x slower per entity than 2.0.19's MiniLM, so a full
+> 69-repo run is multi-day on a laptop — hence the 24h per-repo timeout.
+> When re-measuring published versions that predate CORTEX_EMBED_THREADS,
+> prefer `docker.cpus: null`: the CPU quota interacts badly with their
+> uncapped thread pools.
 
 > **Platform note.** ryugraph's npm package ships a `linux-arm64` prebuilt
 > whose ELF is actually x86_64 (and its x86_64 binary needs glibc ≥ 2.38).
