@@ -5,12 +5,12 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "embed": "npm run build --silent && node dist/embed.js",
-    "graph:load": "npm run build --silent && node dist/loadGraph.js",
+    "embed": "node build.mjs && node dist/embed.js",
+    "graph:load": "node build.mjs && node dist/loadGraph.js",
     "dev": "node --loader ts-node/esm src/server.ts",
     "start": "node dist/server.js",
-    "test": "npm run build --silent && node --test tests/*.test.mjs",
-    "test:ci": "npm run build --silent && node --test --test-reporter=spec tests/*.test.mjs"
+    "test": "node build.mjs && node --test tests/*.test.mjs",
+    "test:ci": "node build.mjs && node --test --test-reporter=spec tests/*.test.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.1.0",

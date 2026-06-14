@@ -42,6 +42,7 @@
     "scaffold/scripts",
     "scaffold/mcp/src",
     "scaffold/mcp/tests",
+    "scaffold/mcp/build.mjs",
     "scaffold/mcp/package.json",
     "scaffold/mcp/package-lock.json",
     "scaffold/mcp/tsconfig.json",
