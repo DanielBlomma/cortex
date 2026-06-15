@@ -391,6 +391,17 @@ picks safe, fast settings by itself. The one exception worth knowing:
 when several cortex instances share one machine, set `CORTEX_EMBED_THREADS`
 to give each its fair share of cores.
 
+### Vector index
+
+Semantic search scores embeddings through a compact contiguous slot-array
+index. For large repositories cortex can also compile an optional quantized
+index that holds the same vectors in roughly a sixth of the memory, using the
+TurboQuant techniques from [turbovec](https://github.com/RyanCodrai/turbovec)
+(randomized Hadamard rotation, per-coordinate calibration, Lloyd-Max scalar
+quantization, and a length-renormalization correction scalar) ported into the
+TypeScript server. It is opt-in via `CORTEX_VECTOR_INDEX=turboquant`; the
+default exact scan is unchanged.
+
 ## Limitations
 
 - Requires repo initialization (`cortex init --bootstrap`).
