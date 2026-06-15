@@ -30,6 +30,7 @@ import {
   writeJson
 } from "./lib.mjs";
 import { aggregateResults } from "./aggregate.mjs";
+import { stoppedEvalContainers } from "./cleanup.mjs";
 
 const HARNESS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HARNESS_DIR, "..", "..");
@@ -282,6 +283,26 @@ let interrupted = false;
 const DAEMON_ERROR_PATTERN = /Cannot connect to the Docker daemon|docker daemon is not running/i;
 let infrastructureFailure = null;
 
+// Remove stopped eval containers left by a prior crashed or SIGKILLed run.
+// Normal runs self-remove via `docker run --rm`, so this only finds leftovers
+// after an abnormal exit. Best-effort: any failure here is logged, never fatal.
+async function sweepLeftoverContainers() {
+  try {
+    const ps = await runCommand({
+      command: "docker",
+      args: ["ps", "-a", "--format", "{{.Names}} {{.Status}}"],
+      timeoutMs: 30 * 1000
+    });
+    if (!ps.ok) return;
+    const leftover = stoppedEvalContainers(ps.stdout);
+    if (leftover.length === 0) return;
+    console.log(`[run] sweeping ${leftover.length} leftover bb-* container(s) from a prior run`);
+    await runCommand({ command: "docker", args: ["rm", "--force", ...leftover], timeoutMs: 60 * 1000 });
+  } catch (error) {
+    console.warn(`[run] leftover-container sweep skipped: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 function installSignalHandlers() {
   const cleanup = (signal) => {
     if (interrupted) {
@@ -466,6 +487,7 @@ async function main() {
 
   ensureDir(paths.itemsDir);
   installSignalHandlers();
+  await sweepLeftoverContainers();
   writeJson(path.join(runDir, "config.json"), { ...config, run_id: runId, started_at: startedAt });
 
   if (config.docker.build && !hasFlag(args, "--skip-build")) {

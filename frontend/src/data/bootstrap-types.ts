@@ -45,6 +45,8 @@ export type RunMeta = {
 
 export type LanguageChunkStats = {
   count: number;
+  /** Chunks from the fallback windowed splitter (added in schema v2). */
+  windowed?: number;
   lines: Distribution;
   chars: Distribution;
 };
@@ -52,11 +54,26 @@ export type LanguageChunkStats = {
 export type ChunkStats = {
   total: number;
   exported: number;
+  /** Fallback windowed chunks vs. AST/structured chunks (added in schema v2). */
+  windowed?: number;
+  ast?: number;
   by_kind: Record<string, number>;
   by_language: Record<string, LanguageChunkStats>;
   lines: Distribution;
   chars: Distribution;
 };
+
+/**
+ * Embedding vector sanity (schema v2). Vectors are L2-normalized, so a healthy
+ * run shows norms at ~1.0 with zero faults. Null when nothing was embedded.
+ */
+export type VectorSanity = {
+  count: number;
+  zero_vectors: number;
+  non_finite_vectors: number;
+  dimensions: { expected: number | null; mismatched: number };
+  norm: { count: number; min: number; max: number; mean: number; p50: number; p99: number } | null;
+} | null;
 
 export type EmbeddingStats = {
   model: string | null;
@@ -116,6 +133,7 @@ export type StatsItem = {
   files: { total: number; by_kind: Record<string, number>; indexed_lines?: number } | null;
   chunks: ChunkStats | null;
   embeddings: EmbeddingStats;
+  vector_sanity?: VectorSanity;
   graph: GraphStats;
 };
 

@@ -23,9 +23,10 @@ import {
   usageError,
   writeJson
 } from "./lib.mjs";
-import { computeChunkStats, computeGraphStats } from "./stats.mjs";
+import { computeChunkStats, computeGraphStats, computeVectorStats } from "./stats.mjs";
 
-const SCHEMA_VERSION = 1;
+// v2 adds chunks.windowed/ast (fallback-window ratio) and vector_sanity.
+const SCHEMA_VERSION = 2;
 
 function relationTypeFromFilename(fileName) {
   const match = fileName.match(/^relations\.([a-z0-9_]+)\.jsonl$/);
@@ -45,16 +46,39 @@ function mapChunkLine(line) {
   };
 }
 
-const ENTITY_TYPE_PATTERN = /"entity_type"\s*:\s*"([A-Za-z]+)"/;
-
 function mapEmbeddingLine(line) {
-  // Embedding lines carry full vectors; a regex probe avoids parsing them.
-  const match = line.match(ENTITY_TYPE_PATTERN);
-  if (match) {
-    return match[1];
-  }
+  // Parse the full record: vector sanity needs every component, so the cheaper
+  // regex-only probe for entity_type no longer suffices. The raw vector is
+  // reduced to an L2 norm + flags here and discarded, so memory stays flat.
   const record = JSON.parse(line);
-  return typeof record.entity_type === "string" ? record.entity_type : undefined;
+  const vector = Array.isArray(record.vector) ? record.vector : null;
+  let dims = null;
+  let norm = null;
+  let zero = false;
+  let nonFinite = false;
+  if (vector) {
+    dims = vector.length;
+    let sumSquares = 0;
+    for (const value of vector) {
+      if (!Number.isFinite(value)) {
+        nonFinite = true;
+        continue;
+      }
+      sumSquares += value * value;
+    }
+    // A vector with any non-finite component has no meaningful norm; leave it
+    // null so it is excluded from the norm distribution (still counted via the
+    // nonFinite flag) rather than reporting a norm from the surviving parts.
+    norm = nonFinite ? null : Math.sqrt(sumSquares);
+    zero = norm === 0;
+  }
+  return {
+    entity_type: typeof record.entity_type === "string" ? record.entity_type : undefined,
+    dims,
+    norm,
+    zero,
+    nonFinite
+  };
 }
 
 async function collectRelationStats(cacheDir, parseErrors) {
@@ -208,13 +232,16 @@ async function main() {
 
   const { relationCounts, callEdges } = await collectRelationStats(cacheDir, parseErrors);
 
-  const embeddingTypes = await streamJsonl(path.join(embeddingsDir, "entities.jsonl"), mapEmbeddingLine, {
+  const embeddingProbes = await streamJsonl(path.join(embeddingsDir, "entities.jsonl"), mapEmbeddingLine, {
     onError: (failure) => parseErrors.push(failure)
   });
   const byEntityType = {};
-  for (const type of embeddingTypes) {
-    byEntityType[type] = (byEntityType[type] ?? 0) + 1;
+  for (const probe of embeddingProbes) {
+    if (probe.entity_type) {
+      byEntityType[probe.entity_type] = (byEntityType[probe.entity_type] ?? 0) + 1;
+    }
   }
+  const vectorSanity = computeVectorStats(embeddingProbes);
 
   const chunkStats = computeChunkStats(chunkRecords);
   const graphStats = computeGraphStats({
@@ -265,6 +292,7 @@ async function main() {
     files: { total: documents.length, by_kind: filesByKind, indexed_lines: indexedLines },
     chunks: chunkStats,
     embeddings,
+    vector_sanity: vectorSanity,
     graph: graphStats,
     parse_errors: parseErrors.length
   };

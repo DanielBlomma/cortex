@@ -12,6 +12,8 @@ import {
   CHUNK_LINE_BUCKETS,
   computeChunkStats,
   computeGraphStats,
+  computeVectorStats,
+  isWindowChunkId,
   mergeHistograms,
   parseBootstrapTimings,
   percentile,
@@ -154,8 +156,70 @@ test("computeChunkStats: skips records with invalid line ranges", () => {
 test("computeChunkStats: empty input returns zeroed shape", () => {
   const stats = computeChunkStats([]);
   assert.equal(stats.total, 0);
+  assert.equal(stats.windowed, 0);
+  assert.equal(stats.ast, 0);
   assert.equal(stats.lines, null);
   assert.deepEqual(stats.by_language, {});
+});
+
+test("isWindowChunkId: only flags ids carrying the :window: marker", () => {
+  assert.equal(isWindowChunkId("chunk:src/a.js:big:window:2:40-79"), true);
+  assert.equal(isWindowChunkId("chunk:src/a.js:alpha"), false);
+  assert.equal(isWindowChunkId(undefined), false);
+  assert.equal(isWindowChunkId(42), false);
+});
+
+test("computeChunkStats: splits AST vs fallback-window chunks overall and per language", () => {
+  const stats = computeChunkStats([
+    { id: "chunk:src/a.js:alpha", kind: "function", language: "javascript", start_line: 1, end_line: 5 },
+    { id: "chunk:src/a.js:big:window:1:1-80", kind: "function", language: "javascript", start_line: 1, end_line: 80 },
+    { id: "chunk:src/a.js:big:window:2:81-160", kind: "function", language: "javascript", start_line: 81, end_line: 160 },
+    { id: "chunk:docs/readme.md:section", kind: "section", language: "markdown", start_line: 1, end_line: 4 }
+  ]);
+  assert.equal(stats.total, 4);
+  assert.equal(stats.windowed, 2);
+  assert.equal(stats.ast, 2);
+  assert.equal(stats.by_language.javascript.windowed, 2);
+  assert.equal(stats.by_language.markdown.windowed, 0);
+});
+
+// ─── vector sanity ───────────────────────────────────────────────────────────
+
+test("computeVectorStats: summarizes norms and counts healthy normalized vectors", () => {
+  const stats = computeVectorStats([
+    { dims: 4, norm: 1.0, zero: false, nonFinite: false },
+    { dims: 4, norm: 0.999, zero: false, nonFinite: false },
+    { dims: 4, norm: 1.001, zero: false, nonFinite: false }
+  ]);
+  assert.equal(stats.count, 3);
+  assert.equal(stats.zero_vectors, 0);
+  assert.equal(stats.non_finite_vectors, 0);
+  assert.deepEqual(stats.dimensions, { expected: 4, mismatched: 0 });
+  assert.equal(stats.norm.count, 3);
+  assert.ok(stats.norm.min <= 1 && stats.norm.max >= 1);
+});
+
+test("computeVectorStats: counts zero, non-finite, and dimension-mismatched vectors", () => {
+  const stats = computeVectorStats([
+    { dims: 4, norm: 1.0, zero: false, nonFinite: false },
+    { dims: 4, norm: 0, zero: true, nonFinite: false },
+    { dims: 4, norm: NaN, zero: false, nonFinite: true },
+    { dims: 8, norm: 1.0, zero: false, nonFinite: false }
+  ]);
+  assert.equal(stats.count, 4);
+  assert.equal(stats.zero_vectors, 1);
+  assert.equal(stats.non_finite_vectors, 1);
+  // 4 is the most common dimension (3 of 4); the dims:8 vector is the mismatch.
+  assert.equal(stats.dimensions.expected, 4);
+  assert.equal(stats.dimensions.mismatched, 1);
+  // The NaN-norm vector is excluded from the norm distribution.
+  assert.equal(stats.norm.count, 3);
+});
+
+test("computeVectorStats: returns null when nothing was embedded", () => {
+  assert.equal(computeVectorStats([]), null);
+  assert.equal(computeVectorStats(null), null);
+  assert.equal(computeVectorStats([{ dims: null, norm: null, zero: false, nonFinite: false }]), null);
 });
 
 // ─── graph stats ─────────────────────────────────────────────────────────────
