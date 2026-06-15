@@ -1,18 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 
 import { ExactVectorBackend } from "../dist/vectorBackend.js";
 import { cosineSimilarity } from "../dist/searchCore.js";
-import { fitTurboQuant, encodeTurboQuant, prepareQuery, scoreQuantized } from "../dist/turboquant.js";
-import {
-  writeTurboQuantIndex,
-  readTurboQuantIndex,
-  QuantizedVectorBackend
-} from "../dist/turboquantIndex.js";
-import { compileTurboQuantIndex } from "../dist/compileVectorIndex.js";
 import { buildSearchResults } from "../dist/searchResults.js";
 
 function makeRng(seed) {
@@ -62,128 +52,7 @@ test("ExactVectorBackend reproduces cosineSimilarity exactly", () => {
   assert.equal(score("missing"), null);
 });
 
-test("TurboQuant artifact round-trips through disk", () => {
-  const rng = makeRng(22);
-  const dim = 96;
-  const vectors = Array.from({ length: 300 }, () => makeUnitVector(rng, dim));
-  const ids = vectors.map((_, i) => `chunk:${i}`);
-  const params = fitTurboQuant(vectors, dim, { bits: 4 });
-  const codes = encodeTurboQuant(vectors, params);
-
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "tqz-")), "index.tqz");
-  writeTurboQuantIndex(file, params, codes, ids, "test-model");
-  const loaded = readTurboQuantIndex(file);
-
-  assert.equal(loaded.model, "test-model");
-  assert.equal(loaded.ids.length, ids.length);
-  assert.equal(loaded.params.dim, dim);
-  assert.equal(loaded.params.paddedDim, 128);
-  assert.deepEqual(Array.from(loaded.codes.codes.slice(0, 48)), Array.from(codes.codes.slice(0, 48)));
-
-  // Scores from the reloaded artifact match in-memory scores.
-  const q = makeUnitVector(rng, dim);
-  const memPrepared = prepareQuery(q, params);
-  const backend = new QuantizedVectorBackend(loaded);
-  const diskScore = backend.prepareQuery(q);
-  for (let i = 0; i < 30; i += 1) {
-    const mem = scoreQuantized(memPrepared, codes.codes, codes.corrections[i], i, params.paddedDim);
-    const disk = diskScore(`chunk:${i}`);
-    assert.ok(Math.abs(mem - disk) < 1e-6, `slot ${i}: ${mem} vs ${disk}`);
-  }
-  fs.rmSync(path.dirname(file), { recursive: true, force: true });
-});
-
-test("QuantizedVectorBackend keeps recall@10 close to exact", () => {
-  const rng = makeRng(33);
-  const dim = 384;
-  const corpus = Array.from({ length: 1500 }, () => makeUnitVector(rng, dim));
-  const ids = corpus.map((_, i) => `e${i}`);
-  const params = fitTurboQuant(corpus, dim, { bits: 4 });
-  const codes = encodeTurboQuant(corpus, params);
-  const backend = new QuantizedVectorBackend({ params, codes, ids, model: null });
-  const exact = ExactVectorBackend.fromVectors(new Map(ids.map((id, i) => [id, corpus[i]])));
-
-  let hits = 0;
-  const k = 10;
-  const queries = 30;
-  for (let qi = 0; qi < queries; qi += 1) {
-    const query = makeUnitVector(rng, dim);
-    const exactScore = exact.prepareQuery(query);
-    const approxScore = backend.prepareQuery(query);
-    const exactTop = ids
-      .map((id) => ({ id, s: exactScore(id) }))
-      .sort((a, b) => b.s - a.s)
-      .slice(0, k)
-      .map((r) => r.id);
-    const approxTop = ids
-      .map((id) => ({ id, s: approxScore(id) }))
-      .sort((a, b) => b.s - a.s)
-      .slice(0, k)
-      .map((r) => r.id);
-    const set = new Set(exactTop);
-    hits += approxTop.filter((id) => set.has(id)).length;
-  }
-  const recall = hits / (queries * k);
-  assert.ok(recall >= 0.8, `recall@10 = ${recall.toFixed(3)} should be >= 0.8`);
-});
-
-test("2-bit quantization packs 4 codes/byte and round-trips with usable recall", () => {
-  const rng = makeRng(88);
-  const dim = 256;
-  const corpus = Array.from({ length: 1200 }, () => makeUnitVector(rng, dim));
-  const ids = corpus.map((_, i) => `e${i}`);
-  const params = fitTurboQuant(corpus, dim, { bits: 2 });
-  const codes = encodeTurboQuant(corpus, params);
-
-  // 2-bit must store paddedDim/4 bytes per vector, not paddedDim.
-  assert.equal(codes.codes.length, corpus.length * (params.paddedDim >> 2));
-
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "tq2-")), "index.tqz");
-  writeTurboQuantIndex(file, params, codes, ids, "m", "fp");
-  const loaded = readTurboQuantIndex(file);
-  assert.equal(loaded.params.bits, 2);
-  const backend = new QuantizedVectorBackend(loaded);
-  const exact = ExactVectorBackend.fromVectors(new Map(ids.map((id, i) => [id, corpus[i]])));
-
-  let hits = 0;
-  const k = 10;
-  const queries = 20;
-  for (let qi = 0; qi < queries; qi += 1) {
-    const query = makeUnitVector(rng, dim);
-    const e = exact.prepareQuery(query);
-    const a = backend.prepareQuery(query);
-    const top = (score) => ids.map((id) => ({ id, s: score(id) })).sort((x, y) => y.s - x.s).slice(0, k).map((r) => r.id);
-    const set = new Set(top(e));
-    hits += top(a).filter((id) => set.has(id)).length;
-  }
-  // 2-bit is coarser than 4-bit; only assert it is meaningfully better than chance.
-  assert.ok(hits / (queries * k) >= 0.4, `2-bit recall@10 = ${(hits / (queries * k)).toFixed(3)}`);
-  fs.rmSync(path.dirname(file), { recursive: true, force: true });
-});
-
-test("compileTurboQuantIndex skips small corpora and writes large ones", () => {
-  const rng = makeRng(44);
-  const dim = 64;
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tqc-"));
-  const file = path.join(dir, "index.tqz");
-
-  const small = Array.from({ length: 100 }, (_, i) => ({ id: `s${i}`, vector: makeUnitVector(rng, dim) }));
-  const skipped = compileTurboQuantIndex(small, "m", file);
-  assert.equal(skipped.written, false);
-  assert.equal(fs.existsSync(file), false);
-
-  const big = Array.from({ length: 600 }, (_, i) => ({ id: `b${i}`, vector: makeUnitVector(rng, dim) }));
-  process.env.CORTEX_VECTOR_QUANTIZE_MIN = "500";
-  const written = compileTurboQuantIndex(big, "m", file);
-  delete process.env.CORTEX_VECTOR_QUANTIZE_MIN;
-  assert.equal(written.written, true);
-  assert.equal(written.size, 600);
-  assert.ok(fs.existsSync(file));
-
-  fs.rmSync(dir, { recursive: true, force: true });
-});
-
-test("ExactVectorBackend yields 0 on dimension mismatch, not a prefix score (P3)", () => {
+test("ExactVectorBackend yields 0 on dimension mismatch, not a prefix score", () => {
   const rng = makeRng(66);
   const vectors = new Map();
   for (let i = 0; i < 10; i += 1) vectors.set(`e${i}`, makeUnitVector(rng, 64));
@@ -194,50 +63,12 @@ test("ExactVectorBackend yields 0 on dimension mismatch, not a prefix score (P3)
   assert.equal(score("missing"), null);
 });
 
-test("readTurboQuantIndex throws on a truncated artifact (P3)", () => {
+test("ExactVectorBackend handles a zero query vector", () => {
   const rng = makeRng(77);
-  const dim = 64;
-  const vectors = Array.from({ length: 200 }, () => makeUnitVector(rng, dim));
-  const ids = vectors.map((_, i) => `e${i}`);
-  const params = fitTurboQuant(vectors, dim, { bits: 4 });
-  const codes = encodeTurboQuant(vectors, params);
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "tqt-")), "index.tqz");
-  writeTurboQuantIndex(file, params, codes, ids, "m", "fp");
-  // Lop off the tail so header sizes exceed the actual body.
-  const size = fs.statSync(file).size;
-  fs.truncateSync(file, Math.floor(size / 2));
-  assert.throws(() => readTurboQuantIndex(file), /truncated|invariant|!= size/i);
-  fs.rmSync(path.dirname(file), { recursive: true, force: true });
-});
-
-test("TurboQuant artifact stores and returns its source stamp (P2)", () => {
-  const rng = makeRng(55);
-  const dim = 64;
-  const vectors = Array.from({ length: 200 }, () => makeUnitVector(rng, dim));
-  const ids = vectors.map((_, i) => `e${i}`);
-  const params = fitTurboQuant(vectors, dim, { bits: 4 });
-  const codes = encodeTurboQuant(vectors, params);
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "tqs-")), "index.tqz");
-  writeTurboQuantIndex(file, params, codes, ids, "model-a", "2026-06-15T00:00:00.000Z");
-  const loaded = readTurboQuantIndex(file);
-  assert.equal(loaded.source, "2026-06-15T00:00:00.000Z");
-  fs.rmSync(path.dirname(file), { recursive: true, force: true });
-});
-
-test("compileTurboQuantIndex drops a stale artifact on non-written paths (P3)", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tqd-"));
-  const file = path.join(dir, "index.tqz");
-  fs.writeFileSync(file, "stale bytes");
-  process.env.CORTEX_VECTOR_QUANTIZE_MIN = "10";
-
-  // Enough records to pass the threshold, but all vectors empty → must delete.
-  const empty = Array.from({ length: 50 }, (_, i) => ({ id: `e${i}`, vector: new Float32Array(0) }));
-  const result = compileTurboQuantIndex(empty, "m", file);
-  delete process.env.CORTEX_VECTOR_QUANTIZE_MIN;
-
-  assert.equal(result.written, false);
-  assert.equal(fs.existsSync(file), false, "stale artifact must be removed");
-  fs.rmSync(dir, { recursive: true, force: true });
+  const vectors = new Map([["a", makeUnitVector(rng, 32)]]);
+  const backend = ExactVectorBackend.fromVectors(vectors);
+  const score = backend.prepareQuery(new Float32Array(32));
+  assert.equal(score("a"), 0);
 });
 
 test("buildSearchResults uses scoreVectorById when provided", () => {

@@ -108,9 +108,7 @@ export async function runContextSearch(parsed: SearchParams): Promise<ToolPayloa
     context_source: data.source,
     warning: warningMessages.length > 0 ? warningMessages.join(" | ") : undefined,
     semantic_engine:
-      queryVector && vector.model
-        ? `embedding+lexical (${vector.model}) [${vector.engine}]`
-        : "lexical-only",
+      queryVector && vector.model ? `embedding+lexical (${vector.model})` : "lexical-only",
     results
   };
 }

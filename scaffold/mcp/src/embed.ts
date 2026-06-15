@@ -6,7 +6,6 @@ import { pathToFileURL } from "node:url";
 import { env, pipeline } from "@huggingface/transformers";
 import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
 import { CACHE_DIR, PATHS } from "./paths.js";
-import { compileTurboQuantIndex } from "./compileVectorIndex.js";
 import {
   createTokenCounter,
   DEFAULT_SCHEDULER_OPTIONS,
@@ -613,9 +612,8 @@ async function main(): Promise<void> {
   const output = slots.filter((record): record is EmbeddingRecord => record !== null);
   writeJsonl(EMBEDDINGS_PATH, output);
 
-  const generatedAt = new Date().toISOString();
   const manifest = {
-    generated_at: generatedAt,
+    generated_at: new Date().toISOString(),
     mode,
     model: modelId,
     dimensions,
@@ -639,24 +637,6 @@ async function main(): Promise<void> {
   );
   console.log(`[embed] wrote ${EMBEDDINGS_PATH}`);
   console.log(`[embed] manifest ${EMBEDDINGS_MANIFEST_PATH}`);
-
-  // Compile the quantized TurboQuant index for fast, low-memory search.
-  // Failures here never break the embed: search falls back to the exact scan.
-  try {
-    // source defaults to the entities.jsonl fingerprint, which the loader
-    // compares against the live embeddings file to detect staleness.
-    const compiled = compileTurboQuantIndex(
-      output.map((record) => ({ id: record.id, vector: record.vector })),
-      modelId
-    );
-    if (compiled.written) {
-      console.log(`[embed] turboquant index size=${compiled.size} bits=${compiled.bits}`);
-    } else {
-      console.log(`[embed] turboquant index skipped (${compiled.reason})`);
-    }
-  } catch (error) {
-    console.warn(`[embed] turboquant index failed: ${error instanceof Error ? error.message : error}`);
-  }
 }
 
 const isMain = process.argv[1] ? pathToFileURL(process.argv[1]).href === import.meta.url : false;
