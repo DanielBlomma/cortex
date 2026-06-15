@@ -1,0 +1,2262 @@
+{
+  "schema_version": 1,
+  "run": {
+    "id": "full-2019",
+    "generated_at": "2026-06-12T05:34:50.388Z",
+    "cortex_version": "2.0.19"
+  },
+  "aggregate": {
+    "totals": {
+      "items": 32,
+      "succeeded": 32,
+      "failed": 0,
+      "chunks": 269627,
+      "files": 42850,
+      "edges": 644633,
+      "duration_ms": 31001922,
+      "indexed_lines": 8129123,
+      "tracked_lines": 11705859,
+      "repos": 32,
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ]
+    },
+    "by_model": {
+      "Xenova/all-MiniLM-L6-v2": {
+        "items": 32,
+        "repos": 32,
+        "chunks": 269627,
+        "embedded": 318190,
+        "failed_embeddings": 0,
+        "dimensions": 384,
+        "avg_throughput_per_s": 10.56,
+        "chunk_lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 150046
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 45561
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 29129
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 34249
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 6479
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 2676
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 1487
+          }
+        ],
+        "chunk_chars_histogram": [
+          {
+            "label": "0-200",
+            "min": 0,
+            "max": 200,
+            "count": 100379
+          },
+          {
+            "label": "201-500",
+            "min": 201,
+            "max": 500,
+            "count": 69550
+          },
+          {
+            "label": "501-1000",
+            "min": 501,
+            "max": 1000,
+            "count": 40350
+          },
+          {
+            "label": "1001-2000",
+            "min": 1001,
+            "max": 2000,
+            "count": 24333
+          },
+          {
+            "label": "2001-4000",
+            "min": 2001,
+            "max": 4000,
+            "count": 27447
+          },
+          {
+            "label": "4001-8000",
+            "min": 4001,
+            "max": 8000,
+            "count": 4814
+          },
+          {
+            "label": "8001-12000",
+            "min": 8001,
+            "max": 12000,
+            "count": 2752
+          },
+          {
+            "label": "12001+",
+            "min": 12001,
+            "max": null,
+            "count": 2
+          }
+        ]
+      }
+    },
+    "by_language": {
+      "java": {
+        "chunks": 96447,
+        "repos": 7,
+        "mean_chunk_lines": 24.53,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 56839
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 15935
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 8565
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 11507
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 2021
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 964
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 616
+          }
+        ]
+      },
+      "go": {
+        "chunks": 26719,
+        "repos": 6,
+        "mean_chunk_lines": 27.1,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 13913
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 3936
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 3313
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 4114
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 1048
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 301
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 94
+          }
+        ]
+      },
+      "javascript": {
+        "chunks": 2988,
+        "repos": 12,
+        "mean_chunk_lines": 23.66,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 1566
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 594
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 357
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 376
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 54
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 26
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 15
+          }
+        ]
+      },
+      "typescript": {
+        "chunks": 6938,
+        "repos": 6,
+        "mean_chunk_lines": 12.32,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 4848
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 1158
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 527
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 344
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 46
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 11
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 4
+          }
+        ]
+      },
+      "python": {
+        "chunks": 113192,
+        "repos": 13,
+        "mean_chunk_lines": 26.26,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 58965
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 20518
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 13945
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 15195
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 2756
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 1151
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 662
+          }
+        ]
+      },
+      "bash": {
+        "chunks": 142,
+        "repos": 8,
+        "mean_chunk_lines": 7.78,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 111
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 23
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 7
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 1
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 0
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 0
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 0
+          }
+        ]
+      },
+      "c": {
+        "chunks": 6820,
+        "repos": 6,
+        "mean_chunk_lines": 22.23,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 3967
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 965
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 755
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 835
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 215
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 68
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 15
+          }
+        ]
+      },
+      "rust": {
+        "chunks": 7365,
+        "repos": 2,
+        "mean_chunk_lines": 20.7,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 4203
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 1326
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 948
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 695
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 117
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 48
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 28
+          }
+        ]
+      },
+      "ruby": {
+        "chunks": 3821,
+        "repos": 2,
+        "mean_chunk_lines": 29.03,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 2193
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 469
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 312
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 636
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 123
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 54
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 34
+          }
+        ]
+      },
+      "cpp": {
+        "chunks": 5125,
+        "repos": 4,
+        "mean_chunk_lines": 20.05,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 3393
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 618
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 397
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 546
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 99
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 53
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 19
+          }
+        ]
+      },
+      "sql": {
+        "chunks": 70,
+        "repos": 2,
+        "mean_chunk_lines": 10.97,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 48
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 19
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 3
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 0
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 0
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 0
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 0
+          }
+        ]
+      }
+    },
+    "relations_by_type": {
+      "CALLS": 36067,
+      "CALLS_SQL": 0,
+      "CONSTRAINS": 44975,
+      "CONTAINS": 39423,
+      "CONTAINS_MODULE": 3512,
+      "DEFINES": 269627,
+      "EXPORTS": 187715,
+      "IMPLEMENTS": 43172,
+      "IMPORTS": 20140,
+      "INCLUDES_FILE": 2,
+      "REFERENCES_PROJECT": 0,
+      "SUPERSEDES": 0,
+      "TRANSFORMS_CONFIG": 0,
+      "USES_CONFIG": 0,
+      "USES_CONFIG_KEY": 0,
+      "USES_RESOURCE": 0,
+      "USES_RESOURCE_KEY": 0,
+      "USES_SETTING": 0,
+      "USES_SETTING_KEY": 0
+    },
+    "repo_rows": [
+      {
+        "key": "alibaba__fastjson2",
+        "name": "alibaba/fastjson2",
+        "languages": [
+          "java"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "3697c2d37cd659d2a94543093d0d08cb4baf4d73",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 4870,
+        "tracked_bytes": 149452863,
+        "tracked_lines": 1961542,
+        "indexed_lines": 692764,
+        "files": 4745,
+        "chunks": 40865,
+        "chunk_p50_lines": 8,
+        "chunk_mean_lines": 23.85,
+        "edges": 86705,
+        "chunk_chunk_edges": 1431,
+        "avg_degree": 0.07,
+        "isolated_pct": 98.29,
+        "embedded": 45966,
+        "dimensions": 384,
+        "total_ms": 4202000,
+        "ingest_ms": 41273,
+        "embed_ms": 3922649
+      },
+      {
+        "key": "angular__angular",
+        "name": "angular/angular",
+        "languages": [
+          "typescript"
+        ],
+        "benches": [
+          "Poly"
+        ],
+        "sha": "71bb19d772aa77a30922fb896f775b58a0862c36",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 10589,
+        "tracked_bytes": 111344856,
+        "tracked_lines": 1848032,
+        "indexed_lines": 1452594,
+        "files": 8248,
+        "chunks": 6633,
+        "chunk_p50_lines": 7,
+        "chunk_mean_lines": 12.04,
+        "edges": 40645,
+        "chunk_chunk_edges": 357,
+        "avg_degree": 0.11,
+        "isolated_pct": 93.35,
+        "embedded": 15994,
+        "dimensions": 384,
+        "total_ms": 1697208,
+        "ingest_ms": 15412,
+        "embed_ms": 1571734
+      },
+      {
+        "key": "ansible__ansible",
+        "name": "ansible/ansible",
+        "languages": [
+          "python"
+        ],
+        "benches": [
+          "Pro"
+        ],
+        "sha": "5e5d863173693ea7f6fc5f8f10ce13a11dd490fe",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 5764,
+        "tracked_bytes": 15020443,
+        "tracked_lines": 428605,
+        "indexed_lines": 398540,
+        "files": 4665,
+        "chunks": 13565,
+        "chunk_p50_lines": 9,
+        "chunk_mean_lines": 24.65,
+        "edges": 34390,
+        "chunk_chunk_edges": 2769,
+        "avg_degree": 0.41,
+        "isolated_pct": 79.37,
+        "embedded": 18884,
+        "dimensions": 384,
+        "total_ms": 1801332,
+        "ingest_ms": 29005,
+        "embed_ms": 1697017
+      },
+      {
+        "key": "anuraghazra__github-readme-stats",
+        "name": "anuraghazra/github-readme-stats",
+        "languages": [
+          "javascript"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "5df91f9bfa89c356a55cbb3c2bbc164fdbf94a86",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 132,
+        "tracked_bytes": 1130928,
+        "tracked_lines": 32478,
+        "indexed_lines": 30706,
+        "files": 114,
+        "chunks": 164,
+        "chunk_p50_lines": 17,
+        "chunk_mean_lines": 40.11,
+        "edges": 695,
+        "chunk_chunk_edges": 72,
+        "avg_degree": 0.88,
+        "isolated_pct": 53.05,
+        "embedded": 296,
+        "dimensions": 384,
+        "total_ms": 45339,
+        "ingest_ms": 504,
+        "embed_ms": 37758
+      },
+      {
+        "key": "astropy__astropy",
+        "name": "astropy/astropy",
+        "languages": [
+          "python"
+        ],
+        "benches": [
+          "Verified"
+        ],
+        "sha": "03fc005a2b4cead91725f10056fcc7315882f0a1",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 2033,
+        "tracked_bytes": 29649903,
+        "tracked_lines": 746270,
+        "indexed_lines": 626896,
+        "files": 1652,
+        "chunks": 21690,
+        "chunk_p50_lines": 12,
+        "chunk_mean_lines": 29.89,
+        "edges": 49490,
+        "chunk_chunk_edges": 4226,
+        "avg_degree": 0.39,
+        "isolated_pct": 83.32,
+        "embedded": 23539,
+        "dimensions": 384,
+        "total_ms": 2418269,
+        "ingest_ms": 47940,
+        "embed_ms": 2253981
+      },
+      {
+        "key": "axios__axios",
+        "name": "axios/axios",
+        "languages": [
+          "javascript"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "32fc489632377d214db55bfa4e2c48486a7d7ce2",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 449,
+        "tracked_bytes": 3236890,
+        "tracked_lines": 86638,
+        "indexed_lines": 81877,
+        "files": 411,
+        "chunks": 621,
+        "chunk_p50_lines": 9,
+        "chunk_mean_lines": 20.67,
+        "edges": 2074,
+        "chunk_chunk_edges": 223,
+        "avg_degree": 0.72,
+        "isolated_pct": 67.15,
+        "embedded": 1089,
+        "dimensions": 384,
+        "total_ms": 126281,
+        "ingest_ms": 890,
+        "embed_ms": 114044
+      },
+      {
+        "key": "burntsushi__ripgrep",
+        "name": "BurntSushi/ripgrep",
+        "languages": [
+          "rust"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "82313cf95849bfe425109ad9506a52154879b1b1",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 222,
+        "tracked_bytes": 3117867,
+        "tracked_lines": 72943,
+        "indexed_lines": 67294,
+        "files": 160,
+        "chunks": 2885,
+        "chunk_p50_lines": 7,
+        "chunk_mean_lines": 22.43,
+        "edges": 5032,
+        "chunk_chunk_edges": 745,
+        "avg_degree": 0.52,
+        "isolated_pct": 78.3,
+        "embedded": 3085,
+        "dimensions": 384,
+        "total_ms": 291515,
+        "ingest_ms": 10735,
+        "embed_ms": 260314
+      },
+      {
+        "key": "catchorg__catch2",
+        "name": "catchorg/Catch2",
+        "languages": [
+          "cpp"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "b7e0310fbe42d209630b262a1c76733a04e90e13",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 580,
+        "tracked_bytes": 8943547,
+        "tracked_lines": 213605,
+        "indexed_lines": 207143,
+        "files": 541,
+        "chunks": 4110,
+        "chunk_p50_lines": 5,
+        "chunk_mean_lines": 21.88,
+        "edges": 9862,
+        "chunk_chunk_edges": 444,
+        "avg_degree": 0.22,
+        "isolated_pct": 95.64,
+        "embedded": 4684,
+        "dimensions": 384,
+        "total_ms": 464094,
+        "ingest_ms": 31279,
+        "embed_ms": 400413
+      },
+      {
+        "key": "clap-rs__clap",
+        "name": "clap-rs/clap",
+        "languages": [
+          "rust"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "8387c812c4b9726474b8407f81ec97f0acf570ed",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 618,
+        "tracked_bytes": 3523509,
+        "tracked_lines": 111866,
+        "indexed_lines": 99451,
+        "files": 485,
+        "chunks": 4497,
+        "chunk_p50_lines": 9,
+        "chunk_mean_lines": 19.57,
+        "edges": 7444,
+        "chunk_chunk_edges": 967,
+        "avg_degree": 0.43,
+        "isolated_pct": 81.92,
+        "embedded": 5037,
+        "dimensions": 384,
+        "total_ms": 460648,
+        "ingest_ms": 18209,
+        "embed_ms": 415413
+      },
+      {
+        "key": "cli__cli",
+        "name": "cli/cli",
+        "languages": [
+          "go"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "57b9b207d900114092f30d78020c193b40621dfa",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 1280,
+        "tracked_bytes": 22209216,
+        "tracked_lines": 326850,
+        "indexed_lines": 277471,
+        "files": 1043,
+        "chunks": 7806,
+        "chunk_p50_lines": 18,
+        "chunk_mean_lines": 39.08,
+        "edges": 18203,
+        "chunk_chunk_edges": 2485,
+        "avg_degree": 0.64,
+        "isolated_pct": 66.96,
+        "embedded": 9134,
+        "dimensions": 384,
+        "total_ms": 1043490,
+        "ingest_ms": 7593,
+        "embed_ms": 970241
+      },
+      {
+        "key": "coder__code-server",
+        "name": "coder/code-server",
+        "languages": [
+          "typescript"
+        ],
+        "benches": [
+          "Poly"
+        ],
+        "sha": "92a7dce46ffcd363798e5ef008991e8cc6426de5",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 256,
+        "tracked_bytes": 1738478,
+        "tracked_lines": 37998,
+        "indexed_lines": 30956,
+        "files": 167,
+        "chunks": 31,
+        "chunk_p50_lines": 11,
+        "chunk_mean_lines": 23.55,
+        "edges": 457,
+        "chunk_chunk_edges": 1,
+        "avg_degree": 0.06,
+        "isolated_pct": 93.55,
+        "embedded": 226,
+        "dimensions": 384,
+        "total_ms": 31928,
+        "ingest_ms": 637,
+        "embed_ms": 25221
+      },
+      {
+        "key": "danielblomma__cortex",
+        "name": "DanielBlomma/cortex",
+        "languages": [
+          "javascript",
+          "typescript"
+        ],
+        "benches": [],
+        "sha": "051d4e6a87d968795482f65d900eda5dc8a94aae",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 363,
+        "tracked_bytes": 2793599,
+        "tracked_lines": 71842,
+        "indexed_lines": 3017,
+        "files": 7,
+        "chunks": 116,
+        "chunk_p50_lines": 8.5,
+        "chunk_mean_lines": 18.71,
+        "edges": 343,
+        "chunk_chunk_edges": 164,
+        "avg_degree": 2.83,
+        "isolated_pct": 5.17,
+        "embedded": 130,
+        "dimensions": 384,
+        "total_ms": 17756,
+        "ingest_ms": 182,
+        "embed_ms": 11452
+      },
+      {
+        "key": "darkreader__darkreader",
+        "name": "darkreader/darkreader",
+        "languages": [
+          "typescript"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "47660c45af2ddb05dec3f756e8f36c1f9d00eb5d",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 979,
+        "tracked_bytes": 4346013,
+        "tracked_lines": 120152,
+        "indexed_lines": 108403,
+        "files": 666,
+        "chunks": 350,
+        "chunk_p50_lines": 11,
+        "chunk_mean_lines": 22.36,
+        "edges": 2211,
+        "chunk_chunk_edges": 227,
+        "avg_degree": 1.3,
+        "isolated_pct": 44.86,
+        "embedded": 1158,
+        "dimensions": 384,
+        "total_ms": 132547,
+        "ingest_ms": 894,
+        "embed_ms": 119830
+      },
+      {
+        "key": "django__django",
+        "name": "django/django",
+        "languages": [
+          "python"
+        ],
+        "benches": [
+          "Verified"
+        ],
+        "sha": "e8cff2921ba169d806a15de18304f431f12700f4",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 7066,
+        "tracked_bytes": 46602784,
+        "tracked_lines": 1138393,
+        "indexed_lines": 723628,
+        "files": 3833,
+        "chunks": 41494,
+        "chunk_p50_lines": 8,
+        "chunk_mean_lines": 22.09,
+        "edges": 88516,
+        "chunk_chunk_edges": 2308,
+        "avg_degree": 0.11,
+        "isolated_pct": 93.46,
+        "embedded": 45981,
+        "dimensions": 384,
+        "total_ms": 3862741,
+        "ingest_ms": 71856,
+        "embed_ms": 3555961
+      },
+      {
+        "key": "elastic__logstash",
+        "name": "elastic/logstash",
+        "languages": [
+          "java"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "04868fe4ac0db4c663273f6494212a043e6a46b2",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 2219,
+        "tracked_bytes": 31514223,
+        "tracked_lines": 279694,
+        "indexed_lines": 221395,
+        "files": 1891,
+        "chunks": 10869,
+        "chunk_p50_lines": 7,
+        "chunk_mean_lines": 24.02,
+        "edges": 24556,
+        "chunk_chunk_edges": 169,
+        "avg_degree": 0.03,
+        "isolated_pct": 98.23,
+        "embedded": 12982,
+        "dimensions": 384,
+        "total_ms": 1263548,
+        "ingest_ms": 37468,
+        "embed_ms": 1162113
+      },
+      {
+        "key": "element-hq__element-web",
+        "name": "element-hq/element-web",
+        "languages": [
+          "javascript"
+        ],
+        "benches": [
+          "Pro"
+        ],
+        "sha": "2d434c72d49be4de6d2c957f14fb97124839b80c",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 4900,
+        "tracked_bytes": 67146081,
+        "tracked_lines": 954536,
+        "indexed_lines": 654840,
+        "files": 3297,
+        "chunks": 593,
+        "chunk_p50_lines": 6,
+        "chunk_mean_lines": 11.62,
+        "edges": 10786,
+        "chunk_chunk_edges": 89,
+        "avg_degree": 0.3,
+        "isolated_pct": 80.94,
+        "embedded": 4300,
+        "dimensions": 384,
+        "total_ms": 658080,
+        "ingest_ms": 5246,
+        "embed_ms": 621303
+      },
+      {
+        "key": "expressjs__express",
+        "name": "expressjs/express",
+        "languages": [
+          "javascript"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "dae209ae6559c29cfca2a1f4414c51d89ea643d5",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 213,
+        "tracked_bytes": 706609,
+        "tracked_lines": 26505,
+        "indexed_lines": 26040,
+        "files": 163,
+        "chunks": 127,
+        "chunk_p50_lines": 4,
+        "chunk_mean_lines": 8.05,
+        "edges": 519,
+        "chunk_chunk_edges": 6,
+        "avg_degree": 0.09,
+        "isolated_pct": 93.7,
+        "embedded": 310,
+        "dimensions": 384,
+        "total_ms": 39000,
+        "ingest_ms": 622,
+        "embed_ms": 31178
+      },
+      {
+        "key": "facebook__zstd",
+        "name": "facebook/zstd",
+        "languages": [
+          "c"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "5233c58e6ca0b1c4c6b353ad79649191ed195bdc",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 658,
+        "tracked_bytes": 8503787,
+        "tracked_lines": 183007,
+        "indexed_lines": 155795,
+        "files": 409,
+        "chunks": 3004,
+        "chunk_p50_lines": 11,
+        "chunk_mean_lines": 24.58,
+        "edges": 18984,
+        "chunk_chunk_edges": 1987,
+        "avg_degree": 1.32,
+        "isolated_pct": 39.85,
+        "embedded": 3467,
+        "dimensions": 384,
+        "total_ms": 430065,
+        "ingest_ms": 31506,
+        "embed_ms": 359485
+      },
+      {
+        "key": "fasterxml__jackson-core",
+        "name": "fasterxml/jackson-core",
+        "languages": [
+          "java"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "4ba686eb7f00ce7fc63fafae75953625b2c8b542",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 472,
+        "tracked_bytes": 5741925,
+        "tracked_lines": 159138,
+        "indexed_lines": 151780,
+        "files": 421,
+        "chunks": 6288,
+        "chunk_p50_lines": 11,
+        "chunk_mean_lines": 31.98,
+        "edges": 11219,
+        "chunk_chunk_edges": 537,
+        "avg_degree": 0.17,
+        "isolated_pct": 96.29,
+        "embedded": 6754,
+        "dimensions": 384,
+        "total_ms": 699677,
+        "ingest_ms": 7012,
+        "embed_ms": 653143
+      },
+      {
+        "key": "fasterxml__jackson-databind",
+        "name": "fasterxml/jackson-databind",
+        "languages": [
+          "java"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "caeb56f628e8cba6a8624d8c422fdbea69f86a0c",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 1424,
+        "tracked_bytes": 13192482,
+        "tracked_lines": 366537,
+        "indexed_lines": 307390,
+        "files": 1376,
+        "chunks": 29442,
+        "chunk_p50_lines": 7,
+        "chunk_mean_lines": 23.45,
+        "edges": 56599,
+        "chunk_chunk_edges": 1507,
+        "avg_degree": 0.1,
+        "isolated_pct": 98.42,
+        "embedded": 30921,
+        "dimensions": 384,
+        "total_ms": 2658153,
+        "ingest_ms": 26903,
+        "embed_ms": 2502120
+      },
+      {
+        "key": "fasterxml__jackson-dataformat-xml",
+        "name": "fasterxml/jackson-dataformat-xml",
+        "languages": [
+          "java"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "4cd69b68bb47f24d28e484f5c7907a7449678f99",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 267,
+        "tracked_bytes": 1251189,
+        "tracked_lines": 34858,
+        "indexed_lines": 32308,
+        "files": 246,
+        "chunks": 2801,
+        "chunk_p50_lines": 8,
+        "chunk_mean_lines": 24.35,
+        "edges": 5656,
+        "chunk_chunk_edges": 0,
+        "avg_degree": 0,
+        "isolated_pct": 100,
+        "embedded": 3080,
+        "dimensions": 384,
+        "total_ms": 306032,
+        "ingest_ms": 2675,
+        "embed_ms": 281232
+      },
+      {
+        "key": "flipt-io__flipt",
+        "name": "flipt-io/flipt",
+        "languages": [
+          "go"
+        ],
+        "benches": [
+          "Pro"
+        ],
+        "sha": "0def52ea6ea02a9b632fdd29081c1e14beef716a",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 862,
+        "tracked_bytes": 10292445,
+        "tracked_lines": 190149,
+        "indexed_lines": 134639,
+        "files": 743,
+        "chunks": 4413,
+        "chunk_p50_lines": 6,
+        "chunk_mean_lines": 18.33,
+        "edges": 10373,
+        "chunk_chunk_edges": 554,
+        "avg_degree": 0.25,
+        "isolated_pct": 84.75,
+        "embedded": 5293,
+        "dimensions": 384,
+        "total_ms": 514915,
+        "ingest_ms": 4039,
+        "embed_ms": 473814
+      },
+      {
+        "key": "fmtlib__fmt",
+        "name": "fmtlib/fmt",
+        "languages": [
+          "cpp"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "e8deaf2ec3b53ced589fce6f640061e5b32eeeaa",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 142,
+        "tracked_bytes": 3091494,
+        "tracked_lines": 84849,
+        "indexed_lines": 82173,
+        "files": 115,
+        "chunks": 2443,
+        "chunk_p50_lines": 5,
+        "chunk_mean_lines": 12.33,
+        "edges": 8277,
+        "chunk_chunk_edges": 843,
+        "avg_degree": 0.69,
+        "isolated_pct": 73.6,
+        "embedded": 2578,
+        "dimensions": 384,
+        "total_ms": 231454,
+        "ingest_ms": 19858,
+        "embed_ms": 185144
+      },
+      {
+        "key": "future-architect__vuls",
+        "name": "future-architect/vuls",
+        "languages": [
+          "go"
+        ],
+        "benches": [
+          "Pro"
+        ],
+        "sha": "5ce56238223d505e7f99ab70c25644c6c39b620b",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 291,
+        "tracked_bytes": 4972104,
+        "tracked_lines": 132849,
+        "indexed_lines": 126177,
+        "files": 272,
+        "chunks": 1716,
+        "chunk_p50_lines": 16,
+        "chunk_mean_lines": 35.36,
+        "edges": 3308,
+        "chunk_chunk_edges": 310,
+        "avg_degree": 0.36,
+        "isolated_pct": 80.07,
+        "embedded": 2019,
+        "dimensions": 384,
+        "total_ms": 239794,
+        "ingest_ms": 1650,
+        "embed_ms": 220912
+      },
+      {
+        "key": "google__gson",
+        "name": "google/gson",
+        "languages": [
+          "java"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "004e7a4949e08b430e3c8996998ee5a17ff9423a",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 311,
+        "tracked_bytes": 2292570,
+        "tracked_lines": 61383,
+        "indexed_lines": 58252,
+        "files": 288,
+        "chunks": 4521,
+        "chunk_p50_lines": 8,
+        "chunk_mean_lines": 25.66,
+        "edges": 8719,
+        "chunk_chunk_edges": 74,
+        "avg_degree": 0.03,
+        "isolated_pct": 99.14,
+        "embedded": 4841,
+        "dimensions": 384,
+        "total_ms": 447237,
+        "ingest_ms": 4331,
+        "embed_ms": 417174
+      },
+      {
+        "key": "googlecontainertools__jib",
+        "name": "googlecontainertools/jib",
+        "languages": [
+          "java"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "6a851b6fb83a7399009a8bee7dec6323822eeca4",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 1221,
+        "tracked_bytes": 8231363,
+        "tracked_lines": 124438,
+        "indexed_lines": 96255,
+        "files": 759,
+        "chunks": 5680,
+        "chunk_p50_lines": 11,
+        "chunk_mean_lines": 29.52,
+        "edges": 11663,
+        "chunk_chunk_edges": 0,
+        "avg_degree": 0,
+        "isolated_pct": 100,
+        "embedded": 6546,
+        "dimensions": 384,
+        "total_ms": 721933,
+        "ingest_ms": 6183,
+        "embed_ms": 676076
+      },
+      {
+        "key": "grpc__grpc-go",
+        "name": "grpc/grpc-go",
+        "languages": [
+          "go"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "f1864955bbb48efa131f6652933fa8b2189d9305",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 1340,
+        "tracked_bytes": 13716291,
+        "tracked_lines": 357294,
+        "indexed_lines": 327289,
+        "files": 1161,
+        "chunks": 12888,
+        "chunk_p50_lines": 7,
+        "chunk_mean_lines": 21.64,
+        "edges": 28077,
+        "chunk_chunk_edges": 3245,
+        "avg_degree": 0.5,
+        "isolated_pct": 75.31,
+        "embedded": 14246,
+        "dimensions": 384,
+        "total_ms": 1342998,
+        "ingest_ms": 11393,
+        "embed_ms": 1244498
+      },
+      {
+        "key": "iamkun__dayjs",
+        "name": "iamkun/dayjs",
+        "languages": [
+          "javascript"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "6609c5e54347a60bf8d327dee36190069012ba47",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 380,
+        "tracked_bytes": 2481586,
+        "tracked_lines": 65582,
+        "indexed_lines": 22412,
+        "files": 369,
+        "chunks": 167,
+        "chunk_p50_lines": 5,
+        "chunk_mean_lines": 16.17,
+        "edges": 816,
+        "chunk_chunk_edges": 79,
+        "avg_degree": 0.95,
+        "isolated_pct": 51.5,
+        "embedded": 558,
+        "dimensions": 384,
+        "total_ms": 80201,
+        "ingest_ms": 776,
+        "embed_ms": 70740
+      },
+      {
+        "key": "internetarchive__openlibrary",
+        "name": "internetarchive/openlibrary",
+        "languages": [
+          "python"
+        ],
+        "benches": [
+          "Pro"
+        ],
+        "sha": "6eb91dc643d605e8527144da838cb65c59baa22f",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 1913,
+        "tracked_bytes": 28446910,
+        "tracked_lines": 443908,
+        "indexed_lines": 144808,
+        "files": 747,
+        "chunks": 6544,
+        "chunk_p50_lines": 9,
+        "chunk_mean_lines": 21.97,
+        "edges": 15663,
+        "chunk_chunk_edges": 1828,
+        "avg_degree": 0.56,
+        "isolated_pct": 70.2,
+        "embedded": 7382,
+        "dimensions": 384,
+        "total_ms": 738066,
+        "ingest_ms": 11404,
+        "embed_ms": 677594
+      },
+      {
+        "key": "jqlang__jq",
+        "name": "jqlang/jq",
+        "languages": [
+          "c"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "e987df0d463d85fd70825e042a082427e8275b86",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 399,
+        "tracked_bytes": 4726358,
+        "tracked_lines": 177244,
+        "indexed_lines": 71345,
+        "files": 127,
+        "chunks": 1194,
+        "chunk_p50_lines": 6,
+        "chunk_mean_lines": 19.16,
+        "edges": 7745,
+        "chunk_chunk_edges": 879,
+        "avg_degree": 1.47,
+        "isolated_pct": 56.62,
+        "embedded": 1332,
+        "dimensions": 384,
+        "total_ms": 142830,
+        "ingest_ms": 9258,
+        "embed_ms": 111670
+      },
+      {
+        "key": "keras-team__keras",
+        "name": "keras-team/keras",
+        "languages": [
+          "python"
+        ],
+        "benches": [
+          "Poly"
+        ],
+        "sha": "8f2ba6b9aec046f177102d4fb89dd21b24e89947",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 1016,
+        "tracked_bytes": 11569295,
+        "tracked_lines": 323847,
+        "indexed_lines": 323602,
+        "files": 1012,
+        "chunks": 15961,
+        "chunk_p50_lines": 13,
+        "chunk_mean_lines": 33.46,
+        "edges": 35377,
+        "chunk_chunk_edges": 4405,
+        "avg_degree": 0.55,
+        "isolated_pct": 75.67,
+        "embedded": 17046,
+        "dimensions": 384,
+        "total_ms": 1856379,
+        "ingest_ms": 29270,
+        "embed_ms": 1719787
+      },
+      {
+        "key": "langchain-ai__langchain",
+        "name": "langchain-ai/langchain",
+        "languages": [
+          "python"
+        ],
+        "benches": [
+          "Poly"
+        ],
+        "sha": "76c32db9b38dfc287c958dc2a914d4834f022c1c",
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 2937,
+        "tracked_bytes": 38046947,
+        "tracked_lines": 542827,
+        "indexed_lines": 391883,
+        "files": 2717,
+        "chunks": 16149,
+        "chunk_p50_lines": 12,
+        "chunk_mean_lines": 28.82,
+        "edges": 40229,
+        "chunk_chunk_edges": 3136,
+        "avg_degree": 0.39,
+        "isolated_pct": 80.35,
+        "embedded": 19332,
+        "dimensions": 384,
+        "total_ms": 2036412,
+        "ingest_ms": 33189,
+        "embed_ms": 1882009
+      }
+    ]
+  },
+  "repos": [
+    {
+      "key": "alibaba__fastjson2",
+      "name": "alibaba/fastjson2",
+      "languages": [
+        "java"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 40865,
+      "edges": 86705
+    },
+    {
+      "key": "angular__angular",
+      "name": "angular/angular",
+      "languages": [
+        "typescript"
+      ],
+      "benches": [
+        "Poly"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 6633,
+      "edges": 40645
+    },
+    {
+      "key": "ansible__ansible",
+      "name": "ansible/ansible",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Pro"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 13565,
+      "edges": 34390
+    },
+    {
+      "key": "anuraghazra__github-readme-stats",
+      "name": "anuraghazra/github-readme-stats",
+      "languages": [
+        "javascript"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 164,
+      "edges": 695
+    },
+    {
+      "key": "astropy__astropy",
+      "name": "astropy/astropy",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Verified"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 21690,
+      "edges": 49490
+    },
+    {
+      "key": "axios__axios",
+      "name": "axios/axios",
+      "languages": [
+        "javascript"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 621,
+      "edges": 2074
+    },
+    {
+      "key": "burntsushi__ripgrep",
+      "name": "BurntSushi/ripgrep",
+      "languages": [
+        "rust"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 2885,
+      "edges": 5032
+    },
+    {
+      "key": "catchorg__catch2",
+      "name": "catchorg/Catch2",
+      "languages": [
+        "cpp"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 4110,
+      "edges": 9862
+    },
+    {
+      "key": "clap-rs__clap",
+      "name": "clap-rs/clap",
+      "languages": [
+        "rust"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 4497,
+      "edges": 7444
+    },
+    {
+      "key": "cli__cli",
+      "name": "cli/cli",
+      "languages": [
+        "go"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 7806,
+      "edges": 18203
+    },
+    {
+      "key": "coder__code-server",
+      "name": "coder/code-server",
+      "languages": [
+        "typescript"
+      ],
+      "benches": [
+        "Poly"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 31,
+      "edges": 457
+    },
+    {
+      "key": "danielblomma__cortex",
+      "name": "DanielBlomma/cortex",
+      "languages": [
+        "javascript",
+        "typescript"
+      ],
+      "benches": [],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 116,
+      "edges": 343
+    },
+    {
+      "key": "darkreader__darkreader",
+      "name": "darkreader/darkreader",
+      "languages": [
+        "typescript"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 350,
+      "edges": 2211
+    },
+    {
+      "key": "django__django",
+      "name": "django/django",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Verified"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 41494,
+      "edges": 88516
+    },
+    {
+      "key": "elastic__logstash",
+      "name": "elastic/logstash",
+      "languages": [
+        "java"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 10869,
+      "edges": 24556
+    },
+    {
+      "key": "element-hq__element-web",
+      "name": "element-hq/element-web",
+      "languages": [
+        "javascript"
+      ],
+      "benches": [
+        "Pro"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 593,
+      "edges": 10786
+    },
+    {
+      "key": "expressjs__express",
+      "name": "expressjs/express",
+      "languages": [
+        "javascript"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 127,
+      "edges": 519
+    },
+    {
+      "key": "facebook__zstd",
+      "name": "facebook/zstd",
+      "languages": [
+        "c"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 3004,
+      "edges": 18984
+    },
+    {
+      "key": "fasterxml__jackson-core",
+      "name": "fasterxml/jackson-core",
+      "languages": [
+        "java"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 6288,
+      "edges": 11219
+    },
+    {
+      "key": "fasterxml__jackson-databind",
+      "name": "fasterxml/jackson-databind",
+      "languages": [
+        "java"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 29442,
+      "edges": 56599
+    },
+    {
+      "key": "fasterxml__jackson-dataformat-xml",
+      "name": "fasterxml/jackson-dataformat-xml",
+      "languages": [
+        "java"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 2801,
+      "edges": 5656
+    },
+    {
+      "key": "flipt-io__flipt",
+      "name": "flipt-io/flipt",
+      "languages": [
+        "go"
+      ],
+      "benches": [
+        "Pro"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 4413,
+      "edges": 10373
+    },
+    {
+      "key": "fmtlib__fmt",
+      "name": "fmtlib/fmt",
+      "languages": [
+        "cpp"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 2443,
+      "edges": 8277
+    },
+    {
+      "key": "future-architect__vuls",
+      "name": "future-architect/vuls",
+      "languages": [
+        "go"
+      ],
+      "benches": [
+        "Pro"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 1716,
+      "edges": 3308
+    },
+    {
+      "key": "google__gson",
+      "name": "google/gson",
+      "languages": [
+        "java"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 4521,
+      "edges": 8719
+    },
+    {
+      "key": "googlecontainertools__jib",
+      "name": "googlecontainertools/jib",
+      "languages": [
+        "java"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 5680,
+      "edges": 11663
+    },
+    {
+      "key": "grpc__grpc-go",
+      "name": "grpc/grpc-go",
+      "languages": [
+        "go"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 12888,
+      "edges": 28077
+    },
+    {
+      "key": "iamkun__dayjs",
+      "name": "iamkun/dayjs",
+      "languages": [
+        "javascript"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 167,
+      "edges": 816
+    },
+    {
+      "key": "internetarchive__openlibrary",
+      "name": "internetarchive/openlibrary",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Pro"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 6544,
+      "edges": 15663
+    },
+    {
+      "key": "jqlang__jq",
+      "name": "jqlang/jq",
+      "languages": [
+        "c"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 1194,
+      "edges": 7745
+    },
+    {
+      "key": "keras-team__keras",
+      "name": "keras-team/keras",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Poly"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 15961,
+      "edges": 35377
+    },
+    {
+      "key": "langchain-ai__langchain",
+      "name": "langchain-ai/langchain",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Poly"
+      ],
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 16149,
+      "edges": 40229
+    }
+  ]
+}

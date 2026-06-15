@@ -1,0 +1,529 @@
+{
+  "schema_version": 1,
+  "run": {
+    "id": "full-2019",
+    "generated_at": "2026-06-12T05:34:50.388Z",
+    "cortex_version": "2.0.19"
+  },
+  "repo": {
+    "key": "fasterxml__jackson-core",
+    "name": "fasterxml/jackson-core",
+    "url": "https://github.com/fasterxml/jackson-core.git",
+    "sha": "4ba686eb7f00ce7fc63fafae75953625b2c8b542",
+    "languages": [
+      "java"
+    ],
+    "benches": [
+      "Multi"
+    ],
+    "instances": 6
+  },
+  "runs": [
+    {
+      "schema_version": 1,
+      "repo": {
+        "key": "fasterxml__jackson-core",
+        "name": "fasterxml/jackson-core",
+        "url": "https://github.com/fasterxml/jackson-core.git",
+        "sha": "4ba686eb7f00ce7fc63fafae75953625b2c8b542",
+        "languages": [
+          "java"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "instances": 6
+      },
+      "run": {
+        "embed_model": "Xenova/all-MiniLM-L6-v2",
+        "cortex_version": "2.0.19",
+        "cortex_source": "npm",
+        "run_id": "full-2019",
+        "started_at": "2026-06-12T02:53:17.864Z",
+        "status": "ok",
+        "error": null,
+        "extracted_at": "2026-06-12T03:05:01.645Z"
+      },
+      "workspace": {
+        "tracked_files": 472,
+        "tracked_bytes": 5741925,
+        "tracked_lines": 159138,
+        "detected_source_paths": [
+          ".github",
+          "src",
+          "create-test-report.sh",
+          "release.sh",
+          "SECURITY.md",
+          "docs",
+          ".context/notes",
+          ".context/decisions",
+          "README.md"
+        ]
+      },
+      "timings_ms": {
+        "deps": 1363,
+        "ingest": 7012,
+        "embed": 653143,
+        "graph_load": 36521,
+        "status": 1637,
+        "total": 699677
+      },
+      "ingest": {
+        "mode": "full",
+        "counts": {
+          "files": 421,
+          "adrs": 0,
+          "rules": 5,
+          "chunks": 6288,
+          "relations_constrains": 727,
+          "relations_implements": 723,
+          "relations_supersedes": 0,
+          "relations_defines": 6288,
+          "relations_calls": 537,
+          "relations_imports": 0,
+          "relations_calls_sql": 0,
+          "relations_uses_config_key": 0,
+          "relations_uses_resource_key": 0,
+          "relations_uses_setting_key": 0,
+          "modules": 40,
+          "relations_contains": 415,
+          "relations_contains_module": 34,
+          "relations_exports": 2495,
+          "projects": 0,
+          "relations_includes_file": 0,
+          "relations_references_project": 0,
+          "relations_uses_resource": 0,
+          "relations_uses_setting": 0,
+          "relations_uses_config": 0,
+          "relations_transforms_config": 0
+        },
+        "skipped": {
+          "unsupported": 39,
+          "tooLarge": 0,
+          "binary": 2
+        },
+        "parser_health": {}
+      },
+      "files": {
+        "total": 421,
+        "by_kind": {
+          "DOC": 18,
+          "CODE": 403
+        },
+        "indexed_lines": 151780
+      },
+      "chunks": {
+        "total": 6288,
+        "exported": 2966,
+        "by_kind": {
+          "interface": 54,
+          "method": 4733,
+          "class": 1201,
+          "constructor": "function Object() { [native code] }1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+          "enum": 38
+        },
+        "by_language": {
+          "java": {
+            "count": 6288,
+            "lines": {
+              "count": 6288,
+              "min": 1,
+              "max": 1706,
+              "mean": 31.98,
+              "histogram": [
+                {
+                  "label": "1-10",
+                  "min": 1,
+                  "max": 10,
+                  "count": 3139
+                },
+                {
+                  "label": "11-20",
+                  "min": 11,
+                  "max": 20,
+                  "count": 1098
+                },
+                {
+                  "label": "21-40",
+                  "min": 21,
+                  "max": 40,
+                  "count": 747
+                },
+                {
+                  "label": "41-80",
+                  "min": 41,
+                  "max": 80,
+                  "count": 1005
+                },
+                {
+                  "label": "81-160",
+                  "min": 81,
+                  "max": 160,
+                  "count": 138
+                },
+                {
+                  "label": "161-320",
+                  "min": 161,
+                  "max": 320,
+                  "count": 101
+                },
+                {
+                  "label": "321+",
+                  "min": 321,
+                  "max": null,
+                  "count": 60
+                }
+              ],
+              "p25": 4,
+              "p50": 11,
+              "p75": 30,
+              "p90": 80,
+              "p99": 307.39
+            },
+            "chars": {
+              "count": 6288,
+              "min": 11,
+              "max": 12000,
+              "mean": 1050.41,
+              "histogram": [
+                {
+                  "label": "0-200",
+                  "min": 0,
+                  "max": 200,
+                  "count": 2221
+                },
+                {
+                  "label": "201-500",
+                  "min": 201,
+                  "max": 500,
+                  "count": 1338
+                },
+                {
+                  "label": "501-1000",
+                  "min": 501,
+                  "max": 1000,
+                  "count": 1045
+                },
+                {
+                  "label": "1001-2000",
+                  "min": 1001,
+                  "max": 2000,
+                  "count": 574
+                },
+                {
+                  "label": "2001-4000",
+                  "min": 2001,
+                  "max": 4000,
+                  "count": 874
+                },
+                {
+                  "label": "4001-8000",
+                  "min": 4001,
+                  "max": 8000,
+                  "count": 126
+                },
+                {
+                  "label": "8001-12000",
+                  "min": 8001,
+                  "max": 12000,
+                  "count": 110
+                },
+                {
+                  "label": "12001+",
+                  "min": 12001,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 132,
+              "p50": 387.5,
+              "p75": 1107,
+              "p90": 2849.3,
+              "p99": 11382.32
+            }
+          }
+        },
+        "lines": {
+          "count": 6288,
+          "min": 1,
+          "max": 1706,
+          "mean": 31.98,
+          "histogram": [
+            {
+              "label": "1-10",
+              "min": 1,
+              "max": 10,
+              "count": 3139
+            },
+            {
+              "label": "11-20",
+              "min": 11,
+              "max": 20,
+              "count": 1098
+            },
+            {
+              "label": "21-40",
+              "min": 21,
+              "max": 40,
+              "count": 747
+            },
+            {
+              "label": "41-80",
+              "min": 41,
+              "max": 80,
+              "count": 1005
+            },
+            {
+              "label": "81-160",
+              "min": 81,
+              "max": 160,
+              "count": 138
+            },
+            {
+              "label": "161-320",
+              "min": 161,
+              "max": 320,
+              "count": 101
+            },
+            {
+              "label": "321+",
+              "min": 321,
+              "max": null,
+              "count": 60
+            }
+          ],
+          "p25": 4,
+          "p50": 11,
+          "p75": 30,
+          "p90": 80,
+          "p99": 307.39
+        },
+        "chars": {
+          "count": 6288,
+          "min": 11,
+          "max": 12000,
+          "mean": 1050.41,
+          "histogram": [
+            {
+              "label": "0-200",
+              "min": 0,
+              "max": 200,
+              "count": 2221
+            },
+            {
+              "label": "201-500",
+              "min": 201,
+              "max": 500,
+              "count": 1338
+            },
+            {
+              "label": "501-1000",
+              "min": 501,
+              "max": 1000,
+              "count": 1045
+            },
+            {
+              "label": "1001-2000",
+              "min": 1001,
+              "max": 2000,
+              "count": 574
+            },
+            {
+              "label": "2001-4000",
+              "min": 2001,
+              "max": 4000,
+              "count": 874
+            },
+            {
+              "label": "4001-8000",
+              "min": 4001,
+              "max": 8000,
+              "count": 126
+            },
+            {
+              "label": "8001-12000",
+              "min": 8001,
+              "max": 12000,
+              "count": 110
+            },
+            {
+              "label": "12001+",
+              "min": 12001,
+              "max": null,
+              "count": 0
+            }
+          ],
+          "p25": 132,
+          "p50": 387.5,
+          "p75": 1107,
+          "p90": 2849.3,
+          "p99": 11382.32
+        }
+      },
+      "embeddings": {
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "dimensions": 384,
+        "mode": "full",
+        "counts": {
+          "entities": 6754,
+          "output": 6754,
+          "embedded": 6754,
+          "reused": 0,
+          "failed": 0
+        },
+        "by_entity_type": {
+          "Chunk": 6288,
+          "File": 421,
+          "Module": 40,
+          "Rule": 5
+        },
+        "throughput_per_s": 10.34
+      },
+      "graph": {
+        "nodes": {
+          "files": 421,
+          "chunks": 6288,
+          "rules": 5,
+          "adrs": 0,
+          "modules": 40,
+          "projects": 0
+        },
+        "edges": {
+          "total": 11219,
+          "by_type": {
+            "CALLS": 537,
+            "CALLS_SQL": 0,
+            "CONSTRAINS": 727,
+            "CONTAINS": 415,
+            "CONTAINS_MODULE": 34,
+            "DEFINES": 6288,
+            "EXPORTS": 2495,
+            "IMPLEMENTS": 723,
+            "IMPORTS": 0,
+            "INCLUDES_FILE": 0,
+            "REFERENCES_PROJECT": 0,
+            "SUPERSEDES": 0,
+            "TRANSFORMS_CONFIG": 0,
+            "USES_CONFIG": 0,
+            "USES_CONFIG_KEY": 0,
+            "USES_RESOURCE": 0,
+            "USES_RESOURCE_KEY": 0,
+            "USES_SETTING": 0,
+            "USES_SETTING_KEY": 0
+          }
+        },
+        "chunk_connectivity": {
+          "chunk_chunk_edges": 537,
+          "avg_degree": 0.17,
+          "max_degree": 28,
+          "isolated_count": 6055,
+          "isolated_pct": 96.29,
+          "degree": {
+            "count": 6288,
+            "min": 0,
+            "max": 28,
+            "mean": 0.17,
+            "histogram": [
+              {
+                "label": "0",
+                "min": 0,
+                "max": 0,
+                "count": 6055
+              },
+              {
+                "label": "1",
+                "min": 1,
+                "max": 1,
+                "count": 51
+              },
+              {
+                "label": "2",
+                "min": 2,
+                "max": 2,
+                "count": 37
+              },
+              {
+                "label": "3-4",
+                "min": 3,
+                "max": 4,
+                "count": 62
+              },
+              {
+                "label": "5-8",
+                "min": 5,
+                "max": 8,
+                "count": 52
+              },
+              {
+                "label": "9-16",
+                "min": 9,
+                "max": 16,
+                "count": 28
+              },
+              {
+                "label": "17-32",
+                "min": 17,
+                "max": 32,
+                "count": 3
+              },
+              {
+                "label": "33+",
+                "min": 33,
+                "max": null,
+                "count": 0
+              }
+            ],
+            "p25": 0,
+            "p50": 0,
+            "p75": 0,
+            "p90": 0,
+            "p99": 6
+          },
+          "top_connected": [
+            {
+              "id": "chunk:src/main/java/tools/jackson/core/json/WriterBasedJsonGenerator.java:_verifyValueWrite:995-1028",
+              "degree": 28
+            },
+            {
+              "id": "chunk:src/main/java/tools/jackson/core/json/async/NonBlockingUtf8JsonParserBase.java:_finishToken:198-324",
+              "degree": 19
+            },
+            {
+              "id": "chunk:src/main/java/tools/jackson/core/json/WriterBasedJsonGenerator.java:writeRaw:632-641",
+              "degree": 18
+            },
+            {
+              "id": "chunk:src/main/java/tools/jackson/core/json/async/NonBlockingUtf8JsonParserBase.java:_startValue:601-667",
+              "degree": 16
+            },
+            {
+              "id": "chunk:src/main/java/tools/jackson/core/json/async/NonBlockingUtf8JsonParserBase.java:_startValueExpectColon:770-843",
+              "degree": 15
+            },
+            {
+              "id": "chunk:src/main/java/tools/jackson/core/json/async/NonBlockingUtf8JsonParserBase.java:_startValueExpectComma:671-765",
+              "degree": 15
+            },
+            {
+              "id": "chunk:src/main/java/tools/jackson/core/json/WriterBasedJsonGenerator.java:writeRaw:589-608",
+              "degree": 14
+            },
+            {
+              "id": "chunk:src/main/java/tools/jackson/core/json/WriterBasedJsonGenerator.java:writeRaw:610-630",
+              "degree": 14
+            },
+            {
+              "id": "chunk:src/main/java/tools/jackson/core/json/async/NonBlockingUtf8JsonParserBase.java:_startValueAfterComma:846-910",
+              "degree": 13
+            },
+            {
+              "id": "chunk:src/main/java/tools/jackson/core/json/UTF8DataInputJsonParser.java:readUnsignedByte:149-151",
+              "degree": 13
+            }
+          ]
+        }
+      },
+      "parse_errors": 0
+    }
+  ]
+}

@@ -9,6 +9,7 @@
 [![npm version](https://img.shields.io/npm/v/%40danielblomma%2Fcortex-mcp)](https://www.npmjs.com/package/@danielblomma/cortex-mcp)
 [![npm downloads](https://img.shields.io/npm/dw/%40danielblomma%2Fcortex-mcp)](https://www.npmjs.com/package/@danielblomma/cortex-mcp)
 [![license](https://img.shields.io/npm/l/%40danielblomma%2Fcortex-mcp)](./LICENSE)
+[![website](https://img.shields.io/badge/website-cortex-2563eb)](https://danielblomma.github.io/cortex/)
 
 ---
 
@@ -409,6 +410,14 @@ to give each its fair share of cores.
   Auto-registration is skipped; use manual config above.
 - MCP tools return stale context:
   Run `cortex update`, then reconnect MCP or call `context.reload` from your MCP client.
+
+## Website and Benchmarks
+
+- `frontend/` hosts the cortex website (GitHub Pages, deployed on push to `main`):
+  product overview plus bootstrap evaluation metrics.
+- `benchmark/bootstrapbench/` runs `cortex bootstrap` against 69 pinned
+  real-world repositories in isolated containers and extracts chunk, embedding
+  and graph statistics. See [benchmark/bootstrapbench/README.md](benchmark/bootstrapbench/README.md).
 
 ## Support
 
