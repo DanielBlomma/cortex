@@ -613,8 +613,9 @@ async function main(): Promise<void> {
   const output = slots.filter((record): record is EmbeddingRecord => record !== null);
   writeJsonl(EMBEDDINGS_PATH, output);
 
+  const generatedAt = new Date().toISOString();
   const manifest = {
-    generated_at: new Date().toISOString(),
+    generated_at: generatedAt,
     mode,
     model: modelId,
     dimensions,
@@ -644,7 +645,9 @@ async function main(): Promise<void> {
   try {
     const compiled = compileTurboQuantIndex(
       output.map((record) => ({ id: record.id, vector: record.vector })),
-      modelId
+      modelId,
+      PATHS.embeddingsTurboQuant,
+      generatedAt
     );
     if (compiled.written) {
       console.log(`[embed] turboquant index size=${compiled.size} bits=${compiled.bits}`);

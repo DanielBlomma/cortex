@@ -36,20 +36,38 @@ function resolveMode(): VectorMode {
   return raw === "exact" || raw === "turboquant" ? raw : "auto";
 }
 
-function readManifest(): { model?: string; output?: number } | null {
+// Stat fingerprint (mtime:size) used to invalidate the cached backend when any
+// underlying file changes — the same scheme loadEmbeddingIndex keys on.
+function fileVersion(filePath: string): string {
+  try {
+    const stats = fs.statSync(filePath);
+    return `${Math.round(stats.mtimeMs)}:${stats.size}`;
+  } catch {
+    return "none";
+  }
+}
+
+function readManifest(): { model?: string; output?: number; generatedAt?: string } | null {
   try {
     if (!fs.existsSync(PATHS.embeddingsManifest)) {
       return null;
     }
     const parsed = JSON.parse(fs.readFileSync(PATHS.embeddingsManifest, "utf8")) as {
       model?: string;
+      generated_at?: string;
       counts?: { output?: number };
     };
-    return { model: parsed.model, output: parsed.counts?.output };
+    return { model: parsed.model, output: parsed.counts?.output, generatedAt: parsed.generated_at };
   } catch {
     return null;
   }
 }
+
+// Building a backend copies every vector into a slot array (exact) or reads the
+// artifact from disk (quantized). Both are O(N) and must not run per query, so
+// the result is memoized and only rebuilt when an input file changes.
+let cacheKey = "";
+let cachedContext: VectorContext | null = null;
 
 function exactContext(): VectorContext {
   const index = loadEmbeddingIndex();
@@ -62,8 +80,7 @@ function exactContext(): VectorContext {
   };
 }
 
-export function loadVectorContext(): VectorContext {
-  const mode = resolveMode();
+function buildContext(mode: VectorMode): VectorContext {
   if (mode === "turboquant" && fs.existsSync(PATHS.embeddingsTurboQuant)) {
     try {
       const loaded = readTurboQuantIndex(PATHS.embeddingsTurboQuant);
@@ -72,7 +89,14 @@ export function loadVectorContext(): VectorContext {
         manifest?.output !== undefined && manifest.output !== loaded.codes.size;
       const modelMismatch =
         Boolean(manifest?.model) && Boolean(loaded.model) && manifest?.model !== loaded.model;
-      if (!sizeMismatch && !modelMismatch) {
+      // Strong freshness signal: the artifact records the manifest generated_at
+      // it was built from. A regenerated index rewrites that stamp, so a stale
+      // artifact is caught even when model and count are unchanged.
+      const sourceMismatch =
+        Boolean(manifest?.generatedAt) &&
+        Boolean(loaded.source) &&
+        manifest?.generatedAt !== loaded.source;
+      if (!sizeMismatch && !modelMismatch && !sourceMismatch) {
         const backend = new QuantizedVectorBackend(loaded);
         return { model: loaded.model, backend, engine: backend.engine };
       }
@@ -84,4 +108,20 @@ export function loadVectorContext(): VectorContext {
     }
   }
   return exactContext();
+}
+
+export function loadVectorContext(): VectorContext {
+  const mode = resolveMode();
+  const key = [
+    mode,
+    fileVersion(PATHS.embeddingsManifest),
+    fileVersion(PATHS.embeddingsEntities),
+    fileVersion(PATHS.embeddingsTurboQuant)
+  ].join("|");
+  if (cachedContext && cacheKey === key) {
+    return cachedContext;
+  }
+  cachedContext = buildContext(mode);
+  cacheKey = key;
+  return cachedContext;
 }

@@ -30,6 +30,10 @@ const FORMAT_VERSION = 1;
 interface TurboQuantHeader {
   version: number;
   model: string | null;
+  // Identity of the embeddings the artifact was built from (the manifest
+  // generated_at). Compared at load time so a regenerated index with the same
+  // model and count is still detected as stale.
+  source: string | null;
   dim: number;
   paddedDim: number;
   seed: number;
@@ -54,7 +58,8 @@ export function writeTurboQuantIndex(
   params: TurboQuantParams,
   codes: TurboQuantCodes,
   ids: string[],
-  model: string | null
+  model: string | null,
+  source: string | null = null
 ): void {
   const levels = 1 << params.bits;
   const stride = bytesPerVector(params.bits, params.paddedDim);
@@ -63,6 +68,7 @@ export function writeTurboQuantIndex(
   const header: TurboQuantHeader = {
     version: FORMAT_VERSION,
     model,
+    source,
     dim: params.dim,
     paddedDim: params.paddedDim,
     seed: params.seed,
@@ -114,6 +120,7 @@ export interface LoadedTurboQuantIndex {
   codes: TurboQuantCodes;
   ids: string[];
   model: string | null;
+  source: string | null;
 }
 
 export function readTurboQuantIndex(filePath: string): LoadedTurboQuantIndex {
@@ -158,7 +165,13 @@ export function readTurboQuantIndex(filePath: string): LoadedTurboQuantIndex {
     scale,
     codebook: { bits: header.bits, centroids, boundaries }
   };
-  return { params, codes: { size: header.size, codes, corrections }, model: header.model, ids };
+  return {
+    params,
+    codes: { size: header.size, codes, corrections },
+    model: header.model,
+    source: header.source ?? null,
+    ids
+  };
 }
 
 export class QuantizedVectorBackend implements VectorBackend {

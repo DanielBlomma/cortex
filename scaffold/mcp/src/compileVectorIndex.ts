@@ -35,15 +35,22 @@ function quantizeBits(): number {
 export function compileTurboQuantIndex(
   records: VectorRecord[],
   model: string | null,
-  filePath: string = PATHS.embeddingsTurboQuant
+  filePath: string = PATHS.embeddingsTurboQuant,
+  source: string | null = null
 ): CompileResult {
-  const threshold = minQuantizeSize();
-  if (records.length < threshold) {
-    // Remove any stale artifact so the read side falls back to exact.
+  // Any path that does not write a fresh artifact must drop the previous one:
+  // a leftover .tqz no longer matches the current embeddings, and the freshness
+  // check should never have a chance to accept it.
+  const dropStale = (reason: string): CompileResult => {
     if (fs.existsSync(filePath)) {
       fs.rmSync(filePath, { force: true });
     }
-    return { written: false, reason: `corpus ${records.length} < threshold ${threshold}` };
+    return { written: false, reason };
+  };
+
+  const threshold = minQuantizeSize();
+  if (records.length < threshold) {
+    return dropStale(`corpus ${records.length} < threshold ${threshold}`);
   }
 
   let dim = 0;
@@ -54,7 +61,7 @@ export function compileTurboQuantIndex(
     }
   }
   if (dim === 0) {
-    return { written: false, reason: "no non-empty vectors" };
+    return dropStale("no non-empty vectors");
   }
 
   const vectors: Float32Array[] = [];
@@ -66,10 +73,13 @@ export function compileTurboQuantIndex(
     vectors.push(record.vector instanceof Float32Array ? record.vector : Float32Array.from(record.vector));
     ids.push(record.id);
   }
+  if (vectors.length < threshold) {
+    return dropStale(`usable vectors ${vectors.length} < threshold ${threshold}`);
+  }
 
   const bits = quantizeBits();
   const params = fitTurboQuant(vectors, dim, { bits });
   const codes = encodeTurboQuant(vectors, params);
-  writeTurboQuantIndex(filePath, params, codes, ids, model);
+  writeTurboQuantIndex(filePath, params, codes, ids, model, source);
   return { written: true, size: vectors.length, bits };
 }

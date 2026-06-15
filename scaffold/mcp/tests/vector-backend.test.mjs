@@ -149,6 +149,36 @@ test("compileTurboQuantIndex skips small corpora and writes large ones", () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test("TurboQuant artifact stores and returns its source stamp (P2)", () => {
+  const rng = makeRng(55);
+  const dim = 64;
+  const vectors = Array.from({ length: 200 }, () => makeUnitVector(rng, dim));
+  const ids = vectors.map((_, i) => `e${i}`);
+  const params = fitTurboQuant(vectors, dim, { bits: 4 });
+  const codes = encodeTurboQuant(vectors, params);
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "tqs-")), "index.tqz");
+  writeTurboQuantIndex(file, params, codes, ids, "model-a", "2026-06-15T00:00:00.000Z");
+  const loaded = readTurboQuantIndex(file);
+  assert.equal(loaded.source, "2026-06-15T00:00:00.000Z");
+  fs.rmSync(path.dirname(file), { recursive: true, force: true });
+});
+
+test("compileTurboQuantIndex drops a stale artifact on non-written paths (P3)", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tqd-"));
+  const file = path.join(dir, "index.tqz");
+  fs.writeFileSync(file, "stale bytes");
+  process.env.CORTEX_VECTOR_QUANTIZE_MIN = "10";
+
+  // Enough records to pass the threshold, but all vectors empty → must delete.
+  const empty = Array.from({ length: 50 }, (_, i) => ({ id: `e${i}`, vector: new Float32Array(0) }));
+  const result = compileTurboQuantIndex(empty, "m", file);
+  delete process.env.CORTEX_VECTOR_QUANTIZE_MIN;
+
+  assert.equal(result.written, false);
+  assert.equal(fs.existsSync(file), false, "stale artifact must be removed");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test("buildSearchResults uses scoreVectorById when provided", () => {
   const candidates = [
     { id: "near", entity_type: "Chunk", kind: "function", label: "near", path: "src/near.ts", text: "text near", status: "active", source_of_truth: false, trust_level: 50, updated_at: "2026-01-01T00:00:00Z", snippet: "", matched_rules: [] },
