@@ -18,6 +18,7 @@
 import fs from "node:fs";
 import type { VectorBackend } from "./vectorBackend.js";
 import {
+  bytesPerVector,
   prepareQuery as prepareTurboQuery,
   scoreQuantized,
   type TurboQuantCodes,
@@ -52,10 +53,6 @@ interface TurboQuantHeader {
 
 function align4(value: number): number {
   return (value + 3) & ~3;
-}
-
-function bytesPerVector(bits: number, paddedDim: number): number {
-  return bits === 4 ? paddedDim >> 1 : paddedDim;
 }
 
 export function writeTurboQuantIndex(
@@ -150,7 +147,7 @@ export function readTurboQuantIndex(filePath: string): LoadedTurboQuantIndex {
     header.levels !== 1 << header.bits ||
     header.paddedDim <= 0 ||
     header.size < 0 ||
-    header.stride !== (header.bits === 4 ? header.paddedDim >> 1 : header.paddedDim) ||
+    header.stride !== bytesPerVector(header.bits, header.paddedDim) ||
     header.idsBytes < 0
   ) {
     throw new Error("TurboQuant index header failed invariant checks");

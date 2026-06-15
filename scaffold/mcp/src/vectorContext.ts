@@ -17,7 +17,7 @@
  * time so `turboquant` mode (and a future SIMD kernel) can use it immediately.
  */
 import fs from "node:fs";
-import { loadEmbeddingIndex } from "./embeddings.js";
+import { readEmbeddingIndexUncached } from "./embeddings.js";
 import { PATHS } from "./paths.js";
 import { ExactVectorBackend, type VectorBackend } from "./vectorBackend.js";
 import { QuantizedVectorBackend, readTurboQuantIndex } from "./turboquantIndex.js";
@@ -47,17 +47,16 @@ function fileVersion(filePath: string): string {
   }
 }
 
-function readManifest(): { model?: string; output?: number; generatedAt?: string } | null {
+function readManifest(): { model?: string; output?: number } | null {
   try {
     if (!fs.existsSync(PATHS.embeddingsManifest)) {
       return null;
     }
     const parsed = JSON.parse(fs.readFileSync(PATHS.embeddingsManifest, "utf8")) as {
       model?: string;
-      generated_at?: string;
       counts?: { output?: number };
     };
-    return { model: parsed.model, output: parsed.counts?.output, generatedAt: parsed.generated_at };
+    return { model: parsed.model, output: parsed.counts?.output };
   } catch {
     return null;
   }
@@ -70,7 +69,10 @@ let cacheKey = "";
 let cachedContext: VectorContext | null = null;
 
 function exactContext(): VectorContext {
-  const index = loadEmbeddingIndex();
+  // Uncached read: the transient Map is consumed into the slot array and then
+  // GC'd. The cached VectorContext (this result) is the only retained copy, so
+  // steady-state memory is one slot array — never a Map plus a slot array.
+  const index = readEmbeddingIndexUncached();
   const backend = index.vectors.size > 0 ? ExactVectorBackend.fromVectors(index.vectors) : null;
   return {
     model: index.model,

@@ -16,7 +16,7 @@ import fs from "node:fs";
 import { performance } from "node:perf_hooks";
 
 import { ExactVectorBackend } from "../dist/vectorBackend.js";
-import { fitTurboQuant, encodeTurboQuant } from "../dist/turboquant.js";
+import { fitTurboQuant, encodeTurboQuant, bytesPerVector } from "../dist/turboquant.js";
 import { QuantizedVectorBackend } from "../dist/turboquantIndex.js";
 
 function parseArgs(argv) {
@@ -137,7 +137,7 @@ function main() {
 
   const recall = hits / (queryIdx.length * opts.k);
   const exactBytes = vectors.length * dim * 4;
-  const stride = opts.bits === 4 ? params.paddedDim >> 1 : params.paddedDim;
+  const stride = bytesPerVector(opts.bits, params.paddedDim);
   const quantBytes = vectors.length * (stride + 4); // codes + correction f32
 
   const fmtMB = (b) => (b / (1024 * 1024)).toFixed(1);

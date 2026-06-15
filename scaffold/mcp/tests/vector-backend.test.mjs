@@ -127,6 +127,40 @@ test("QuantizedVectorBackend keeps recall@10 close to exact", () => {
   assert.ok(recall >= 0.8, `recall@10 = ${recall.toFixed(3)} should be >= 0.8`);
 });
 
+test("2-bit quantization packs 4 codes/byte and round-trips with usable recall", () => {
+  const rng = makeRng(88);
+  const dim = 256;
+  const corpus = Array.from({ length: 1200 }, () => makeUnitVector(rng, dim));
+  const ids = corpus.map((_, i) => `e${i}`);
+  const params = fitTurboQuant(corpus, dim, { bits: 2 });
+  const codes = encodeTurboQuant(corpus, params);
+
+  // 2-bit must store paddedDim/4 bytes per vector, not paddedDim.
+  assert.equal(codes.codes.length, corpus.length * (params.paddedDim >> 2));
+
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "tq2-")), "index.tqz");
+  writeTurboQuantIndex(file, params, codes, ids, "m", "fp");
+  const loaded = readTurboQuantIndex(file);
+  assert.equal(loaded.params.bits, 2);
+  const backend = new QuantizedVectorBackend(loaded);
+  const exact = ExactVectorBackend.fromVectors(new Map(ids.map((id, i) => [id, corpus[i]])));
+
+  let hits = 0;
+  const k = 10;
+  const queries = 20;
+  for (let qi = 0; qi < queries; qi += 1) {
+    const query = makeUnitVector(rng, dim);
+    const e = exact.prepareQuery(query);
+    const a = backend.prepareQuery(query);
+    const top = (score) => ids.map((id) => ({ id, s: score(id) })).sort((x, y) => y.s - x.s).slice(0, k).map((r) => r.id);
+    const set = new Set(top(e));
+    hits += top(a).filter((id) => set.has(id)).length;
+  }
+  // 2-bit is coarser than 4-bit; only assert it is meaningfully better than chance.
+  assert.ok(hits / (queries * k) >= 0.4, `2-bit recall@10 = ${(hits / (queries * k)).toFixed(3)}`);
+  fs.rmSync(path.dirname(file), { recursive: true, force: true });
+});
+
 test("compileTurboQuantIndex skips small corpora and writes large ones", () => {
   const rng = makeRng(44);
   const dim = 64;

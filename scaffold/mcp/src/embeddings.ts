@@ -94,28 +94,30 @@ function parseEmbeddingIndex(raw: JsonObject[]): EmbeddingIndex {
   return { model, vectors };
 }
 
+// Parse the embeddings index from disk without populating the module cache.
+// The vector backend consumes this into a contiguous slot array and the Map is
+// then discarded, so retaining it here would double resident vector memory.
+export function readEmbeddingIndexUncached(): EmbeddingIndex {
+  if (!fs.existsSync(PATHS.embeddingsEntities)) {
+    return {
+      model: null,
+      vectors: new Map(),
+      warning: "Embedding index missing (run: cortex embed)"
+    };
+  }
+  const parsed = parseEmbeddingIndex(readJsonl(PATHS.embeddingsEntities));
+  return parsed.vectors.size === 0
+    ? { ...parsed, warning: "Embedding index is empty; using lexical fallback." }
+    : parsed;
+}
+
 export function loadEmbeddingIndex(): EmbeddingIndex {
   const key = `${readFileVersion(PATHS.embeddingsManifest)}|${readFileVersion(PATHS.embeddingsEntities)}`;
   if (embeddingsCacheKey === key) {
     return embeddingsCache;
   }
-
-  if (!fs.existsSync(PATHS.embeddingsEntities)) {
-    embeddingsCacheKey = key;
-    embeddingsCache = {
-      model: null,
-      vectors: new Map(),
-      warning: "Embedding index missing (run: cortex embed)"
-    };
-    return embeddingsCache;
-  }
-
-  const parsed = parseEmbeddingIndex(readJsonl(PATHS.embeddingsEntities));
+  embeddingsCache = readEmbeddingIndexUncached();
   embeddingsCacheKey = key;
-  embeddingsCache =
-    parsed.vectors.size === 0
-      ? { ...parsed, warning: "Embedding index is empty; using lexical fallback." }
-      : parsed;
   return embeddingsCache;
 }
 

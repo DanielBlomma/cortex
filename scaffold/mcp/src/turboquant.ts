@@ -311,14 +311,28 @@ function packCodes(perVectorCodes: Uint8Array, bits: number, paddedDim: number, 
     }
     return;
   }
-  // Fallback: one code per byte for non-4-bit depths.
+  if (bits === 2) {
+    // Four 2-bit codes per byte, so 2-bit actually delivers its memory win.
+    const packedLen = paddedDim >> 2;
+    for (let i = 0; i < packedLen; i += 1) {
+      const a = perVectorCodes[i * 4] & 0x03;
+      const b = perVectorCodes[i * 4 + 1] & 0x03;
+      const c = perVectorCodes[i * 4 + 2] & 0x03;
+      const d = perVectorCodes[i * 4 + 3] & 0x03;
+      target[offset + i] = a | (b << 2) | (c << 4) | (d << 6);
+    }
+    return;
+  }
+  // Fallback: one code per byte for unsupported depths.
   for (let i = 0; i < paddedDim; i += 1) {
     target[offset + i] = perVectorCodes[i];
   }
 }
 
-function bytesPerVector(bits: number, paddedDim: number): number {
-  return bits === 4 ? paddedDim >> 1 : paddedDim;
+export function bytesPerVector(bits: number, paddedDim: number): number {
+  if (bits === 4) return paddedDim >> 1;
+  if (bits === 2) return paddedDim >> 2;
+  return paddedDim;
 }
 
 /**
@@ -409,6 +423,15 @@ export function scoreQuantized(
       const j = i * 2;
       acc += lut[j * levels + lo];
       acc += lut[(j + 1) * levels + hi];
+    }
+  } else if (bits === 2) {
+    for (let i = 0; i < stride; i += 1) {
+      const byte = codes[base + i];
+      const j = i * 4;
+      acc += lut[j * levels + (byte & 0x03)];
+      acc += lut[(j + 1) * levels + ((byte >> 2) & 0x03)];
+      acc += lut[(j + 2) * levels + ((byte >> 4) & 0x03)];
+      acc += lut[(j + 3) * levels + ((byte >> 6) & 0x03)];
     }
   } else {
     for (let j = 0; j < paddedDim; j += 1) {
