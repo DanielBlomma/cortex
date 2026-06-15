@@ -22,6 +22,18 @@ export interface CompileResult {
   bits?: number;
 }
 
+// Fingerprint (mtime:size) of the embeddings file the artifact is built from,
+// stamped into the index so the loader can detect staleness against the
+// current entities.jsonl. Matches the scheme loadEmbeddingIndex keys on.
+export function embeddingsFingerprint(filePath: string = PATHS.embeddingsEntities): string {
+  try {
+    const stats = fs.statSync(filePath);
+    return `${Math.round(stats.mtimeMs)}:${stats.size}`;
+  } catch {
+    return "none";
+  }
+}
+
 function minQuantizeSize(): number {
   const raw = Number(process.env.CORTEX_VECTOR_QUANTIZE_MIN);
   return Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : DEFAULT_MIN_QUANTIZE_SIZE;
@@ -36,7 +48,7 @@ export function compileTurboQuantIndex(
   records: VectorRecord[],
   model: string | null,
   filePath: string = PATHS.embeddingsTurboQuant,
-  source: string | null = null
+  source: string | null = embeddingsFingerprint()
 ): CompileResult {
   // Any path that does not write a fresh artifact must drop the previous one:
   // a leftover .tqz no longer matches the current embeddings, and the freshness

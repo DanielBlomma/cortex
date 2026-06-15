@@ -89,13 +89,12 @@ function buildContext(mode: VectorMode): VectorContext {
         manifest?.output !== undefined && manifest.output !== loaded.codes.size;
       const modelMismatch =
         Boolean(manifest?.model) && Boolean(loaded.model) && manifest?.model !== loaded.model;
-      // Strong freshness signal: the artifact records the manifest generated_at
-      // it was built from. A regenerated index rewrites that stamp, so a stale
-      // artifact is caught even when model and count are unchanged.
-      const sourceMismatch =
-        Boolean(manifest?.generatedAt) &&
-        Boolean(loaded.source) &&
-        manifest?.generatedAt !== loaded.source;
+      // Freshness is tied to the actual embeddings file: the artifact stores the
+      // entities.jsonl fingerprint it was built from. A regenerated or
+      // partially-written index no longer matches the live file. An artifact
+      // with no source predates this guarantee and is treated as stale.
+      const liveFingerprint = fileVersion(PATHS.embeddingsEntities);
+      const sourceMismatch = !loaded.source || loaded.source !== liveFingerprint;
       if (!sizeMismatch && !modelMismatch && !sourceMismatch) {
         const backend = new QuantizedVectorBackend(loaded);
         return { model: loaded.model, backend, engine: backend.engine };

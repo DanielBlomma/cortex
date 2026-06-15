@@ -25,14 +25,19 @@ import {
 } from "./turboquant.js";
 
 const MAGIC = "TQZ1";
-const FORMAT_VERSION = 1;
+// v2 ties `source` to the entities.jsonl fingerprint (was the manifest
+// timestamp) and adds structural validation on read. v1 artifacts are
+// rejected by the version check and recompiled.
+const FORMAT_VERSION = 2;
+const SUPPORTED_BITS = new Set([2, 4]);
 
 interface TurboQuantHeader {
   version: number;
   model: string | null;
-  // Identity of the embeddings the artifact was built from (the manifest
-  // generated_at). Compared at load time so a regenerated index with the same
-  // model and count is still detected as stale.
+  // Fingerprint of the entities.jsonl the artifact was built from
+  // (mtime:size). Compared at load time against the current embeddings file,
+  // so a regenerated or partially-written index is detected as stale even when
+  // model and count are unchanged.
   source: string | null;
   dim: number;
   paddedDim: number;
@@ -129,9 +134,32 @@ export function readTurboQuantIndex(filePath: string): LoadedTurboQuantIndex {
     throw new Error("Not a TurboQuant index (bad magic)");
   }
   const headerLen = buffer.readUInt32LE(4);
+  if (8 + headerLen > buffer.length) {
+    throw new Error("TurboQuant index truncated (header)");
+  }
   const header = JSON.parse(buffer.toString("utf8", 8, 8 + headerLen)) as TurboQuantHeader;
   if (header.version !== FORMAT_VERSION) {
     throw new Error(`Unsupported TurboQuant index version ${header.version}`);
+  }
+
+  // Validate header invariants before trusting any size for slicing. A
+  // malformed-but-parseable artifact must throw so search falls back to exact
+  // rather than scoring against undefined slots.
+  if (
+    !SUPPORTED_BITS.has(header.bits) ||
+    header.levels !== 1 << header.bits ||
+    header.paddedDim <= 0 ||
+    header.size < 0 ||
+    header.stride !== (header.bits === 4 ? header.paddedDim >> 1 : header.paddedDim) ||
+    header.idsBytes < 0
+  ) {
+    throw new Error("TurboQuant index header failed invariant checks");
+  }
+  const floatCount = header.paddedDim * 2 + header.levels + (header.levels - 1) + header.size;
+  const expectedBytes =
+    8 + align4(headerLen) + floatCount * 4 + header.size * header.stride + header.idsBytes;
+  if (buffer.length < expectedBytes) {
+    throw new Error("TurboQuant index truncated (body)");
   }
 
   let offset = 8 + align4(headerLen);
@@ -154,6 +182,9 @@ export function readTurboQuantIndex(filePath: string): LoadedTurboQuantIndex {
   offset += codes.length;
 
   const ids = JSON.parse(buffer.toString("utf8", offset, offset + header.idsBytes)) as string[];
+  if (!Array.isArray(ids) || ids.length !== header.size) {
+    throw new Error(`TurboQuant index id count ${Array.isArray(ids) ? ids.length : "n/a"} != size ${header.size}`);
+  }
 
   const params: TurboQuantParams = {
     dim: header.dim,

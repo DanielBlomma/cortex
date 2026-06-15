@@ -75,6 +75,13 @@ export class ExactVectorBackend implements VectorBackend {
 
   prepareQuery(query: Float32Array): (id: string) => number | null {
     const dim = this.dim;
+    const slotById = this.slotById;
+    // Dimension mismatch (stale/corrupt index or a model change) is not a
+    // valid comparison. Match the old cosineSimilarity contract: yield 0 for
+    // indexed entities rather than scoring an arbitrary shared prefix.
+    if (query.length !== dim) {
+      return (id: string): number | null => (slotById.has(id) ? 0 : null);
+    }
     let queryNormSq = 0;
     for (let i = 0; i < query.length; i += 1) {
       queryNormSq += query[i] * query[i];
@@ -82,8 +89,6 @@ export class ExactVectorBackend implements VectorBackend {
     const invQueryNorm = queryNormSq > 0 ? 1 / Math.sqrt(queryNormSq) : 0;
     const data = this.data;
     const invNorm = this.invNorm;
-    const slotById = this.slotById;
-    const usableDim = Math.min(dim, query.length);
 
     return (id: string): number | null => {
       const slot = slotById.get(id);
@@ -95,7 +100,7 @@ export class ExactVectorBackend implements VectorBackend {
       }
       const offset = slot * dim;
       let dot = 0;
-      for (let i = 0; i < usableDim; i += 1) {
+      for (let i = 0; i < dim; i += 1) {
         dot += query[i] * data[offset + i];
       }
       return dot * invQueryNorm * invNorm[slot];

@@ -149,6 +149,33 @@ test("compileTurboQuantIndex skips small corpora and writes large ones", () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test("ExactVectorBackend yields 0 on dimension mismatch, not a prefix score (P3)", () => {
+  const rng = makeRng(66);
+  const vectors = new Map();
+  for (let i = 0; i < 10; i += 1) vectors.set(`e${i}`, makeUnitVector(rng, 64));
+  const backend = ExactVectorBackend.fromVectors(vectors);
+  const wrongDim = makeUnitVector(rng, 32);
+  const score = backend.prepareQuery(wrongDim);
+  assert.equal(score("e0"), 0, "mismatched-dim query must score 0 for indexed entities");
+  assert.equal(score("missing"), null);
+});
+
+test("readTurboQuantIndex throws on a truncated artifact (P3)", () => {
+  const rng = makeRng(77);
+  const dim = 64;
+  const vectors = Array.from({ length: 200 }, () => makeUnitVector(rng, dim));
+  const ids = vectors.map((_, i) => `e${i}`);
+  const params = fitTurboQuant(vectors, dim, { bits: 4 });
+  const codes = encodeTurboQuant(vectors, params);
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "tqt-")), "index.tqz");
+  writeTurboQuantIndex(file, params, codes, ids, "m", "fp");
+  // Lop off the tail so header sizes exceed the actual body.
+  const size = fs.statSync(file).size;
+  fs.truncateSync(file, Math.floor(size / 2));
+  assert.throws(() => readTurboQuantIndex(file), /truncated|invariant|!= size/i);
+  fs.rmSync(path.dirname(file), { recursive: true, force: true });
+});
+
 test("TurboQuant artifact stores and returns its source stamp (P2)", () => {
   const rng = makeRng(55);
   const dim = 64;

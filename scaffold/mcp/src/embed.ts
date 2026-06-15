@@ -643,11 +643,11 @@ async function main(): Promise<void> {
   // Compile the quantized TurboQuant index for fast, low-memory search.
   // Failures here never break the embed: search falls back to the exact scan.
   try {
+    // source defaults to the entities.jsonl fingerprint, which the loader
+    // compares against the live embeddings file to detect staleness.
     const compiled = compileTurboQuantIndex(
       output.map((record) => ({ id: record.id, vector: record.vector })),
-      modelId,
-      PATHS.embeddingsTurboQuant,
-      generatedAt
+      modelId
     );
     if (compiled.written) {
       console.log(`[embed] turboquant index size=${compiled.size} bits=${compiled.bits}`);

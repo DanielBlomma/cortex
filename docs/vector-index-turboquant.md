@@ -46,8 +46,14 @@ lookup table; stored vectors are scored directly from their 4-bit codes.
 | `CORTEX_VECTOR_QUANTIZE_BITS` | `4` | Quantization bit depth (`4` or `2`). |
 
 The quantized path never load-bears: a missing, stale, or unreadable artifact
-silently falls back to the exact scan, and a stale artifact (size/model
-mismatch vs the embeddings manifest) is ignored.
+silently falls back to the exact scan. Freshness is tied to the actual
+embeddings file — the artifact stores the `entities.jsonl` fingerprint
+(mtime:size) it was built from and is rejected when that no longer matches the
+live file (so a regenerated or partially-written index is caught even when the
+model and entity count are unchanged). Artifacts are structurally validated on
+read (header invariants, body length, id count) and any malformed artifact
+throws and falls back to exact. The resolved `VectorContext` is memoized and
+rebuilt only when the manifest, entities, or artifact file changes.
 
 ## Measured results
 

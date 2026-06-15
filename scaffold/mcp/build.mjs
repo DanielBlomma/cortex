@@ -16,11 +16,9 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(ROOT, "dist");
+const SRC = path.join(ROOT, "src");
 const MARKER = path.join(DIST, ".cortex-build-hash");
 const TSBUILDINFO = path.join(DIST, ".tsbuildinfo");
-// Every runtime entrypoint must exist for a build to count as current;
-// checking only one would let a partially deleted dist pass as fresh.
-const ENTRIES = ["server.js", "embed.js", "loadGraph.js"].map((name) => path.join(DIST, name));
 
 function collectSources(dir, files = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
@@ -57,10 +55,29 @@ function inputHash() {
   return hash.digest("hex");
 }
 
+// Every emitting source must have its compiled output, or a partially
+// deleted dist would pass as fresh and crash at import time. .d.ts files emit
+// nothing, so they are excluded.
+function allOutputsPresent() {
+  if (!fs.existsSync(SRC)) {
+    return true;
+  }
+  for (const file of collectSources(SRC)) {
+    if (file.endsWith(".d.ts")) {
+      continue;
+    }
+    const rel = path.relative(SRC, file).replace(/\.ts$/, ".js");
+    if (!fs.existsSync(path.join(DIST, rel))) {
+      return false;
+    }
+  }
+  return true;
+}
+
 const force = process.argv.includes("--force");
 const current = inputHash();
 
-if (!force && ENTRIES.every((entry) => fs.existsSync(entry)) && fs.existsSync(MARKER)) {
+if (!force && allOutputsPresent() && fs.existsSync(MARKER)) {
   try {
     if (fs.readFileSync(MARKER, "utf8").trim() === current) {
       console.log("[build] dist is up to date (sources unchanged)");
