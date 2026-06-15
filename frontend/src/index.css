@@ -38,3 +38,122 @@ body,
 body {
   @apply bg-background text-foreground;
 }
+
+.scrollbar-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Bootstrap pipeline visualization ──────────────────────────────────── */
+
+@keyframes cortex-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes cortex-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes cortex-fill-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes cortex-draw {
+  from {
+    stroke-dashoffset: var(--cortex-dash, 300);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes cortex-travel {
+  0% {
+    transform: translateX(-60%);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(380%);
+    opacity: 0;
+  }
+}
+
+.cortex-anim-rise {
+  animation: cortex-rise 0.5s ease-out both;
+}
+
+.cortex-anim-pop {
+  animation: cortex-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.cortex-fillbar {
+  transform-origin: left center;
+  animation: cortex-fill-x 0.9s ease-out both;
+}
+
+.cortex-edge {
+  animation: cortex-draw 0.7s ease-out both;
+}
+
+.cortex-track {
+  position: relative;
+  overflow: hidden;
+}
+
+.cortex-track-dot {
+  opacity: 0;
+  animation: cortex-travel 1.8s ease-in-out infinite;
+}
+
+.cortex-progress {
+  transform-origin: left center;
+  animation: cortex-fill-x linear forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cortex-anim-rise,
+  .cortex-anim-pop,
+  .cortex-fillbar,
+  .cortex-edge,
+  .cortex-track-dot,
+  .cortex-progress {
+    animation: none !important;
+  }
+
+  .cortex-edge {
+    stroke-dashoffset: 0 !important;
+  }
+}

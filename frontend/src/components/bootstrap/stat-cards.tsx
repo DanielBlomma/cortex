@@ -1,12 +1,14 @@
-import type { LucideIcon } from "lucide-react";
+import { CircleHelp, type LucideIcon } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export type StatCardDatum = {
   label: string;
   value: string;
   hint?: string;
+  explanation?: string;
   icon?: LucideIcon;
 };
 
@@ -18,7 +20,8 @@ export function StatCards({ stats }: { stats: StatCardDatum[] }) {
           <CardContent className="flex flex-col gap-1 p-5">
             <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {stat.icon ? <stat.icon className="h-3.5 w-3.5" /> : null}
-              {stat.label}
+              <span>{stat.label}</span>
+              {stat.explanation ? <MetricHelp label={stat.label} explanation={stat.explanation} /> : null}
             </div>
             <div className="text-2xl font-semibold tabular-nums tracking-tight">{stat.value}</div>
             {stat.hint ? <div className="text-xs text-muted-foreground">{stat.hint}</div> : null}
@@ -26,6 +29,24 @@ export function StatCards({ stats }: { stats: StatCardDatum[] }) {
         </Card>
       ))}
     </div>
+  );
+}
+
+export function MetricHelp({ label, explanation }: { label: string; explanation: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          role="button"
+          tabIndex={0}
+          className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          aria-label={`What ${label} means`}
+        >
+          <CircleHelp className="h-3.5 w-3.5" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{explanation}</TooltipContent>
+    </Tooltip>
   );
 }
 

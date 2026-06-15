@@ -3,6 +3,11 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Label,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Scatter,
   ScatterChart,
@@ -35,7 +40,7 @@ const TOOLTIP_STYLE = {
   background: "hsl(var(--background))"
 } as const;
 
-type HistogramSeries = { name: string; histogram: HistogramBucket[]; color?: string };
+export type HistogramSeries = { name: string; histogram: HistogramBucket[]; color?: string };
 
 /**
  * Fixed-bucket histogram as a (optionally grouped) bar chart. All series must
@@ -127,7 +132,98 @@ export function HistogramChart({
   );
 }
 
+export function DistributionLineChart({
+  series,
+  height = 320,
+  unit,
+  valueLabel = "chunks"
+}: {
+  series: HistogramSeries[];
+  height?: number;
+  unit: string;
+  valueLabel?: string;
+}) {
+  const present = series.filter((entry) => entry.histogram.length > 0);
+  if (present.length === 0) {
+    return <EmptyChart height={height} />;
+  }
+
+  const labels = present[0].histogram.map((bucket) => bucket.label);
+  const data = labels.map((label, bucketIndex) => {
+    const row: Record<string, string | number> = { label };
+    for (const entry of present) {
+      row[entry.name] = entry.histogram[bucketIndex]?.count ?? 0;
+    }
+    return row;
+  });
+  const hasLegend = present.length > 1;
+
+  return (
+    <div className="flex flex-col" style={{ height }}>
+      <div className="min-h-0 flex-1">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ top: 8, right: 16, bottom: 32, left: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={AXIS_TICK}
+              tickLine={false}
+              axisLine={false}
+              label={{
+                value: `chunk size (${unit})`,
+                position: "insideBottom",
+                offset: -12,
+                fontSize: 11,
+                fill: "hsl(var(--muted-foreground))"
+              }}
+            />
+            <YAxis
+              tick={AXIS_TICK}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={formatCount}
+              label={{
+                value: valueLabel,
+                angle: -90,
+                position: "insideLeft",
+                fontSize: 11,
+                fill: "hsl(var(--muted-foreground))"
+              }}
+            />
+            <RechartsTooltip
+              contentStyle={TOOLTIP_STYLE}
+              formatter={(value: number, name: string) => [`${formatCount(value)} ${valueLabel}`, name]}
+              labelFormatter={(label: string) => `${label} ${unit}`}
+            />
+            {present.map((entry, index) => (
+              <Line
+                key={entry.name}
+                type="monotone"
+                dataKey={entry.name}
+                stroke={entry.color ?? chartColor(index)}
+                strokeWidth={2}
+                dot={{ r: 2 }}
+                activeDot={{ r: 4 }}
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      {hasLegend ? (
+        <ChartLegend
+          items={present.map((entry, index) => ({
+            label: entry.name,
+            color: entry.color ?? chartColor(index)
+          }))}
+          marker="circle"
+        />
+      ) : null}
+    </div>
+  );
+}
+
 export type CategoryDatum = { name: string; value: number };
+export type DistributionSlice = { id: string; label: string; count: number; fill?: string };
 
 /** Horizontal bar chart for categorical breakdowns (relation types, languages). */
 export function CategoryBarChart({
@@ -184,12 +280,16 @@ export function RepoScatterChart({
   points,
   xLabel,
   yLabel,
-  height = 300
+  height = 300,
+  xValueFormatter = formatCount,
+  yValueFormatter = formatCount
 }: {
   points: ScatterPoint[];
   xLabel: string;
   yLabel: string;
   height?: number;
+  xValueFormatter?: (value: number) => string;
+  yValueFormatter?: (value: number) => string;
 }) {
   if (points.length === 0) {
     return <EmptyChart height={height} />;
@@ -200,7 +300,7 @@ export function RepoScatterChart({
     <div className="flex flex-col" style={{ height }}>
       <div className="min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
-          <ScatterChart margin={{ top: 8, right: 16, bottom: 32, left: 8 }}>
+          <ScatterChart margin={{ top: 12, right: 20, bottom: 48, left: 20 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis
               type="number"
@@ -208,11 +308,11 @@ export function RepoScatterChart({
               name={xLabel}
               tick={AXIS_TICK}
               tickLine={false}
-              tickFormatter={formatCount}
+              tickFormatter={xValueFormatter}
               label={{
                 value: xLabel,
                 position: "insideBottom",
-                offset: -12,
+                offset: -28,
                 fontSize: 11,
                 fill: "hsl(var(--muted-foreground))"
               }}
@@ -221,13 +321,15 @@ export function RepoScatterChart({
               type="number"
               dataKey="y"
               name={yLabel}
+              width={72}
               tick={AXIS_TICK}
               tickLine={false}
-              tickFormatter={formatCount}
+              tickFormatter={yValueFormatter}
               label={{
                 value: yLabel,
                 angle: -90,
                 position: "insideLeft",
+                offset: -2,
                 fontSize: 11,
                 fill: "hsl(var(--muted-foreground))"
               }}
@@ -236,7 +338,10 @@ export function RepoScatterChart({
             <RechartsTooltip
               contentStyle={TOOLTIP_STYLE}
               cursor={{ strokeDasharray: "3 3" }}
-              formatter={(value: number, name: string) => [formatCount(value), name]}
+              formatter={(value: number, name: string) => [
+                name === xLabel ? xValueFormatter(value) : yValueFormatter(value),
+                name
+              ]}
               labelFormatter={() => ""}
               content={({ payload }) => {
                 const point = payload?.[0]?.payload as ScatterPoint | undefined;
@@ -247,7 +352,7 @@ export function RepoScatterChart({
                   <div style={TOOLTIP_STYLE} className="px-3 py-2">
                     <div className="text-xs font-medium">{point.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {xLabel}: {formatCount(point.x)} · {yLabel}: {formatCount(point.y)}
+                      {xLabel}: {xValueFormatter(point.x)} · {yLabel}: {yValueFormatter(point.y)}
                     </div>
                   </div>
                 );
@@ -274,6 +379,134 @@ export function RepoScatterChart({
         />
       ) : null}
     </div>
+  );
+}
+
+export function DistributionDonutChart({
+  data,
+  height = 260,
+  variant = "donut",
+  centerValue,
+  centerLabel,
+  valueLabel = "repos"
+}: {
+  data: DistributionSlice[];
+  height?: number;
+  variant?: "donut" | "label";
+  centerValue?: number;
+  centerLabel?: string;
+  valueLabel?: string;
+}) {
+  if (data.length === 0) {
+    return <EmptyChart height={height} />;
+  }
+
+  const total = data.reduce((sum, entry) => sum + entry.count, 0);
+  const displayedCenterValue = centerValue ?? total;
+  const displayedCenterLabel = centerLabel ?? valueLabel;
+  const outerRadius = variant === "label" ? 74 : 76;
+  const innerRadius = variant === "donut" ? 48 : 0;
+
+  return (
+    <div className="flex flex-col" style={{ height }}>
+      <div className="min-h-0 flex-1">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart margin={{ top: 16, right: 16, bottom: 8, left: 16 }}>
+            <RechartsTooltip
+              contentStyle={TOOLTIP_STYLE}
+              formatter={(value: number, name: string, item) => {
+                const payload = item.payload as DistributionSlice | undefined;
+                const percent = total > 0 ? (value / total) * 100 : 0;
+                return [`${formatCount(value)} ${valueLabel} (${percent.toFixed(1)}%)`, payload?.label ?? name];
+              }}
+            />
+            <Pie
+              data={data}
+              dataKey="count"
+              nameKey="id"
+              cx="50%"
+              cy="50%"
+              innerRadius={innerRadius}
+              outerRadius={outerRadius}
+              stroke="none"
+              labelLine={false}
+              label={variant === "label" ? renderPieLabel : false}
+            >
+              {data.map((entry, index) => (
+                <Cell key={entry.id} fill={entry.fill ?? chartColor(index)} />
+              ))}
+              {variant === "donut" ? (
+                <Label
+                  content={({ viewBox }) => {
+                    if (!viewBox || !("cx" in viewBox) || !("cy" in viewBox)) {
+                      return null;
+                    }
+                    return (
+                      <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="middle">
+                        <tspan x={viewBox.cx} y={viewBox.cy} className="fill-foreground text-2xl font-semibold">
+                          {formatCount(displayedCenterValue)}
+                        </tspan>
+                        <tspan x={viewBox.cx} y={(viewBox.cy ?? 0) + 20} className="fill-muted-foreground text-xs">
+                          {displayedCenterLabel}
+                        </tspan>
+                      </text>
+                    );
+                  }}
+                />
+              ) : null}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <ChartLegend
+        items={data.map((entry, index) => ({
+          label: entry.label,
+          color: entry.fill ?? chartColor(index)
+        }))}
+        marker="circle"
+      />
+    </div>
+  );
+}
+
+function renderPieLabel({
+  cx,
+  cy,
+  midAngle,
+  outerRadius,
+  payload
+}: {
+  cx?: number;
+  cy?: number;
+  midAngle?: number;
+  outerRadius?: number;
+  payload?: DistributionSlice;
+}) {
+  if (
+    !payload ||
+    typeof cx !== "number" ||
+    typeof cy !== "number" ||
+    typeof midAngle !== "number" ||
+    typeof outerRadius !== "number"
+  ) {
+    return null;
+  }
+
+  const radius = outerRadius + 20;
+  const angle = -midAngle * (Math.PI / 180);
+  const x = cx + radius * Math.cos(angle);
+  const y = cy + radius * Math.sin(angle);
+
+  return (
+    <text
+      x={x}
+      y={y}
+      textAnchor={x > cx ? "start" : "end"}
+      dominantBaseline="central"
+      className="fill-foreground text-xs"
+    >
+      {payload.label}
+    </text>
   );
 }
 
