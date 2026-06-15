@@ -23,13 +23,18 @@ export function buildSearchResults(params: {
   includeScores: boolean;
   includeMatchedRules: boolean;
   includeContent: boolean;
-  queryVector: Float32Array | null;
-  embeddingVectors: Map<string, Float32Array>;
+  queryVector?: Float32Array | null;
+  embeddingVectors?: Map<string, Float32Array>;
+  // Per-query closure mapping an entity id to its cosine estimate in [-1, 1]
+  // (null when not indexed). When provided it takes precedence over the
+  // legacy queryVector + embeddingVectors + vectorScorer triple, letting the
+  // exact and quantized backends plug into the same fused ranking.
+  scoreVectorById?: ((id: string) => number | null) | null;
   topK: number;
   minLexicalRelevance: number;
   minVectorRelevance: number;
   semanticScorer: (queryTokens: string[], queryPhrase: string, text: string) => number;
-  vectorScorer: (a: Float32Array, b: Float32Array) => number;
+  vectorScorer?: (a: Float32Array, b: Float32Array) => number;
   recencyScorer: (isoDate: string) => number;
   legacyDataAccessBooster: (entity: SearchEntity, queryTokens: string[], queryPhrase: string) => number;
 }): Record<string, unknown>[] {
@@ -68,11 +73,15 @@ export function buildSearchResults(params: {
   const rawResults = params.candidates
     .map((entity) => {
       const lexicalSemantic = params.semanticScorer(params.queryTokens, params.queryPhrase, entity.text);
-      const entityVector = params.embeddingVectors.get(entity.id);
+      let rawVectorScore: number | null = null;
+      if (params.scoreVectorById) {
+        rawVectorScore = params.scoreVectorById(entity.id);
+      } else if (params.queryVector && params.embeddingVectors && params.vectorScorer) {
+        const entityVector = params.embeddingVectors.get(entity.id);
+        rawVectorScore = entityVector ? params.vectorScorer(params.queryVector, entityVector) : null;
+      }
       const vectorSemantic =
-        params.queryVector && entityVector
-          ? Math.max(0, Math.min(1, params.vectorScorer(params.queryVector, entityVector)))
-          : 0;
+        rawVectorScore !== null ? Math.max(0, Math.min(1, rawVectorScore)) : 0;
       const hasRelevanceSignal =
         lexicalSemantic >= params.minLexicalRelevance || vectorSemantic >= params.minVectorRelevance;
       if (!hasRelevanceSignal) {

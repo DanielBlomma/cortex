@@ -1,4 +1,5 @@
-import { embedQuery, getEmbeddingRuntimeWarning, loadEmbeddingIndex } from "./embeddings.js";
+import { embedQuery, getEmbeddingRuntimeWarning } from "./embeddings.js";
+import { loadVectorContext } from "./vectorContext.js";
 import {
   buildChunkPartOfRelations,
   buildEntitySearchMap,
@@ -11,7 +12,6 @@ import { buildEmptyImpactResponse, buildImpactResponseMeta } from "./impactRespo
 import { buildImpactResults } from "./impactResults.js";
 import { resolveImpactSeed } from "./impactSeed.js";
 import {
-  cosineSimilarity,
   expandQueryTokens,
   legacyDataAccessBoost,
   normalizeText,
@@ -71,11 +71,10 @@ export async function runContextSearch(parsed: SearchParams): Promise<ToolPayloa
   const candidates = buildSearchEntities(data, includeContent).filter(
     (entity) => parsed.include_deprecated || entity.status.toLowerCase() !== "deprecated"
   );
-  const embeddings = loadEmbeddingIndex();
+  const vector = loadVectorContext();
   const queryVector =
-    embeddings.model && embeddings.vectors.size > 0
-      ? await embedQuery(parsed.query, embeddings.model)
-      : null;
+    vector.model && vector.backend ? await embedQuery(parsed.query, vector.model) : null;
+  const scoreVectorById = queryVector && vector.backend ? vector.backend.prepareQuery(queryVector) : null;
 
   const results = buildSearchResults({
     candidates,
@@ -86,18 +85,16 @@ export async function runContextSearch(parsed: SearchParams): Promise<ToolPayloa
     includeScores,
     includeMatchedRules,
     includeContent,
-    queryVector,
-    embeddingVectors: embeddings.vectors,
+    scoreVectorById,
     topK: parsed.top_k,
     minLexicalRelevance: MIN_LEXICAL_RELEVANCE,
     minVectorRelevance: MIN_VECTOR_RELEVANCE,
     semanticScorer: semanticScore,
-    vectorScorer: cosineSimilarity,
     recencyScorer: recencyScore,
     legacyDataAccessBooster: legacyDataAccessBoost
   });
 
-  const warningMessages = [data.warning, embeddings.warning, getEmbeddingRuntimeWarning()].filter(Boolean);
+  const warningMessages = [data.warning, vector.warning, getEmbeddingRuntimeWarning()].filter(Boolean);
 
   return {
     query: parsed.query,
@@ -111,7 +108,9 @@ export async function runContextSearch(parsed: SearchParams): Promise<ToolPayloa
     context_source: data.source,
     warning: warningMessages.length > 0 ? warningMessages.join(" | ") : undefined,
     semantic_engine:
-      queryVector && embeddings.model ? `embedding+lexical (${embeddings.model})` : "lexical-only",
+      queryVector && vector.model
+        ? `embedding+lexical (${vector.model}) [${vector.engine}]`
+        : "lexical-only",
     results
   };
 }

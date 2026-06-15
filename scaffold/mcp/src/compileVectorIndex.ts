@@ -1,0 +1,75 @@
+/**
+ * Compile a TurboQuant index from embedded vectors. Runs at the tail of the
+ * embed step. Small corpora are skipped: below the threshold the exact scan is
+ * already sub-millisecond and quantization's recall risk is not worth it.
+ */
+import fs from "node:fs";
+import { PATHS } from "./paths.js";
+import { encodeTurboQuant, fitTurboQuant } from "./turboquant.js";
+import { writeTurboQuantIndex } from "./turboquantIndex.js";
+
+const DEFAULT_MIN_QUANTIZE_SIZE = 4096;
+
+export interface VectorRecord {
+  id: string;
+  vector: Float32Array | ArrayLike<number>;
+}
+
+export interface CompileResult {
+  written: boolean;
+  reason?: string;
+  size?: number;
+  bits?: number;
+}
+
+function minQuantizeSize(): number {
+  const raw = Number(process.env.CORTEX_VECTOR_QUANTIZE_MIN);
+  return Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : DEFAULT_MIN_QUANTIZE_SIZE;
+}
+
+function quantizeBits(): number {
+  const raw = Number(process.env.CORTEX_VECTOR_QUANTIZE_BITS);
+  return raw === 2 ? 2 : 4;
+}
+
+export function compileTurboQuantIndex(
+  records: VectorRecord[],
+  model: string | null,
+  filePath: string = PATHS.embeddingsTurboQuant
+): CompileResult {
+  const threshold = minQuantizeSize();
+  if (records.length < threshold) {
+    // Remove any stale artifact so the read side falls back to exact.
+    if (fs.existsSync(filePath)) {
+      fs.rmSync(filePath, { force: true });
+    }
+    return { written: false, reason: `corpus ${records.length} < threshold ${threshold}` };
+  }
+
+  let dim = 0;
+  for (const record of records) {
+    if (record.vector.length > 0) {
+      dim = record.vector.length;
+      break;
+    }
+  }
+  if (dim === 0) {
+    return { written: false, reason: "no non-empty vectors" };
+  }
+
+  const vectors: Float32Array[] = [];
+  const ids: string[] = [];
+  for (const record of records) {
+    if (record.vector.length !== dim) {
+      continue;
+    }
+    vectors.push(record.vector instanceof Float32Array ? record.vector : Float32Array.from(record.vector));
+    ids.push(record.id);
+  }
+
+  const bits = quantizeBits();
+  const params = fitTurboQuant(vectors, dim, { bits });
+  const codes = encodeTurboQuant(vectors, params);
+  writeTurboQuantIndex(filePath, params, codes, ids, model);
+  return { written: true, size: vectors.length, bits };
+}

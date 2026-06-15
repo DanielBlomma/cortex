@@ -70,6 +70,7 @@ export const PATHS = {
   graphManifest: path.join(CACHE_DIR, "graph-manifest.json"),
   embeddingsManifest: path.join(CONTEXT_DIR, "embeddings", "manifest.json"),
   embeddingsEntities: path.join(CONTEXT_DIR, "embeddings", "entities.jsonl"),
+  embeddingsTurboQuant: path.join(CONTEXT_DIR, "embeddings", "index.tqz"),
   embeddingsModelCache: path.join(CONTEXT_DIR, "embeddings", "models"),
   documents: path.join(CACHE_DIR, "documents.jsonl"),
   adrEntities: path.join(CACHE_DIR, "entities.adr.jsonl"),
