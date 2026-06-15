@@ -3,9 +3,11 @@ import path from "node:path";
 import ryugraph, { type Connection, type PreparedStatement, type QueryResult, type RyuValue } from "ryugraph";
 import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
 import { CACHE_DIR, CONTEXT_DIR, DB_PATH } from "./paths.js";
+import { CSV_COPY_OPTIONS, writeCsv, type CsvValue } from "./graphCsv.js";
 import type { JsonObject } from "./types.js";
 
 const ONTOLOGY_PATH = path.join(CONTEXT_DIR, "ontology.cypher");
+const GRAPH_IMPORT_DIR = path.join(CACHE_DIR, "graph-import");
 const BATCH_SIZE = 50;
 
 async function executeBatch(
@@ -428,25 +430,222 @@ function warnIfOptionalFilesMissing(): void {
   );
 }
 
-async function main(): Promise<void> {
-  const args = new Set(process.argv.slice(2));
-  const reset = !args.has("--no-reset");
+type GraphData = {
+  fileEntities: FileEntity[];
+  ruleEntities: RuleEntity[];
+  adrEntities: AdrEntity[];
+  chunkEntities: ChunkEntity[];
+  moduleEntities: ModuleEntity[];
+  projectEntities: ProjectEntity[];
+  constrains: Relation[];
+  implementsEdges: Relation[];
+  supersedes: Relation[];
+  defines: Relation[];
+  calls: CallRelation[];
+  callsSql: Relation[];
+  usesConfigKey: Relation[];
+  usesResourceKey: Relation[];
+  usesSettingKey: Relation[];
+  imports: ImportRelation[];
+  contains: Relation[];
+  containsModule: Relation[];
+  exports: Relation[];
+  includesFile: Relation[];
+  referencesProject: Relation[];
+  usesResource: Relation[];
+  usesSetting: Relation[];
+  usesConfig: Relation[];
+  transformsConfig: Relation[];
+};
 
-  await ensureRequiredFiles();
-  warnIfOptionalFilesMissing();
+function parseGraphData(): GraphData {
+  return {
+    fileEntities: parseFiles(readEntityFile("entities.file.jsonl")),
+    ruleEntities: parseRules(readEntityFile("entities.rule.jsonl")),
+    adrEntities: parseAdrs(readEntityFile("entities.adr.jsonl")),
+    chunkEntities: parseChunks(readEntityFile("entities.chunk.jsonl")),
+    moduleEntities: parseModules(readEntityFile("entities.module.jsonl")),
+    projectEntities: parseProjects(readEntityFile("entities.project.jsonl")),
+    constrains: parseRelations("relations.constrains.jsonl", "note"),
+    implementsEdges: parseRelations("relations.implements.jsonl", "note"),
+    supersedes: parseRelations("relations.supersedes.jsonl", "reason"),
+    defines: parseSimpleRelations("relations.defines.jsonl"),
+    calls: parseCallRelations("relations.calls.jsonl"),
+    callsSql: parseRelations("relations.calls_sql.jsonl", "note"),
+    usesConfigKey: parseRelations("relations.uses_config_key.jsonl", "note"),
+    usesResourceKey: parseRelations("relations.uses_resource_key.jsonl", "note"),
+    usesSettingKey: parseRelations("relations.uses_setting_key.jsonl", "note"),
+    imports: parseImportRelations("relations.imports.jsonl"),
+    contains: parseSimpleRelations("relations.contains.jsonl"),
+    containsModule: parseSimpleRelations("relations.contains_module.jsonl"),
+    exports: parseSimpleRelations("relations.exports.jsonl"),
+    includesFile: parseSimpleRelations("relations.includes_file.jsonl"),
+    referencesProject: parseRelations("relations.references_project.jsonl", "note"),
+    usesResource: parseRelations("relations.uses_resource.jsonl", "note"),
+    usesSetting: parseRelations("relations.uses_setting.jsonl", "note"),
+    usesConfig: parseRelations("relations.uses_config.jsonl", "note"),
+    transformsConfig: parseRelations("relations.transforms_config.jsonl", "note")
+  };
+}
 
-  if (reset) {
-    fs.rmSync(DB_PATH, { recursive: true, force: true });
-    fs.rmSync(`${DB_PATH}.wal`, { force: true });
-    fs.rmSync(`${DB_PATH}.shm`, { force: true });
+// Mirror the MATCH (...)-CREATE skip semantics of the prepared-statement
+// loader: an edge whose endpoint node was never created is silently dropped.
+// COPY into a rel table instead errors on an unknown primary key, so edges
+// must be pre-filtered against the node-id sets to stay byte-identical.
+function filterEdges<T extends { from: string; to: string }>(
+  edges: T[],
+  fromSet: Set<string>,
+  toSet: Set<string>
+): T[] {
+  return edges.filter((edge) => fromSet.has(edge.from) && toSet.has(edge.to));
+}
+
+async function copyTable(
+  conn: Connection,
+  table: string,
+  header: string[],
+  rows: CsvValue[][]
+): Promise<void> {
+  if (rows.length === 0) {
+    return;
   }
-  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+  const csvPath = path.join(GRAPH_IMPORT_DIR, `${table}.csv`);
+  writeCsv(csvPath, header, rows);
+  // ryugraph parses COPY's path as a quoted literal; forward slashes are
+  // accepted on every platform and avoid backslash-escaping on Windows.
+  const csvForCopy = csvPath.replace(/\\/g, "/");
+  await conn.query(`COPY ${table} FROM "${csvForCopy}" ${CSV_COPY_OPTIONS};`);
+}
 
-  const db = new ryugraph.Database(DB_PATH);
-  const conn = new ryugraph.Connection(db);
+// Bulk path: one COPY per table instead of a prepared statement per row.
+// Only used on the reset path, where the freshly created tables are empty.
+// Produces a byte-identical graph to rowByRowLoad (same parsed arrays, same
+// node-then-edge order, same dangling-edge filtering).
+async function bulkLoad(conn: Connection, data: GraphData): Promise<void> {
+  fs.rmSync(GRAPH_IMPORT_DIR, { recursive: true, force: true });
+  fs.mkdirSync(GRAPH_IMPORT_DIR, { recursive: true });
 
-  const ontologyStatements = parseOntologyStatements(fs.readFileSync(ONTOLOGY_PATH, "utf8"));
-  await executeStatements(conn, ontologyStatements);
+  const fileIds = new Set(data.fileEntities.map((e) => e.id));
+  const ruleIds = new Set(data.ruleEntities.map((e) => e.id));
+  const adrIds = new Set(data.adrEntities.map((e) => e.id));
+  const chunkIds = new Set(data.chunkEntities.map((e) => e.id));
+  const moduleIds = new Set(data.moduleEntities.map((e) => e.id));
+  const projectIds = new Set(data.projectEntities.map((e) => e.id));
+
+  // Nodes first — edges reference them by primary key.
+  await copyTable(
+    conn,
+    "File",
+    ["id", "path", "kind", "excerpt", "checksum", "updated_at", "source_of_truth", "trust_level", "status"],
+    data.fileEntities.map((e) => [
+      e.id, e.path, e.kind, e.excerpt, e.checksum, e.updated_at, e.source_of_truth, e.trust_level, e.status
+    ])
+  );
+  await copyTable(
+    conn,
+    "Rule",
+    ["id", "title", "body", "scope", "priority", "updated_at", "source_of_truth", "trust_level", "status"],
+    data.ruleEntities.map((e) => [
+      e.id, e.title, e.body, e.scope, e.priority, e.updated_at, e.source_of_truth, e.trust_level, e.status
+    ])
+  );
+  await copyTable(
+    conn,
+    "ADR",
+    ["id", "path", "title", "body", "decision_date", "supersedes_id", "source_of_truth", "trust_level", "status"],
+    data.adrEntities.map((e) => [
+      e.id, e.path, e.title, e.body, e.decision_date, e.supersedes_id, e.source_of_truth, e.trust_level, e.status
+    ])
+  );
+  await copyTable(
+    conn,
+    "Chunk",
+    [
+      "id", "file_id", "name", "kind", "signature", "body", "description", "start_line", "end_line",
+      "language", "exported", "checksum", "updated_at", "source_of_truth", "trust_level", "status"
+    ],
+    data.chunkEntities.map((e) => [
+      e.id, e.file_id, e.name, e.kind, e.signature, e.body, e.description, e.start_line, e.end_line,
+      e.language, e.exported, e.checksum, e.updated_at, e.source_of_truth, e.trust_level, e.status
+    ])
+  );
+  await copyTable(
+    conn,
+    "Module",
+    ["id", "path", "name", "summary", "file_count", "exported_symbols", "updated_at", "source_of_truth", "trust_level", "status"],
+    data.moduleEntities.map((e) => [
+      e.id, e.path, e.name, e.summary, e.file_count, e.exported_symbols, e.updated_at, e.source_of_truth, e.trust_level, e.status
+    ])
+  );
+  await copyTable(
+    conn,
+    "Project",
+    [
+      "id", "path", "name", "kind", "language", "target_framework", "summary", "file_count",
+      "updated_at", "source_of_truth", "trust_level", "status"
+    ],
+    data.projectEntities.map((e) => [
+      e.id, e.path, e.name, e.kind, e.language, e.target_framework, e.summary, e.file_count,
+      e.updated_at, e.source_of_truth, e.trust_level, e.status
+    ])
+  );
+
+  // Edges, filtered to existing endpoints. Header names are positional only
+  // (COPY into a rel table reads src key, dst key, then properties in schema
+  // order), but emitting real names keeps the CSVs self-describing.
+  await copyTable(conn, "CONSTRAINS", ["from", "to", "note"],
+    filterEdges(data.constrains, ruleIds, fileIds).map((e) => [e.from, e.to, e.note]));
+  await copyTable(conn, "IMPLEMENTS", ["from", "to", "note"],
+    filterEdges(data.implementsEdges, fileIds, ruleIds).map((e) => [e.from, e.to, e.note]));
+  await copyTable(conn, "SUPERSEDES", ["from", "to", "reason"],
+    filterEdges(data.supersedes, adrIds, adrIds).map((e) => [e.from, e.to, e.note]));
+  await copyTable(conn, "DEFINES", ["from", "to"],
+    filterEdges(data.defines, fileIds, chunkIds).map((e) => [e.from, e.to]));
+  await copyTable(conn, "CALLS", ["from", "to", "call_type"],
+    filterEdges(data.calls, chunkIds, chunkIds).map((e) => [e.from, e.to, e.call_type]));
+  await copyTable(conn, "IMPORTS", ["from", "to", "import_name"],
+    filterEdges(data.imports, chunkIds, fileIds).map((e) => [e.from, e.to, e.import_name]));
+  await copyTable(conn, "CALLS_SQL", ["from", "to", "note"],
+    filterEdges(data.callsSql, fileIds, chunkIds).map((e) => [e.from, e.to, e.note]));
+  await copyTable(conn, "USES_CONFIG_KEY", ["from", "to", "note"],
+    filterEdges(data.usesConfigKey, fileIds, chunkIds).map((e) => [e.from, e.to, e.note]));
+  await copyTable(conn, "USES_RESOURCE_KEY", ["from", "to", "note"],
+    filterEdges(data.usesResourceKey, fileIds, chunkIds).map((e) => [e.from, e.to, e.note]));
+  await copyTable(conn, "USES_SETTING_KEY", ["from", "to", "note"],
+    filterEdges(data.usesSettingKey, fileIds, chunkIds).map((e) => [e.from, e.to, e.note]));
+  await copyTable(conn, "CONTAINS", ["from", "to"],
+    filterEdges(data.contains, moduleIds, fileIds).map((e) => [e.from, e.to]));
+  await copyTable(conn, "CONTAINS_MODULE", ["from", "to"],
+    filterEdges(data.containsModule, moduleIds, moduleIds).map((e) => [e.from, e.to]));
+  await copyTable(conn, "EXPORTS", ["from", "to"],
+    filterEdges(data.exports, moduleIds, chunkIds).map((e) => [e.from, e.to]));
+  await copyTable(conn, "INCLUDES_FILE", ["from", "to"],
+    filterEdges(data.includesFile, projectIds, fileIds).map((e) => [e.from, e.to]));
+  await copyTable(conn, "REFERENCES_PROJECT", ["from", "to", "note"],
+    filterEdges(data.referencesProject, projectIds, projectIds).map((e) => [e.from, e.to, e.note]));
+  await copyTable(conn, "USES_RESOURCE", ["from", "to", "note"],
+    filterEdges(data.usesResource, fileIds, fileIds).map((e) => [e.from, e.to, e.note]));
+  await copyTable(conn, "USES_SETTING", ["from", "to", "note"],
+    filterEdges(data.usesSetting, fileIds, fileIds).map((e) => [e.from, e.to, e.note]));
+  await copyTable(conn, "USES_CONFIG", ["from", "to", "note"],
+    filterEdges(data.usesConfig, fileIds, fileIds).map((e) => [e.from, e.to, e.note]));
+  await copyTable(conn, "TRANSFORMS_CONFIG", ["from", "to", "note"],
+    filterEdges(data.transformsConfig, fileIds, fileIds).map((e) => [e.from, e.to, e.note]));
+
+  fs.rmSync(GRAPH_IMPORT_DIR, { recursive: true, force: true });
+}
+
+// Original loader: clears every table, then inserts each node/edge through a
+// prepared statement in batches. Used for --no-reset and as the fallback when
+// bulk COPY fails. MATCH-based edge inserts skip dangling endpoints silently.
+async function rowByRowLoad(conn: Connection, data: GraphData): Promise<void> {
+  const {
+    fileEntities, ruleEntities, adrEntities, chunkEntities, moduleEntities, projectEntities,
+    constrains, implementsEdges, supersedes, defines, calls, callsSql,
+    usesConfigKey, usesResourceKey, usesSettingKey, imports,
+    contains, containsModule, exports, includesFile, referencesProject,
+    usesResource, usesSetting, usesConfig, transformsConfig
+  } = data;
 
   // Delete all relations first, then all nodes, to avoid orphaned edges
   await conn.query("MATCH (a:ADR)-[r:SUPERSEDES]->(b:ADR) DELETE r;");
@@ -476,32 +675,6 @@ async function main(): Promise<void> {
   await conn.query("MATCH (n:Module) DELETE n;");
   await conn.query("MATCH (n:Project) DELETE n;");
   await conn.query("MATCH (n:File) DELETE n;");
-
-  const fileEntities = parseFiles(readEntityFile("entities.file.jsonl"));
-  const ruleEntities = parseRules(readEntityFile("entities.rule.jsonl"));
-  const adrEntities = parseAdrs(readEntityFile("entities.adr.jsonl"));
-  const chunkEntities = parseChunks(readEntityFile("entities.chunk.jsonl"));
-  const constrains = parseRelations("relations.constrains.jsonl", "note");
-  const implementsEdges = parseRelations("relations.implements.jsonl", "note");
-  const supersedes = parseRelations("relations.supersedes.jsonl", "reason");
-  const defines = parseSimpleRelations("relations.defines.jsonl");
-  const calls = parseCallRelations("relations.calls.jsonl");
-  const callsSql = parseRelations("relations.calls_sql.jsonl", "note");
-  const usesConfigKey = parseRelations("relations.uses_config_key.jsonl", "note");
-  const usesResourceKey = parseRelations("relations.uses_resource_key.jsonl", "note");
-  const usesSettingKey = parseRelations("relations.uses_setting_key.jsonl", "note");
-  const imports = parseImportRelations("relations.imports.jsonl");
-  const moduleEntities = parseModules(readEntityFile("entities.module.jsonl"));
-  const projectEntities = parseProjects(readEntityFile("entities.project.jsonl"));
-  const contains = parseSimpleRelations("relations.contains.jsonl");
-  const containsModule = parseSimpleRelations("relations.contains_module.jsonl");
-  const exports = parseSimpleRelations("relations.exports.jsonl");
-  const includesFile = parseSimpleRelations("relations.includes_file.jsonl");
-  const referencesProject = parseRelations("relations.references_project.jsonl", "note");
-  const usesResource = parseRelations("relations.uses_resource.jsonl", "note");
-  const usesSetting = parseRelations("relations.uses_setting.jsonl", "note");
-  const usesConfig = parseRelations("relations.uses_config.jsonl", "note");
-  const transformsConfig = parseRelations("relations.transforms_config.jsonl", "note");
 
   const insertFile = await conn.prepare(`
     CREATE (f:File {
@@ -725,6 +898,47 @@ async function main(): Promise<void> {
   await executeBatch(conn, insertUsesSetting, usesSetting);
   await executeBatch(conn, insertUsesConfig, usesConfig);
   await executeBatch(conn, insertTransformsConfig, transformsConfig);
+}
+
+async function main(): Promise<void> {
+  const args = new Set(process.argv.slice(2));
+  const reset = !args.has("--no-reset");
+
+  await ensureRequiredFiles();
+  warnIfOptionalFilesMissing();
+
+  if (reset) {
+    fs.rmSync(DB_PATH, { recursive: true, force: true });
+    fs.rmSync(`${DB_PATH}.wal`, { force: true });
+    fs.rmSync(`${DB_PATH}.shm`, { force: true });
+  }
+  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+
+  const db = new ryugraph.Database(DB_PATH);
+  const conn = new ryugraph.Connection(db);
+
+  const ontologyStatements = parseOntologyStatements(fs.readFileSync(ONTOLOGY_PATH, "utf8"));
+  await executeStatements(conn, ontologyStatements);
+
+  const data = parseGraphData();
+
+  const bulkEnabled = reset && process.env.CORTEX_GRAPH_BULK_LOAD !== "never";
+  let usedBulk = false;
+  if (bulkEnabled) {
+    try {
+      await bulkLoad(conn, data);
+      usedBulk = true;
+      console.log("[graph-load] loaded via COPY bulk import");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[graph-load] bulk COPY load failed (${message}); falling back to row-by-row inserts`
+      );
+    }
+  }
+  if (!usedBulk) {
+    await rowByRowLoad(conn, data);
+  }
 
   const fileCount = await rows(await conn.query("MATCH (f:File) RETURN count(*) AS count;"));
   const ruleCount = await rows(await conn.query("MATCH (r:Rule) RETURN count(*) AS count;"));
