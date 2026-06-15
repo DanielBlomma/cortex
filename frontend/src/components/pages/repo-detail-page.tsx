@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import type { RepoDetailDoc, StatsItem, TimingsMs } from "@/data/bootstrap-types";
+import type { HistogramBucket, RepoDetailDoc, StatsItem, TimingsMs } from "@/data/bootstrap-types";
 import { bootstrapHash } from "@/routes";
 import {
   formatBytes,
@@ -28,6 +28,43 @@ const PHASES: Array<{ key: keyof TimingsMs; label: string }> = [
   { key: "status", label: "Status" }
 ];
 
+const ESTIMATED_CHARS_PER_TOKEN = 4;
+type ChunkSizeUnit = "lines" | "tokens";
+
+function tokenBucketLabel(min: number, max: number | null): string {
+  const tokenMin = Math.floor(min / ESTIMATED_CHARS_PER_TOKEN);
+  if (max === null) {
+    return `${tokenMin}+`;
+  }
+  const tokenMax = Math.max(tokenMin, Math.ceil(max / ESTIMATED_CHARS_PER_TOKEN));
+  return `${tokenMin}-${tokenMax}`;
+}
+
+function charHistogramToEstimatedTokens(histogram: HistogramBucket[] | null | undefined): HistogramBucket[] {
+  return (histogram ?? []).map((bucket) => ({
+    ...bucket,
+    min: Math.floor(bucket.min / ESTIMATED_CHARS_PER_TOKEN),
+    max: bucket.max === null ? null : Math.ceil(bucket.max / ESTIMATED_CHARS_PER_TOKEN),
+    label: tokenBucketLabel(bucket.min, bucket.max)
+  }));
+}
+
+function chunkSizeSummary(item: StatsItem, sizeUnit: ChunkSizeUnit): string {
+  if (sizeUnit === "tokens") {
+    const chars = item.chunks?.chars;
+    return `p50 ${formatNumber(chars?.p50 ? chars.p50 / ESTIMATED_CHARS_PER_TOKEN : null, 0)} · p90 ${formatNumber(
+      chars?.p90 ? chars.p90 / ESTIMATED_CHARS_PER_TOKEN : null,
+      0
+    )} · max ${formatNumber(chars?.max ? chars.max / ESTIMATED_CHARS_PER_TOKEN : null, 0)} estimated tokens`;
+  }
+
+  const distribution = item.chunks?.lines;
+  return `p50 ${formatNumber(distribution?.p50 ?? null, 0)} · p90 ${formatNumber(
+    distribution?.p90 ?? null,
+    0
+  )} · max ${formatNumber(distribution?.max ?? null, 0)} lines`;
+}
+
 export function RepoDetailPage({ detail, version }: { detail: RepoDetailDoc; version?: string }) {
   const models = detail.runs.map((run) => run.run.embed_model);
   const [selectedModel, setSelectedModel] = useState(models[0] ?? "");
@@ -35,7 +72,7 @@ export function RepoDetailPage({ detail, version }: { detail: RepoDetailDoc; ver
     () => detail.runs.find((run) => run.run.embed_model === selectedModel) ?? detail.runs[0],
     [detail.runs, selectedModel]
   );
-  const [sizeUnit, setSizeUnit] = useState<"lines" | "chars">("lines");
+  const [sizeUnit, setSizeUnit] = useState<ChunkSizeUnit>("lines");
 
   if (!item) {
     return (
@@ -46,7 +83,10 @@ export function RepoDetailPage({ detail, version }: { detail: RepoDetailDoc; ver
   }
 
   const repo = detail.repo;
-  const chunkHistogram = sizeUnit === "lines" ? item.chunks?.lines?.histogram : item.chunks?.chars?.histogram;
+  const chunkHistogram =
+    sizeUnit === "lines"
+      ? item.chunks?.lines?.histogram
+      : charHistogramToEstimatedTokens(item.chunks?.chars?.histogram);
   const kindRows = Object.entries(item.chunks?.by_kind ?? {}).sort((a, b) => b[1] - a[1]);
   const relationData = Object.entries(item.graph?.edges.by_type ?? {})
     .map(([name, value]) => ({ name, value }))
@@ -117,17 +157,35 @@ export function RepoDetailPage({ detail, version }: { detail: RepoDetailDoc; ver
           {
             label: "Tracked files",
             value: formatCount(item.workspace?.tracked_files ?? null),
-            hint: formatBytes(item.workspace?.tracked_bytes ?? null)
+            hint: formatBytes(item.workspace?.tracked_bytes ?? null),
+            explanation: "Git-tracked files present at the pinned repository commit before Cortex filtering."
           },
-          { label: "Files indexed", value: formatCount(item.files?.total ?? null) },
-          { label: "Chunks", value: formatCount(item.chunks?.total ?? null) },
-          { label: "Graph edges", value: formatCount(item.graph?.edges.total ?? null) },
+          {
+            label: "Files indexed",
+            value: formatCount(item.files?.total ?? null),
+            explanation: "Files Cortex accepted for indexing after source path, file kind, and ignore filtering."
+          },
+          {
+            label: "Chunks",
+            value: formatCount(item.chunks?.total ?? null),
+            explanation: "Semantic units Cortex extracted from indexed files, such as symbols, sections, and windows."
+          },
+          {
+            label: "Graph edges",
+            value: formatCount(item.graph?.edges.total ?? null),
+            explanation: "Relations loaded into the local graph, including definitions, calls, imports, and constraints."
+          },
           {
             label: "Vectors",
             value: formatCount(item.embeddings?.counts.embedded ?? null),
-            hint: item.embeddings?.dimensions ? `${item.embeddings.dimensions} dims` : undefined
+            hint: item.embeddings?.dimensions ? `${item.embeddings.dimensions} dims` : undefined,
+            explanation: "Embedded entities written to the vector index for semantic search."
           },
-          { label: "Bootstrap time", value: formatDuration(item.timings_ms?.total ?? null) }
+          {
+            label: "Bootstrap time",
+            value: formatDuration(item.timings_ms?.total ?? null),
+            explanation: "Total wall-clock time for dependency install, ingest, embeddings, graph load, and status checks."
+          }
         ]}
       />
 
@@ -145,31 +203,27 @@ export function RepoDetailPage({ detail, version }: { detail: RepoDetailDoc; ver
       <SectionShell
         title="Chunks"
         description={`Chunk size distribution for the ${modelDisplayName(item.run.embed_model)} run.`}
-        headerAside={
-          <ToggleGroup
-            type="single"
-            value={sizeUnit}
-            onValueChange={(value) => value && setSizeUnit(value as "lines" | "chars")}
-          >
-            <ToggleGroupItem value="lines">Lines</ToggleGroupItem>
-            <ToggleGroupItem value="chars">Characters</ToggleGroupItem>
-          </ToggleGroup>
-        }
       >
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Size distribution</CardTitle>
-              <CardDescription>
-                p50 {formatNumber(item.chunks?.lines?.p50 ?? null, 0)} · p90{" "}
-                {formatNumber(item.chunks?.lines?.p90 ?? null, 0)} · max{" "}
-                {formatNumber(item.chunks?.lines?.max ?? null, 0)} lines
-              </CardDescription>
+            <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 pb-2">
+              <div className="space-y-1">
+                <CardTitle className="text-base">Size distribution</CardTitle>
+                <CardDescription>{chunkSizeSummary(item, sizeUnit)}</CardDescription>
+              </div>
+              <ToggleGroup
+                type="single"
+                value={sizeUnit}
+                onValueChange={(value) => value && setSizeUnit(value as ChunkSizeUnit)}
+              >
+                <ToggleGroupItem value="lines">Lines</ToggleGroupItem>
+                <ToggleGroupItem value="tokens">Tokens</ToggleGroupItem>
+              </ToggleGroup>
             </CardHeader>
             <CardContent>
               <HistogramChart
                 series={[{ name: modelDisplayName(item.run.embed_model), histogram: chunkHistogram ?? [] }]}
-                unit={sizeUnit}
+                unit={sizeUnit === "tokens" ? "estimated tokens" : sizeUnit}
               />
             </CardContent>
           </Card>

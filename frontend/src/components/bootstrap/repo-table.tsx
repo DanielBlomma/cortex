@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp } from "lucide-react";
 
-import { StatusBadge } from "@/components/bootstrap/stat-cards";
+import { MetricHelp, StatusBadge } from "@/components/bootstrap/stat-cards";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { RepoRow } from "@/data/bootstrap-types";
@@ -19,15 +19,50 @@ type SortKey =
   | "isolated_pct"
   | "total_ms";
 
-const COLUMNS: Array<{ key: SortKey; label: string; numeric: boolean }> = [
+const COLUMNS: Array<{ key: SortKey; label: string; numeric: boolean; explanation?: string }> = [
   { key: "name", label: "Repository", numeric: false },
-  { key: "tracked_files", label: "Tracked files", numeric: true },
-  { key: "chunks", label: "Chunks", numeric: true },
-  { key: "chunk_p50_lines", label: "P50 lines", numeric: true },
-  { key: "edges", label: "Edges", numeric: true },
-  { key: "avg_degree", label: "Avg degree", numeric: true },
-  { key: "isolated_pct", label: "Isolated", numeric: true },
-  { key: "total_ms", label: "Bootstrap", numeric: true }
+  {
+    key: "tracked_files",
+    label: "Tracked files",
+    numeric: true,
+    explanation: "Git-tracked files present at the pinned repository commit before Cortex filtering."
+  },
+  {
+    key: "chunks",
+    label: "Chunks",
+    numeric: true,
+    explanation: "Semantic units Cortex extracted from indexed files, such as symbols, sections, and windows."
+  },
+  {
+    key: "chunk_p50_lines",
+    label: "P50 lines",
+    numeric: true,
+    explanation: "Median chunk length in lines for this repository run."
+  },
+  {
+    key: "edges",
+    label: "Edges",
+    numeric: true,
+    explanation: "Total graph relation edges loaded for this repository."
+  },
+  {
+    key: "avg_degree",
+    label: "Avg degree",
+    numeric: true,
+    explanation: "Average chunk-to-chunk CALLS connectivity degree. Higher values indicate a denser call graph."
+  },
+  {
+    key: "isolated_pct",
+    label: "Isolated",
+    numeric: true,
+    explanation: "Percentage of chunks with no chunk-to-chunk CALLS edges."
+  },
+  {
+    key: "total_ms",
+    label: "Bootstrap",
+    numeric: true,
+    explanation: "Total wall-clock time for the repository bootstrap run."
+  }
 ];
 
 export function RepoTable({ rows, version }: { rows: RepoRow[]; version?: string }) {
@@ -63,23 +98,31 @@ export function RepoTable({ rows, version }: { rows: RepoRow[]; version?: string
           <TableRow className="hover:bg-transparent">
             {COLUMNS.map((column) => (
               <TableHead key={column.key} className={cn(column.numeric && "text-right")}>
-                <button
-                  type="button"
-                  onClick={() => toggleSort(column.key)}
+                <div
                   className={cn(
-                    "inline-flex items-center gap-1 font-medium transition-colors hover:text-foreground",
-                    column.numeric && "flex-row-reverse"
+                    "inline-flex items-center gap-1.5",
+                    column.numeric && "flex-row-reverse justify-end"
                   )}
                 >
-                  {column.label}
-                  {sortKey === column.key ? (
-                    descending ? (
-                      <ArrowDown className="h-3 w-3" />
-                    ) : (
-                      <ArrowUp className="h-3 w-3" />
-                    )
-                  ) : null}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleSort(column.key)}
+                    className={cn(
+                      "inline-flex items-center gap-1 font-medium transition-colors hover:text-foreground",
+                      column.numeric && "flex-row-reverse"
+                    )}
+                  >
+                    {column.label}
+                    {sortKey === column.key ? (
+                      descending ? (
+                        <ArrowDown className="h-3 w-3" />
+                      ) : (
+                        <ArrowUp className="h-3 w-3" />
+                      )
+                    ) : null}
+                  </button>
+                  {column.explanation ? <MetricHelp label={column.label} explanation={column.explanation} /> : null}
+                </div>
               </TableHead>
             ))}
             <TableHead className="text-right">Status</TableHead>
