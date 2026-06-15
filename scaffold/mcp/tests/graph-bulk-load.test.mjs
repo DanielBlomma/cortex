@@ -46,10 +46,12 @@ function writeFixture(root) {
     { id: "chunk:b.ts#1", file_id: "file:b.ts", name: "empty", kind: "function", signature: "", body: "", description: "", start_line: 2, end_line: 2, language: "typescript", exported: false, checksum: "k2", updated_at: "2026-01-02T00:00:00Z", source_of_truth: false, trust_level: 80, status: "active" }
   ]);
   w("entities.module.jsonl", [
-    { id: "module:src", path: "src", name: "src", summary: "the, source\nmodule", file_count: 2, exported_symbols: "doThing", updated_at: "2026-01-01T00:00:00Z", source_of_truth: false, trust_level: 75, status: "active" }
+    { id: "module:src", path: "src", name: "src", summary: "the, source\nmodule", file_count: 2, exported_symbols: "doThing", updated_at: "2026-01-01T00:00:00Z", source_of_truth: false, trust_level: 75, status: "active" },
+    { id: "module:src.sub", path: "src/sub", name: "sub", summary: "nested", file_count: 0, exported_symbols: "", updated_at: "2026-01-01T00:00:00Z", source_of_truth: false, trust_level: 75, status: "active" }
   ]);
   w("entities.project.jsonl", [
-    { id: "project:root", path: ".", name: "root", kind: "project", language: "typescript", target_framework: "", summary: "root proj", file_count: 2, updated_at: "2026-01-01T00:00:00Z", source_of_truth: false, trust_level: 80, status: "active" }
+    { id: "project:root", path: ".", name: "root", kind: "project", language: "typescript", target_framework: "", summary: "root proj", file_count: 2, updated_at: "2026-01-01T00:00:00Z", source_of_truth: false, trust_level: 80, status: "active" },
+    { id: "project:sub", path: "sub", name: "sub", kind: "project", language: "typescript", target_framework: "", summary: "sub, \"proj\"", file_count: 0, updated_at: "2026-01-01T00:00:00Z", source_of_truth: false, trust_level: 80, status: "active" }
   ]);
 
   // Edges, including dangling references that BOTH loaders must skip:
@@ -87,12 +89,52 @@ function writeFixture(root) {
     { from: "project:root", to: "file:a.ts" },
     { from: "project:root", to: "file:b.ts" }
   ]);
+  // The remaining relation tables the COPY path also bulk-loads. Each carries a
+  // nasty note and at least one dangling edge so a typo in any single mapping
+  // (wrong endpoint set, wrong note column, missing filter) breaks equivalence.
+  w("relations.calls_sql.jsonl", [
+    { from: "file:a.ts", to: "chunk:b.ts#1", note: 'sql, "ref"\nline2' },
+    { from: "file:a.ts", to: "chunk:ghost", note: "dangling" }
+  ]);
+  w("relations.uses_config_key.jsonl", [
+    { from: "file:a.ts", to: "chunk:a.ts#1", note: "cfg key" }
+  ]);
+  w("relations.uses_resource_key.jsonl", [
+    { from: "file:b.ts", to: "chunk:a.ts#1", note: "res, key" }
+  ]);
+  w("relations.uses_setting_key.jsonl", [
+    { from: "file:a.ts", to: "chunk:b.ts#1", note: "setting\nkey" }
+  ]);
+  w("relations.contains_module.jsonl", [
+    { from: "module:src", to: "module:src.sub" },
+    { from: "module:src", to: "module:ghost" }
+  ]);
+  w("relations.references_project.jsonl", [
+    { from: "project:root", to: "project:sub", note: 'refs, "sub"' },
+    { from: "project:root", to: "project:ghost", note: "dangling" }
+  ]);
+  w("relations.uses_resource.jsonl", [
+    { from: "file:a.ts", to: "file:b.ts", note: "uses res" }
+  ]);
+  w("relations.uses_setting.jsonl", [
+    { from: "file:b.ts", to: "file:a.ts", note: "uses, setting" }
+  ]);
+  w("relations.uses_config.jsonl", [
+    { from: "file:a.ts", to: "file:b.ts", note: "uses cfg" },
+    { from: "file:a.ts", to: "file:ghost", note: "dangling" }
+  ]);
+  w("relations.transforms_config.jsonl", [
+    { from: "file:b.ts", to: "file:a.ts", note: "transforms\nconfig" }
+  ]);
 }
 
 const NODE_LABELS = ["File", "Rule", "ADR", "Chunk", "Module", "Project"];
 const REL_TYPES = [
   "CONSTRAINS", "IMPLEMENTS", "SUPERSEDES", "DEFINES", "CALLS",
-  "IMPORTS", "CONTAINS", "EXPORTS", "INCLUDES_FILE"
+  "IMPORTS", "CONTAINS", "EXPORTS", "INCLUDES_FILE",
+  "CALLS_SQL", "USES_CONFIG_KEY", "USES_RESOURCE_KEY", "USES_SETTING_KEY",
+  "CONTAINS_MODULE", "REFERENCES_PROJECT", "USES_RESOURCE", "USES_SETTING",
+  "USES_CONFIG", "TRANSFORMS_CONFIG"
 ];
 
 function stable(value) {
@@ -157,7 +199,11 @@ test("graph bulk COPY load produces a byte-identical graph to row-by-row inserts
 
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-graph-eq-"));
   const rowRoot = path.join(base, "row");
-  const bulkRoot = path.join(base, "bulk");
+  // Put the bulk fixture under a directory whose name contains a double quote
+  // (where the OS permits it) so the COPY path literal is exercised against
+  // P3b: if the quote were not escaped, COPY would throw and silently fall back
+  // to row-by-row, failing the "loaded via COPY bulk import" assertion below.
+  const bulkRoot = path.join(base, process.platform === "win32" ? "bulk" : 'bu"lk');
   fs.mkdirSync(rowRoot, { recursive: true });
   fs.mkdirSync(bulkRoot, { recursive: true });
 
@@ -190,9 +236,17 @@ test("graph bulk COPY load produces a byte-identical graph to row-by-row inserts
       );
     }
 
-    // Spot-check the dangling-edge filtering actually dropped edges.
+    // Spot-check the dangling-edge filtering actually dropped edges across a
+    // spread of the relation tables (node-pair filters of every endpoint kind).
     assert.equal(bulkDump.rels.DEFINES.length, 2, "ghost DEFINES edge should be filtered");
     assert.equal(bulkDump.rels.CALLS.length, 1, "ghost CALLS edge should be filtered");
+    assert.equal(bulkDump.rels.CALLS_SQL.length, 1, "ghost CALLS_SQL edge should be filtered");
+    assert.equal(bulkDump.rels.CONTAINS_MODULE.length, 1, "ghost CONTAINS_MODULE edge should be filtered");
+    assert.equal(bulkDump.rels.REFERENCES_PROJECT.length, 1, "ghost REFERENCES_PROJECT edge should be filtered");
+    assert.equal(bulkDump.rels.USES_CONFIG.length, 1, "ghost USES_CONFIG edge should be filtered");
+    // The SUPERSEDES reason and the new note columns must round-trip exactly.
+    assert.equal(bulkDump.rels.SUPERSEDES[0].props.reason, "newer,\nbetter");
+    assert.equal(bulkDump.rels.CALLS_SQL[0].props.note, 'sql, "ref"\nline2');
     // And that the nasty body survived round-trip exactly.
     const chunkA = bulkDump.nodes.Chunk.find((n) => n.id === "chunk:a.ts#1");
     assert.equal(chunkA.body, NASTY, "adversarial chunk body must round-trip exactly");

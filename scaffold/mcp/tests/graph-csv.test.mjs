@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { toCsvCell, toCsvRow, CSV_NULL_SENTINEL, CSV_COPY_OPTIONS } from "../dist/graphCsv.js";
+import { toCsvCell, toCsvRow, toCopyPathLiteral, CSV_NULL_SENTINEL, CSV_COPY_OPTIONS } from "../dist/graphCsv.js";
 
 test("toCsvCell: quotes plain strings", () => {
   assert.equal(toCsvCell("hello"), '"hello"');
@@ -54,4 +54,23 @@ test("CSV_COPY_OPTIONS disables parallel reads and empty-as-null", () => {
   assert.match(CSV_COPY_OPTIONS, /PARALLEL=false/);
   assert.match(CSV_COPY_OPTIONS, /HEADER=true/);
   assert.match(CSV_COPY_OPTIONS, /NULL_STRINGS=\[/);
+});
+
+test("toCopyPathLiteral leaves a plain posix path untouched", () => {
+  assert.equal(toCopyPathLiteral("/repo/.context/cache/graph-import/File.csv"), "/repo/.context/cache/graph-import/File.csv");
+});
+
+test("toCopyPathLiteral backslash-escapes embedded double quotes", () => {
+  assert.equal(toCopyPathLiteral('/we"ird/File.csv'), '/we\\"ird/File.csv');
+  assert.equal(toCopyPathLiteral('/a"b"c/File.csv'), '/a\\"b\\"c/File.csv');
+});
+
+test("toCopyPathLiteral normalizes windows separators to forward slashes", () => {
+  assert.equal(toCopyPathLiteral("C:\\repo\\cache\\File.csv"), "C:/repo/cache/File.csv");
+});
+
+test("toCopyPathLiteral normalizes separators before escaping quotes", () => {
+  // The escaping backslash inserted for the quote must survive (not be turned
+  // into a slash): separators are normalized first, then quotes escaped.
+  assert.equal(toCopyPathLiteral('C:\\we"ird\\File.csv'), 'C:/we\\"ird/File.csv');
 });

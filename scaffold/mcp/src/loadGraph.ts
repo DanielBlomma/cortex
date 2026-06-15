@@ -3,7 +3,7 @@ import path from "node:path";
 import ryugraph, { type Connection, type PreparedStatement, type QueryResult, type RyuValue } from "ryugraph";
 import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
 import { CACHE_DIR, CONTEXT_DIR, DB_PATH } from "./paths.js";
-import { CSV_COPY_OPTIONS, writeCsv, type CsvValue } from "./graphCsv.js";
+import { CSV_COPY_OPTIONS, writeCsv, toCopyPathLiteral, type CsvValue } from "./graphCsv.js";
 import type { JsonObject } from "./types.js";
 
 const ONTOLOGY_PATH = path.join(CONTEXT_DIR, "ontology.cypher");
@@ -511,9 +511,10 @@ async function copyTable(
   }
   const csvPath = path.join(GRAPH_IMPORT_DIR, `${table}.csv`);
   writeCsv(csvPath, header, rows);
-  // ryugraph parses COPY's path as a quoted literal; forward slashes are
-  // accepted on every platform and avoid backslash-escaping on Windows.
-  const csvForCopy = csvPath.replace(/\\/g, "/");
+  // ryugraph parses COPY's path as a double-quoted literal; toCopyPathLiteral
+  // normalizes separators and escapes any embedded quote so a repo/cache path
+  // containing a double quote still bulk-loads instead of falling back.
+  const csvForCopy = toCopyPathLiteral(csvPath);
   await conn.query(`COPY ${table} FROM "${csvForCopy}" ${CSV_COPY_OPTIONS};`);
 }
 

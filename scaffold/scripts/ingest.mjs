@@ -2218,17 +2218,19 @@ function resolveIngestWorkerCount(taskCount) {
 // function on the same content, so output is identical either way. Never
 // rejects: a fatal worker error resolves with the partial results collected
 // so far.
-async function parseFilesInWorkers(tasks, { workerCount, verbose }) {
+async function parseFilesInWorkers(tasks, { workerCount, verbose, workerUrl } = {}) {
   const results = new Map();
   if (tasks.length === 0) {
     return results;
   }
 
-  const workerUrl = new URL("./ingest-worker.mjs", import.meta.url);
+  const resolvedWorkerUrl = workerUrl ?? new URL("./ingest-worker.mjs", import.meta.url);
   const poolSize = Math.min(workerCount, tasks.length);
   const workers = [];
+  const inflight = new Map(); // worker -> taskId being parsed, or null when idle
   let nextTask = 0;
   let settled = 0;
+  let alive = poolSize;
 
   await new Promise((resolve) => {
     let finished = false;
@@ -2237,22 +2239,34 @@ async function parseFilesInWorkers(tasks, { workerCount, verbose }) {
       finished = true;
       resolve();
     };
+    // A task is "settled" once it has a result, was skipped, or its worker
+    // died holding it. Finish when every task is settled, or when no worker is
+    // left alive to make progress (any still-queued tasks then parse inline).
+    const maybeFinish = () => {
+      if (settled >= tasks.length || alive <= 0) {
+        finish();
+      }
+    };
 
     const assign = (worker) => {
       if (nextTask >= tasks.length) {
+        inflight.set(worker, null);
         worker.postMessage({ type: "shutdown" });
         return;
       }
       const task = tasks[nextTask++];
+      inflight.set(worker, task.id);
       worker.postMessage({ taskId: task.id, ext: task.ext, content: task.content, filePath: task.path });
     };
 
     const onMessage = (worker, message) => {
+      if (finished) return;
       if (message.ok) {
         results.set(message.taskId, message.result);
       } else if (verbose) {
         console.log(`[ingest] worker skipped ${message.taskId}: ${message.reason}`);
       }
+      inflight.set(worker, null);
       settled += 1;
       if (settled >= tasks.length) {
         finish();
@@ -2261,18 +2275,37 @@ async function parseFilesInWorkers(tasks, { workerCount, verbose }) {
       assign(worker);
     };
 
+    const onExit = (worker) => {
+      if (finished) return;
+      alive -= 1;
+      const taskId = inflight.get(worker);
+      if (taskId != null) {
+        // Worker exited mid-parse without posting a result (OOM, native abort,
+        // process.exit) and without an 'error' event. Count its in-flight task
+        // as settled so it falls back to inline parsing rather than leaving the
+        // pool waiting on a dead worker forever.
+        if (verbose) {
+          console.log(`[ingest] worker exited mid-task ${taskId}; will parse inline`);
+        }
+        inflight.set(worker, null);
+        settled += 1;
+      }
+      maybeFinish();
+    };
+
     for (let i = 0; i < poolSize; i += 1) {
-      const worker = new Worker(workerUrl);
+      const worker = new Worker(resolvedWorkerUrl);
       workers.push(worker);
       worker.on("message", (message) => onMessage(worker, message));
       worker.on("error", (error) => {
-        // Fatal worker failure (OOM, init crash). Stop dispatching and let the
-        // remaining files parse inline; never hang or lose correctness.
+        // Uncaught exception in the worker. The 'exit' event that always
+        // follows does the task accounting (idempotent via inflight), so we
+        // only log here to avoid double-counting.
         if (verbose) {
-          console.log(`[ingest] worker error, falling back to inline parsing: ${error.message}`);
+          console.log(`[ingest] worker error: ${error.message}`);
         }
-        finish();
       });
+      worker.on("exit", () => onExit(worker));
     }
 
     for (const worker of workers) {
@@ -3412,5 +3445,6 @@ export {
   generateProjects,
   generateSectionHandlerRelations,
   getChunkParserForExtension,
+  parseFilesInWorkers,
   resolveRelativeImportTargetId
 };

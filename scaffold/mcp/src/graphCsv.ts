@@ -44,3 +44,13 @@ export function writeCsv(filePath: string, header: string[], rows: CsvValue[][])
   }
   fs.writeFileSync(filePath, `${lines.join("\n")}\n`, "utf8");
 }
+
+// Escape a filesystem path for use inside a double-quoted ryugraph COPY path
+// literal. Separators are normalized to "/" (accepted on every platform,
+// Windows included) and any embedded double quote is backslash-escaped, so a
+// repo or cache path containing a quote does not break the COPY statement and
+// silently lose the bulk-load path. Order matters: normalize separators first,
+// then escape quotes, so the escaping backslash is not itself rewritten.
+export function toCopyPathLiteral(filePath: string): string {
+  return filePath.replace(/\\/g, "/").replace(/"/g, '\\"');
+}
