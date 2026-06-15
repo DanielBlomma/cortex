@@ -37,7 +37,7 @@ function readJsonl(filePath: string): JsonObject[] {
     .filter((value): value is JsonObject => value !== null);
 }
 
-function toVector(output: unknown): number[] | null {
+function toVector(output: unknown): Float32Array | null {
   if (!output || typeof output !== "object") {
     return null;
   }
@@ -47,9 +47,10 @@ function toVector(output: unknown): number[] | null {
     return null;
   }
 
-  return Array.from(data as ArrayLike<number>)
+  const finite = Array.from(data as ArrayLike<number>)
     .map((value) => Number(value))
     .filter((value) => Number.isFinite(value));
+  return Float32Array.from(finite);
 }
 
 function readFileVersion(filePath: string): string {
@@ -65,7 +66,7 @@ function readFileVersion(filePath: string): string {
 }
 
 function parseEmbeddingIndex(raw: JsonObject[]): EmbeddingIndex {
-  const vectors = new Map<string, number[]>();
+  const vectors = new Map<string, Float32Array>();
   let model: string | null = null;
 
   for (const item of raw) {
@@ -80,7 +81,9 @@ function parseEmbeddingIndex(raw: JsonObject[]): EmbeddingIndex {
       .filter((value): value is number => value !== null);
 
     if (vector.length === 0) continue;
-    vectors.set(id, vector);
+    // The boxed number[] is transient — only the Float32Array is retained,
+    // so peak memory is one line's vector, not the whole index in float64.
+    vectors.set(id, Float32Array.from(vector));
 
     const nextModel = asString(item.model);
     if (nextModel && !model) {
@@ -167,9 +170,9 @@ async function getEmbeddingExtractor(modelId: string): Promise<unknown | null> {
 // cached but each call still pays full inference. A small LRU keyed on
 // (model, query) makes repeats free. Cached vectors are treated as
 // immutable by all callers.
-const queryEmbeddingCache = new LruCache<string, number[]>(256);
+const queryEmbeddingCache = new LruCache<string, Float32Array>(256);
 
-export async function embedQuery(query: string, modelId: string): Promise<number[] | null> {
+export async function embedQuery(query: string, modelId: string): Promise<Float32Array | null> {
   const cacheKey = `${modelId}\u0000${query}`;
   const cached = queryEmbeddingCache.get(cacheKey);
   if (cached) {

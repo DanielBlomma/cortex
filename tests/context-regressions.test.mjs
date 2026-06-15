@@ -9,6 +9,26 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(__dirname, "..");
 const WATCH_PATH = path.join(REPO_ROOT, "scripts", "watch.sh");
 const INGEST_PATH = path.join(REPO_ROOT, "scaffold", "scripts", "ingest.mjs");
+const INGEST_PARSERS_PATH = path.join(REPO_ROOT, "scaffold", "scripts", "ingest-parsers.mjs");
+const INGEST_WORKER_PATH = path.join(REPO_ROOT, "scaffold", "scripts", "ingest-worker.mjs");
+
+// The chunk parser registry was extracted into ingest-parsers.mjs, which is
+// where the JS parser import now lives, and the worker pool needs
+// ingest-worker.mjs. Fixtures that run a copied ingest.mjs must ship all three
+// siblings; mockJsParser stubs the JS parser for deterministic chunk output.
+function writeIngestScripts(scriptsDir, { mockJsParser = false } = {}) {
+  fs.mkdirSync(path.join(scriptsDir, "parsers"), { recursive: true });
+  fs.copyFileSync(INGEST_PATH, path.join(scriptsDir, "ingest.mjs"));
+  fs.copyFileSync(INGEST_WORKER_PATH, path.join(scriptsDir, "ingest-worker.mjs"));
+  let parsersSource = fs.readFileSync(INGEST_PARSERS_PATH, "utf8");
+  if (mockJsParser) {
+    parsersSource = parsersSource.replace(
+      'import { parseCode } from "./parsers/javascript.mjs";',
+      'import { parseCode } from "./parsers/mock-parser.mjs";'
+    );
+  }
+  fs.writeFileSync(path.join(scriptsDir, "ingest-parsers.mjs"), parsersSource, "utf8");
+}
 const STATUS_PATH = path.join(REPO_ROOT, "scripts", "status.sh");
 
 let passed = 0;
@@ -121,11 +141,7 @@ function testIngestChunkIdDisambiguation() {
     fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
-    const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
-      'import { parseCode } from "./parsers/javascript.mjs";',
-      'import { parseCode } from "./parsers/mock-parser.mjs";'
-    );
-    fs.writeFileSync(path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"), ingestSource, "utf8");
+    writeIngestScripts(path.join(fixtureRoot, ".context", "scripts"), { mockJsParser: true });
 
     fs.writeFileSync(
       path.join(fixtureRoot, ".context", "scripts", "parsers", "mock-parser.mjs"),
@@ -251,11 +267,7 @@ function testIngestChunkOverlapWindows() {
     fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
-    const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
-      'import { parseCode } from "./parsers/javascript.mjs";',
-      'import { parseCode } from "./parsers/mock-parser.mjs";'
-    );
-    fs.writeFileSync(path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"), ingestSource, "utf8");
+    writeIngestScripts(path.join(fixtureRoot, ".context", "scripts"), { mockJsParser: true });
 
     const largeBody = Array.from(
       { length: 320 },
@@ -364,11 +376,7 @@ function testIngestChunkZeroOverlapConfig() {
     fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
-    const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
-      'import { parseCode } from "./parsers/javascript.mjs";',
-      'import { parseCode } from "./parsers/mock-parser.mjs";'
-    );
-    fs.writeFileSync(path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"), ingestSource, "utf8");
+    writeIngestScripts(path.join(fixtureRoot, ".context", "scripts"), { mockJsParser: true });
 
     const body = Array.from({ length: 10 }, (_, index) => `line-${index + 1}`).join("\n");
     fs.writeFileSync(
@@ -464,11 +472,7 @@ function testIngestChunkMaxWindowCap() {
     fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
-    const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
-      'import { parseCode } from "./parsers/javascript.mjs";',
-      'import { parseCode } from "./parsers/mock-parser.mjs";'
-    );
-    fs.writeFileSync(path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"), ingestSource, "utf8");
+    writeIngestScripts(path.join(fixtureRoot, ".context", "scripts"), { mockJsParser: true });
 
     const largeBody = Array.from(
       { length: 320 },
@@ -572,11 +576,7 @@ function testIngestChunkMetadataInheritanceInIncrementalMode() {
     fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
-    const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
-      'import { parseCode } from "./parsers/javascript.mjs";',
-      'import { parseCode } from "./parsers/mock-parser.mjs";'
-    );
-    fs.writeFileSync(path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"), ingestSource, "utf8");
+    writeIngestScripts(path.join(fixtureRoot, ".context", "scripts"), { mockJsParser: true });
 
     const chunkBody = Array.from({ length: 12 }, (_, index) => `line-${index + 1}`).join("\n");
     fs.writeFileSync(
@@ -704,11 +704,7 @@ function testIngestIncrementalPreservesModuleExports() {
     fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src", "lib"), { recursive: true });
 
-    const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
-      'import { parseCode } from "./parsers/javascript.mjs";',
-      'import { parseCode } from "./parsers/mock-parser.mjs";'
-    );
-    fs.writeFileSync(path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"), ingestSource, "utf8");
+    writeIngestScripts(path.join(fixtureRoot, ".context", "scripts"), { mockJsParser: true });
 
     fs.writeFileSync(
       path.join(fixtureRoot, ".context", "scripts", "parsers", "mock-parser.mjs"),
@@ -842,11 +838,7 @@ function testIngestWindowChunksKeepRelationsOnBaseChunk() {
     fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
-    const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
-      'import { parseCode } from "./parsers/javascript.mjs";',
-      'import { parseCode } from "./parsers/mock-parser.mjs";'
-    );
-    fs.writeFileSync(path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"), ingestSource, "utf8");
+    writeIngestScripts(path.join(fixtureRoot, ".context", "scripts"), { mockJsParser: true });
 
     const mainBody = Array.from({ length: 14 }, (_, index) => `main-line-${index + 1}`).join("\n");
     fs.writeFileSync(
@@ -971,6 +963,8 @@ function testIngestIncrementalPreservesStructuredTargetRelations() {
     fs.mkdirSync(path.join(fixtureRoot, "legacy"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "db"), { recursive: true });
     fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
+    fs.copyFileSync(INGEST_PARSERS_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-parsers.mjs"));
+    fs.copyFileSync(INGEST_WORKER_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-worker.mjs"));
     fs.cpSync(path.join(REPO_ROOT, "scaffold", "scripts", "parsers"), path.join(fixtureRoot, ".context", "scripts", "parsers"), {
       recursive: true
     });
@@ -1347,6 +1341,8 @@ function testIngestPersistsImportEdgesForDeclarationHeaders() {
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
     fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
+    fs.copyFileSync(INGEST_PARSERS_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-parsers.mjs"));
+    fs.copyFileSync(INGEST_WORKER_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-worker.mjs"));
     fs.writeFileSync(
       path.join(fixtureRoot, ".context", "scripts", "parsers", "javascript.mjs"),
       `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scaffold", "scripts", "parsers", "javascript.mjs"))};\n`,
@@ -1462,6 +1458,8 @@ function testIngestPersistsImportEdgesForTypes() {
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
     fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
+    fs.copyFileSync(INGEST_PARSERS_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-parsers.mjs"));
+    fs.copyFileSync(INGEST_WORKER_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-worker.mjs"));
     fs.writeFileSync(
       path.join(fixtureRoot, ".context", "scripts", "parsers", "javascript.mjs"),
       `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scaffold", "scripts", "parsers", "javascript.mjs"))};\n`,
@@ -1538,6 +1536,8 @@ function testIngestDoesNotPersistTypeImportEdgesForGenericParameters() {
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
     fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
+    fs.copyFileSync(INGEST_PARSERS_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-parsers.mjs"));
+    fs.copyFileSync(INGEST_WORKER_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-worker.mjs"));
     fs.writeFileSync(
       path.join(fixtureRoot, ".context", "scripts", "parsers", "javascript.mjs"),
       `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scaffold", "scripts", "parsers", "javascript.mjs"))};\n`,
@@ -1608,6 +1608,8 @@ function testIngestResolvesNodeNextJsSpecifiersToTypescriptSources() {
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
     fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
+    fs.copyFileSync(INGEST_PARSERS_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-parsers.mjs"));
+    fs.copyFileSync(INGEST_WORKER_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-worker.mjs"));
     fs.writeFileSync(
       path.join(fixtureRoot, ".context", "scripts", "parsers", "javascript.mjs"),
       `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scaffold", "scripts", "parsers", "javascript.mjs"))};\n`,
@@ -1685,6 +1687,8 @@ function testIngestDoesNotResolveExplicitJsSpecifiersToJsonFiles() {
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
     fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
+    fs.copyFileSync(INGEST_PARSERS_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-parsers.mjs"));
+    fs.copyFileSync(INGEST_WORKER_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-worker.mjs"));
     fs.writeFileSync(
       path.join(fixtureRoot, ".context", "scripts", "parsers", "javascript.mjs"),
       `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scaffold", "scripts", "parsers", "javascript.mjs"))};\n`,
@@ -1755,6 +1759,8 @@ function testIngestPersistsImportEdgesForModuleScopeRequireBindings() {
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
     fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
+    fs.copyFileSync(INGEST_PARSERS_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-parsers.mjs"));
+    fs.copyFileSync(INGEST_WORKER_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-worker.mjs"));
     fs.writeFileSync(
       path.join(fixtureRoot, ".context", "scripts", "parsers", "javascript.mjs"),
       `export { parseCode } from ${JSON.stringify(path.join(REPO_ROOT, "scaffold", "scripts", "parsers", "javascript.mjs"))};\n`,
@@ -1824,11 +1830,7 @@ function testIngestResolvesDirectoryImportsToIndexFiles() {
     fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src", "pkg"), { recursive: true });
 
-    const ingestSource = fs.readFileSync(INGEST_PATH, "utf8").replace(
-      'import { parseCode } from "./parsers/javascript.mjs";',
-      'import { parseCode } from "./parsers/mock-parser.mjs";'
-    );
-    fs.writeFileSync(path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"), ingestSource, "utf8");
+    writeIngestScripts(path.join(fixtureRoot, ".context", "scripts"), { mockJsParser: true });
 
     fs.writeFileSync(
       path.join(fixtureRoot, ".context", "scripts", "parsers", "mock-parser.mjs"),

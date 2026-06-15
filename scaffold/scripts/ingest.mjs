@@ -1,97 +1,20 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
-import { parseCode } from "./parsers/javascript.mjs";
-
-const parseJavaScriptCode = parseCode;
-let parseVbNetCode = null;
-let parseCSharpCode = null;
-let parseCSharpProject = null;
-let parseCppCode = null;
-let parseConfigCode = null;
-let parseResourcesCode = null;
-let parseSqlCode = null;
-let parseRustCode = null;
-let parsePythonCode = null;
-let parseGoCode = null;
-let parseJavaCode = null;
-let parseRubyCode = null;
-let parseBashCode = null;
-let parseVb6Code = null;
-let parseMarkdownCode = null;
-let isVbNetParserAvailable = () => false;
-let isCSharpParserAvailable = () => false;
-let isCppParserAvailable = () => false;
-let getCSharpParserRuntime = () => ({ available: false, reason: "parser module not loaded" });
-
-async function loadOptionalParsers() {
-  const loaders = [
-    import("./parsers/vbnet.mjs").then((module) => {
-      parseVbNetCode = module.parseCode;
-      isVbNetParserAvailable =
-        typeof module.isVbNetParserAvailable === "function"
-          ? module.isVbNetParserAvailable
-          : () => typeof module.parseCode === "function";
-    }),
-    import("./parsers/csharp.mjs").then((module) => {
-      parseCSharpCode = module.parseCode;
-      parseCSharpProject = module.parseProject ?? null;
-      getCSharpParserRuntime =
-        typeof module.getCSharpParserRuntime === "function"
-          ? module.getCSharpParserRuntime
-          : () => ({ available: typeof module.parseCode === "function", reason: "runtime details unavailable" });
-      isCSharpParserAvailable =
-        typeof module.isCSharpParserAvailable === "function"
-          ? module.isCSharpParserAvailable
-          : () => typeof module.parseCode === "function";
-    }),
-    import("./parsers/cpp-dispatch.mjs").then((module) => {
-      parseCppCode = module.parseCode;
-      isCppParserAvailable =
-        typeof module.isCppParserAvailable === "function"
-          ? module.isCppParserAvailable
-          : () => typeof module.parseCode === "function";
-    }),
-    import("./parsers/config.mjs").then((module) => {
-      parseConfigCode = module.parseCode;
-    }),
-    import("./parsers/resources.mjs").then((module) => {
-      parseResourcesCode = module.parseCode;
-    }),
-    import("./parsers/sql.mjs").then((module) => {
-      parseSqlCode = module.parseCode;
-    }),
-    import("./parsers/rust-dispatch.mjs").then((module) => {
-      parseRustCode = module.parseCode;
-    }),
-    import("./parsers/python-treesitter.mjs").then((module) => {
-      parsePythonCode = module.parseCode;
-    }),
-    import("./parsers/go-treesitter.mjs").then((module) => {
-      parseGoCode = module.parseCode;
-    }),
-    import("./parsers/java-treesitter.mjs").then((module) => {
-      parseJavaCode = module.parseCode;
-    }),
-    import("./parsers/ruby-treesitter.mjs").then((module) => {
-      parseRubyCode = module.parseCode;
-    }),
-    import("./parsers/bash-treesitter.mjs").then((module) => {
-      parseBashCode = module.parseCode;
-    }),
-    import("./parsers/vb6.mjs").then((module) => {
-      parseVb6Code = module.parseCode;
-    }),
-    import("./parsers/markdown.mjs").then((module) => {
-      parseMarkdownCode = module.parseCode;
-    })
-  ];
-
-  await Promise.allSettled(loaders);
-}
+import { Worker } from "node:worker_threads";
+import {
+  loadParsers,
+  getChunkParserForExtension,
+  parseCSharpProject,
+  hasCSharpProjectParser,
+  isCSharpParserAvailable,
+  getCSharpParserRuntime,
+  PARALLEL_SAFE_LANGUAGES
+} from "./ingest-parsers.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -246,253 +169,6 @@ const CONFIG_KEY_REFERENCE_PATTERNS = [
   /\bGetConnectionString\(\s*"([^"\r\n]+)"\s*\)/g,
   /\bGetAppSetting\(\s*"([^"\r\n]+)"\s*\)/g
 ];
-
-const CHUNK_PARSERS = new Map([
-  [
-    ".js",
-    {
-      language: "javascript",
-      parse: parseJavaScriptCode
-    }
-  ],
-  [
-    ".mjs",
-    {
-      language: "javascript",
-      parse: parseJavaScriptCode
-    }
-  ],
-  [
-    ".cjs",
-    {
-      language: "javascript",
-      parse: parseJavaScriptCode
-    }
-  ],
-  [
-    ".ts",
-    {
-      language: "typescript",
-      parse: parseJavaScriptCode
-    }
-  ],
-  [
-    ".vb",
-    {
-      language: "vbnet",
-      parse: (...args) => parseVbNetCode(...args),
-      isAvailable: () =>
-        typeof parseVbNetCode === "function" && isVbNetParserAvailable()
-    }
-  ],
-  [
-    ".cs",
-    {
-      language: "csharp",
-      parse: (...args) => parseCSharpCode(...args),
-      isAvailable: () =>
-        typeof parseCSharpCode === "function" && isCSharpParserAvailable()
-    }
-  ],
-  [
-    ".sql",
-    {
-      language: "sql",
-      parse: (...args) => parseSqlCode(...args),
-      isAvailable: () => typeof parseSqlCode === "function"
-    }
-  ],
-  [
-    ".md",
-    {
-      language: "markdown",
-      parse: (...args) => parseMarkdownCode(...args),
-      isAvailable: () => typeof parseMarkdownCode === "function"
-    }
-  ],
-  [
-    ".mdx",
-    {
-      language: "markdown",
-      parse: (...args) => parseMarkdownCode(...args),
-      isAvailable: () => typeof parseMarkdownCode === "function"
-    }
-  ],
-  [
-    ".config",
-    {
-      language: "config",
-      parse: (...args) => parseConfigCode(...args),
-      isAvailable: () => typeof parseConfigCode === "function"
-    }
-  ],
-  [
-    ".resx",
-    {
-      language: "resource",
-      parse: (...args) => parseResourcesCode(...args),
-      isAvailable: () => typeof parseResourcesCode === "function"
-    }
-  ],
-  [
-    ".settings",
-    {
-      language: "settings",
-      parse: (...args) => parseResourcesCode(...args),
-      isAvailable: () => typeof parseResourcesCode === "function"
-    }
-  ],
-  [
-    ".c",
-    {
-      language: "c",
-      parse: (...args) => parseCppCode(...args),
-      isAvailable: () =>
-        typeof parseCppCode === "function" && isCppParserAvailable()
-    }
-  ],
-  [
-    ".h",
-    {
-      language: "c",
-      parse: (...args) => parseCppCode(...args),
-      isAvailable: () =>
-        typeof parseCppCode === "function" && isCppParserAvailable()
-    }
-  ],
-  [
-    ".cpp",
-    {
-      language: "cpp",
-      parse: (...args) => parseCppCode(...args),
-      isAvailable: () =>
-        typeof parseCppCode === "function" && isCppParserAvailable()
-    }
-  ],
-  [
-    ".cc",
-    {
-      language: "cpp",
-      parse: (...args) => parseCppCode(...args),
-      isAvailable: () =>
-        typeof parseCppCode === "function" && isCppParserAvailable()
-    }
-  ],
-  [
-    ".hpp",
-    {
-      language: "cpp",
-      parse: (...args) => parseCppCode(...args),
-      isAvailable: () =>
-        typeof parseCppCode === "function" && isCppParserAvailable()
-    }
-  ],
-  [
-    ".hh",
-    {
-      language: "cpp",
-      parse: (...args) => parseCppCode(...args),
-      isAvailable: () =>
-        typeof parseCppCode === "function" && isCppParserAvailable()
-    }
-  ],
-  [
-    ".rs",
-    {
-      language: "rust",
-      parse: (...args) => parseRustCode(...args),
-      isAvailable: () => typeof parseRustCode === "function"
-    }
-  ],
-  [
-    ".py",
-    {
-      language: "python",
-      parse: (...args) => parsePythonCode(...args),
-      isAvailable: () => typeof parsePythonCode === "function"
-    }
-  ],
-  [
-    ".go",
-    {
-      language: "go",
-      parse: (...args) => parseGoCode(...args),
-      isAvailable: () => typeof parseGoCode === "function"
-    }
-  ],
-  [
-    ".java",
-    {
-      language: "java",
-      parse: (...args) => parseJavaCode(...args),
-      isAvailable: () => typeof parseJavaCode === "function"
-    }
-  ],
-  [
-    ".rb",
-    {
-      language: "ruby",
-      parse: (...args) => parseRubyCode(...args),
-      isAvailable: () => typeof parseRubyCode === "function"
-    }
-  ],
-  [
-    ".sh",
-    {
-      language: "bash",
-      parse: (...args) => parseBashCode(...args),
-      isAvailable: () => typeof parseBashCode === "function"
-    }
-  ],
-  [
-    ".bash",
-    {
-      language: "bash",
-      parse: (...args) => parseBashCode(...args),
-      isAvailable: () => typeof parseBashCode === "function"
-    }
-  ],
-  [
-    ".zsh",
-    {
-      language: "bash",
-      parse: (...args) => parseBashCode(...args),
-      isAvailable: () => typeof parseBashCode === "function"
-    }
-  ],
-  [
-    ".bas",
-    {
-      language: "vb6",
-      parse: (...args) => parseVb6Code(...args),
-      isAvailable: () => typeof parseVb6Code === "function"
-    }
-  ],
-  [
-    ".cls",
-    {
-      language: "vb6",
-      parse: (...args) => parseVb6Code(...args),
-      isAvailable: () => typeof parseVb6Code === "function"
-    }
-  ],
-  [
-    ".frm",
-    {
-      language: "vb6",
-      parse: (...args) => parseVb6Code(...args),
-      isAvailable: () => typeof parseVb6Code === "function"
-    }
-  ],
-  [
-    ".ctl",
-    {
-      language: "vb6",
-      parse: (...args) => parseVb6Code(...args),
-      isAvailable: () => typeof parseVb6Code === "function"
-    }
-  ]
-]);
 
 const SKIP_DIRECTORIES = new Set([
   ".git",
@@ -963,10 +639,6 @@ function detectKind(relPath) {
   }
 
   return "CODE";
-}
-
-function getChunkParserForExtension(ext) {
-  return CHUNK_PARSERS.get(ext) ?? null;
 }
 
 function trustLevelForKind(kind) {
@@ -2528,8 +2200,132 @@ function splitChunkIntoWindows(chunkRecord, options) {
   return windows;
 }
 
+function resolveIngestWorkerCount(taskCount) {
+  const raw = process.env.CORTEX_INGEST_WORKERS;
+  const configured = raw !== undefined ? Number.parseInt(raw, 10) : Number.NaN;
+  const cpuBudget = Math.max(1, (os.availableParallelism?.() ?? os.cpus().length) - 1);
+  const desired = Number.isFinite(configured) && configured >= 0 ? configured : Math.min(cpuBudget, 8);
+  if (desired <= 1) return 1;
+  // Worker spin-up plus per-worker WASM grammar init dominates on small or
+  // incremental runs; stay sequential until there is enough work to amortize.
+  if (taskCount < 50) return 1;
+  return Math.min(desired, taskCount);
+}
+
+// Parse files in a worker pool, returning Map<fileId, parseResult> for the
+// tasks that completed. Any task not present (worker miss, skip, or a fatal
+// worker error) is left to the caller's inline parse — the same parse
+// function on the same content, so output is identical either way. Never
+// rejects: a fatal worker error resolves with the partial results collected
+// so far.
+async function parseFilesInWorkers(tasks, { workerCount, verbose, workerUrl } = {}) {
+  const results = new Map();
+  if (tasks.length === 0) {
+    return results;
+  }
+
+  const resolvedWorkerUrl = workerUrl ?? new URL("./ingest-worker.mjs", import.meta.url);
+  const poolSize = Math.min(workerCount, tasks.length);
+  // Defensive: an undefined/0/negative/NaN workerCount yields poolSize < 1, in
+  // which case no workers are ever spawned and the pool would never resolve.
+  // Return empty so the caller parses everything inline. (Math.min(undefined, n)
+  // is NaN, which is why this is `!(>= 1)` rather than `< 1`.)
+  if (!(poolSize >= 1)) {
+    return results;
+  }
+  const workers = [];
+  const inflight = new Map(); // worker -> taskId being parsed, or null when idle
+  let nextTask = 0;
+  let settled = 0;
+  let alive = poolSize;
+
+  await new Promise((resolve) => {
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      resolve();
+    };
+    // A task is "settled" once it has a result, was skipped, or its worker
+    // died holding it. Finish when every task is settled, or when no worker is
+    // left alive to make progress (any still-queued tasks then parse inline).
+    const maybeFinish = () => {
+      if (settled >= tasks.length || alive <= 0) {
+        finish();
+      }
+    };
+
+    const assign = (worker) => {
+      if (nextTask >= tasks.length) {
+        inflight.set(worker, null);
+        worker.postMessage({ type: "shutdown" });
+        return;
+      }
+      const task = tasks[nextTask++];
+      inflight.set(worker, task.id);
+      worker.postMessage({ taskId: task.id, ext: task.ext, content: task.content, filePath: task.path });
+    };
+
+    const onMessage = (worker, message) => {
+      if (finished) return;
+      if (message.ok) {
+        results.set(message.taskId, message.result);
+      } else if (verbose) {
+        console.log(`[ingest] worker skipped ${message.taskId}: ${message.reason}`);
+      }
+      inflight.set(worker, null);
+      settled += 1;
+      if (settled >= tasks.length) {
+        finish();
+        return;
+      }
+      assign(worker);
+    };
+
+    const onExit = (worker) => {
+      if (finished) return;
+      alive -= 1;
+      const taskId = inflight.get(worker);
+      if (taskId != null) {
+        // Worker exited mid-parse without posting a result (OOM, native abort,
+        // process.exit) and without an 'error' event. Count its in-flight task
+        // as settled so it falls back to inline parsing rather than leaving the
+        // pool waiting on a dead worker forever.
+        if (verbose) {
+          console.log(`[ingest] worker exited mid-task ${taskId}; will parse inline`);
+        }
+        inflight.set(worker, null);
+        settled += 1;
+      }
+      maybeFinish();
+    };
+
+    for (let i = 0; i < poolSize; i += 1) {
+      const worker = new Worker(resolvedWorkerUrl);
+      workers.push(worker);
+      worker.on("message", (message) => onMessage(worker, message));
+      worker.on("error", (error) => {
+        // Uncaught exception in the worker. The 'exit' event that always
+        // follows does the task accounting (idempotent via inflight), so we
+        // only log here to avoid double-counting.
+        if (verbose) {
+          console.log(`[ingest] worker error: ${error.message}`);
+        }
+      });
+      worker.on("exit", () => onExit(worker));
+    }
+
+    for (const worker of workers) {
+      assign(worker);
+    }
+  });
+
+  await Promise.all(workers.map((worker) => worker.terminate().catch(() => {})));
+  return results;
+}
+
 async function main() {
-  await loadOptionalParsers();
+  await loadParsers();
   const { mode, verbose } = parseArgs(process.argv);
   const configPath = path.join(CONTEXT_DIR, "config.yaml");
   const rulesPath = path.join(CONTEXT_DIR, "rules.yaml");
@@ -2754,7 +2550,7 @@ async function main() {
   // if batch isn't usable.
   const csharpBatchCache = new Map();
   if (
-    typeof parseCSharpProject === "function" &&
+    hasCSharpProjectParser() &&
     isCSharpParserAvailable() &&
     process.env.CORTEX_CSHARP_BATCH !== "never"
   ) {
@@ -2780,6 +2576,9 @@ async function main() {
     }
   }
 
+  // Determine which files need parsing (single pass over the gates, shared by
+  // the worker dispatch and the merge loop below so the two cannot diverge).
+  const parseEligible = new Map();
   for (const fileRecord of fileRecords) {
     const ext = path.extname(fileRecord.path).toLowerCase();
     const parser = getChunkParserForExtension(ext);
@@ -2793,6 +2592,38 @@ async function main() {
     if (!shouldParseFile) {
       continue;
     }
+    parseEligible.set(fileRecord.id, { parser, ext });
+  }
+
+  // Parse parallel-safe files (tree-sitter/JS, no subprocess, no cross-file
+  // state) in a worker pool. C# batch-cached files and any worker miss fall
+  // through to inline parsing in the loop, so the result is byte-identical to
+  // the sequential path regardless of where a file actually parsed.
+  const workerTasks = fileRecords
+    .filter((fileRecord) => {
+      const eligible = parseEligible.get(fileRecord.id);
+      if (!eligible) return false;
+      if (!PARALLEL_SAFE_LANGUAGES.has(eligible.parser.language)) return false;
+      if (eligible.parser.language === "csharp" && csharpBatchCache.has(fileRecord.path)) return false;
+      return true;
+    })
+    .map((fileRecord) => ({
+      id: fileRecord.id,
+      ext: parseEligible.get(fileRecord.id).ext,
+      content: fileRecord.content,
+      path: fileRecord.path
+    }));
+  const workerCount = resolveIngestWorkerCount(workerTasks.length);
+  const workerResults =
+    workerCount > 1 ? await parseFilesInWorkers(workerTasks, { workerCount, verbose }) : new Map();
+  if (verbose && workerCount > 1) {
+    console.log(`[ingest] parsed ${workerResults.size}/${workerTasks.length} files across ${workerCount} workers`);
+  }
+
+  for (const fileRecord of fileRecords) {
+    const eligible = parseEligible.get(fileRecord.id);
+    if (!eligible) continue;
+    const { parser } = eligible;
 
     removeChunkStateForFile(
       fileRecord.id,
@@ -2804,9 +2635,14 @@ async function main() {
     );
 
     try {
-      const parseResult = parser.language === "csharp" && csharpBatchCache.has(fileRecord.path)
-        ? csharpBatchCache.get(fileRecord.path)
-        : await parser.parse(fileRecord.content, fileRecord.path, parser.language);
+      let parseResult;
+      if (parser.language === "csharp" && csharpBatchCache.has(fileRecord.path)) {
+        parseResult = csharpBatchCache.get(fileRecord.path);
+      } else if (workerResults.has(fileRecord.id)) {
+        parseResult = workerResults.get(fileRecord.id);
+      } else {
+        parseResult = await parser.parse(fileRecord.content, fileRecord.path, parser.language);
+      }
 
       if (parseResult.errors.length > 0 && verbose) {
         console.log(`[ingest] parse errors in ${fileRecord.path}:`, parseResult.errors[0].message);
@@ -3616,5 +3452,6 @@ export {
   generateProjects,
   generateSectionHandlerRelations,
   getChunkParserForExtension,
+  parseFilesInWorkers,
   resolveRelativeImportTargetId
 };

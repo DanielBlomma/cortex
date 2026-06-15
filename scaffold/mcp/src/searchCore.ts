@@ -251,7 +251,7 @@ export function legacyDataAccessBoost(entity: SearchEntity, queryTokens: string[
   return boost;
 }
 
-export function cosineSimilarity(a: number[], b: number[]): number {
+export function cosineSimilarity(a: Float32Array, b: Float32Array): number {
   if (a.length === 0 || b.length === 0 || a.length !== b.length) {
     return 0;
   }

@@ -23,13 +23,13 @@ export function buildSearchResults(params: {
   includeScores: boolean;
   includeMatchedRules: boolean;
   includeContent: boolean;
-  queryVector: number[] | null;
-  embeddingVectors: Map<string, number[]>;
+  queryVector: Float32Array | null;
+  embeddingVectors: Map<string, Float32Array>;
   topK: number;
   minLexicalRelevance: number;
   minVectorRelevance: number;
   semanticScorer: (queryTokens: string[], queryPhrase: string, text: string) => number;
-  vectorScorer: (a: number[], b: number[]) => number;
+  vectorScorer: (a: Float32Array, b: Float32Array) => number;
   recencyScorer: (isoDate: string) => number;
   legacyDataAccessBooster: (entity: SearchEntity, queryTokens: string[], queryPhrase: string) => number;
 }): Record<string, unknown>[] {
