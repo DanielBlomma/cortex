@@ -151,7 +151,12 @@ export type SearchEntity = {
 
 export type EmbeddingIndex = {
   model: string | null;
-  vectors: Map<string, number[]>;
+  // Stored as Float32Array (not number[]): ~4x less memory than boxed
+  // float64 arrays, and a monomorphic typed-array cosine loop. The JSONL on
+  // disk stays canonical 6-decimal text; the float32 re-encode perturbs
+  // values by ~1e-8, far below the rounding already applied and below the
+  // 4-decimal score rounding at the API boundary.
+  vectors: Map<string, Float32Array>;
   warning?: string;
 };
 
