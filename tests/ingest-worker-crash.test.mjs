@@ -61,3 +61,27 @@ test("parseFilesInWorkers returns empty for no tasks without spawning workers", 
   const results = await parseFilesInWorkers([], { workerCount: 4, workerUrl: CRASH_WORKER });
   assert.equal(results.size, 0);
 });
+
+test("parseFilesInWorkers does not hang on an invalid worker count", async () => {
+  const tasks = makeTasks(8);
+  // undefined, 0, and negative all yield poolSize < 1; each must resolve to an
+  // empty map (caller parses inline) instead of waiting on a pool of zero.
+  for (const workerCount of [undefined, 0, -1]) {
+    const results = await withTimeout(
+      parseFilesInWorkers(tasks, { workerCount, workerUrl: CRASH_WORKER }),
+      10000,
+      `workerCount=${workerCount}`
+    );
+    assert.equal(results.size, 0, `workerCount=${workerCount} should produce no worker results`);
+  }
+});
+
+test("parseFilesInWorkers runs single-worker when workerCount is 1", async () => {
+  const tasks = makeTasks(5);
+  const results = await withTimeout(
+    parseFilesInWorkers(tasks, { workerCount: 1, workerUrl: CRASH_WORKER }),
+    10000,
+    "single worker"
+  );
+  assert.equal(results.size, 5, "all tasks parse through a single worker");
+});

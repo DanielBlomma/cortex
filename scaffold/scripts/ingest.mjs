@@ -2226,6 +2226,13 @@ async function parseFilesInWorkers(tasks, { workerCount, verbose, workerUrl } = 
 
   const resolvedWorkerUrl = workerUrl ?? new URL("./ingest-worker.mjs", import.meta.url);
   const poolSize = Math.min(workerCount, tasks.length);
+  // Defensive: an undefined/0/negative/NaN workerCount yields poolSize < 1, in
+  // which case no workers are ever spawned and the pool would never resolve.
+  // Return empty so the caller parses everything inline. (Math.min(undefined, n)
+  // is NaN, which is why this is `!(>= 1)` rather than `< 1`.)
+  if (!(poolSize >= 1)) {
+    return results;
+  }
   const workers = [];
   const inflight = new Map(); // worker -> taskId being parsed, or null when idle
   let nextTask = 0;
