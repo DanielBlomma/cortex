@@ -71,6 +71,30 @@ test("ExactVectorBackend handles a zero query vector", () => {
   assert.equal(score("a"), 0);
 });
 
+test("buildSearchResults treats a non-finite vector score as no signal", () => {
+  const candidate = { id: "x", entity_type: "Chunk", kind: "function", label: "x", path: "src/x.ts", text: "text x", status: "active", source_of_truth: false, trust_level: 50, updated_at: "2026-01-01T00:00:00Z", snippet: "", matched_rules: [] };
+  const results = buildSearchResults({
+    candidates: [candidate],
+    degreeByEntity: new Map(),
+    queryTokens: ["text"],
+    queryPhrase: "text",
+    ranking: { semantic: 0.55, graph: 0.1, trust: 0.2, recency: 0.15 },
+    includeScores: true,
+    includeMatchedRules: false,
+    includeContent: false,
+    scoreVectorById: () => NaN,
+    topK: 1,
+    minLexicalRelevance: 0,
+    minVectorRelevance: 0,
+    semanticScorer: () => 0.5,
+    recencyScorer: () => 0.5,
+    legacyDataAccessBooster: () => 0
+  });
+  assert.equal(results.length, 1);
+  assert.equal(results[0].embedding_score, 0, "NaN vector score must collapse to 0");
+  assert.ok(Number.isFinite(results[0].score), "overall score must stay finite");
+});
+
 test("buildSearchResults uses scoreVectorById when provided", () => {
   const candidates = [
     { id: "near", entity_type: "Chunk", kind: "function", label: "near", path: "src/near.ts", text: "text near", status: "active", source_of_truth: false, trust_level: 50, updated_at: "2026-01-01T00:00:00Z", snippet: "", matched_rules: [] },

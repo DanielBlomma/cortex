@@ -80,8 +80,12 @@ export function buildSearchResults(params: {
         const entityVector = params.embeddingVectors.get(entity.id);
         rawVectorScore = entityVector ? params.vectorScorer(params.queryVector, entityVector) : null;
       }
+      // Treat a non-finite score as no signal: a NaN would otherwise survive
+      // the clamp and corrupt the score sort.
       const vectorSemantic =
-        rawVectorScore !== null ? Math.max(0, Math.min(1, rawVectorScore)) : 0;
+        rawVectorScore !== null && Number.isFinite(rawVectorScore)
+          ? Math.max(0, Math.min(1, rawVectorScore))
+          : 0;
       const hasRelevanceSignal =
         lexicalSemantic >= params.minLexicalRelevance || vectorSemantic >= params.minVectorRelevance;
       if (!hasRelevanceSignal) {
