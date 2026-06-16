@@ -38,6 +38,8 @@ const SUPPORTED_TEXT_EXTENSIONS = new Set([
   ".csv",
   ".ts",
   ".tsx",
+  ".mts",
+  ".cts",
   ".js",
   ".jsx",
   ".mjs",
@@ -96,6 +98,8 @@ const STRUCTURED_NON_CODE_CHUNK_EXTENSIONS = new Set([".config", ".resx", ".sett
 const CODE_FILE_EXTENSIONS = new Set([
   ".ts",
   ".tsx",
+  ".mts",
+  ".cts",
   ".js",
   ".jsx",
   ".mjs",
@@ -193,9 +197,9 @@ const DEFAULT_CHUNK_WINDOW_LINES = 80;
 const DEFAULT_CHUNK_OVERLAP_LINES = 16;
 const DEFAULT_CHUNK_SPLIT_MIN_LINES = 120;
 const DEFAULT_CHUNK_MAX_WINDOWS = 8;
-const IMPORT_RESOLUTION_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json"];
+const IMPORT_RESOLUTION_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".json"];
 const IMPORT_RUNTIME_JS_EXTENSIONS = new Set([".js", ".jsx", ".mjs", ".cjs"]);
-const IMPORT_RUNTIME_JS_RESOLUTION_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
+const IMPORT_RUNTIME_JS_RESOLUTION_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
 const CPP_IMPORT_RESOLUTION_EXTENSIONS = [".h", ".hh", ".hpp", ".c", ".cc", ".cpp"];
 
 const STOP_WORDS = new Set([
@@ -333,6 +337,40 @@ function parseNonNegativeIntegerEnv(name, fallback) {
     return fallback;
   }
   return Math.floor(parsed);
+}
+
+function isTruthyEnv(value) {
+  if (typeof value !== "string") {
+    return false;
+  }
+  const normalized = value.trim().toLowerCase();
+  return normalized !== "" && normalized !== "0" && normalized !== "false" && normalized !== "no" && normalized !== "off";
+}
+
+function createIngestMemoryTrace() {
+  const enabled = isTruthyEnv(process.env.CORTEX_INGEST_TRACE_MEMORY);
+
+  return {
+    enabled,
+    checkpoint(label, counts = {}) {
+      if (!enabled) {
+        return;
+      }
+
+      const memory = process.memoryUsage();
+      process.stderr.write(
+        `${JSON.stringify({
+          type: "cortex.ingest.memory",
+          label,
+          rss_bytes: memory.rss,
+          rss_mb: Number((memory.rss / 1024 / 1024).toFixed(2)),
+          heap_used_bytes: memory.heapUsed,
+          external_bytes: memory.external,
+          counts
+        })}\n`
+      );
+    }
+  };
 }
 
 function parseSourcePaths(configText) {
@@ -710,8 +748,14 @@ function findSupersedesReferences(content) {
 }
 
 function writeJsonl(filePath, records) {
-  const body = records.map((record) => JSON.stringify(record)).join("\n");
-  fs.writeFileSync(filePath, body ? `${body}\n` : "", "utf8");
+  const fd = fs.openSync(filePath, "w");
+  try {
+    for (const record of records) {
+      fs.writeSync(fd, `${JSON.stringify(record)}\n`, undefined, "utf8");
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 function sanitizeTsvCell(value) {
@@ -720,11 +764,21 @@ function sanitizeTsvCell(value) {
 }
 
 function writeTsv(filePath, headers, rows) {
-  const lines = [headers.join("\t")];
-  for (const row of rows) {
-    lines.push(row.map((value) => sanitizeTsvCell(value)).join("\t"));
+  const fd = fs.openSync(filePath, "w");
+  try {
+    fs.writeSync(fd, `${headers.join("\t")}\n`, undefined, "utf8");
+    for (const row of rows) {
+      fs.writeSync(fd, `${row.map((value) => sanitizeTsvCell(value)).join("\t")}\n`, undefined, "utf8");
+    }
+  } finally {
+    fs.closeSync(fd);
   }
-  fs.writeFileSync(filePath, `${lines.join("\n")}\n`, "utf8");
+}
+
+function* mapRows(records, project) {
+  for (const record of records) {
+    yield project(record);
+  }
 }
 
 function readJsonlSafe(filePath) {
@@ -2061,7 +2115,16 @@ function generateModuleSummary(dir, files, exportNames, repoRoot = REPO_ROOT) {
   const exts = new Set(codeFiles.map(f => path.extname(f.path).toLowerCase()));
   if (exts.size === 1) {
     const ext = [...exts][0];
-    const extNames = { ".ts": "TypeScript", ".js": "JavaScript", ".mjs": "JavaScript (ESM)", ".tsx": "TypeScript React" };
+    const extNames = {
+      ".ts": "TypeScript",
+      ".tsx": "TypeScript React",
+      ".mts": "TypeScript ESM",
+      ".cts": "TypeScript CommonJS",
+      ".js": "JavaScript",
+      ".jsx": "JavaScript React",
+      ".mjs": "JavaScript ESM",
+      ".cjs": "JavaScript CommonJS"
+    };
     if (extNames[ext]) parts.push(`${extNames[ext]} source files`);
   }
 
@@ -2212,16 +2275,32 @@ function resolveIngestWorkerCount(taskCount) {
   return Math.min(desired, taskCount);
 }
 
-// Parse files in a worker pool, returning Map<fileId, parseResult> for the
-// tasks that completed. Any task not present (worker miss, skip, or a fatal
-// worker error) is left to the caller's inline parse — the same parse
-// function on the same content, so output is identical either way. Never
-// rejects: a fatal worker error resolves with the partial results collected
-// so far.
-async function parseFilesInWorkers(tasks, { workerCount, verbose, workerUrl } = {}) {
-  const results = new Map();
+function createEmptyWorkerParseStream(tasks, workerCount) {
+  const stats = () => ({
+    worker_tasks: tasks.length,
+    worker_count: Number.isFinite(workerCount) ? workerCount : 0,
+    worker_tasks_assigned: 0,
+    worker_tasks_settled: 0,
+    worker_tasks_unsettled_fallback: tasks.length,
+    worker_results: 0,
+    worker_results_consumed: 0,
+    worker_results_retained: 0,
+    worker_results_retained_peak: 0,
+    worker_results_pending: 0,
+    worker_results_missing: tasks.length,
+    worker_waiters: 0
+  });
+  return {
+    hasTask: () => false,
+    stats,
+    take: async () => undefined,
+    drain: async () => stats()
+  };
+}
+
+function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {}) {
   if (tasks.length === 0) {
-    return results;
+    return createEmptyWorkerParseStream(tasks, workerCount);
   }
 
   const resolvedWorkerUrl = workerUrl ?? new URL("./ingest-worker.mjs", import.meta.url);
@@ -2231,102 +2310,219 @@ async function parseFilesInWorkers(tasks, { workerCount, verbose, workerUrl } = 
   // Return empty so the caller parses everything inline. (Math.min(undefined, n)
   // is NaN, which is why this is `!(>= 1)` rather than `< 1`.)
   if (!(poolSize >= 1)) {
-    return results;
+    return createEmptyWorkerParseStream(tasks, workerCount);
   }
+
+  const taskIds = new Set(tasks.map((task) => task.id));
+  const results = new Map();
+  const missingResults = new Set();
+  const waiters = new Map();
   const workers = [];
   const inflight = new Map(); // worker -> taskId being parsed, or null when idle
   let nextTask = 0;
-  let settled = 0;
   let alive = poolSize;
+  let finished = false;
+  let resolveDone;
+  const done = new Promise((resolve) => {
+    resolveDone = resolve;
+  });
+  const state = {
+    assigned: 0,
+    settled: 0,
+    successful: 0,
+    consumed: 0,
+    retainedPeak: 0
+  };
 
-  await new Promise((resolve) => {
-    let finished = false;
-    const finish = () => {
-      if (finished) return;
-      finished = true;
-      resolve();
-    };
-    // A task is "settled" once it has a result, was skipped, or its worker
-    // died holding it. Finish when every task is settled, or when no worker is
-    // left alive to make progress (any still-queued tasks then parse inline).
-    const maybeFinish = () => {
-      if (settled >= tasks.length || alive <= 0) {
-        finish();
-      }
-    };
-
-    const assign = (worker) => {
-      if (nextTask >= tasks.length) {
-        inflight.set(worker, null);
-        worker.postMessage({ type: "shutdown" });
-        return;
-      }
-      const task = tasks[nextTask++];
-      inflight.set(worker, task.id);
-      worker.postMessage({ taskId: task.id, ext: task.ext, content: task.content, filePath: task.path });
-    };
-
-    const onMessage = (worker, message) => {
-      if (finished) return;
-      if (message.ok) {
-        results.set(message.taskId, message.result);
-      } else if (verbose) {
-        console.log(`[ingest] worker skipped ${message.taskId}: ${message.reason}`);
-      }
-      inflight.set(worker, null);
-      settled += 1;
-      if (settled >= tasks.length) {
-        finish();
-        return;
-      }
-      assign(worker);
-    };
-
-    const onExit = (worker) => {
-      if (finished) return;
-      alive -= 1;
-      const taskId = inflight.get(worker);
-      if (taskId != null) {
-        // Worker exited mid-parse without posting a result (OOM, native abort,
-        // process.exit) and without an 'error' event. Count its in-flight task
-        // as settled so it falls back to inline parsing rather than leaving the
-        // pool waiting on a dead worker forever.
-        if (verbose) {
-          console.log(`[ingest] worker exited mid-task ${taskId}; will parse inline`);
-        }
-        inflight.set(worker, null);
-        settled += 1;
-      }
-      maybeFinish();
-    };
-
-    for (let i = 0; i < poolSize; i += 1) {
-      const worker = new Worker(resolvedWorkerUrl);
-      workers.push(worker);
-      worker.on("message", (message) => onMessage(worker, message));
-      worker.on("error", (error) => {
-        // Uncaught exception in the worker. The 'exit' event that always
-        // follows does the task accounting (idempotent via inflight), so we
-        // only log here to avoid double-counting.
-        if (verbose) {
-          console.log(`[ingest] worker error: ${error.message}`);
-        }
-      });
-      worker.on("exit", () => onExit(worker));
-    }
-
-    for (const worker of workers) {
-      assign(worker);
-    }
+  const stats = () => ({
+    worker_tasks: tasks.length,
+    worker_count: poolSize,
+    worker_tasks_assigned: state.assigned,
+    worker_tasks_settled: state.settled,
+    worker_tasks_unsettled_fallback: finished ? Math.max(0, tasks.length - state.settled) : 0,
+    worker_results: state.successful,
+    worker_results_consumed: state.consumed,
+    worker_results_retained: results.size,
+    worker_results_retained_peak: state.retainedPeak,
+    worker_results_pending: finished ? 0 : Math.max(0, tasks.length - state.settled),
+    worker_results_missing: tasks.length - state.successful,
+    worker_waiters: waiters.size
   });
 
-  await Promise.all(workers.map((worker) => worker.terminate().catch(() => {})));
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    for (const resolve of waiters.values()) {
+      resolve(undefined);
+    }
+    waiters.clear();
+    resolveDone();
+  };
+
+  // A task is "settled" once it has a result, was skipped, or its worker
+  // died holding it. Finish when every task is settled, or when no worker is
+  // left alive to make progress (any still-queued tasks then parse inline).
+  const maybeFinish = () => {
+    if (state.settled >= tasks.length || alive <= 0) {
+      finish();
+    }
+  };
+
+  const resolveWaiter = (taskId, result) => {
+    const resolve = waiters.get(taskId);
+    if (!resolve) {
+      return false;
+    }
+    waiters.delete(taskId);
+    if (result !== undefined) {
+      state.consumed += 1;
+    }
+    resolve(result);
+    return true;
+  };
+
+  const settleTask = (taskId, result) => {
+    state.settled += 1;
+    if (result !== undefined) {
+      state.successful += 1;
+      if (!resolveWaiter(taskId, result)) {
+        results.set(taskId, result);
+        state.retainedPeak = Math.max(state.retainedPeak, results.size);
+      }
+    } else {
+      missingResults.add(taskId);
+      resolveWaiter(taskId, undefined);
+    }
+    maybeFinish();
+  };
+
+  const assign = (worker) => {
+    if (nextTask >= tasks.length) {
+      inflight.set(worker, null);
+      worker.postMessage({ type: "shutdown" });
+      return;
+    }
+    const task = tasks[nextTask++];
+    state.assigned += 1;
+    inflight.set(worker, task.id);
+    worker.postMessage({
+      taskId: task.id,
+      ext: task.ext,
+      content: task.content,
+      absolutePath: task.absolutePath,
+      contentLimit: task.contentLimit,
+      filePath: task.path
+    });
+  };
+
+  const onMessage = (worker, message) => {
+    if (finished) return;
+    inflight.set(worker, null);
+    if (message.ok) {
+      settleTask(message.taskId, message.result);
+    } else {
+      if (verbose) {
+        console.log(`[ingest] worker skipped ${message.taskId}: ${message.reason}`);
+      }
+      settleTask(message.taskId, undefined);
+    }
+    if (!finished) {
+      assign(worker);
+    }
+  };
+
+  const onExit = (worker) => {
+    if (finished) return;
+    alive -= 1;
+    const taskId = inflight.get(worker);
+    if (taskId != null) {
+      // Worker exited mid-parse without posting a result (OOM, native abort,
+      // process.exit) and without an 'error' event. Count its in-flight task
+      // as settled so it falls back to inline parsing rather than leaving the
+      // pool waiting on a dead worker forever.
+      if (verbose) {
+        console.log(`[ingest] worker exited mid-task ${taskId}; will parse inline`);
+      }
+      inflight.set(worker, null);
+      settleTask(taskId, undefined);
+      return;
+    }
+    maybeFinish();
+  };
+
+  for (let i = 0; i < poolSize; i += 1) {
+    const worker = new Worker(resolvedWorkerUrl);
+    workers.push(worker);
+    worker.on("message", (message) => onMessage(worker, message));
+    worker.on("error", (error) => {
+      // Uncaught exception in the worker. The 'exit' event that always
+      // follows does the task accounting (idempotent via inflight), so we
+      // only log here to avoid double-counting.
+      if (verbose) {
+        console.log(`[ingest] worker error: ${error.message}`);
+      }
+    });
+    worker.on("exit", () => onExit(worker));
+  }
+
+  for (const worker of workers) {
+    assign(worker);
+  }
+
+  return {
+    hasTask(taskId) {
+      return taskIds.has(taskId);
+    },
+    stats,
+    async take(taskId) {
+      if (!taskIds.has(taskId)) {
+        return undefined;
+      }
+      if (results.has(taskId)) {
+        const result = results.get(taskId);
+        results.delete(taskId);
+        state.consumed += 1;
+        return result;
+      }
+      if (missingResults.has(taskId) || finished) {
+        return undefined;
+      }
+      return new Promise((resolve) => {
+        waiters.set(taskId, resolve);
+      });
+    },
+    async drain() {
+      await done;
+      await Promise.all(workers.map((worker) => worker.terminate().catch(() => {})));
+      return stats();
+    }
+  };
+}
+
+// Parse files in a worker pool, returning Map<fileId, parseResult> for the
+// tasks that completed. Any task not present (worker miss, skip, or a fatal
+// worker error) is left to the caller's inline parse — the same parse
+// function on the same content, so output is identical either way. Never
+// rejects: a fatal worker error resolves with the partial results collected
+// so far.
+async function parseFilesInWorkers(tasks, options = {}) {
+  const stream = startWorkerParseStream(tasks, options);
+  const results = new Map();
+  for (const task of tasks) {
+    const result = await stream.take(task.id);
+    if (result) {
+      results.set(task.id, result);
+    }
+  }
+
+  await stream.drain();
   return results;
 }
 
 async function main() {
   await loadParsers();
   const { mode, verbose } = parseArgs(process.argv);
+  const memoryTrace = createIngestMemoryTrace();
   const configPath = path.join(CONTEXT_DIR, "config.yaml");
   const rulesPath = path.join(CONTEXT_DIR, "rules.yaml");
 
@@ -2347,6 +2543,11 @@ async function main() {
   }
 
   const rules = parseRules(fs.readFileSync(rulesPath, "utf8"));
+  memoryTrace.checkpoint("scan:start", {
+    mode,
+    source_paths: sourcePaths.length,
+    rules: rules.length
+  });
   const { candidates, incrementalMode, deletedRelPaths } = collectCandidateFiles(sourcePaths, mode);
   const chunkWindowLines = parsePositiveIntegerEnv(
     "CORTEX_CHUNK_WINDOW_LINES",
@@ -2500,6 +2701,16 @@ async function main() {
 
   const fileRecords = [...fileRecordMap.values()].sort((a, b) => a.path.localeCompare(b.path));
   const adrRecords = [...adrRecordMap.values()].sort((a, b) => a.path.localeCompare(b.path));
+  memoryTrace.checkpoint("scan:file_records", {
+    candidates: candidates.size,
+    incremental_mode: incrementalMode,
+    deleted_paths: deletedRelPaths.length,
+    files: fileRecords.length,
+    adrs: adrRecords.length,
+    skipped_unsupported: skipped.unsupported,
+    skipped_too_large: skipped.tooLarge,
+    skipped_binary: skipped.binary
+  });
   const csharpFileCount = fileRecords.filter((record) => path.extname(record.path).toLowerCase() === ".cs").length;
   const csharpRuntime = csharpFileCount > 0 ? getCSharpParserRuntime() : null;
   const indexedFileIds = new Set(fileRecords.map((record) => record.id));
@@ -2522,6 +2733,14 @@ async function main() {
         importsRelationMap: new Map(),
         callsSqlRelationMap: new Map()
       };
+  memoryTrace.checkpoint("hydration:complete", {
+    incremental_mode: incrementalMode,
+    cached_chunks: chunkRecordMap.size,
+    cached_defines_relations: definesRelationMap.size,
+    cached_calls_relations: callsRelationMap.size,
+    cached_imports_relations: importsRelationMap.size,
+    cached_calls_sql_relations: callsSqlRelationMap.size
+  });
 
   const cachedChunkFileIds = new Set(
     [...chunkRecordMap.values()].map((record) => String(record.file_id ?? "")).filter(Boolean)
@@ -2594,6 +2813,11 @@ async function main() {
     }
     parseEligible.set(fileRecord.id, { parser, ext });
   }
+  memoryTrace.checkpoint("parse:eligible", {
+    files: fileRecords.length,
+    parse_eligible: parseEligible.size,
+    csharp_batch_cached: csharpBatchCache.size
+  });
 
   // Parse parallel-safe files (tree-sitter/JS, no subprocess, no cross-file
   // state) in a worker pool. C# batch-cached files and any worker miss fall
@@ -2610,14 +2834,28 @@ async function main() {
     .map((fileRecord) => ({
       id: fileRecord.id,
       ext: parseEligible.get(fileRecord.id).ext,
-      content: fileRecord.content,
+      absolutePath: path.resolve(REPO_ROOT, fileRecord.path),
+      contentLimit: MAX_CONTENT_CHARS,
       path: fileRecord.path
     }));
   const workerCount = resolveIngestWorkerCount(workerTasks.length);
-  const workerResults =
-    workerCount > 1 ? await parseFilesInWorkers(workerTasks, { workerCount, verbose }) : new Map();
-  if (verbose && workerCount > 1) {
-    console.log(`[ingest] parsed ${workerResults.size}/${workerTasks.length} files across ${workerCount} workers`);
+  memoryTrace.checkpoint("parse:workers_start", {
+    worker_tasks: workerTasks.length,
+    worker_count: workerCount
+  });
+  const workerStream =
+    workerCount > 1 ? startWorkerParseStream(workerTasks, { workerCount, verbose }) : null;
+  if (!workerStream) {
+    memoryTrace.checkpoint("parse:workers_complete", {
+      worker_tasks: workerTasks.length,
+      worker_count: workerCount,
+      worker_results: 0,
+      worker_results_consumed: 0,
+      worker_results_retained: 0,
+      worker_results_retained_peak: 0,
+      worker_results_pending: 0,
+      worker_results_missing: workerTasks.length
+    });
   }
 
   for (const fileRecord of fileRecords) {
@@ -2638,8 +2876,11 @@ async function main() {
       let parseResult;
       if (parser.language === "csharp" && csharpBatchCache.has(fileRecord.path)) {
         parseResult = csharpBatchCache.get(fileRecord.path);
-      } else if (workerResults.has(fileRecord.id)) {
-        parseResult = workerResults.get(fileRecord.id);
+      } else if (workerStream?.hasTask(fileRecord.id)) {
+        parseResult = await workerStream.take(fileRecord.id);
+        if (!parseResult) {
+          parseResult = await parser.parse(fileRecord.content, fileRecord.path, parser.language);
+        }
       } else {
         parseResult = await parser.parse(fileRecord.content, fileRecord.path, parser.language);
       }
@@ -2791,6 +3032,27 @@ async function main() {
       }
     }
   }
+  const finalWorkerStats = workerStream ? await workerStream.drain() : null;
+  if (finalWorkerStats) {
+    memoryTrace.checkpoint("parse:workers_complete", finalWorkerStats);
+    if (verbose) {
+      console.log(
+        `[ingest] parsed ${finalWorkerStats.worker_results}/${workerTasks.length} files across ${workerCount} workers`
+      );
+    }
+  }
+  memoryTrace.checkpoint("parse:merge_complete", {
+    chunk_map: chunkRecordMap.size,
+    defines_relations: definesRelationMap.size,
+    calls_relations: callsRelationMap.size,
+    imports_relations: importsRelationMap.size,
+    calls_sql_relations: callsSqlRelationMap.size,
+    deferred_sql_edges: deferredSqlCallEdges.length,
+    windowed_chunks: windowedChunkCount,
+    worker_results_retained: finalWorkerStats?.worker_results_retained ?? 0,
+    worker_results_retained_peak: finalWorkerStats?.worker_results_retained_peak ?? 0,
+    worker_results_pending: finalWorkerStats?.worker_results_pending ?? 0
+  });
 
   const chunkRecords = [...chunkRecordMap.values()].sort((a, b) => String(a.id).localeCompare(String(b.id)));
   ({
@@ -2920,6 +3182,17 @@ async function main() {
   const validUsesSettingKeyRelations = [...usesSettingKeyRelationMap.values()].filter(
     (rel) => indexedFileIds.has(rel.from) && chunkIdSet.has(rel.to)
   );
+  memoryTrace.checkpoint("materialize:chunks_relations", {
+    chunks: chunkRecords.length,
+    chunk_ids: chunkIdSet.size,
+    relations_defines: validDefinesRelations.length,
+    relations_calls: validCallsRelations.length,
+    relations_imports: validImportsRelations.length,
+    relations_calls_sql: validCallsSqlRelations.length,
+    relations_uses_config_key: validUsesConfigKeyRelations.length,
+    relations_uses_resource_key: validUsesResourceKeyRelations.length,
+    relations_uses_setting_key: validUsesSettingKeyRelations.length
+  });
 
   if (verbose && chunkRecords.length > 0) {
     console.log(`[ingest] extracted ${chunkRecords.length} chunks from ${fileRecords.filter(f => f.kind === "CODE").length} code files`);
@@ -2982,6 +3255,19 @@ async function main() {
     ...sectionHandlerRelations
   ]);
   const configTransformRelations = generateConfigTransformRelations(fileRecords);
+  memoryTrace.checkpoint("materialize:modules_projects_relations", {
+    modules: moduleRecords.length,
+    projects: projectRecords.length,
+    relations_contains: moduleContainsRelations.length,
+    relations_contains_module: moduleContainsModuleRelations.length,
+    relations_exports: moduleExportsRelations.length,
+    relations_includes_file: projectIncludesFileRelations.length,
+    relations_references_project: projectReferencesProjectRelations.length,
+    relations_uses_resource: usesResourceRelations.length,
+    relations_uses_setting: usesSettingRelations.length,
+    relations_uses_config: usesConfigRelations.length,
+    relations_transforms_config: configTransformRelations.length
+  });
 
   if (verbose && moduleRecords.length > 0) {
     console.log(`[ingest] modules=${moduleRecords.length} contains=${moduleContainsRelations.length} contains_module=${moduleContainsModuleRelations.length} exports=${moduleExportsRelations.length}`);
@@ -3047,9 +3333,10 @@ async function main() {
   const implementsRelations = [];
   const constrainsSeen = new Set();
   const implementsSeen = new Set();
-  const lowerContentByFileId = new Map(
-    fileRecords.map((fileRecord) => [fileRecord.id, fileRecord.content.toLowerCase()])
-  );
+  memoryTrace.checkpoint("tokens:rule_matching_start", {
+    files: fileRecords.length,
+    rules: ruleRecords.length
+  });
   const tokenByFileId = new Map(fileRecords.map((fileRecord) => [fileRecord.id, fileTokenSet(fileRecord)]));
 
   for (const ruleRecord of ruleRecords) {
@@ -3057,7 +3344,7 @@ async function main() {
     const ruleKeywords = normalizeRuleTokens(ruleRecord);
 
     for (const fileRecord of fileRecords) {
-      const lower = lowerContentByFileId.get(fileRecord.id) ?? "";
+      const lower = fileRecord.content.toLowerCase();
       const explicitMention = lower.includes(needle);
       const tokens = tokenByFileId.get(fileRecord.id) ?? new Set();
       const matchedKeywords = ruleKeywords.filter((keyword) => tokens.has(keyword));
@@ -3095,7 +3382,20 @@ async function main() {
       }
     }
   }
+  memoryTrace.checkpoint("tokens:rule_matching_complete", {
+    file_token_sets: tokenByFileId.size,
+    rules: ruleRecords.length,
+    relations_constrains: constrainsRelations.length,
+    relations_implements: implementsRelations.length,
+    relations_supersedes: supersedesRelations.length
+  });
 
+  memoryTrace.checkpoint("writes:cache_start", {
+    files: fileRecords.length,
+    adrs: adrRecords.length,
+    rules: ruleRecords.length,
+    chunks: chunkRecords.length
+  });
   writeJsonl(path.join(CACHE_DIR, "documents.jsonl"), fileRecords);
   writeJsonl(path.join(CACHE_DIR, "entities.file.jsonl"), fileRecords);
   writeJsonl(path.join(CACHE_DIR, "entities.adr.jsonl"), adrRecords);
@@ -3125,7 +3425,15 @@ async function main() {
     path.join(CACHE_DIR, "relations.references_project.jsonl"),
     projectReferencesProjectRelations
   );
+  memoryTrace.checkpoint("writes:cache_complete", {
+    jsonl_files: 26,
+    files: fileRecords.length,
+    chunks: chunkRecords.length
+  });
 
+  memoryTrace.checkpoint("writes:db_start", {
+    tsv_files: 21
+  });
   writeTsv(
     path.join(DB_IMPORT_DIR, "file_nodes.tsv"),
     [
@@ -3139,7 +3447,7 @@ async function main() {
       "trust_level",
       "status"
     ],
-    fileRecords.map((record) => [
+    mapRows(fileRecords, (record) => [
       record.id,
       record.path,
       record.kind,
@@ -3165,7 +3473,7 @@ async function main() {
       "trust_level",
       "status"
     ],
-    ruleRecords.map((record) => [
+    mapRows(ruleRecords, (record) => [
       record.id,
       record.title,
       record.body,
@@ -3191,7 +3499,7 @@ async function main() {
       "trust_level",
       "status"
     ],
-    adrRecords.map((record) => [
+    mapRows(adrRecords, (record) => [
       record.id,
       record.path,
       record.title,
@@ -3207,19 +3515,19 @@ async function main() {
   writeTsv(
     path.join(DB_IMPORT_DIR, "constrains_rel.tsv"),
     ["from", "to", "note"],
-    constrainsRelations.map((record) => [record.from, record.to, record.note])
+    mapRows(constrainsRelations, (record) => [record.from, record.to, record.note])
   );
 
   writeTsv(
     path.join(DB_IMPORT_DIR, "implements_rel.tsv"),
     ["from", "to", "note"],
-    implementsRelations.map((record) => [record.from, record.to, record.note])
+    mapRows(implementsRelations, (record) => [record.from, record.to, record.note])
   );
 
   writeTsv(
     path.join(DB_IMPORT_DIR, "supersedes_rel.tsv"),
     ["from", "to", "reason"],
-    supersedesRelations.map((record) => [record.from, record.to, record.reason])
+    mapRows(supersedesRelations, (record) => [record.from, record.to, record.reason])
   );
 
   writeTsv(
@@ -3238,7 +3546,7 @@ async function main() {
       "updated_at",
       "trust_level"
     ],
-    chunkRecords.map((record) => [
+    mapRows(chunkRecords, (record) => [
       record.id,
       record.file_id,
       record.name,
@@ -3257,43 +3565,43 @@ async function main() {
   writeTsv(
     path.join(DB_IMPORT_DIR, "defines_rel.tsv"),
     ["from", "to"],
-    validDefinesRelations.map((record) => [record.from, record.to])
+    mapRows(validDefinesRelations, (record) => [record.from, record.to])
   );
 
   writeTsv(
     path.join(DB_IMPORT_DIR, "calls_rel.tsv"),
     ["from", "to", "call_type"],
-    validCallsRelations.map((record) => [record.from, record.to, record.call_type])
+    mapRows(validCallsRelations, (record) => [record.from, record.to, record.call_type])
   );
 
   writeTsv(
     path.join(DB_IMPORT_DIR, "imports_rel.tsv"),
     ["from", "to", "import_name"],
-    validImportsRelations.map((record) => [record.from, record.to, record.import_name])
+    mapRows(validImportsRelations, (record) => [record.from, record.to, record.import_name])
   );
 
   writeTsv(
     path.join(DB_IMPORT_DIR, "calls_sql_rel.tsv"),
     ["from", "to", "note"],
-    validCallsSqlRelations.map((record) => [record.from, record.to, record.note])
+    mapRows(validCallsSqlRelations, (record) => [record.from, record.to, record.note])
   );
 
   writeTsv(
     path.join(DB_IMPORT_DIR, "uses_config_key_rel.tsv"),
     ["from", "to", "note"],
-    validUsesConfigKeyRelations.map((record) => [record.from, record.to, record.note])
+    mapRows(validUsesConfigKeyRelations, (record) => [record.from, record.to, record.note])
   );
 
   writeTsv(
     path.join(DB_IMPORT_DIR, "uses_resource_key_rel.tsv"),
     ["from", "to", "note"],
-    validUsesResourceKeyRelations.map((record) => [record.from, record.to, record.note])
+    mapRows(validUsesResourceKeyRelations, (record) => [record.from, record.to, record.note])
   );
 
   writeTsv(
     path.join(DB_IMPORT_DIR, "uses_setting_key_rel.tsv"),
     ["from", "to", "note"],
-    validUsesSettingKeyRelations.map((record) => [record.from, record.to, record.note])
+    mapRows(validUsesSettingKeyRelations, (record) => [record.from, record.to, record.note])
   );
 
   writeTsv(
@@ -3312,7 +3620,7 @@ async function main() {
       "trust_level",
       "status"
     ],
-    projectRecords.map((record) => [
+    mapRows(projectRecords, (record) => [
       record.id,
       record.path,
       record.name,
@@ -3331,38 +3639,41 @@ async function main() {
   writeTsv(
     path.join(DB_IMPORT_DIR, "includes_file_rel.tsv"),
     ["from", "to"],
-    projectIncludesFileRelations.map((record) => [record.from, record.to])
+    mapRows(projectIncludesFileRelations, (record) => [record.from, record.to])
   );
 
   writeTsv(
     path.join(DB_IMPORT_DIR, "references_project_rel.tsv"),
     ["from", "to", "note"],
-    projectReferencesProjectRelations.map((record) => [record.from, record.to, record.note])
+    mapRows(projectReferencesProjectRelations, (record) => [record.from, record.to, record.note])
   );
 
   writeTsv(
     path.join(DB_IMPORT_DIR, "uses_resource_rel.tsv"),
     ["from", "to", "note"],
-    usesResourceRelations.map((record) => [record.from, record.to, record.note])
+    mapRows(usesResourceRelations, (record) => [record.from, record.to, record.note])
   );
 
   writeTsv(
     path.join(DB_IMPORT_DIR, "uses_setting_rel.tsv"),
     ["from", "to", "note"],
-    usesSettingRelations.map((record) => [record.from, record.to, record.note])
+    mapRows(usesSettingRelations, (record) => [record.from, record.to, record.note])
   );
 
   writeTsv(
     path.join(DB_IMPORT_DIR, "uses_config_rel.tsv"),
     ["from", "to", "note"],
-    usesConfigRelations.map((record) => [record.from, record.to, record.note])
+    mapRows(usesConfigRelations, (record) => [record.from, record.to, record.note])
   );
 
   writeTsv(
     path.join(DB_IMPORT_DIR, "transforms_config_rel.tsv"),
     ["from", "to", "note"],
-    configTransformRelations.map((record) => [record.from, record.to, record.note])
+    mapRows(configTransformRelations, (record) => [record.from, record.to, record.note])
   );
+  memoryTrace.checkpoint("writes:db_complete", {
+    tsv_files: 21
+  });
 
   const manifest = {
     generated_at: new Date().toISOString(),
@@ -3403,6 +3714,30 @@ async function main() {
   };
 
   fs.writeFileSync(path.join(CACHE_DIR, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+  memoryTrace.checkpoint("writes:manifest_complete", {
+    files: manifest.counts.files,
+    chunks: manifest.counts.chunks,
+    total_relations:
+      manifest.counts.relations_constrains +
+      manifest.counts.relations_implements +
+      manifest.counts.relations_supersedes +
+      manifest.counts.relations_defines +
+      manifest.counts.relations_calls +
+      manifest.counts.relations_imports +
+      manifest.counts.relations_calls_sql +
+      manifest.counts.relations_uses_config_key +
+      manifest.counts.relations_uses_resource_key +
+      manifest.counts.relations_uses_setting_key +
+      manifest.counts.relations_contains +
+      manifest.counts.relations_contains_module +
+      manifest.counts.relations_exports +
+      manifest.counts.relations_includes_file +
+      manifest.counts.relations_references_project +
+      manifest.counts.relations_uses_resource +
+      manifest.counts.relations_uses_setting +
+      manifest.counts.relations_uses_config +
+      manifest.counts.relations_transforms_config
+  });
 
   console.log(`[ingest] mode=${mode}`);
   if (incrementalMode) {

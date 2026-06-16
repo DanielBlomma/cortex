@@ -5,11 +5,12 @@
  * parsers) for one file at a time off the main thread. It does nothing
  * stateful: no id allocation, windowing, checksums, or relation building —
  * all of that stays on the main thread in deterministic order. The worker
- * only turns (ext, content, path) into a parse result.
+ * only turns (ext, file path) into a parse result.
  *
  * Parsers initialize lazily on first use and cache per module instance, so a
  * long-lived worker pays each grammar's WASM init once.
  */
+import fs from "node:fs";
 import { parentPort } from "node:worker_threads";
 import { loadParsers, parseFileContent } from "./ingest-parsers.mjs";
 
@@ -24,9 +25,17 @@ parentPort.on("message", async (message) => {
     process.exit(0);
   }
 
-  const { taskId, ext, content, filePath } = message;
+  const { taskId, ext, filePath } = message;
   try {
     await ready;
+    let content = typeof message.content === "string" ? message.content : null;
+    if (content === null) {
+      const limit = Number.isFinite(message.contentLimit) ? Math.max(0, Math.floor(message.contentLimit)) : null;
+      content = fs.readFileSync(message.absolutePath, "utf8");
+      if (limit !== null) {
+        content = content.slice(0, limit);
+      }
+    }
     const parsed = await parseFileContent(ext, content, filePath);
     if (!parsed) {
       parentPort.postMessage({ taskId, ok: false, reason: "no parser available" });

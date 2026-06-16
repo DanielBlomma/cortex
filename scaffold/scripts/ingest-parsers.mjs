@@ -41,7 +41,9 @@ let loadPromise = null;
 // subprocess) stay on the main thread.
 export const PARALLEL_SAFE_LANGUAGES = new Set([
   "javascript",
+  "jsx",
   "typescript",
+  "tsx",
   "python",
   "go",
   "java",
@@ -128,9 +130,13 @@ export async function loadParsers() {
 
 const CHUNK_PARSERS = new Map([
   [".js", { language: "javascript", parse: parseJavaScriptCode }],
+  [".jsx", { language: "jsx", parse: parseJavaScriptCode }],
   [".mjs", { language: "javascript", parse: parseJavaScriptCode }],
   [".cjs", { language: "javascript", parse: parseJavaScriptCode }],
   [".ts", { language: "typescript", parse: parseJavaScriptCode }],
+  [".tsx", { language: "tsx", parse: parseJavaScriptCode }],
+  [".mts", { language: "typescript", parse: parseJavaScriptCode }],
+  [".cts", { language: "typescript", parse: parseJavaScriptCode }],
   [
     ".vb",
     {

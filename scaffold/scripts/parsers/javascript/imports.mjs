@@ -103,16 +103,17 @@ function extractReferencedStaticImportSources(bodyNode, bindings) {
     fullAncestor(
       bodyNode,
       (node, state, ancestors) => {
-        if (node.type !== "Identifier") {
+        const localName = getReferencedImportName(node, ancestors);
+        if (!localName) {
           return;
         }
 
-        const source = importsByLocalName.get(node.name);
-        if (!source || !isReferenceIdentifier(node, ancestors)) {
+        const source = importsByLocalName.get(localName);
+        if (!source) {
           return;
         }
 
-        if (resolveIdentifier(node.name, ancestors, scopeGraph)) {
+        if (resolveIdentifier(localName, ancestors, scopeGraph)) {
           return;
         }
 
@@ -125,6 +126,39 @@ function extractReferencedStaticImportSources(bodyNode, bindings) {
   }
 
   return [...sources].sort();
+}
+
+function getReferencedImportName(node, ancestors) {
+  if (node.type === "Identifier") {
+    return isReferenceIdentifier(node, ancestors) ? node.name : null;
+  }
+
+  if (node.type !== "JSXIdentifier" || isIntrinsicJsxName(node.name)) {
+    return null;
+  }
+
+  const parent = ancestors[ancestors.length - 2] ?? null;
+  if (!parent) {
+    return null;
+  }
+
+  if (parent.type === "JSXOpeningElement" && parent.name === node) {
+    return node.name;
+  }
+
+  if (parent.type === "JSXMemberExpression" && parent.object === node) {
+    return node.name;
+  }
+
+  if (parent.type === "JSXNamespacedName" && parent.namespace === node) {
+    return node.name;
+  }
+
+  return null;
+}
+
+function isIntrinsicJsxName(name) {
+  return /^[a-z]/.test(name);
 }
 
 function extractDynamicImports(bodyNode) {

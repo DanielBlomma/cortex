@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { env, pipeline } from "@huggingface/transformers";
-import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
+import { readJsonl, readJsonlRecords, writeJsonlRecords, asString, asNumber, asBoolean } from "./jsonl.js";
 import { CACHE_DIR, PATHS } from "./paths.js";
 import {
   createTokenCounter,
@@ -150,11 +150,6 @@ function hashText(value: string): string {
 
 function normalizeText(value: string): string {
   return value.replace(/\s+/g, " ").trim();
-}
-
-function writeJsonl(filePath: string, records: EmbeddingRecord[]): void {
-  const body = records.map((record) => JSON.stringify(record)).join("\n");
-  fs.writeFileSync(filePath, body ? `${body}\n` : "", "utf8");
 }
 
 function ensureRequiredFiles(): void {
@@ -365,7 +360,7 @@ function parseProjectEntities(raw: JsonObject[]): ProjectEntity[] {
     .filter((value): value is ProjectEntity => value !== null);
 }
 
-function parseExistingEmbeddings(raw: JsonObject[], modelId: string): Map<string, EmbeddingRecord> {
+function parseExistingEmbeddings(raw: Iterable<JsonObject>, modelId: string): Map<string, EmbeddingRecord> {
   const index = new Map<string, EmbeddingRecord>();
 
   for (const item of raw) {
@@ -375,9 +370,12 @@ function parseExistingEmbeddings(raw: JsonObject[], modelId: string): Map<string
     const vectorRaw = item.vector;
     if (!Array.isArray(vectorRaw)) continue;
 
-    const vector = vectorRaw
-      .map((value) => (typeof value === "number" && Number.isFinite(value) ? value : null))
-      .filter((value): value is number => value !== null);
+    const vector: number[] = [];
+    for (const value of vectorRaw) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        vector.push(value);
+      }
+    }
 
     if (vector.length === 0) continue;
     const model = asString(item.model);
@@ -407,6 +405,16 @@ function roundVector(values: number[]): number[] {
   return values.map((value) => Number(value.toFixed(6)));
 }
 
+function* presentEmbeddingRecords(
+  slots: Array<EmbeddingRecord | null>
+): Generator<EmbeddingRecord> {
+  for (const record of slots) {
+    if (record) {
+      yield record;
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const { mode } = parseArgs(process.argv);
   ensureRequiredFiles();
@@ -431,7 +439,7 @@ async function main(): Promise<void> {
 
   const entities: SearchEntity[] = [...documents, ...rules, ...adrs, ...modules, ...projects, ...chunks].sort((a, b) => a.id.localeCompare(b.id));
 
-  const existing = parseExistingEmbeddings(readJsonl(EMBEDDINGS_PATH), modelId);
+  const existing = parseExistingEmbeddings(readJsonlRecords(EMBEDDINGS_PATH), modelId);
 
   env.cacheDir = MODEL_CACHE_DIR;
   // Total thread budget for embedding. CORTEX_EMBED_THREADS caps it so
@@ -513,6 +521,7 @@ async function main(): Promise<void> {
 
   // Fully warm cache: nothing to embed, so skip model loading entirely —
   // this is the common repeat-bootstrap / small-update path.
+  let embedded = 0;
   let result: { vectors: Map<number, number[]>; failures: Array<{ index: number; message: string }> } = {
     vectors: new Map(),
     failures: []
@@ -572,30 +581,30 @@ async function main(): Promise<void> {
       Number.isFinite(inFlightRaw) && inFlightRaw >= 1024
         ? Math.floor(inFlightRaw)
         : resolveInFlightTokens({ memoryBytes: readHeadroom(), modelMaxTokens });
-    result = await runWorkUnits(units, extractors, { maxInFlightTokens });
-  }
-
-  let embedded = 0;
-  for (const [index, rawVector] of result.vectors) {
-    const entity = entities[index];
-    const vector = roundVector(rawVector);
-    embedded += 1;
-    dimensions = dimensions || vector.length;
-    slots[index] = {
-      id: entity.id,
-      entity_type: entity.type,
-      kind: entity.kind,
-      label: entity.label,
-      path: entity.path,
-      status: entity.status,
-      source_of_truth: entity.source_of_truth,
-      trust_level: entity.trust_level,
-      updated_at: entity.updated_at,
-      signature: entity.signature,
-      model: modelId,
-      dimensions: vector.length,
-      vector
-    };
+    result = await runWorkUnits(units, extractors, {
+      maxInFlightTokens,
+      onVector(index, rawVector) {
+        const entity = entities[index];
+        const vector = roundVector(rawVector);
+        embedded += 1;
+        dimensions = dimensions || vector.length;
+        slots[index] = {
+          id: entity.id,
+          entity_type: entity.type,
+          kind: entity.kind,
+          label: entity.label,
+          path: entity.path,
+          status: entity.status,
+          source_of_truth: entity.source_of_truth,
+          trust_level: entity.trust_level,
+          updated_at: entity.updated_at,
+          signature: entity.signature,
+          model: modelId,
+          dimensions: vector.length,
+          vector
+        };
+      }
+    });
   }
 
   const failures = result.failures.map(
@@ -603,8 +612,7 @@ async function main(): Promise<void> {
   );
   const failed = result.failures.length;
 
-  const output = slots.filter((record): record is EmbeddingRecord => record !== null);
-  writeJsonl(EMBEDDINGS_PATH, output);
+  const outputCount = writeJsonlRecords(EMBEDDINGS_PATH, presentEmbeddingRecords(slots));
 
   const manifest = {
     generated_at: new Date().toISOString(),
@@ -613,7 +621,7 @@ async function main(): Promise<void> {
     dimensions,
     counts: {
       entities: entities.length,
-      output: output.length,
+      output: outputCount,
       embedded,
       reused,
       failed

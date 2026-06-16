@@ -345,6 +345,7 @@ export type RunOptions = {
    * lane busy. Default keeps roughly one 8k giant plus a stream of shorts.
    */
   maxInFlightTokens?: number;
+  onVector?: (index: number, vector: number[]) => void;
 };
 
 export const DEFAULT_MAX_IN_FLIGHT_TOKENS = 12288;
@@ -375,7 +376,11 @@ export async function runWorkUnits(
 
   const assign = (members: number[], vector: number[]) => {
     for (const index of members) {
-      vectors.set(index, vector);
+      if (options.onVector) {
+        options.onVector(index, vector);
+      } else {
+        vectors.set(index, vector);
+      }
     }
   };
   const recordFailure = (members: number[], error: unknown) => {

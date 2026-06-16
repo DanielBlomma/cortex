@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { env, pipeline } from "@huggingface/transformers";
+import { readJsonlRecords } from "./jsonl.js";
 import { LruCache } from "./lruCache.js";
 import { PATHS } from "./paths.js";
 import type { EmbeddingIndex, JsonObject } from "./types.js";
@@ -15,26 +16,6 @@ let embeddingRuntimeWarning: string | null = null;
 
 function asString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
-}
-
-function readJsonl(filePath: string): JsonObject[] {
-  if (!fs.existsSync(filePath)) {
-    return [];
-  }
-
-  const raw = fs.readFileSync(filePath, "utf8");
-  return raw
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      try {
-        return JSON.parse(line) as JsonObject;
-      } catch {
-        return null;
-      }
-    })
-    .filter((value): value is JsonObject => value !== null);
 }
 
 function toVector(output: unknown): Float32Array | null {
@@ -65,7 +46,7 @@ function readFileVersion(filePath: string): string {
   }
 }
 
-function parseEmbeddingIndex(raw: JsonObject[]): EmbeddingIndex {
+function parseEmbeddingIndex(raw: Iterable<JsonObject>): EmbeddingIndex {
   const vectors = new Map<string, Float32Array>();
   let model: string | null = null;
 
@@ -76,9 +57,12 @@ function parseEmbeddingIndex(raw: JsonObject[]): EmbeddingIndex {
     const vectorRaw = item.vector;
     if (!Array.isArray(vectorRaw)) continue;
 
-    const vector = vectorRaw
-      .map((value) => (typeof value === "number" && Number.isFinite(value) ? value : null))
-      .filter((value): value is number => value !== null);
+    const vector: number[] = [];
+    for (const value of vectorRaw) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        vector.push(value);
+      }
+    }
 
     if (vector.length === 0) continue;
     // The boxed number[] is transient — only the Float32Array is retained,
@@ -110,7 +94,7 @@ export function loadEmbeddingIndex(): EmbeddingIndex {
     return embeddingsCache;
   }
 
-  const parsed = parseEmbeddingIndex(readJsonl(PATHS.embeddingsEntities));
+  const parsed = parseEmbeddingIndex(readJsonlRecords(PATHS.embeddingsEntities));
   embeddingsCacheKey = key;
   embeddingsCache =
     parsed.vectors.size === 0

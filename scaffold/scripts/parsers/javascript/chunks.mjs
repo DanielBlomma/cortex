@@ -45,6 +45,18 @@ export function discoverChunks(ast, code, language = "javascript") {
         }
       },
 
+      TSInterfaceDeclaration(node) {
+        pushChunk(extractTypeDeclarationChunk(node, "interface", code));
+      },
+
+      TSTypeAliasDeclaration(node) {
+        pushChunk(extractTypeDeclarationChunk(node, "type", code));
+      },
+
+      TSEnumDeclaration(node) {
+        pushChunk(extractTypeDeclarationChunk(node, "enum", code));
+      },
+
       VariableDeclaration(node) {
         for (const declarator of node.declarations || []) {
           if (!declarator.id || declarator.id.type !== "Identifier" || !declarator.init) {
@@ -95,6 +107,15 @@ function collectExportedNames(ast) {
           if (
             (node.declaration.type === "FunctionDeclaration" ||
               node.declaration.type === "ClassDeclaration") &&
+            node.declaration.id?.name
+          ) {
+            exportedNames.add(node.declaration.id.name);
+          }
+
+          if (
+            (node.declaration.type === "TSInterfaceDeclaration" ||
+              node.declaration.type === "TSTypeAliasDeclaration" ||
+              node.declaration.type === "TSEnumDeclaration") &&
             node.declaration.id?.name
           ) {
             exportedNames.add(node.declaration.id.name);
@@ -292,32 +313,118 @@ function extractClassMethods(classNode, code, language) {
   const className = classNode.id?.name || "UnknownClass";
 
   for (const member of classNode.body.body || []) {
-    if (member.type !== "MethodDefinition" || member.key.type !== "Identifier") {
-      continue;
+    const methodChunk =
+      member.type === "MethodDefinition"
+        ? extractClassMethodChunk(member, className, code, language)
+        : extractClassFieldFunctionChunk(member, className, code, language);
+
+    if (methodChunk) {
+      methods.push(methodChunk);
     }
-
-    const params = (member.value.params || []).map(formatParameterName);
-    const isStatic = member.static === true;
-    const prefix = isStatic ? "static " : "";
-    const bodyStart = findLeadingCommentStart(code, member);
-
-    methods.push({
-      name: `${className}.${member.key.name}`,
-      kind: "method",
-      signature: `${prefix}${member.key.name}(${params.join(", ")})`,
-      body: code.slice(bodyStart, member.end),
-      startLine: member.loc.start.line,
-      endLine: member.loc.end.line,
-      callNode: member.value.body,
-      importNode: member,
-      static: isStatic,
-      async: member.value.async === true,
-      generator: member.value.generator === true,
-      language
-    });
   }
 
   return methods;
+}
+
+function extractClassMethodChunk(member, className, code, language) {
+  const methodName = getPropertyName(member.key, member.computed);
+  if (!methodName) {
+    return null;
+  }
+
+  const params = (member.value.params || []).map(formatParameterName);
+  const isStatic = member.static === true;
+  const prefix = isStatic ? "static " : "";
+  const bodyStart = findLeadingCommentStart(code, member);
+
+  return {
+    name: `${className}.${methodName}`,
+    kind: "method",
+    signature: `${prefix}${methodName}(${params.join(", ")})`,
+    body: code.slice(bodyStart, member.end),
+    startLine: member.loc.start.line,
+    endLine: member.loc.end.line,
+    callNode: member.value.body,
+    importNode: member,
+    static: isStatic,
+    async: member.value.async === true,
+    generator: member.value.generator === true,
+    language
+  };
+}
+
+function extractClassFieldFunctionChunk(member, className, code, language) {
+  if (member.type !== "PropertyDefinition" && member.type !== "FieldDefinition") {
+    return null;
+  }
+
+  const value = member.value;
+  const isFunctionField =
+    value?.type === "FunctionExpression" || value?.type === "ArrowFunctionExpression";
+  if (!isFunctionField) {
+    return null;
+  }
+
+  const fieldName = getPropertyName(member.key, member.computed);
+  if (!fieldName) {
+    return null;
+  }
+
+  const params = (value.params || []).map(formatParameterName);
+  const isStatic = member.static === true;
+  const prefix = isStatic ? "static " : "";
+  const bodyStart = findLeadingCommentStart(code, member);
+
+  return {
+    name: `${className}.${fieldName}`,
+    kind: "method",
+    signature: `${prefix}${fieldName}(${params.join(", ")})`,
+    body: code.slice(bodyStart, member.end),
+    startLine: member.loc.start.line,
+    endLine: member.loc.end.line,
+    callNode: value.body || value,
+    importNode: member,
+    static: isStatic,
+    async: value.async === true,
+    generator: value.generator === true,
+    field: true,
+    language
+  };
+}
+
+function extractTypeDeclarationChunk(node, kind, code) {
+  const name = node.id?.name;
+  if (!name) {
+    return null;
+  }
+
+  const bodyStart = findLeadingCommentStart(code, node);
+  return {
+    name,
+    kind,
+    signature: `${kind} ${name}`,
+    body: code.slice(bodyStart, node.end),
+    startLine: node.loc.start.line,
+    endLine: node.loc.end.line,
+    callNode: node,
+    importNode: node
+  };
+}
+
+function getPropertyName(key, computed = false) {
+  if (!key) {
+    return null;
+  }
+
+  if (!computed && key.type === "Identifier") {
+    return key.name;
+  }
+
+  if (key.type === "Literal" && typeof key.value === "string") {
+    return key.value;
+  }
+
+  return null;
 }
 
 function findLeadingCommentStart(code, node) {

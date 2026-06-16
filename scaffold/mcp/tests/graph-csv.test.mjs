@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
-import { toCsvCell, toCsvRow, toCopyPathLiteral, CSV_NULL_SENTINEL, CSV_COPY_OPTIONS } from "../dist/graphCsv.js";
+import { toCsvCell, toCsvRow, writeCsv, toCopyPathLiteral, CSV_NULL_SENTINEL, CSV_COPY_OPTIONS } from "../dist/graphCsv.js";
 
 test("toCsvCell: quotes plain strings", () => {
   assert.equal(toCsvCell("hello"), '"hello"');
@@ -43,6 +46,45 @@ test("toCsvCell: preserves unicode and backslashes", () => {
 test("toCsvRow: joins cells with commas", () => {
   assert.equal(toCsvRow(["a", 1, true]), '"a","1","true"');
   assert.equal(toCsvRow(['a"b', "c,d"]), '"a""b","c,d"');
+});
+
+test("writeCsv: streams iterable rows with byte-equivalent CSV output", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-csv-"));
+  const filePath = path.join(dir, "rows.csv");
+  try {
+    function* rows() {
+      yield ["a", 1, true];
+      yield ['she said "hi"', "a\nb", ""];
+      yield [null, undefined, false];
+    }
+
+    const rowCount = writeCsv(filePath, ["c1", "c2", "c3"], rows());
+    const expected = [
+      toCsvRow(["c1", "c2", "c3"]),
+      toCsvRow(["a", 1, true]),
+      toCsvRow(['she said "hi"', "a\nb", ""]),
+      toCsvRow([null, undefined, false]),
+      ""
+    ].join("\n");
+
+    assert.equal(rowCount, 3);
+    assert.equal(fs.readFileSync(filePath, "utf8"), expected);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("writeCsv: empty iterables write only the header and return zero rows", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-csv-empty-"));
+  const filePath = path.join(dir, "rows.csv");
+  try {
+    const rowCount = writeCsv(filePath, ["only"], []);
+
+    assert.equal(rowCount, 0);
+    assert.equal(fs.readFileSync(filePath, "utf8"), `${toCsvRow(["only"])}\n`);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("CSV_NULL_SENTINEL is a single NUL byte (impossible in any text-file-derived cell)", () => {

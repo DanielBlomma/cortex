@@ -22,6 +22,18 @@ function addTo(target, key, amount) {
   }
 }
 
+function addExtensionCounts(target, source) {
+  for (const [ext, count] of Object.entries(source ?? {})) {
+    addTo(target, ext, count);
+  }
+}
+
+function sortedCounts(counts) {
+  return Object.fromEntries(
+    Object.entries(counts).sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+  );
+}
+
 function buildModelRollups(succeeded) {
   const byModel = {};
   for (const item of succeeded) {
@@ -114,7 +126,111 @@ function buildLanguageRollups(succeeded) {
   );
 }
 
+function buildCoverageRollup(succeeded) {
+  const skippedUnsupported = {};
+  const skippedTooLarge = {};
+  const skippedBinary = {};
+  const textSupportedNoParser = {};
+  const counts = {
+    candidate_files: 0,
+    indexed_files: 0,
+    chunks: 0,
+    text_supported_files: 0,
+    parser_supported_files: 0,
+    text_supported_no_parser_files: 0,
+    unsupported_files: 0,
+    too_large_files: 0,
+    binary_files: 0
+  };
+
+  for (const item of succeeded) {
+    const coverage = item.diagnostics?.coverage;
+    if (!coverage) {
+      continue;
+    }
+    for (const [key, value] of Object.entries(coverage.counts ?? {})) {
+      addTo(counts, key, value);
+    }
+    addExtensionCounts(skippedUnsupported, coverage.skipped?.by_extension?.unsupported);
+    addExtensionCounts(skippedTooLarge, coverage.skipped?.by_extension?.too_large);
+    addExtensionCounts(skippedBinary, coverage.skipped?.by_extension?.binary);
+    addExtensionCounts(textSupportedNoParser, coverage.parser_eligibility?.text_supported_no_parser_by_extension);
+  }
+
+  return {
+    counts,
+    skipped_by_extension: {
+      unsupported: sortedCounts(skippedUnsupported),
+      too_large: sortedCounts(skippedTooLarge),
+      binary: sortedCounts(skippedBinary)
+    },
+    parser_eligibility: {
+      text_supported_no_parser_by_extension: sortedCounts(textSupportedNoParser)
+    }
+  };
+}
+
+function buildMemoryRollup(succeeded) {
+  const byPhase = {};
+  let maxRssKb = null;
+  let maxItem = null;
+  let sampledItems = 0;
+
+  for (const item of succeeded) {
+    const memory = item.memory;
+    if (!memory || !Number.isFinite(memory.max_rss_kb)) {
+      continue;
+    }
+    sampledItems += 1;
+    if (maxRssKb === null || memory.max_rss_kb > maxRssKb) {
+      maxRssKb = memory.max_rss_kb;
+      maxItem = item;
+    }
+    for (const [phase, phaseMemory] of Object.entries(memory.by_phase ?? {})) {
+      if (!Number.isFinite(phaseMemory?.max_rss_kb)) {
+        continue;
+      }
+      const entry = byPhase[phase] ?? { max_rss_kb: null, repos: new Set() };
+      entry.max_rss_kb =
+        entry.max_rss_kb === null ? phaseMemory.max_rss_kb : Math.max(entry.max_rss_kb, phaseMemory.max_rss_kb);
+      entry.repos.add(item.repo?.key ?? "unknown");
+      byPhase[phase] = entry;
+    }
+  }
+
+  if (maxRssKb === null) {
+    return null;
+  }
+  return {
+    sampled_items: sampledItems,
+    max_rss_kb: maxRssKb,
+    max_rss_mb: round(maxRssKb / 1024),
+    max_repo: maxItem?.repo?.key ?? "unknown",
+    max_model: maxItem?.run?.embed_model ?? null,
+    by_phase: Object.fromEntries(
+      Object.entries(byPhase)
+        .sort((left, right) => left[0].localeCompare(right[0]))
+        .map(([phase, entry]) => [
+          phase,
+          {
+            max_rss_kb: entry.max_rss_kb,
+            max_rss_mb: round(entry.max_rss_kb / 1024),
+            repos: entry.repos.size
+          }
+        ])
+    )
+  };
+}
+
+function topExtensionCounts(counts, limit = 10) {
+  return Object.entries(counts ?? {})
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, limit)
+    .map(([extension, count]) => ({ extension, count }));
+}
+
 function buildRepoIndexRow(item) {
+  const coverage = item.diagnostics?.coverage;
   return {
     key: item.repo?.key ?? "unknown",
     name: item.repo?.name ?? "unknown",
@@ -140,7 +256,16 @@ function buildRepoIndexRow(item) {
     dimensions: item.embeddings?.dimensions ?? null,
     total_ms: item.timings_ms?.total ?? null,
     ingest_ms: item.timings_ms?.ingest ?? null,
-    embed_ms: item.timings_ms?.embed ?? null
+    embed_ms: item.timings_ms?.embed ?? null,
+    max_rss_kb: item.memory?.max_rss_kb ?? null,
+    max_rss_mb: item.memory?.max_rss_mb ?? null,
+    max_rss_phase: item.memory?.max_phase ?? null,
+    unsupported_files: coverage?.counts?.unsupported_files ?? null,
+    text_supported_no_parser_files: coverage?.counts?.text_supported_no_parser_files ?? null,
+    top_unsupported_extensions: topExtensionCounts(coverage?.skipped?.by_extension?.unsupported),
+    top_text_supported_no_parser_extensions: topExtensionCounts(
+      coverage?.parser_eligibility?.text_supported_no_parser_by_extension
+    )
   };
 }
 
@@ -172,6 +297,8 @@ export function aggregateResults(items) {
     totals,
     by_model: buildModelRollups(succeeded),
     by_language: buildLanguageRollups(succeeded),
+    coverage_diagnostics: buildCoverageRollup(succeeded),
+    memory: buildMemoryRollup(succeeded),
     relations_by_type: relationsByType,
     repo_rows: items.map(buildRepoIndexRow)
   };

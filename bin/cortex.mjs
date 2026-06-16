@@ -229,6 +229,8 @@ const INIT_SOURCE_EXTENSIONS = new Set([
   ".csv",
   ".ts",
   ".tsx",
+  ".mts",
+  ".cts",
   ".js",
   ".jsx",
   ".mjs",
