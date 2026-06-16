@@ -83,7 +83,12 @@ function validateConfig(raw, configPath) {
       platform: raw.docker?.platform ?? null,
       // CPU quota per container; "auto" divides the daemon's CPUs by
       // parallelism so co-located embedders don't oversubscribe cores.
-      cpus: raw.docker?.cpus ?? "auto"
+      cpus: raw.docker?.cpus ?? "auto",
+      // Hard memory limit per container (e.g. "12g"), passed as --memory and
+      // --memory-swap. Essential for big models: the embedding scheduler's gate
+      // is cgroup-aware, so without a limit it reads the whole host and
+      // over-commits its session pool (large repos then OOM). null = no limit.
+      memory: raw.docker?.memory ?? null
     },
     cortex: {
       source: raw.cortex?.source ?? "local",
@@ -114,6 +119,12 @@ function validateConfig(raw, configPath) {
   }
   if (!Number.isFinite(config.timeout_minutes) || config.timeout_minutes <= 0) {
     throw usageError("Config 'timeout_minutes' must be a positive number");
+  }
+  if (config.docker.memory !== null) {
+    const memory = String(config.docker.memory);
+    if (!/^[0-9]+(\.[0-9]+)?[bkmgBKMG]?$/.test(memory) || Number.parseFloat(memory) <= 0) {
+      throw usageError(`Config 'docker.memory' must be a positive docker size like "12g" or "512m", got '${config.docker.memory}'`);
+    }
   }
   return config;
 }
@@ -367,6 +378,9 @@ async function runItem(item, config, paths) {
       ...(paths.cpusPerContainer
         ? ["--cpus", String(paths.cpusPerContainer), "-e", `CORTEX_EMBED_THREADS=${paths.cpusPerContainer}`]
         : []),
+      // --memory-swap = --memory disables swap, so the scheduler's cgroup-aware
+      // gate sizes its pool to fit instead of thrashing or over-committing.
+      ...(config.docker.memory ? ["--memory", config.docker.memory, "--memory-swap", config.docker.memory] : []),
       "--name",
       item.containerName,
       "-v",
@@ -471,6 +485,9 @@ async function main() {
   };
   if (paths.cpusPerContainer) {
     console.log(`[run] cpu quota per container: ${paths.cpusPerContainer}`);
+  }
+  if (config.docker.memory) {
+    console.log(`[run] memory limit per container: ${config.docker.memory}`);
   }
 
   const items = buildWorkItems(repos, config, runId, cortexSource);

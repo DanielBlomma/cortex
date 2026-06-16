@@ -1,0 +1,18 @@
+{
+  "run_name": "full-jina",
+  "repos": "all",
+  "embed_models": [
+    "jinaai/jina-embeddings-v2-base-code"
+  ],
+  "cortex": {
+    "source": "local"
+  },
+  "parallelism": 2,
+  "timeout_minutes": 1440,
+  "docker": {
+    "image": "cortex-bootstrapbench:jina",
+    "build": true,
+    "memory": "8g"
+  },
+  "results_dir": "benchmark/bootstrapbench/results"
+}
