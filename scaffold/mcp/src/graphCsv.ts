@@ -37,12 +37,21 @@ export function toCsvRow(values: CsvValue[]): string {
   return values.map(toCsvCell).join(",");
 }
 
-export function writeCsv(filePath: string, header: string[], rows: CsvValue[][]): void {
-  const lines = [toCsvRow(header)];
-  for (const row of rows) {
-    lines.push(toCsvRow(row));
+export function writeCsv(filePath: string, header: string[], rows: Iterable<CsvValue[]>): number {
+  const fd = fs.openSync(filePath, "w");
+  let rowCount = 0;
+
+  try {
+    fs.writeSync(fd, `${toCsvRow(header)}\n`, undefined, "utf8");
+    for (const row of rows) {
+      fs.writeSync(fd, `${toCsvRow(row)}\n`, undefined, "utf8");
+      rowCount += 1;
+    }
+  } finally {
+    fs.closeSync(fd);
   }
-  fs.writeFileSync(filePath, `${lines.join("\n")}\n`, "utf8");
+
+  return rowCount;
 }
 
 // Escape a filesystem path for use inside a double-quoted ryugraph COPY path

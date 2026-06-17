@@ -493,24 +493,43 @@ function parseGraphData(): GraphData {
 // COPY into a rel table instead errors on an unknown primary key, so edges
 // must be pre-filtered against the node-id sets to stay byte-identical.
 function filterEdges<T extends { from: string; to: string }>(
-  edges: T[],
+  edges: Iterable<T>,
   fromSet: Set<string>,
   toSet: Set<string>
-): T[] {
-  return edges.filter((edge) => fromSet.has(edge.from) && toSet.has(edge.to));
+): Iterable<T> {
+  return (function* filteredEdges() {
+    for (const edge of edges) {
+      if (fromSet.has(edge.from) && toSet.has(edge.to)) {
+        yield edge;
+      }
+    }
+  })();
+}
+
+function* ids<T extends { id: string }>(items: Iterable<T>): Iterable<string> {
+  for (const item of items) {
+    yield item.id;
+  }
+}
+
+function* csvRows<T>(items: Iterable<T>, toRow: (item: T) => CsvValue[]): Iterable<CsvValue[]> {
+  for (const item of items) {
+    yield toRow(item);
+  }
 }
 
 async function copyTable(
   conn: Connection,
   table: string,
   header: string[],
-  rows: CsvValue[][]
+  rows: Iterable<CsvValue[]>
 ): Promise<void> {
-  if (rows.length === 0) {
+  const csvPath = path.join(GRAPH_IMPORT_DIR, `${table}.csv`);
+  const rowCount = writeCsv(csvPath, header, rows);
+  if (rowCount === 0) {
+    fs.rmSync(csvPath, { force: true });
     return;
   }
-  const csvPath = path.join(GRAPH_IMPORT_DIR, `${table}.csv`);
-  writeCsv(csvPath, header, rows);
   // ryugraph parses COPY's path as a double-quoted literal; toCopyPathLiteral
   // normalizes separators and escapes any embedded quote so a repo/cache path
   // containing a double quote still bulk-loads instead of falling back.
@@ -526,19 +545,20 @@ async function bulkLoad(conn: Connection, data: GraphData): Promise<void> {
   fs.rmSync(GRAPH_IMPORT_DIR, { recursive: true, force: true });
   fs.mkdirSync(GRAPH_IMPORT_DIR, { recursive: true });
 
-  const fileIds = new Set(data.fileEntities.map((e) => e.id));
-  const ruleIds = new Set(data.ruleEntities.map((e) => e.id));
-  const adrIds = new Set(data.adrEntities.map((e) => e.id));
-  const chunkIds = new Set(data.chunkEntities.map((e) => e.id));
-  const moduleIds = new Set(data.moduleEntities.map((e) => e.id));
-  const projectIds = new Set(data.projectEntities.map((e) => e.id));
+  try {
+    const fileIds = new Set(ids(data.fileEntities));
+    const ruleIds = new Set(ids(data.ruleEntities));
+    const adrIds = new Set(ids(data.adrEntities));
+    const chunkIds = new Set(ids(data.chunkEntities));
+    const moduleIds = new Set(ids(data.moduleEntities));
+    const projectIds = new Set(ids(data.projectEntities));
 
   // Nodes first — edges reference them by primary key.
   await copyTable(
     conn,
     "File",
     ["id", "path", "kind", "excerpt", "checksum", "updated_at", "source_of_truth", "trust_level", "status"],
-    data.fileEntities.map((e) => [
+    csvRows(data.fileEntities, (e) => [
       e.id, e.path, e.kind, e.excerpt, e.checksum, e.updated_at, e.source_of_truth, e.trust_level, e.status
     ])
   );
@@ -546,7 +566,7 @@ async function bulkLoad(conn: Connection, data: GraphData): Promise<void> {
     conn,
     "Rule",
     ["id", "title", "body", "scope", "priority", "updated_at", "source_of_truth", "trust_level", "status"],
-    data.ruleEntities.map((e) => [
+    csvRows(data.ruleEntities, (e) => [
       e.id, e.title, e.body, e.scope, e.priority, e.updated_at, e.source_of_truth, e.trust_level, e.status
     ])
   );
@@ -554,7 +574,7 @@ async function bulkLoad(conn: Connection, data: GraphData): Promise<void> {
     conn,
     "ADR",
     ["id", "path", "title", "body", "decision_date", "supersedes_id", "source_of_truth", "trust_level", "status"],
-    data.adrEntities.map((e) => [
+    csvRows(data.adrEntities, (e) => [
       e.id, e.path, e.title, e.body, e.decision_date, e.supersedes_id, e.source_of_truth, e.trust_level, e.status
     ])
   );
@@ -565,7 +585,7 @@ async function bulkLoad(conn: Connection, data: GraphData): Promise<void> {
       "id", "file_id", "name", "kind", "signature", "body", "description", "start_line", "end_line",
       "language", "exported", "checksum", "updated_at", "source_of_truth", "trust_level", "status"
     ],
-    data.chunkEntities.map((e) => [
+    csvRows(data.chunkEntities, (e) => [
       e.id, e.file_id, e.name, e.kind, e.signature, e.body, e.description, e.start_line, e.end_line,
       e.language, e.exported, e.checksum, e.updated_at, e.source_of_truth, e.trust_level, e.status
     ])
@@ -574,7 +594,7 @@ async function bulkLoad(conn: Connection, data: GraphData): Promise<void> {
     conn,
     "Module",
     ["id", "path", "name", "summary", "file_count", "exported_symbols", "updated_at", "source_of_truth", "trust_level", "status"],
-    data.moduleEntities.map((e) => [
+    csvRows(data.moduleEntities, (e) => [
       e.id, e.path, e.name, e.summary, e.file_count, e.exported_symbols, e.updated_at, e.source_of_truth, e.trust_level, e.status
     ])
   );
@@ -585,7 +605,7 @@ async function bulkLoad(conn: Connection, data: GraphData): Promise<void> {
       "id", "path", "name", "kind", "language", "target_framework", "summary", "file_count",
       "updated_at", "source_of_truth", "trust_level", "status"
     ],
-    data.projectEntities.map((e) => [
+    csvRows(data.projectEntities, (e) => [
       e.id, e.path, e.name, e.kind, e.language, e.target_framework, e.summary, e.file_count,
       e.updated_at, e.source_of_truth, e.trust_level, e.status
     ])
@@ -595,45 +615,46 @@ async function bulkLoad(conn: Connection, data: GraphData): Promise<void> {
   // (COPY into a rel table reads src key, dst key, then properties in schema
   // order), but emitting real names keeps the CSVs self-describing.
   await copyTable(conn, "CONSTRAINS", ["from", "to", "note"],
-    filterEdges(data.constrains, ruleIds, fileIds).map((e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(data.constrains, ruleIds, fileIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "IMPLEMENTS", ["from", "to", "note"],
-    filterEdges(data.implementsEdges, fileIds, ruleIds).map((e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(data.implementsEdges, fileIds, ruleIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "SUPERSEDES", ["from", "to", "reason"],
-    filterEdges(data.supersedes, adrIds, adrIds).map((e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(data.supersedes, adrIds, adrIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "DEFINES", ["from", "to"],
-    filterEdges(data.defines, fileIds, chunkIds).map((e) => [e.from, e.to]));
+    csvRows(filterEdges(data.defines, fileIds, chunkIds), (e) => [e.from, e.to]));
   await copyTable(conn, "CALLS", ["from", "to", "call_type"],
-    filterEdges(data.calls, chunkIds, chunkIds).map((e) => [e.from, e.to, e.call_type]));
+    csvRows(filterEdges(data.calls, chunkIds, chunkIds), (e) => [e.from, e.to, e.call_type]));
   await copyTable(conn, "IMPORTS", ["from", "to", "import_name"],
-    filterEdges(data.imports, chunkIds, fileIds).map((e) => [e.from, e.to, e.import_name]));
+    csvRows(filterEdges(data.imports, chunkIds, fileIds), (e) => [e.from, e.to, e.import_name]));
   await copyTable(conn, "CALLS_SQL", ["from", "to", "note"],
-    filterEdges(data.callsSql, fileIds, chunkIds).map((e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(data.callsSql, fileIds, chunkIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "USES_CONFIG_KEY", ["from", "to", "note"],
-    filterEdges(data.usesConfigKey, fileIds, chunkIds).map((e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(data.usesConfigKey, fileIds, chunkIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "USES_RESOURCE_KEY", ["from", "to", "note"],
-    filterEdges(data.usesResourceKey, fileIds, chunkIds).map((e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(data.usesResourceKey, fileIds, chunkIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "USES_SETTING_KEY", ["from", "to", "note"],
-    filterEdges(data.usesSettingKey, fileIds, chunkIds).map((e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(data.usesSettingKey, fileIds, chunkIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "CONTAINS", ["from", "to"],
-    filterEdges(data.contains, moduleIds, fileIds).map((e) => [e.from, e.to]));
+    csvRows(filterEdges(data.contains, moduleIds, fileIds), (e) => [e.from, e.to]));
   await copyTable(conn, "CONTAINS_MODULE", ["from", "to"],
-    filterEdges(data.containsModule, moduleIds, moduleIds).map((e) => [e.from, e.to]));
+    csvRows(filterEdges(data.containsModule, moduleIds, moduleIds), (e) => [e.from, e.to]));
   await copyTable(conn, "EXPORTS", ["from", "to"],
-    filterEdges(data.exports, moduleIds, chunkIds).map((e) => [e.from, e.to]));
+    csvRows(filterEdges(data.exports, moduleIds, chunkIds), (e) => [e.from, e.to]));
   await copyTable(conn, "INCLUDES_FILE", ["from", "to"],
-    filterEdges(data.includesFile, projectIds, fileIds).map((e) => [e.from, e.to]));
+    csvRows(filterEdges(data.includesFile, projectIds, fileIds), (e) => [e.from, e.to]));
   await copyTable(conn, "REFERENCES_PROJECT", ["from", "to", "note"],
-    filterEdges(data.referencesProject, projectIds, projectIds).map((e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(data.referencesProject, projectIds, projectIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "USES_RESOURCE", ["from", "to", "note"],
-    filterEdges(data.usesResource, fileIds, fileIds).map((e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(data.usesResource, fileIds, fileIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "USES_SETTING", ["from", "to", "note"],
-    filterEdges(data.usesSetting, fileIds, fileIds).map((e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(data.usesSetting, fileIds, fileIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "USES_CONFIG", ["from", "to", "note"],
-    filterEdges(data.usesConfig, fileIds, fileIds).map((e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(data.usesConfig, fileIds, fileIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "TRANSFORMS_CONFIG", ["from", "to", "note"],
-    filterEdges(data.transformsConfig, fileIds, fileIds).map((e) => [e.from, e.to, e.note]));
-
-  fs.rmSync(GRAPH_IMPORT_DIR, { recursive: true, force: true });
+    csvRows(filterEdges(data.transformsConfig, fileIds, fileIds), (e) => [e.from, e.to, e.note]));
+  } finally {
+    fs.rmSync(GRAPH_IMPORT_DIR, { recursive: true, force: true });
+  }
 }
 
 // Original loader: clears every table, then inserts each node/edge through a

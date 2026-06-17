@@ -6,17 +6,25 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+import { collectWorkspaceCandidates } from "../benchmark/bootstrapbench/extract-stats.mjs";
 import {
   buildHistogram,
   CHUNK_CHAR_BUCKETS,
   CHUNK_LINE_BUCKETS,
   computeChunkStats,
+  computeCoverageDiagnostics,
   computeGraphStats,
   computeVectorStats,
+  detectBootstrapPhase,
   isWindowChunkId,
   mergeHistograms,
   parseBootstrapTimings,
   percentile,
+  summarizeBootstrapMemory,
   summarizeDistribution
 } from "../benchmark/bootstrapbench/stats.mjs";
 
@@ -222,6 +230,69 @@ test("computeVectorStats: returns null when nothing was embedded", () => {
   assert.equal(computeVectorStats([{ dims: null, norm: null, zero: false, nonFinite: false }]), null);
 });
 
+// ─── coverage diagnostics ───────────────────────────────────────────────────
+
+test("computeCoverageDiagnostics: exposes skipped extensions and parser gaps", () => {
+  const diagnostics = computeCoverageDiagnostics({
+    candidateFiles: [
+      { path: "src/app.ts" },
+      { path: "src/component.tsx" },
+      { path: "src/module.mts" },
+      { path: "src/template.html" },
+      { path: "src/styles.css" },
+      { path: "README.md" },
+      { path: "data/schema.json" },
+      { path: "assets/logo.png" },
+      { path: "docs/huge.txt", too_large: true },
+      { path: "docs/nulls.txt", binary: true }
+    ],
+    indexedDocuments: [
+      { id: "file:src/app.ts", path: "src/app.ts" },
+      { id: "file:src/component.tsx", path: "src/component.tsx" },
+      { id: "file:src/module.mts", path: "src/module.mts" },
+      { id: "file:README.md", path: "README.md" },
+      { id: "file:data/schema.json", path: "data/schema.json" }
+    ],
+    chunkRecords: [
+      { id: "chunk:a", file_id: "file:src/app.ts" },
+      { id: "chunk:b", file_id: "file:src/app.ts" },
+      { id: "chunk:mts", file_id: "file:src/module.mts" },
+      { id: "chunk:readme", file_id: "file:README.md" }
+    ],
+    ingestSkipped: { unsupported: 3, tooLarge: 1, binary: 1 }
+  });
+
+  assert.equal(diagnostics.counts.candidate_files, 10);
+  assert.equal(diagnostics.counts.unsupported_files, 3);
+  assert.equal(diagnostics.skipped.by_extension.unsupported[".html"], 1);
+  assert.equal(diagnostics.skipped.by_extension.unsupported[".css"], 1);
+  assert.equal(diagnostics.skipped.by_extension.unsupported[".png"], 1);
+  assert.equal(diagnostics.skipped.by_extension.too_large[".txt"], 1);
+  assert.equal(diagnostics.skipped.by_extension.binary[".txt"], 1);
+  assert.equal(diagnostics.parser_eligibility.by_extension[".tsx"].parser_supported, true);
+  assert.equal(diagnostics.parser_eligibility.by_extension[".tsx"].text_supported_no_parser, false);
+  assert.equal(diagnostics.parser_eligibility.by_extension[".tsx"].indexed_files, 1);
+  assert.equal(diagnostics.parser_eligibility.by_extension[".tsx"].chunks, 0);
+  assert.equal(diagnostics.parser_eligibility.by_extension[".mts"].parser_supported, true);
+  assert.equal(diagnostics.parser_eligibility.by_extension[".mts"].chunks, 1);
+  assert.equal(diagnostics.parser_eligibility.text_supported_no_parser_by_extension[".json"], 1);
+  assert.deepEqual(diagnostics.skipped.ingest_totals, { unsupported: 3, tooLarge: 1, binary: 1 });
+});
+
+test("collectWorkspaceCandidates: de-duplicates overlapping source paths", () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-bootstrapbench-extract-"));
+  fs.mkdirSync(path.join(tempRoot, "src", "nested"), { recursive: true });
+  fs.writeFileSync(path.join(tempRoot, "src", "app.ts"), "export const app = 1;\n");
+  fs.writeFileSync(path.join(tempRoot, "src", "nested", "feature.ts"), "export const feature = 1;\n");
+
+  const candidates = collectWorkspaceCandidates(tempRoot, ["src", "src/nested"]);
+
+  assert.deepEqual(
+    candidates.map((candidate) => candidate.path),
+    ["src/app.ts", "src/nested/feature.ts"]
+  );
+});
+
 // ─── graph stats ─────────────────────────────────────────────────────────────
 
 test("computeGraphStats: relation totals and chunk connectivity", () => {
@@ -285,6 +356,34 @@ test("parseBootstrapTimings: returns nulls when markers are missing", () => {
   const timings = parseBootstrapTimings([{ ts: 5, text: "unrelated" }]);
   assert.equal(timings.deps, null);
   assert.equal(timings.total, null);
+});
+
+test("detectBootstrapPhase: maps bootstrap marker lines to phase keys", () => {
+  assert.equal(detectBootstrapPhase("[cortex][2/6] Indexing repository context"), "ingest");
+  assert.equal(detectBootstrapPhase("[cortex][4/6] Loading RyuGraph"), "graph_load");
+  assert.equal(detectBootstrapPhase("unrelated"), null);
+});
+
+test("summarizeBootstrapMemory: reports total and per-phase peak RSS", () => {
+  const summary = summarizeBootstrapMemory([
+    { ts: 1000, phase: "ingest", rss_kb: 100_000 },
+    { ts: 1500, phase: "embed", rss_kb: 250_000 },
+    { ts: 2000, phase: "embed", rss_kb: 200_000 },
+    { ts: 2500, phase: "graph_load", rss_kb: 300_000 }
+  ]);
+
+  assert.equal(summary.max_rss_kb, 300_000);
+  assert.equal(summary.max_rss_mb, 292.97);
+  assert.equal(summary.max_phase, "graph_load");
+  assert.equal(summary.sample_count, 4);
+  assert.equal(summary.duration_ms, 1500);
+  assert.equal(summary.by_phase.ingest.max_rss_kb, 100_000);
+  assert.equal(summary.by_phase.embed.max_rss_kb, 250_000);
+});
+
+test("summarizeBootstrapMemory: empty or invalid samples yield null", () => {
+  assert.equal(summarizeBootstrapMemory([]), null);
+  assert.equal(summarizeBootstrapMemory([{ phase: "ingest", rss_kb: "nope" }]), null);
 });
 
 // Buckets are exported so the frontend adapter and tests agree on shape.

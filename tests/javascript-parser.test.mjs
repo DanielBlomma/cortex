@@ -98,3 +98,105 @@ test("parseCode includes leading line comments for const function chunks", () =>
 
   assert.match(body, /^\/\/ Shared helper for retries\nconst retry =/);
 });
+
+test("parseCode extracts TypeScript declaration chunks", () => {
+  const source = [
+    "import {Base} from './base';",
+    "export interface User extends Base {",
+    "  name: string;",
+    "}",
+    "export type UserId = string | number;",
+    "export enum UserKind {",
+    "  Admin = 'admin'",
+    "}"
+  ].join("\n");
+
+  const chunks = parseCode(source, "fixture.ts", "typescript").chunks;
+  const chunkByName = new Map(chunks.map((chunk) => [chunk.name, chunk]));
+
+  assert.equal(chunkByName.get("User")?.kind, "interface");
+  assert.equal(chunkByName.get("User")?.exported, true);
+  assert.equal(chunkByName.get("UserId")?.kind, "type");
+  assert.equal(chunkByName.get("UserId")?.exported, true);
+  assert.equal(chunkByName.get("UserKind")?.kind, "enum");
+  assert.equal(chunkByName.get("UserKind")?.exported, true);
+});
+
+test("parseCode tracks imports inside TypeScript declaration member types", () => {
+  const source = [
+    "import { Owner } from './owner';",
+    "export interface User {",
+    "  owner: Owner;",
+    "}",
+    "export type Box = {",
+    "  value: Owner;",
+    "};"
+  ].join("\n");
+
+  const chunks = parseCode(source, "fixture.ts", "typescript").chunks;
+  const chunkByName = new Map(chunks.map((chunk) => [chunk.name, chunk]));
+
+  assert.deepEqual(chunkByName.get("User")?.imports, ["./owner"]);
+  assert.deepEqual(chunkByName.get("Box")?.imports, ["./owner"]);
+});
+
+test("parseCode extracts class-field function chunks", () => {
+  const source = [
+    "class UserCard {",
+    "  load = () => fetchUser();",
+    "  static create = function() { return makeUser(); };",
+    "}",
+    "function fetchUser() { return null; }",
+    "function makeUser() { return null; }"
+  ].join("\n");
+
+  const chunks = parseCode(source, "fixture.ts", "typescript").chunks;
+  const chunkByName = new Map(chunks.map((chunk) => [chunk.name, chunk]));
+
+  assert.equal(chunkByName.get("UserCard.load")?.kind, "method");
+  assert.equal(chunkByName.get("UserCard.load")?.field, true);
+  assert.deepEqual(chunkByName.get("UserCard.load")?.calls, ["fetchUser"]);
+  assert.equal(chunkByName.get("UserCard.create")?.static, true);
+  assert.deepEqual(chunkByName.get("UserCard.create")?.calls, ["makeUser"]);
+});
+
+test("parseCode walks TypeScript keyword nodes without dropping chunks", () => {
+  const source = [
+    "export function normalize(value: any): unknown {",
+    "  return value as string;",
+    "}"
+  ].join("\n");
+
+  const result = parseCode(source, "fixture.ts", "typescript");
+
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.chunks.find((chunk) => chunk.name === "normalize")?.kind, "function");
+});
+
+test("parseCode handles TSX without walker crashes", () => {
+  const source = [
+    "export function UserView() {",
+    "  return <section>{name}</section>;",
+    "}"
+  ].join("\n");
+
+  const result = parseCode(source, "fixture.tsx", "tsx");
+
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.chunks.find((chunk) => chunk.name === "UserView")?.kind, "function");
+});
+
+test("parseCode walks JSX markup for calls and imported component references", () => {
+  const source = [
+    "import { Button } from './button';",
+    "import { format } from './format';",
+    "export function UserView({ name }) {",
+    "  return <Button label={format(name)} />;",
+    "}"
+  ].join("\n");
+
+  const chunk = parseCode(source, "fixture.tsx", "tsx").chunks.find((entry) => entry.name === "UserView");
+
+  assert.deepEqual(chunk?.calls, ["format"]);
+  assert.deepEqual(chunk?.imports, ["./button", "./format"]);
+});

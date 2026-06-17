@@ -17,7 +17,7 @@ const CONFIG_PATH = path.join(CONTEXT_DIR, "config.yaml");
 const SUPPORTED_TEXT_EXTENSIONS = new Set([
   ".md", ".mdx", ".txt", ".adoc", ".rst",
   ".yaml", ".yml", ".json", ".toml", ".csv",
-  ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs",
+  ".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs",
   ".py", ".go", ".java", ".cs", ".rb", ".rs", ".php", ".swift", ".kt",
   ".sql", ".sh", ".bash", ".zsh", ".ps1",
   ".c", ".h", ".cpp", ".hpp", ".cc", ".hh"

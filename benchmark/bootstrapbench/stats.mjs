@@ -12,12 +12,139 @@ export const CHUNK_LINE_BUCKETS = [1, 11, 21, 41, 81, 161, 321];
 export const CHUNK_CHAR_BUCKETS = [0, 201, 501, 1001, 2001, 4001, 8001, 12001];
 export const DEGREE_BUCKETS = [0, 1, 2, 3, 5, 9, 17, 33];
 
+export const TEXT_SUPPORTED_EXTENSIONS = new Set([
+  ".md",
+  ".mdx",
+  ".txt",
+  ".adoc",
+  ".rst",
+  ".yaml",
+  ".yml",
+  ".json",
+  ".toml",
+  ".csv",
+  ".ts",
+  ".tsx",
+  ".mts",
+  ".cts",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+  ".py",
+  ".go",
+  ".java",
+  ".cs",
+  ".vb",
+  ".sln",
+  ".vbproj",
+  ".csproj",
+  ".fsproj",
+  ".props",
+  ".targets",
+  ".config",
+  ".resx",
+  ".settings",
+  ".rb",
+  ".rs",
+  ".php",
+  ".swift",
+  ".kt",
+  ".sql",
+  ".sh",
+  ".bash",
+  ".zsh",
+  ".ps1",
+  ".c",
+  ".h",
+  ".cpp",
+  ".hpp",
+  ".cc",
+  ".hh",
+  ".bas",
+  ".cls",
+  ".frm",
+  ".ctl"
+]);
+
+export const PARSER_SUPPORTED_EXTENSIONS = new Set([
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+  ".ts",
+  ".tsx",
+  ".mts",
+  ".cts",
+  ".vb",
+  ".cs",
+  ".sql",
+  ".md",
+  ".mdx",
+  ".config",
+  ".resx",
+  ".settings",
+  ".c",
+  ".h",
+  ".cpp",
+  ".cc",
+  ".hpp",
+  ".hh",
+  ".rs",
+  ".py",
+  ".go",
+  ".java",
+  ".rb",
+  ".sh",
+  ".bash",
+  ".zsh",
+  ".bas",
+  ".cls",
+  ".frm",
+  ".ctl"
+]);
+
 const PERCENTILES = [25, 50, 75, 90, 99];
 const TOP_CONNECTED_LIMIT = 10;
 
 function round(value, decimals = 2) {
   const factor = 10 ** decimals;
   return Math.round(value * factor) / factor;
+}
+
+export function extensionKey(filePath) {
+  const fileName = String(filePath ?? "").split(/[\\/]/).pop() ?? "";
+  const dotIndex = fileName.lastIndexOf(".");
+  if (dotIndex <= 0 || dotIndex === fileName.length - 1) {
+    return "[none]";
+  }
+  return fileName.slice(dotIndex).toLowerCase();
+}
+
+function isReadmePath(filePath) {
+  const base = String(filePath ?? "").split(/[\\/]/).pop()?.toLowerCase() ?? "";
+  return base === "readme" || base.startsWith("readme.");
+}
+
+export function isTextSupportedPath(filePath) {
+  return TEXT_SUPPORTED_EXTENSIONS.has(extensionKey(filePath)) || isReadmePath(filePath);
+}
+
+export function isParserSupportedPath(filePath) {
+  return PARSER_SUPPORTED_EXTENSIONS.has(extensionKey(filePath));
+}
+
+function incrementExtensionCount(target, ext, amount = 1) {
+  if (!Number.isFinite(amount) || amount === 0) {
+    return;
+  }
+  target[ext] = (target[ext] ?? 0) + amount;
+}
+
+function sortedCountObject(counts) {
+  return Object.fromEntries(
+    Object.entries(counts).sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+  );
 }
 
 /**
@@ -336,6 +463,131 @@ export function computeVectorStats(probes) {
   };
 }
 
+/**
+ * File coverage diagnostics for benchmark output. Inputs are plain records so
+ * extract-stats can build them from a workspace scan without touching ingest.
+ */
+export function computeCoverageDiagnostics({ candidateFiles, indexedDocuments, chunkRecords, ingestSkipped }) {
+  const candidateList = Array.isArray(candidateFiles) ? candidateFiles : [];
+  const indexedList = Array.isArray(indexedDocuments) ? indexedDocuments : [];
+  const chunkList = Array.isArray(chunkRecords) ? chunkRecords : [];
+
+  const byExtension = new Map();
+  const skippedByExtension = {
+    unsupported: {},
+    too_large: {},
+    binary: {}
+  };
+  const textSupportedNoParserByExtension = {};
+
+  const entryFor = (ext) => {
+    const existing = byExtension.get(ext);
+    if (existing) {
+      return existing;
+    }
+    const entry = {
+      candidate_files: 0,
+      indexed_files: 0,
+      chunks: 0,
+      unsupported_files: 0,
+      too_large_files: 0,
+      binary_files: 0,
+      text_supported: ext === "[none]" ? null : TEXT_SUPPORTED_EXTENSIONS.has(ext),
+      parser_supported: ext === "[none]" ? null : PARSER_SUPPORTED_EXTENSIONS.has(ext),
+      text_supported_no_parser: false
+    };
+    byExtension.set(ext, entry);
+    return entry;
+  };
+
+  for (const file of candidateList) {
+    const ext = extensionKey(file.path);
+    const entry = entryFor(ext);
+    entry.candidate_files += 1;
+    const textSupported = isTextSupportedPath(file.path);
+    const parserSupported = isParserSupportedPath(file.path);
+    entry.text_supported = entry.text_supported === true || textSupported;
+    entry.parser_supported = entry.parser_supported === true || parserSupported;
+
+    if (!textSupported) {
+      entry.unsupported_files += 1;
+      incrementExtensionCount(skippedByExtension.unsupported, ext);
+      continue;
+    }
+    if (file.too_large === true) {
+      entry.too_large_files += 1;
+      incrementExtensionCount(skippedByExtension.too_large, ext);
+      continue;
+    }
+    if (file.binary === true) {
+      entry.binary_files += 1;
+      incrementExtensionCount(skippedByExtension.binary, ext);
+    }
+  }
+
+  for (const doc of indexedList) {
+    entryFor(extensionKey(doc.path)).indexed_files += 1;
+  }
+
+  const indexedPathById = new Map(indexedList.map((doc) => [doc.id ?? `file:${doc.path}`, doc.path]));
+  for (const chunk of chunkList) {
+    const filePath = indexedPathById.get(chunk.file_id);
+    if (filePath) {
+      entryFor(extensionKey(filePath)).chunks += 1;
+    }
+  }
+
+  let textSupportedFiles = 0;
+  let parserSupportedFiles = 0;
+  let textSupportedNoParserFiles = 0;
+  for (const [ext, entry] of byExtension) {
+    if (entry.text_supported === true) {
+      textSupportedFiles += entry.candidate_files;
+    }
+    if (entry.parser_supported === true) {
+      parserSupportedFiles += entry.candidate_files;
+    }
+    entry.text_supported_no_parser = entry.text_supported === true && entry.parser_supported !== true;
+    if (entry.text_supported_no_parser) {
+      textSupportedNoParserFiles += entry.candidate_files;
+      incrementExtensionCount(textSupportedNoParserByExtension, ext, entry.candidate_files);
+    }
+  }
+
+  const byExtensionObject = Object.fromEntries(
+    [...byExtension.entries()]
+      .sort((left, right) => right[1].candidate_files - left[1].candidate_files || left[0].localeCompare(right[0]))
+      .map(([ext, entry]) => [ext, entry])
+  );
+
+  return {
+    source: "workspace_scan",
+    counts: {
+      candidate_files: candidateList.length,
+      indexed_files: indexedList.length,
+      chunks: chunkList.length,
+      text_supported_files: textSupportedFiles,
+      parser_supported_files: parserSupportedFiles,
+      text_supported_no_parser_files: textSupportedNoParserFiles,
+      unsupported_files: Object.values(skippedByExtension.unsupported).reduce((acc, value) => acc + value, 0),
+      too_large_files: Object.values(skippedByExtension.too_large).reduce((acc, value) => acc + value, 0),
+      binary_files: Object.values(skippedByExtension.binary).reduce((acc, value) => acc + value, 0)
+    },
+    skipped: {
+      ingest_totals: ingestSkipped ?? null,
+      by_extension: {
+        unsupported: sortedCountObject(skippedByExtension.unsupported),
+        too_large: sortedCountObject(skippedByExtension.too_large),
+        binary: sortedCountObject(skippedByExtension.binary)
+      }
+    },
+    parser_eligibility: {
+      text_supported_no_parser_by_extension: sortedCountObject(textSupportedNoParserByExtension),
+      by_extension: byExtensionObject
+    }
+  };
+}
+
 // Bootstrap step markers printed by scaffold/scripts/bootstrap.sh, mapped to
 // stable phase keys. The numbered prefix looks like "[cortex][2/6] <title>".
 const PHASE_MARKERS = [
@@ -345,8 +597,21 @@ const PHASE_MARKERS = [
   { key: "graph_load", pattern: /\[cortex\]\[\d+\/\d+\] Loading RyuGraph/ },
   { key: "status", pattern: /\[cortex\]\[\d+\/\d+\] Reading context status/ }
 ];
+export const BOOTSTRAP_PHASE_KEYS = PHASE_MARKERS.map((marker) => marker.key);
 const BOOTSTRAP_START = /\[cortex\] bootstrap start/;
 const BOOTSTRAP_COMPLETE = /\[cortex\] bootstrap complete/;
+
+export function detectBootstrapPhase(text) {
+  if (typeof text !== "string") {
+    return null;
+  }
+  for (const marker of PHASE_MARKERS) {
+    if (marker.pattern.test(text)) {
+      return marker.key;
+    }
+  }
+  return null;
+}
 
 /**
  * Derives per-phase durations (ms) from a timestamped bootstrap log.
@@ -403,4 +668,64 @@ export function parseBootstrapTimings(lines) {
   timings.total =
     Number.isFinite(totalStart) && Number.isFinite(endTs) && endTs >= totalStart ? endTs - totalStart : null;
   return timings;
+}
+
+export function summarizeBootstrapMemory(samples) {
+  const sampleList = Array.isArray(samples) ? samples : [];
+  const byPhase = {};
+  let maxRssKb = null;
+  let maxSample = null;
+  let firstTs = null;
+  let lastTs = null;
+
+  for (const sample of sampleList) {
+    const rssKb = Number(sample?.rss_kb);
+    if (!Number.isFinite(rssKb) || rssKb < 0) {
+      continue;
+    }
+    const ts = Number(sample?.ts);
+    if (Number.isFinite(ts)) {
+      firstTs = firstTs === null ? ts : Math.min(firstTs, ts);
+      lastTs = lastTs === null ? ts : Math.max(lastTs, ts);
+    }
+    const phase = BOOTSTRAP_PHASE_KEYS.includes(sample?.phase) ? sample.phase : "unknown";
+    const phaseEntry = byPhase[phase] ?? { max_rss_kb: null, samples: 0 };
+    phaseEntry.samples += 1;
+    phaseEntry.max_rss_kb = phaseEntry.max_rss_kb === null ? rssKb : Math.max(phaseEntry.max_rss_kb, rssKb);
+    byPhase[phase] = phaseEntry;
+
+    if (maxRssKb === null || rssKb > maxRssKb) {
+      maxRssKb = rssKb;
+      maxSample = {
+        ts: Number.isFinite(ts) ? ts : null,
+        phase
+      };
+    }
+  }
+
+  if (maxRssKb === null) {
+    return null;
+  }
+  return {
+    max_rss_kb: maxRssKb,
+    max_rss_mb: round(maxRssKb / 1024),
+    max_phase: maxSample?.phase ?? null,
+    sample_count: Object.values(byPhase).reduce((acc, entry) => acc + entry.samples, 0),
+    duration_ms: firstTs !== null && lastTs !== null && lastTs >= firstTs ? lastTs - firstTs : null,
+    by_phase: Object.fromEntries(
+      Object.entries(byPhase)
+        .sort((left, right) => {
+          const leftIndex = BOOTSTRAP_PHASE_KEYS.indexOf(left[0]);
+          const rightIndex = BOOTSTRAP_PHASE_KEYS.indexOf(right[0]);
+          return (leftIndex === -1 ? 999 : leftIndex) - (rightIndex === -1 ? 999 : rightIndex);
+        })
+        .map(([phase, entry]) => [
+          phase,
+          {
+            ...entry,
+            max_rss_mb: round(entry.max_rss_kb / 1024)
+          }
+        ])
+    )
+  };
 }
