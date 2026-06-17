@@ -10,6 +10,16 @@
       ],
       "source": "local",
       "repos": 10
+    },
+    {
+      "version": "2.0.19",
+      "run_id": "full-2019",
+      "generated_at": "2026-06-17T01:01:10.647Z",
+      "models": [
+        "Xenova/all-MiniLM-L6-v2"
+      ],
+      "source": "npm",
+      "repos": 69
     }
   ]
 }

@@ -1,0 +1,648 @@
+{
+  "schema_version": 1,
+  "run": {
+    "id": "full-2019",
+    "generated_at": "2026-06-17T01:01:10.647Z",
+    "cortex_version": "2.0.19"
+  },
+  "repo": {
+    "key": "langchain-ai__langchain",
+    "name": "langchain-ai/langchain",
+    "url": "https://github.com/langchain-ai/langchain.git",
+    "sha": "76c32db9b38dfc287c958dc2a914d4834f022c1c",
+    "languages": [
+      "python"
+    ],
+    "benches": [
+      "Poly"
+    ],
+    "instances": 12
+  },
+  "runs": [
+    {
+      "schema_version": 1,
+      "repo": {
+        "key": "langchain-ai__langchain",
+        "name": "langchain-ai/langchain",
+        "url": "https://github.com/langchain-ai/langchain.git",
+        "sha": "76c32db9b38dfc287c958dc2a914d4834f022c1c",
+        "languages": [
+          "python"
+        ],
+        "benches": [
+          "Poly"
+        ],
+        "instances": 12
+      },
+      "run": {
+        "embed_model": "Xenova/all-MiniLM-L6-v2",
+        "cortex_version": "2.0.19",
+        "cortex_source": "npm",
+        "run_id": "full-2019",
+        "started_at": "2026-06-16T19:23:08.113Z",
+        "status": "ok",
+        "error": null,
+        "extracted_at": "2026-06-16T20:03:05.437Z"
+      },
+      "workspace": {
+        "tracked_files": 2937,
+        "tracked_bytes": 38046947,
+        "tracked_lines": 542827,
+        "detected_source_paths": [
+          ".devcontainer",
+          ".github",
+          "libs",
+          ".markdownlint.json",
+          ".mcp.json",
+          ".pre-commit-config.yaml",
+          "AGENTS.md",
+          "CLAUDE.md",
+          ".context/notes",
+          ".context/decisions",
+          "README.md"
+        ]
+      },
+      "timings_ms": {
+        "deps": 2743,
+        "ingest": 38469,
+        "embed": 2216948,
+        "graph_load": 127844,
+        "status": 2553,
+        "total": 2388557
+      },
+      "ingest": {
+        "mode": "full",
+        "counts": {
+          "files": 2717,
+          "adrs": 0,
+          "rules": 5,
+          "chunks": 16149,
+          "relations_constrains": 3536,
+          "relations_implements": 3499,
+          "relations_supersedes": 0,
+          "relations_defines": 16149,
+          "relations_calls": 3136,
+          "relations_imports": 0,
+          "relations_calls_sql": 0,
+          "relations_uses_config_key": 0,
+          "relations_uses_resource_key": 0,
+          "relations_uses_setting_key": 0,
+          "modules": 461,
+          "relations_contains": 2650,
+          "relations_contains_module": 390,
+          "relations_exports": 10869,
+          "projects": 0,
+          "relations_includes_file": 0,
+          "relations_references_project": 0,
+          "relations_uses_resource": 0,
+          "relations_uses_setting": 0,
+          "relations_uses_config": 0,
+          "relations_transforms_config": 0
+        },
+        "skipped": {
+          "unsupported": 212,
+          "tooLarge": 0,
+          "binary": 0
+        },
+        "parser_health": {}
+      },
+      "files": {
+        "total": 2717,
+        "by_kind": {
+          "DOC": 175,
+          "CODE": 2542
+        },
+        "indexed_lines": 391883
+      },
+      "chunks": {
+        "total": 16149,
+        "exported": 12212,
+        "by_kind": {
+          "function": 6959,
+          "class": 2847,
+          "method": 6343
+        },
+        "by_language": {
+          "python": {
+            "count": 16130,
+            "lines": {
+              "count": 16130,
+              "min": 1,
+              "max": 1505,
+              "mean": 28.8,
+              "histogram": [
+                {
+                  "label": "1-10",
+                  "min": 1,
+                  "max": 10,
+                  "count": 7356
+                },
+                {
+                  "label": "11-20",
+                  "min": 11,
+                  "max": 20,
+                  "count": 2996
+                },
+                {
+                  "label": "21-40",
+                  "min": 21,
+                  "max": 40,
+                  "count": 2549
+                },
+                {
+                  "label": "41-80",
+                  "min": 41,
+                  "max": 80,
+                  "count": 2494
+                },
+                {
+                  "label": "81-160",
+                  "min": 81,
+                  "max": 160,
+                  "count": 467
+                },
+                {
+                  "label": "161-320",
+                  "min": 161,
+                  "max": 320,
+                  "count": 175
+                },
+                {
+                  "label": "321+",
+                  "min": 321,
+                  "max": null,
+                  "count": 93
+                }
+              ],
+              "p25": 4,
+              "p50": 12,
+              "p75": 31.75,
+              "p90": 80,
+              "p99": 226.71
+            },
+            "chars": {
+              "count": 16130,
+              "min": 25,
+              "max": 12000,
+              "mean": 1011.94,
+              "histogram": [
+                {
+                  "label": "0-200",
+                  "min": 0,
+                  "max": 200,
+                  "count": 4381
+                },
+                {
+                  "label": "201-500",
+                  "min": 201,
+                  "max": 500,
+                  "count": 3952
+                },
+                {
+                  "label": "501-1000",
+                  "min": 501,
+                  "max": 1000,
+                  "count": 3186
+                },
+                {
+                  "label": "1001-2000",
+                  "min": 1001,
+                  "max": 2000,
+                  "count": 2142
+                },
+                {
+                  "label": "2001-4000",
+                  "min": 2001,
+                  "max": 4000,
+                  "count": 1970
+                },
+                {
+                  "label": "4001-8000",
+                  "min": 4001,
+                  "max": 8000,
+                  "count": 328
+                },
+                {
+                  "label": "8001-12000",
+                  "min": 8001,
+                  "max": 12000,
+                  "count": 171
+                },
+                {
+                  "label": "12001+",
+                  "min": 12001,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 181,
+              "p50": 475,
+              "p75": 1160,
+              "p90": 2735.1,
+              "p99": 8417.08
+            }
+          },
+          "javascript": {
+            "count": 19,
+            "lines": {
+              "count": 19,
+              "min": 3,
+              "max": 237,
+              "mean": 39,
+              "histogram": [
+                {
+                  "label": "1-10",
+                  "min": 1,
+                  "max": 10,
+                  "count": 5
+                },
+                {
+                  "label": "11-20",
+                  "min": 11,
+                  "max": 20,
+                  "count": 4
+                },
+                {
+                  "label": "21-40",
+                  "min": 21,
+                  "max": 40,
+                  "count": 5
+                },
+                {
+                  "label": "41-80",
+                  "min": 41,
+                  "max": 80,
+                  "count": 4
+                },
+                {
+                  "label": "81-160",
+                  "min": 81,
+                  "max": 160,
+                  "count": 0
+                },
+                {
+                  "label": "161-320",
+                  "min": 161,
+                  "max": 320,
+                  "count": 1
+                },
+                {
+                  "label": "321+",
+                  "min": 321,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 10,
+              "p50": 21,
+              "p75": 40,
+              "p90": 80,
+              "p99": 208.74
+            },
+            "chars": {
+              "count": 19,
+              "min": 49,
+              "max": 7691,
+              "mean": 1284.21,
+              "histogram": [
+                {
+                  "label": "0-200",
+                  "min": 0,
+                  "max": 200,
+                  "count": 4
+                },
+                {
+                  "label": "201-500",
+                  "min": 201,
+                  "max": 500,
+                  "count": 2
+                },
+                {
+                  "label": "501-1000",
+                  "min": 501,
+                  "max": 1000,
+                  "count": 6
+                },
+                {
+                  "label": "1001-2000",
+                  "min": 1001,
+                  "max": 2000,
+                  "count": 3
+                },
+                {
+                  "label": "2001-4000",
+                  "min": 2001,
+                  "max": 4000,
+                  "count": 3
+                },
+                {
+                  "label": "4001-8000",
+                  "min": 4001,
+                  "max": 8000,
+                  "count": 1
+                },
+                {
+                  "label": "8001-12000",
+                  "min": 8001,
+                  "max": 12000,
+                  "count": 0
+                },
+                {
+                  "label": "12001+",
+                  "min": 12001,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 371,
+              "p50": 700,
+              "p75": 1206,
+              "p90": 2722.6,
+              "p99": 6798.56
+            }
+          }
+        },
+        "lines": {
+          "count": 16149,
+          "min": 1,
+          "max": 1505,
+          "mean": 28.82,
+          "histogram": [
+            {
+              "label": "1-10",
+              "min": 1,
+              "max": 10,
+              "count": 7361
+            },
+            {
+              "label": "11-20",
+              "min": 11,
+              "max": 20,
+              "count": 3000
+            },
+            {
+              "label": "21-40",
+              "min": 21,
+              "max": 40,
+              "count": 2554
+            },
+            {
+              "label": "41-80",
+              "min": 41,
+              "max": 80,
+              "count": 2498
+            },
+            {
+              "label": "81-160",
+              "min": 81,
+              "max": 160,
+              "count": 467
+            },
+            {
+              "label": "161-320",
+              "min": 161,
+              "max": 320,
+              "count": 176
+            },
+            {
+              "label": "321+",
+              "min": 321,
+              "max": null,
+              "count": 93
+            }
+          ],
+          "p25": 4,
+          "p50": 12,
+          "p75": 32,
+          "p90": 80,
+          "p99": 227
+        },
+        "chars": {
+          "count": 16149,
+          "min": 25,
+          "max": 12000,
+          "mean": 1012.26,
+          "histogram": [
+            {
+              "label": "0-200",
+              "min": 0,
+              "max": 200,
+              "count": 4385
+            },
+            {
+              "label": "201-500",
+              "min": 201,
+              "max": 500,
+              "count": 3954
+            },
+            {
+              "label": "501-1000",
+              "min": 501,
+              "max": 1000,
+              "count": 3192
+            },
+            {
+              "label": "1001-2000",
+              "min": 1001,
+              "max": 2000,
+              "count": 2145
+            },
+            {
+              "label": "2001-4000",
+              "min": 2001,
+              "max": 4000,
+              "count": 1973
+            },
+            {
+              "label": "4001-8000",
+              "min": 4001,
+              "max": 8000,
+              "count": 329
+            },
+            {
+              "label": "8001-12000",
+              "min": 8001,
+              "max": 12000,
+              "count": 171
+            },
+            {
+              "label": "12001+",
+              "min": 12001,
+              "max": null,
+              "count": 0
+            }
+          ],
+          "p25": 181,
+          "p50": 475,
+          "p75": 1160,
+          "p90": 2734.2,
+          "p99": 8407.96
+        }
+      },
+      "embeddings": {
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "dimensions": 384,
+        "mode": "full",
+        "counts": {
+          "entities": 19332,
+          "output": 19332,
+          "embedded": 19332,
+          "reused": 0,
+          "failed": 0
+        },
+        "by_entity_type": {
+          "Chunk": 16149,
+          "File": 2717,
+          "Module": 461,
+          "Rule": 5
+        },
+        "throughput_per_s": 8.72
+      },
+      "graph": {
+        "nodes": {
+          "files": 2717,
+          "chunks": 16149,
+          "rules": 5,
+          "adrs": 0,
+          "modules": 461,
+          "projects": 0
+        },
+        "edges": {
+          "total": 40229,
+          "by_type": {
+            "CALLS": 3136,
+            "CALLS_SQL": 0,
+            "CONSTRAINS": 3536,
+            "CONTAINS": 2650,
+            "CONTAINS_MODULE": 390,
+            "DEFINES": 16149,
+            "EXPORTS": 10869,
+            "IMPLEMENTS": 3499,
+            "IMPORTS": 0,
+            "INCLUDES_FILE": 0,
+            "REFERENCES_PROJECT": 0,
+            "SUPERSEDES": 0,
+            "TRANSFORMS_CONFIG": 0,
+            "USES_CONFIG": 0,
+            "USES_CONFIG_KEY": 0,
+            "USES_RESOURCE": 0,
+            "USES_RESOURCE_KEY": 0,
+            "USES_SETTING": 0,
+            "USES_SETTING_KEY": 0
+          }
+        },
+        "chunk_connectivity": {
+          "chunk_chunk_edges": 3136,
+          "avg_degree": 0.39,
+          "max_degree": 63,
+          "isolated_count": 12976,
+          "isolated_pct": 80.35,
+          "degree": {
+            "count": 16149,
+            "min": 0,
+            "max": 63,
+            "mean": 0.39,
+            "histogram": [
+              {
+                "label": "0",
+                "min": 0,
+                "max": 0,
+                "count": 12976
+              },
+              {
+                "label": "1",
+                "min": 1,
+                "max": 1,
+                "count": 1962
+              },
+              {
+                "label": "2",
+                "min": 2,
+                "max": 2,
+                "count": 644
+              },
+              {
+                "label": "3-4",
+                "min": 3,
+                "max": 4,
+                "count": 354
+              },
+              {
+                "label": "5-8",
+                "min": 5,
+                "max": 8,
+                "count": 146
+              },
+              {
+                "label": "9-16",
+                "min": 9,
+                "max": 16,
+                "count": 51
+              },
+              {
+                "label": "17-32",
+                "min": 17,
+                "max": 32,
+                "count": 15
+              },
+              {
+                "label": "33+",
+                "min": 33,
+                "max": null,
+                "count": 1
+              }
+            ],
+            "p25": 0,
+            "p50": 0,
+            "p75": 0,
+            "p90": 1,
+            "p99": 5
+          },
+          "top_connected": [
+            {
+              "id": "chunk:libs/partners/openrouter/tests/unit_tests/test_chat_models.py:_make_model:41-45",
+              "degree": 63
+            },
+            {
+              "id": "chunk:libs/standard-tests/langchain_tests/integration_tests/sandboxes.py:_quote:60-61",
+              "degree": 29
+            },
+            {
+              "id": "chunk:libs/core/tests/unit_tests/runnables/test_tracing_interops.py:_create_tracer_with_mocked_client:48-59",
+              "degree": 28
+            },
+            {
+              "id": "chunk:libs/partners/fireworks/tests/unit_tests/test_chat_models.py:_api_error:51-59",
+              "degree": 28
+            },
+            {
+              "id": "chunk:libs/partners/fireworks/tests/unit_tests/test_chat_models.py:_make_llm:620-625",
+              "degree": 27
+            },
+            {
+              "id": "chunk:libs/core/langchain_core/callbacks/manager.py:handle_event:285-367",
+              "degree": 24
+            },
+            {
+              "id": "chunk:libs/core/tests/unit_tests/indexing/test_indexing.py:ToyLoader:26-42",
+              "degree": 23
+            },
+            {
+              "id": "chunk:libs/langchain_v1/tests/unit_tests/agents/middleware/implementations/test_provider_tool_search.py:_invoke:99-109",
+              "degree": 22
+            },
+            {
+              "id": "chunk:libs/core/tests/unit_tests/load/test_secret_injection.py:_assert_no_secret_leak:42-62",
+              "degree": 20
+            },
+            {
+              "id": "chunk:libs/core/tests/unit_tests/runnables/test_tracing_interops.py:_get_posts:29-45",
+              "degree": 20
+            }
+          ]
+        }
+      },
+      "parse_errors": 0
+    }
+  ]
+}
