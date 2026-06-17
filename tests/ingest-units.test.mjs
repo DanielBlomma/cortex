@@ -46,7 +46,11 @@ test("detectKind: treats legacy .NET project and config files as DOC metadata fo
 
 test("getChunkParserForExtension: only dispatches current chunk-capable languages", () => {
   assert.equal(getChunkParserForExtension(".ts")?.language, "typescript");
+  assert.equal(getChunkParserForExtension(".tsx")?.language, "tsx");
+  assert.equal(getChunkParserForExtension(".mts")?.language, "typescript");
+  assert.equal(getChunkParserForExtension(".cts")?.language, "typescript");
   assert.equal(getChunkParserForExtension(".js")?.language, "javascript");
+  assert.equal(getChunkParserForExtension(".jsx")?.language, "jsx");
   assert.equal(getChunkParserForExtension(".vb")?.language, "vbnet");
   assert.equal(getChunkParserForExtension(".sql")?.language, "sql");
   assert.equal(getChunkParserForExtension(".config")?.language, "config");

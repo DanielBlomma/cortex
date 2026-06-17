@@ -1,0 +1,18 @@
+{
+  "run_name": "memory-rss",
+  "repos": [
+    "DanielBlomma/cortex",
+    "angular/angular"
+  ],
+  "embed_models": [
+    "Xenova/all-MiniLM-L6-v2"
+  ],
+  "parallelism": 1,
+  "timeout_minutes": 180,
+  "docker": {
+    "image": "cortex-bootstrapbench:memory-rss",
+    "build": true,
+    "cpus": false
+  },
+  "results_dir": "benchmark/bootstrapbench/results"
+}

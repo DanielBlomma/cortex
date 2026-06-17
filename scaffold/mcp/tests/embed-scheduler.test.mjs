@@ -147,6 +147,28 @@ test("runWorkUnits: assigns vectors to every duplicate index", async () => {
   assert.deepEqual(result.vectors.get(1), [2, 1]);
 });
 
+test("runWorkUnits: onVector consumes vectors without retaining them", async () => {
+  const extractor = async (texts) => {
+    const list = Array.isArray(texts) ? texts : [texts];
+    return fakeTensor(list.map((t) => [t.length, 1]));
+  };
+  const units = packWorkUnits(
+    [measured("aaa", 3, [0, 5]), measured("bb", 2, [1])],
+    { ...DEFAULT_SCHEDULER_OPTIONS, batchMaxItems: 32 }
+  );
+  const consumed = new Map();
+  const result = await runWorkUnits(units, [extractor], {
+    onVector(index, vector) {
+      consumed.set(index, vector);
+    }
+  });
+  assert.equal(result.failures.length, 0);
+  assert.equal(result.vectors.size, 0);
+  assert.deepEqual(consumed.get(0), [3, 1]);
+  assert.deepEqual(consumed.get(5), [3, 1]);
+  assert.deepEqual(consumed.get(1), [2, 1]);
+});
+
 test("runWorkUnits: batch failure retries per item and isolates the poison text", async () => {
   const extractor = async (texts) => {
     if (Array.isArray(texts)) {

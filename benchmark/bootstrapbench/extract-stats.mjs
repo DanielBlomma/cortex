@@ -14,6 +14,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   loadJsonIfExists,
   nowIso,
@@ -23,9 +24,24 @@ import {
   usageError,
   writeJson
 } from "./lib.mjs";
-import { computeChunkStats, computeGraphStats } from "./stats.mjs";
+import { computeChunkStats, computeCoverageDiagnostics, computeGraphStats, isTextSupportedPath } from "./stats.mjs";
 
 const SCHEMA_VERSION = 1;
+const MAX_FILE_BYTES = 1024 * 1024;
+const SKIP_DIRECTORIES = new Set([
+  ".git",
+  ".idea",
+  ".vscode",
+  "node_modules",
+  "bin",
+  "obj",
+  "dist",
+  "build",
+  "coverage",
+  ".next",
+  ".cache",
+  ".context"
+]);
 
 function relationTypeFromFilename(fileName) {
   const match = fileName.match(/^relations\.([a-z0-9_]+)\.jsonl$/);
@@ -36,6 +52,7 @@ function mapChunkLine(line) {
   const record = JSON.parse(line);
   return {
     id: record.id,
+    file_id: record.file_id,
     kind: record.kind,
     language: record.language,
     start_line: record.start_line,
@@ -43,6 +60,94 @@ function mapChunkLine(line) {
     exported: record.exported,
     body_chars: typeof record.body === "string" ? record.body.length : null
   };
+}
+
+function toPosixPath(value) {
+  return value.split(path.sep).join("/");
+}
+
+function isBinaryBuffer(buffer) {
+  const scanLength = Math.min(buffer.length, 4000);
+  for (let index = 0; index < scanLength; index += 1) {
+    if (buffer[index] === 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isInsideProject(projectRoot, absolutePath) {
+  return absolutePath === projectRoot || absolutePath.startsWith(projectRoot + path.sep);
+}
+
+export function collectWorkspaceCandidates(projectRoot, sourcePaths) {
+  const candidates = [];
+  const visitedAbsolutePaths = new Set();
+  const visitFile = (absolutePath) => {
+    if (!isInsideProject(projectRoot, absolutePath)) {
+      return;
+    }
+    if (visitedAbsolutePaths.has(absolutePath)) {
+      return;
+    }
+    visitedAbsolutePaths.add(absolutePath);
+    const relPath = toPosixPath(path.relative(projectRoot, absolutePath));
+    const stats = fs.statSync(absolutePath);
+    const candidate = {
+      path: relPath,
+      size_bytes: stats.size,
+      too_large: false,
+      binary: false
+    };
+    if (isTextSupportedPath(relPath)) {
+      candidate.too_large = stats.size > MAX_FILE_BYTES;
+      if (!candidate.too_large) {
+        try {
+          const handle = fs.openSync(absolutePath, "r");
+          try {
+            const buffer = Buffer.alloc(Math.min(stats.size, 4000));
+            const bytesRead = fs.readSync(handle, buffer, 0, buffer.length, 0);
+            candidate.binary = isBinaryBuffer(buffer.subarray(0, bytesRead));
+          } finally {
+            fs.closeSync(handle);
+          }
+        } catch {
+          // Keep diagnostics best-effort; unreadable files remain non-binary.
+        }
+      }
+    }
+    candidates.push(candidate);
+  };
+
+  const walk = (directoryPath) => {
+    const entries = fs.readdirSync(directoryPath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && SKIP_DIRECTORIES.has(entry.name)) {
+        continue;
+      }
+      const absolutePath = path.join(directoryPath, entry.name);
+      if (entry.isDirectory()) {
+        walk(absolutePath);
+      } else if (entry.isFile()) {
+        visitFile(absolutePath);
+      }
+    }
+  };
+
+  for (const sourcePath of sourcePaths ?? []) {
+    const absolutePath = path.resolve(projectRoot, sourcePath);
+    if (!isInsideProject(projectRoot, absolutePath) || !fs.existsSync(absolutePath)) {
+      continue;
+    }
+    const stats = fs.statSync(absolutePath);
+    if (stats.isFile()) {
+      visitFile(absolutePath);
+    } else if (stats.isDirectory()) {
+      walk(absolutePath);
+    }
+  }
+
+  return candidates.sort((left, right) => left.path.localeCompare(right.path));
 }
 
 const ENTITY_TYPE_PATTERN = /"entity_type"\s*:\s*"([A-Za-z]+)"/;
@@ -167,7 +272,8 @@ async function main() {
     path.join(cacheDir, "documents.jsonl"),
     (line) => {
       const record = JSON.parse(line);
-      return { kind: String(record.kind ?? "unknown"), path: String(record.path ?? "") };
+      const pathValue = String(record.path ?? "");
+      return { id: String(record.id ?? `file:${pathValue}`), kind: String(record.kind ?? "unknown"), path: pathValue };
     },
     { onError: (failure) => parseErrors.push(failure) }
   );
@@ -183,12 +289,13 @@ async function main() {
   // workspace.tracked_lines, the cortex-coverage ratio.
   let indexedLines = 0;
   const projectRoot = path.resolve(projectDir);
+  const workspaceCandidates = collectWorkspaceCandidates(projectRoot, detectedSourcePaths);
   for (const doc of documents) {
     if (!doc.path) {
       continue;
     }
     const absolute = path.resolve(projectRoot, doc.path);
-    if (!absolute.startsWith(projectRoot + path.sep)) {
+    if (!isInsideProject(projectRoot, absolute)) {
       continue; // defensive: never follow paths escaping the workspace
     }
     try {
@@ -232,6 +339,12 @@ async function main() {
   });
 
   const embeddings = computeEmbeddingSection(embeddingsManifest, byEntityType, timings.embed ?? null);
+  const coverageDiagnostics = computeCoverageDiagnostics({
+    candidateFiles: workspaceCandidates,
+    indexedDocuments: documents,
+    chunkRecords,
+    ingestSkipped: ingestManifest?.skipped ?? null
+  });
 
   const stats = {
     schema_version: SCHEMA_VERSION,
@@ -254,6 +367,7 @@ async function main() {
       status: timings.status ?? null,
       total: timings.total ?? null
     },
+    memory: timings.memory ?? null,
     ingest: ingestManifest
       ? {
           mode: ingestManifest.mode ?? null,
@@ -266,6 +380,9 @@ async function main() {
     chunks: chunkStats,
     embeddings,
     graph: graphStats,
+    diagnostics: {
+      coverage: coverageDiagnostics
+    },
     parse_errors: parseErrors.length
   };
 
@@ -275,7 +392,9 @@ async function main() {
   );
 }
 
-main().catch((error) => {
-  console.error(`[extract-stats] ${error instanceof Error ? error.message : String(error)}`);
-  process.exit(error?.isUsageError ? 2 : 1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(`[extract-stats] ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(error?.isUsageError ? 2 : 1);
+  });
+}

@@ -71,6 +71,16 @@ function sampleItem(overrides = {}) {
       by_entity_type: { Chunk: lineValues.length, File: 120 },
       throughput_per_s: 10
     },
+    memory: {
+      max_rss_kb: 512_000,
+      max_rss_mb: 500,
+      max_phase: "embed",
+      sample_count: 5,
+      by_phase: {
+        ingest: { max_rss_kb: 256_000, max_rss_mb: 250, samples: 2 },
+        embed: { max_rss_kb: 512_000, max_rss_mb: 500, samples: 3 }
+      }
+    },
     graph: {
       nodes: { files: 120, chunks: lineValues.length, rules: 1, adrs: 0, modules: 0, projects: 0 },
       edges: { total: 50, by_type: { CALLS: 20, DEFINES: 25, IMPORTS: 5 } },
@@ -82,6 +92,31 @@ function sampleItem(overrides = {}) {
         isolated_pct: 33.3,
         degree: { count: lineValues.length, histogram: [] },
         top_connected: []
+      }
+    },
+    diagnostics: {
+      coverage: {
+        counts: {
+          candidate_files: 130,
+          indexed_files: 120,
+          chunks: lineValues.length,
+          text_supported_files: 125,
+          parser_supported_files: 100,
+          text_supported_no_parser_files: 25,
+          unsupported_files: 5,
+          too_large_files: 0,
+          binary_files: 0
+        },
+        skipped: {
+          by_extension: {
+            unsupported: { ".html": 3, ".css": 2 },
+            too_large: {},
+            binary: {}
+          }
+        },
+        parser_eligibility: {
+          text_supported_no_parser_by_extension: { ".json": 20, ".yaml": 5 }
+        }
       }
     }
   };
@@ -112,6 +147,16 @@ test("aggregateResults: sums totals across successful items and tracks failures"
   assert.equal(summary.totals.tracked_lines, 80_000);
   assert.equal(summary.repo_rows[0].indexed_lines, 25_000);
   assert.equal(summary.repo_rows[0].tracked_lines, 40_000);
+  assert.equal(summary.coverage_diagnostics.counts.unsupported_files, 10);
+  assert.equal(summary.coverage_diagnostics.skipped_by_extension.unsupported[".html"], 6);
+  assert.equal(summary.coverage_diagnostics.parser_eligibility.text_supported_no_parser_by_extension[".json"], 40);
+  assert.equal(summary.repo_rows[0].unsupported_files, 5);
+  assert.equal(summary.repo_rows[0].max_rss_kb, 512_000);
+  assert.equal(summary.repo_rows[0].max_rss_phase, "embed");
+  assert.equal(summary.memory.max_rss_kb, 512_000);
+  assert.equal(summary.memory.max_repo, "iamkun__dayjs");
+  assert.equal(summary.memory.by_phase.embed.max_rss_kb, 512_000);
+  assert.deepEqual(summary.repo_rows[0].top_unsupported_extensions[0], { extension: ".html", count: 3 });
 
   const model = summary.by_model["Xenova/all-MiniLM-L6-v2"];
   assert.equal(model.items, 2);
