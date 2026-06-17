@@ -173,7 +173,8 @@ export function ensureCSharpParserPublished() {
       "-c", "Release",
       "-o", getPublishDir(),
       "--nologo",
-      "-v", "quiet"
+      "-v", "quiet",
+      "/p:UseAppHost=false"
     ],
     { encoding: "utf8", timeout: 180000 }
   );
