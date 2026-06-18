@@ -10,6 +10,21 @@ import { formatCount, formatDuration, formatNumber, formatPercent, modelDisplayN
 
 import { coveragePct, perKiloLine } from "./metrics";
 
+function bootstrapStatusHint(aggregate: BootstrapSummaryDoc["aggregate"]): string {
+  const ok = aggregate.repo_rows.filter((row) => row.status === "ok").length;
+  const embedFailed = aggregate.repo_rows.filter((row) => row.status === "embed_failed").length;
+  const failed = Math.max(0, aggregate.totals.items - ok - embedFailed);
+
+  const parts = [`${formatCount(ok)} ok`];
+  if (embedFailed > 0) {
+    parts.push(`${formatCount(embedFailed)} embed failed`);
+  }
+  if (failed > 0) {
+    parts.push(`${formatCount(failed)} failed`);
+  }
+  return parts.join(", ");
+}
+
 export function OverviewTab({
   aggregate,
   sizeAxis,
@@ -28,8 +43,9 @@ export function OverviewTab({
           {
             label: "Repositories",
             value: formatCount(aggregate.totals.repos),
-            hint: `${formatCount(aggregate.totals.succeeded)} bootstrapped ok`,
-            explanation: "Number of pinned repositories included in this bootstrap benchmark run.",
+            hint: bootstrapStatusHint(aggregate),
+            explanation:
+              "Number of pinned repositories included in this bootstrap benchmark run, with run status split by repository.",
             icon: Database
           },
           {
