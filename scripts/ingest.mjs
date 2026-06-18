@@ -2328,6 +2328,27 @@ function fileTokenSet(fileRecord) {
   return new Set(tokenizeKeywords(tokenSource));
 }
 
+function collectRuleKeywordMatch(ruleKeywords, tokens, minimumMatches) {
+  const required = Math.min(minimumMatches, Math.max(1, ruleKeywords.length));
+  let count = 0;
+  const sample = [];
+
+  for (const keyword of ruleKeywords) {
+    if (!tokens.has(keyword)) {
+      continue;
+    }
+    count += 1;
+    if (sample.length < 5) {
+      sample.push(keyword);
+    }
+    if (count >= required && sample.length >= 5) {
+      break;
+    }
+  }
+
+  return { matched: count >= required, sample };
+}
+
 function chunkIdFor(filePath, chunk) {
   const startLine = Number.isFinite(chunk.startLine) ? chunk.startLine : 0;
   const endLine = Number.isFinite(chunk.endLine) ? chunk.endLine : startLine;
@@ -3207,52 +3228,70 @@ async function main() {
 
   const constrainsRelations = [];
   const implementsRelations = [];
-  const constrainsSeen = new Set();
-  const implementsSeen = new Set();
-  const lowerContentByFileId = new Map(
-    fileRecords.map((fileRecord) => [fileRecord.id, fileRecord.content.toLowerCase()])
-  );
-  const tokenByFileId = new Map(fileRecords.map((fileRecord) => [fileRecord.id, fileTokenSet(fileRecord)]));
 
-  for (const ruleRecord of ruleRecords) {
-    const needle = ruleRecord.id.toLowerCase();
-    const ruleKeywords = normalizeRuleTokens(ruleRecord);
+  const ruleMatchers = ruleRecords.map((ruleRecord) => ({
+    ruleRecord,
+    needle: ruleRecord.id.toLowerCase(),
+    keywords: normalizeRuleTokens(ruleRecord)
+  }));
+  const constrainsByKey = new Map();
+  const implementsByKey = new Map();
 
-    for (const fileRecord of fileRecords) {
-      const lower = lowerContentByFileId.get(fileRecord.id) ?? "";
+  for (const fileRecord of fileRecords) {
+    const lower = fileRecord.content.toLowerCase();
+    const tokens = fileTokenSet(fileRecord);
+
+    for (const { ruleRecord, needle, keywords } of ruleMatchers) {
       const explicitMention = lower.includes(needle);
-      const tokens = tokenByFileId.get(fileRecord.id) ?? new Set();
-      const matchedKeywords = ruleKeywords.filter((keyword) => tokens.has(keyword));
       const minimumMatches = fileRecord.kind === "CODE" ? 1 : 2;
-      const keywordMatch = matchedKeywords.length >= Math.min(minimumMatches, Math.max(1, ruleKeywords.length));
+      const keywordResult = explicitMention
+        ? { matched: false, sample: [] }
+        : collectRuleKeywordMatch(keywords, tokens, minimumMatches);
 
-      if (!explicitMention && !keywordMatch) {
+      if (!explicitMention && !keywordResult.matched) {
         continue;
       }
 
       const constrainsKey = `${ruleRecord.id}|${fileRecord.id}`;
-      if (!constrainsSeen.has(constrainsKey)) {
-        constrainsSeen.add(constrainsKey);
-        constrainsRelations.push({
+      if (!constrainsByKey.has(constrainsKey)) {
+        constrainsByKey.set(constrainsKey, {
           from: ruleRecord.id,
           to: fileRecord.id,
           note: explicitMention
             ? `Mentions ${ruleRecord.id}`
-            : `Keyword match ${matchedKeywords.slice(0, 5).join(", ")}`
+            : `Keyword match ${keywordResult.sample.join(", ")}`
         });
       }
 
       if (fileRecord.kind === "CODE") {
         const implementsKey = `${fileRecord.id}|${ruleRecord.id}`;
-        if (!implementsSeen.has(implementsKey)) {
-          implementsSeen.add(implementsKey);
-          implementsRelations.push({
+        if (!implementsByKey.has(implementsKey)) {
+          implementsByKey.set(implementsKey, {
             from: fileRecord.id,
             to: ruleRecord.id,
             note: explicitMention
               ? `Code references ${ruleRecord.id}`
-              : `Code keywords ${matchedKeywords.slice(0, 5).join(", ")}`
+              : `Code keywords ${keywordResult.sample.join(", ")}`
           });
+        }
+      }
+    }
+  }
+
+  for (const { ruleRecord } of ruleMatchers) {
+    for (const fileRecord of fileRecords) {
+      const constrainsKey = `${ruleRecord.id}|${fileRecord.id}`;
+      const constrainsRelation = constrainsByKey.get(constrainsKey);
+      if (constrainsRelation) {
+        constrainsRelations.push(constrainsRelation);
+        constrainsByKey.delete(constrainsKey);
+      }
+      if (fileRecord.kind === "CODE") {
+        const implementsKey = `${fileRecord.id}|${ruleRecord.id}`;
+        const implementsRelation = implementsByKey.get(implementsKey);
+        if (implementsRelation) {
+          implementsRelations.push(implementsRelation);
+          implementsByKey.delete(implementsKey);
         }
       }
     }
