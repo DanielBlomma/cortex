@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { parseFrontmatter, parseStringList } from "../.context/mcp/dist/frontmatter.js";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const CONTEXT_RUNTIME_DIST = path.resolve(__dirname, "../.context/mcp/dist");
+const { parseFrontmatter, parseStringList } = await import(
+  pathToFileURL(path.join(CONTEXT_RUNTIME_DIST, "frontmatter.js")).href
+);
 
 function normalizeForWsl(rawPath) {
   const m = rawPath.match(/^([A-Za-z]):[/\\](.*)/);

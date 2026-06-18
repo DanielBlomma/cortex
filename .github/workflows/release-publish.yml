@@ -54,7 +54,7 @@ jobs:
         run: |
           node tests/context-regressions.test.mjs
 
-      - name: Run MCP build and tests
+      - name: Run context runtime and MCP compatibility tests
         working-directory: scaffold/mcp
         run: |
           npm ci

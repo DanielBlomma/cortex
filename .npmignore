@@ -1,0 +1,17 @@
+# Generated Cortex scaffold state
+scaffold/.context/cache/
+scaffold/.context/db/
+scaffold/.context/embeddings/
+scaffold/.context/hooks/
+scaffold/.context/plan/
+scaffold/.context/telemetry/
+
+# Local parser installs and build output
+scaffold/scripts/parsers/node_modules/
+scaffold/scripts/parsers/.npm-cache/
+scaffold/scripts/parsers/dotnet/**/bin/
+scaffold/scripts/parsers/dotnet/**/obj/
+scripts/parsers/node_modules/
+scripts/parsers/.npm-cache/
+scripts/parsers/dotnet/**/bin/
+scripts/parsers/dotnet/**/obj/

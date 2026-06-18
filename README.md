@@ -15,7 +15,7 @@
 
 ## What Cortex is
 
-Cortex is a local, repository-scoped context engine for coding assistants. It parses your source code with tree-sitter, indexes it into a structured knowledge graph of entities (files, symbols, rules, ADRs) and their relationships (calls, defines, constrains, implements, supersedes), and serves that context to AI assistants over the Model Context Protocol (MCP).
+Cortex is a local, repository-scoped context engine for coding assistants. It parses your source code with tree-sitter, indexes it into a structured knowledge graph of entities (files, symbols, rules, ADRs) and their relationships (calls, defines, constrains, implements, supersedes), and exposes that context through CLI commands. MCP remains available as a compatibility and integration bridge for clients that support it.
 
 Where a general-purpose AI assistant sees your codebase as a pile of text files, Cortex gives it a precise map: what exists, how it is connected, which rules govern it, and which parts are source-of-truth versus deprecated.
 
@@ -40,7 +40,7 @@ Cortex is not a replacement for your editor, your version control, or your codin
 - **Architectural governance.** Rules and ADRs are surfaced with every answer, so assistants follow the team's established patterns rather than generic best practices.
 - **Multi-language coverage.** A single engine indexes multiple languages through tree-sitter grammars, giving polyglot teams consistent tooling.
 - **Privacy by design.** Your code and its derived index stay on your machine. No upload, no cloud dependency for the core product.
-- **Low friction.** One command (`cortex init --bootstrap`) scaffolds everything: indexing, git hooks, MCP registration for Claude Code, Claude Desktop, and Codex.
+- **Low friction.** One command (`cortex init --bootstrap`) scaffolds everything needed for local indexing, git hooks, CLI retrieval, and optional MCP compatibility.
 
 ## How it works
 
@@ -48,9 +48,9 @@ Cortex operates as a five-stage pipeline between your repository and your AI ass
 
 1. **Ingestion.** Source files are parsed with tree-sitter, producing structured entities (files, functions, classes, rules, ADRs) and relations (`CALLS`, `DEFINES`, `CONSTRAINS`, `IMPLEMENTS`, `IMPORTS`, `SUPERSEDES`).
 2. **Storage.** Entities and relations are persisted to a local graph database (RyuGraph). An optional vector index provides semantic search across entity content.
-3. **Retrieval.** MCP tools combine semantic search with graph traversal to assemble the smallest context package that answers the task.
+3. **Retrieval.** CLI commands combine semantic search with graph traversal to assemble the smallest context package that answers the task.
 4. **Policy.** Architectural rules and source-of-truth markers filter conflicting or deprecated content before it reaches the assistant.
-5. **Assembly.** Results are delivered to the assistant as a compact, ranked context package over MCP.
+5. **Assembly.** Results are delivered as compact, ranked context packages over `cortex ... --json`, with MCP exposing equivalent tool responses when enabled.
 
 Git hooks keep the index fresh on every checkout, pull, commit, and rewrite. A live TUI dashboard (`cortex dashboard`) shows what Cortex adds to the repository in real time.
 
@@ -74,13 +74,14 @@ The result is an assistant that behaves as if it already knows your codebase, be
 - Architectural rules and ADR enforcement at retrieval time.
 - Incremental index updates driven by git hooks.
 - Live TUI dashboard showing what Cortex adds to your repository.
-- First-class integrations with Claude Code, Claude Desktop, and Codex.
+- CLI-first retrieval commands for local agents and scripts.
+- Optional MCP integrations with Claude Code, Claude Desktop, and Codex.
 
 ## Requirements
 
-- Node.js 18+
+- Node.js 20+
 - Git repository
-- Optional for auto-connection: `claude` and/or `codex` CLI in `PATH`
+- Optional for MCP registration: `claude` and/or `codex` CLI in `PATH`
 
 ## Install
 
@@ -94,7 +95,7 @@ To upgrade an already-scaffolded project to a new Cortex version:
 
 ```bash
 npm i -g @danielblomma/cortex-mcp
-cortex init --force   # re-scaffolds .context/mcp + .context/scripts
+cortex init --force   # re-scaffolds .context runtime + .context/scripts
 cortex bootstrap
 cortex update
 ```
@@ -110,9 +111,9 @@ Version-specific notes (see [CHANGELOG.md](CHANGELOG.md) for details):
   `CORTEX_EMBED_MAX_CHARS` env var is removed and silently ignored.
   Existing projects keep their old ranking weights in `config.yaml`; the
   recommended block is now `semantic: 0.55, graph: 0.10, trust: 0.20,
-  recency: 0.15`. After re-embedding, restart the MCP server, and note
-  that the first search after a re-embed can hit a stale embeddings
-  cache — re-run the query.
+  recency: 0.15`. If you use MCP, restart the MCP server after
+  re-embedding. The first search after a re-embed can hit a stale
+  embeddings cache — re-run the query.
 
 ## Quick Start
 
@@ -124,10 +125,10 @@ cortex init --bootstrap
 
 This will:
 
-- scaffold `.context/`, `.context/scripts/`, `.context/mcp/`, `.githooks/`, and docs files
+- scaffold `.context/`, `.context/scripts/`, the local context runtime (`.context/mcp` compatibility path), `.githooks/`, and docs files
 - activate git hooks for checkout, pull/merge, commit, and rewrite events
-- build and prepare the local MCP server
-- try to auto-register MCP connections for Claude/Codex (if installed)
+- build and prepare the local context runtime
+- leave MCP client registration opt-in via `cortex connect` or `cortex init --connect`
 - start background sync unless disabled
 
 Disable watcher setup:
@@ -142,7 +143,29 @@ Check context status:
 cortex status
 ```
 
-## Verify MCP Connection
+## Query From The CLI
+
+Use the CLI as the default local agent interface:
+
+```bash
+cortex search "authentication flow" --json
+cortex related file:src/auth.ts --json
+cortex impact "payment service" --json
+cortex rules --json
+cortex explain "where retries are configured" --json
+```
+
+These commands read the same local graph, embeddings, and rules used by the MCP server, but they do not require an MCP client registration.
+
+## Optional MCP Connection
+
+MCP remains supported for clients that need it. Register MCP clients explicitly:
+
+```bash
+cortex connect
+```
+
+Then verify the client registration:
 
 Claude:
 
@@ -166,15 +189,16 @@ Install via Claude Code plugin marketplace:
 /plugin enable cortex
 ```
 
-Then initialize Cortex in your target repository:
+Then initialize Cortex in your target repository. If you want the plugin to call the local MCP server, also run `cortex connect` from that repository:
 
 ```bash
 cortex init --bootstrap
+cortex connect
 ```
 
 ## Manual MCP Configuration
 
-If auto-registration is unavailable, configure MCP manually.
+If client registration is unavailable, configure MCP manually.
 
 Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 
@@ -259,7 +283,7 @@ For projects on the WSL filesystem (e.g. `~/projects/myapp`), use the WSL path d
 - File watching on `/mnt/` paths (Windows filesystem) automatically uses poll mode since `inotify` is unreliable across filesystem boundaries.
 - For best performance, keep projects on the WSL filesystem (`~/...`) rather than `/mnt/c/...`.
 
-## MCP Tools
+## MCP Tool Compatibility
 
 ### `context.search`
 
@@ -352,6 +376,11 @@ cortex connect [path] [--skip-build]
 cortex mcp
 cortex bootstrap
 cortex update
+cortex search <query> [--json]
+cortex related <entity-id> [--json]
+cortex impact <query|entity-id> [--json]
+cortex rules [--json]
+cortex explain <query|entity-id> [--json]
 cortex status
 cortex dashboard [--interval <sec>]
 cortex watch [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>] [--mode <auto|event|poll>]
@@ -372,7 +401,7 @@ This repository includes two GitHub Actions workflows:
 - `Release Publish` (`.github/workflows/release-publish.yml`)
   - Triggers on tag push `v*.*.*`
   - Verifies tag/version sync
-  - Runs root tests + MCP build/tests
+  - Runs root tests + context runtime/MCP build/tests
   - Publishes `@danielblomma/cortex-mcp` to npm via npm trusted publishing (GitHub OIDC)
 
 Required npm configuration:
@@ -404,12 +433,12 @@ to give each its fair share of cores.
 
 ## Troubleshooting
 
-- `mcp/dist/server.js` missing:
+- context runtime missing or `mcp/dist/server.js` missing:
   Run `cortex bootstrap` (or re-run `cortex init --bootstrap`).
-- `claude` or `codex` not found during init:
-  Auto-registration is skipped; use manual config above.
+- `claude` or `codex` not found during `cortex connect`:
+  MCP registration is skipped for that client; use manual config above if needed.
 - MCP tools return stale context:
-  Run `cortex update`, then reconnect MCP or call `context.reload` from your MCP client.
+  Run `cortex update`, then rerun the CLI query. If you use MCP, reconnect the client or call `context.reload`.
 
 ## Website and Benchmarks
 
@@ -422,7 +451,7 @@ to give each its fair share of cores.
 ## Support
 
 - Issues: https://github.com/DanielBlomma/cortex/issues
-- Marketplace prep notes: [docs/MCP_MARKETPLACE.md](docs/MCP_MARKETPLACE.md)
+- MCP registry submission draft: [mcp-registry-submission.json](mcp-registry-submission.json)
 
 ## License
 

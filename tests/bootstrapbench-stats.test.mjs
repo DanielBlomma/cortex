@@ -336,7 +336,7 @@ test("computeGraphStats: ignores call edges pointing at unknown chunks", () => {
 test("parseBootstrapTimings: derives per-phase durations from step markers", () => {
   const lines = [
     { ts: 1000, text: "[cortex] bootstrap start" },
-    { ts: 2000, text: "[cortex][1/6] Installing MCP dependencies" },
+    { ts: 2000, text: "[cortex][1/6] Installing context runtime dependencies" },
     { ts: 12000, text: "[cortex][2/6] Indexing repository context" },
     { ts: 30000, text: "[cortex][3/6] Generating semantic embeddings" },
     { ts: 90000, text: "[cortex][4/6] Loading RyuGraph" },
@@ -359,6 +359,8 @@ test("parseBootstrapTimings: returns nulls when markers are missing", () => {
 });
 
 test("detectBootstrapPhase: maps bootstrap marker lines to phase keys", () => {
+  assert.equal(detectBootstrapPhase("[cortex][1/6] Installing MCP dependencies"), "deps");
+  assert.equal(detectBootstrapPhase("[cortex][1/6] Installing context runtime dependencies"), "deps");
   assert.equal(detectBootstrapPhase("[cortex][2/6] Indexing repository context"), "ingest");
   assert.equal(detectBootstrapPhase("[cortex][4/6] Loading RyuGraph"), "graph_load");
   assert.equal(detectBootstrapPhase("unrelated"), null);

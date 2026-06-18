@@ -8,7 +8,7 @@ Provide high-signal, repo-local context to coding agents without bloating instru
 2. Storage: graph (RyuGraph) + optional vector index
 3. Retrieval: semantic + graph
 4. Policy: rules filter conflicts/deprecated/source-of-truth
-5. Assembly: runtime context package for MCP tool responses
+5. Assembly: runtime context package for CLI JSON and optional MCP tool responses
 
 ## Runtime Context Order
 1. Task

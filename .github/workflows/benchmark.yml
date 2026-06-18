@@ -43,7 +43,7 @@ jobs:
           cd scaffold/mcp && npm ci
           npm i -g mcporter || true
 
-      - name: Build Cortex MCP
+      - name: Build Cortex context runtime
         run: cd scaffold/mcp && npm run build
 
       - name: Ingest test codebase

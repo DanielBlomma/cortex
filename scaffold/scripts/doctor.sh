@@ -4,7 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONTEXT_DIR="$REPO_ROOT/.context"
-MCP_DIR="$CONTEXT_DIR/mcp"
+CONTEXT_RUNTIME_DIR="$CONTEXT_DIR/mcp"
+MCP_DIR="$CONTEXT_RUNTIME_DIR"
 
 PASS=0
 FAIL=0
@@ -160,24 +161,24 @@ if [[ -f "$INGEST_MANIFEST" ]] && command -v git &>/dev/null && git -C "$REPO_RO
   fi
 fi
 
-# ── MCP Server ──────────────────────────────────────────
+# ── Context Runtime / MCP Server ─────────────────────────
 
 echo ""
-echo "  MCP Server"
+echo "  Context Runtime"
 
 if [[ -f "$MCP_DIR/dist/server.js" ]]; then
-  pass ".context/mcp/dist/server.js exists"
+  pass "runtime dist present (.context/mcp/dist/server.js)"
 else
-  fail ".context/mcp/dist/server.js missing — run: cd .context/mcp && npm run build"
+  fail "runtime dist missing — run: cd .context/mcp && npm run build"
 fi
 
 if [[ -d "$MCP_DIR/node_modules" ]]; then
-  pass ".context/mcp/node_modules present"
+  pass "runtime dependencies present (.context/mcp/node_modules)"
 else
-  fail ".context/mcp/node_modules missing — run: cd .context/mcp && npm install"
+  fail "runtime dependencies missing — run: cd .context/mcp && npm install"
 fi
 
-# Quick MCP import check
+# Quick runtime import check
 if [[ -f "$MCP_DIR/dist/server.js" ]] && [[ -d "$MCP_DIR/node_modules" ]]; then
   MCP_CHECK=$(cd "$REPO_ROOT" && timeout 10 node -e '
     const start = Date.now();

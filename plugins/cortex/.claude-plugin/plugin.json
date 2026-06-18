@@ -1,7 +1,7 @@
 {
   "name": "cortex",
   "version": "2.1.4",
-  "description": "Cortex MCP server for repo-scoped semantic context in Claude Code",
+  "description": "Cortex local context CLI with an optional MCP bridge for Claude Code",
   "author": {
     "name": "Daniel Blomma",
     "email": "daniel.blomma@gmail.com"
