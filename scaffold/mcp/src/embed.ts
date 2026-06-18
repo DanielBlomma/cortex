@@ -29,21 +29,8 @@ const EMBEDDINGS_DIR = path.dirname(EMBEDDINGS_PATH);
 
 export const DEFAULT_MODEL_ID = "jinaai/jina-embeddings-v2-base-code";
 
-// Cap the characters fed to the embedder per entity. Transformer self-attention
-// is O(seq^2), so an uncapped long input (e.g. a large file at jina's 8k-token
-// max) needs ~14GB for a single forward and OOMs constrained machines; ~7k
-// chars (~1.75k tokens) bounds a forward to ~4GB with no accumulation. Chunk
-// entities still embed function/class bodies in full, so a truncated
-// file-level document loses little. Override with CORTEX_EMBED_MAX_CHARS.
-export const DEFAULT_MAX_TEXT_CHARS = 7000;
-
 export function resolveModelId(): string {
   return (process.env.CORTEX_EMBED_MODEL ?? DEFAULT_MODEL_ID).trim() || DEFAULT_MODEL_ID;
-}
-
-export function resolveMaxTextChars(): number {
-  const raw = Number(process.env.CORTEX_EMBED_MAX_CHARS);
-  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : DEFAULT_MAX_TEXT_CHARS;
 }
 
 type FileEntity = {
@@ -455,7 +442,6 @@ async function main(): Promise<void> {
   const existing = parseExistingEmbeddings(readJsonlRecords(EMBEDDINGS_PATH), modelId);
 
   env.cacheDir = MODEL_CACHE_DIR;
-  const maxTextChars = resolveMaxTextChars();
   // Total thread budget for embedding. CORTEX_EMBED_THREADS caps it so
   // co-located embedders (parallel CI jobs, eval containers) do not
   // oversubscribe shared cores; unset = all cores.
@@ -490,7 +476,7 @@ async function main(): Promise<void> {
       };
       return;
     }
-    pending.push({ index, text: normalizeText(entity.text).slice(0, maxTextChars) });
+    pending.push({ index, text: normalizeText(entity.text) });
   });
 
   // Deduplicate identical texts (lossless: identical input -> identical
