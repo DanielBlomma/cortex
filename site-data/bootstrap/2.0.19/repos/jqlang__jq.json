@@ -2,7 +2,7 @@
   "schema_version": 1,
   "run": {
     "id": "full-2019",
-    "generated_at": "2026-06-12T05:34:50.388Z",
+    "generated_at": "2026-06-17T01:01:10.647Z",
     "cortex_version": "2.0.19"
   },
   "repo": {
@@ -39,10 +39,10 @@
         "cortex_version": "2.0.19",
         "cortex_source": "npm",
         "run_id": "full-2019",
-        "started_at": "2026-06-12T04:14:05.184Z",
+        "started_at": "2026-06-16T18:39:23.939Z",
         "status": "ok",
         "error": null,
-        "extracted_at": "2026-06-12T04:16:31.790Z"
+        "extracted_at": "2026-06-16T18:41:49.560Z"
       },
       "workspace": {
         "tracked_files": 399,
@@ -64,12 +64,12 @@
         ]
       },
       "timings_ms": {
-        "deps": 1560,
-        "ingest": 9258,
-        "embed": 111670,
-        "graph_load": 18664,
-        "status": 1677,
-        "total": 142830
+        "deps": 1809,
+        "ingest": 9724,
+        "embed": 110270,
+        "graph_load": 18509,
+        "status": 1952,
+        "total": 142267
       },
       "ingest": {
         "mode": "full",
@@ -499,7 +499,7 @@
           "Module": 6,
           "Rule": 5
         },
-        "throughput_per_s": 11.93
+        "throughput_per_s": 12.08
       },
       "graph": {
         "nodes": {

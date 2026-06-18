@@ -250,6 +250,16 @@ export function summarizeDistribution(values, bucketEdges) {
   return summary;
 }
 
+/**
+ * A chunk produced by the fallback windowed splitter (large content sliced into
+ * overlapping windows) rather than a precise AST/structured parse. The splitter
+ * encodes `:window:` into the chunk id (see scaffold/scripts/ingest.mjs); window
+ * chunks otherwise inherit their parent's kind, so the id is the only marker.
+ */
+export function isWindowChunkId(chunkId) {
+  return typeof chunkId === "string" && chunkId.includes(":window:");
+}
+
 function chunkLineCount(chunk) {
   const start = Number(chunk.start_line);
   const end = Number(chunk.end_line);
@@ -270,6 +280,7 @@ export function computeChunkStats(chunkRecords) {
   const lineValues = [];
   const charValues = [];
   let exported = 0;
+  let windowed = 0;
 
   for (const chunk of chunkRecords) {
     const kind = String(chunk.kind ?? "unknown");
@@ -277,10 +288,17 @@ export function computeChunkStats(chunkRecords) {
     if (chunk.exported === true) {
       exported += 1;
     }
+    const isWindow = isWindowChunkId(chunk.id);
+    if (isWindow) {
+      windowed += 1;
+    }
 
     const language = String(chunk.language ?? "unknown");
-    const entry = byLanguageValues.get(language) ?? { count: 0, lines: [], chars: [] };
+    const entry = byLanguageValues.get(language) ?? { count: 0, windowed: 0, lines: [], chars: [] };
     entry.count += 1;
+    if (isWindow) {
+      entry.windowed += 1;
+    }
 
     const lines = chunkLineCount(chunk);
     if (lines !== null) {
@@ -304,14 +322,21 @@ export function computeChunkStats(chunkRecords) {
   for (const [language, entry] of byLanguageValues) {
     byLanguage[language] = {
       count: entry.count,
+      windowed: entry.windowed,
       lines: summarizeDistribution(entry.lines, CHUNK_LINE_BUCKETS),
       chars: summarizeDistribution(entry.chars, CHUNK_CHAR_BUCKETS)
     };
   }
 
+  const total = chunkRecords.length;
   return {
-    total: chunkRecords.length,
+    total,
     exported,
+    // AST/structured chunks vs. fallback windowed chunks. A high windowed share
+    // means large content is being sliced rather than precisely parsed — a
+    // parse-coverage signal worth watching per language.
+    windowed,
+    ast: total - windowed,
     by_kind: byKind,
     by_language: byLanguage,
     lines: summarizeDistribution(lineValues, CHUNK_LINE_BUCKETS),
@@ -371,6 +396,70 @@ export function computeGraphStats({ nodeCounts, relationCounts, callEdges, chunk
       degree: summarizeDistribution(degreeValues, DEGREE_BUCKETS),
       top_connected: topConnected
     }
+  };
+}
+
+/**
+ * Embedding vector sanity check. Input is one lightweight probe per embedded
+ * entity — `{ dims, norm, zero, nonFinite }` — computed while streaming the
+ * embeddings file so raw vectors are never retained. Surfaces the failure modes
+ * that silently poison semantic search: all-zero vectors, NaN/Inf components,
+ * dimension drift, and norms that stray from the expected ~1.0 (vectors are
+ * L2-normalized at write time). Returns null when nothing was embedded.
+ */
+export function computeVectorStats(probes) {
+  const present = (probes ?? []).filter((probe) => probe && Number.isFinite(probe.dims) && probe.dims > 0);
+  if (present.length === 0) {
+    return null;
+  }
+
+  const norms = [];
+  const dimsCounts = new Map();
+  let zeroVectors = 0;
+  let nonFiniteVectors = 0;
+  for (const probe of present) {
+    dimsCounts.set(probe.dims, (dimsCounts.get(probe.dims) ?? 0) + 1);
+    if (probe.zero) {
+      zeroVectors += 1;
+    }
+    if (probe.nonFinite) {
+      nonFiniteVectors += 1;
+    }
+    if (Number.isFinite(probe.norm)) {
+      norms.push(probe.norm);
+    }
+  }
+
+  let expectedDims = null;
+  let expectedCount = -1;
+  for (const [dims, count] of dimsCounts) {
+    if (count > expectedCount) {
+      expectedCount = count;
+      expectedDims = dims;
+    }
+  }
+
+  // Norms hover at ~1.0 (L2-normalized), so a fixed-bucket histogram adds no
+  // signal and 6 decimals are needed to see drift; report spread directly.
+  const sortedNorms = norms.sort((a, b) => a - b);
+  const norm =
+    sortedNorms.length === 0
+      ? null
+      : {
+          count: sortedNorms.length,
+          min: round(sortedNorms[0], 6),
+          max: round(sortedNorms[sortedNorms.length - 1], 6),
+          mean: round(sortedNorms.reduce((acc, value) => acc + value, 0) / sortedNorms.length, 6),
+          p50: round(percentile(sortedNorms, 50), 6),
+          p99: round(percentile(sortedNorms, 99), 6)
+        };
+
+  return {
+    count: present.length,
+    zero_vectors: zeroVectors,
+    non_finite_vectors: nonFiniteVectors,
+    dimensions: { expected: expectedDims, mismatched: present.length - expectedCount },
+    norm
   };
 }
 

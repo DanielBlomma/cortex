@@ -1,0 +1,547 @@
+{
+  "schema_version": 1,
+  "run": {
+    "id": "full-2019",
+    "generated_at": "2026-06-17T01:01:10.647Z",
+    "cortex_version": "2.0.19"
+  },
+  "repo": {
+    "key": "tokio-rs__tokio",
+    "name": "tokio-rs/tokio",
+    "url": "https://github.com/tokio-rs/tokio.git",
+    "sha": "ecb5125a6787b9d8eb818b1b00973bcd55ae77c0",
+    "languages": [
+      "rust"
+    ],
+    "benches": [
+      "Multi"
+    ],
+    "instances": 4
+  },
+  "runs": [
+    {
+      "schema_version": 1,
+      "repo": {
+        "key": "tokio-rs__tokio",
+        "name": "tokio-rs/tokio",
+        "url": "https://github.com/tokio-rs/tokio.git",
+        "sha": "ecb5125a6787b9d8eb818b1b00973bcd55ae77c0",
+        "languages": [
+          "rust"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "instances": 4
+      },
+      "run": {
+        "embed_model": "Xenova/all-MiniLM-L6-v2",
+        "cortex_version": "2.0.19",
+        "cortex_source": "npm",
+        "run_id": "full-2019",
+        "started_at": "2026-06-17T00:10:46.615Z",
+        "status": "ok",
+        "error": null,
+        "extracted_at": "2026-06-17T00:27:17.850Z"
+      },
+      "workspace": {
+        "tracked_files": 856,
+        "tracked_bytes": 5895218,
+        "tracked_lines": 185760,
+        "detected_source_paths": [
+          ".github",
+          "benches",
+          "examples",
+          "stress-test",
+          "target-specs",
+          "tests-build",
+          "tests-integration",
+          "tokio",
+          "tokio-macros",
+          "tokio-stream",
+          "tokio-test",
+          "tokio-util",
+          "Cargo.toml",
+          "CODE_OF_CONDUCT.md",
+          "CONTRIBUTING.md",
+          "Cross.toml",
+          "deny.toml",
+          "netlify.toml",
+          "SECURITY.md",
+          "spellcheck.toml",
+          "docs",
+          ".context/notes",
+          ".context/decisions",
+          "README.md"
+        ]
+      },
+      "timings_ms": {
+        "deps": 1804,
+        "ingest": 37872,
+        "embed": 888369,
+        "graph_load": 57427,
+        "status": 2253,
+        "total": 987726
+      },
+      "ingest": {
+        "mode": "full",
+        "counts": {
+          "files": 838,
+          "adrs": 0,
+          "rules": 5,
+          "chunks": 10872,
+          "relations_constrains": 1044,
+          "relations_implements": 1027,
+          "relations_supersedes": 0,
+          "relations_defines": 10872,
+          "relations_calls": 2074,
+          "relations_imports": 0,
+          "relations_calls_sql": 0,
+          "relations_uses_config_key": 0,
+          "relations_uses_resource_key": 0,
+          "relations_uses_setting_key": 0,
+          "modules": 92,
+          "relations_contains": 813,
+          "relations_contains_module": 90,
+          "relations_exports": 2917,
+          "projects": 0,
+          "relations_includes_file": 0,
+          "relations_references_project": 0,
+          "relations_uses_resource": 0,
+          "relations_uses_setting": 0,
+          "relations_uses_config": 0,
+          "relations_transforms_config": 0
+        },
+        "skipped": {
+          "unsupported": 13,
+          "tooLarge": 0,
+          "binary": 0
+        },
+        "parser_health": {}
+      },
+      "files": {
+        "total": 838,
+        "by_kind": {
+          "DOC": 60,
+          "CODE": 778
+        },
+        "indexed_lines": 184823
+      },
+      "chunks": {
+        "total": 10872,
+        "exported": 3007,
+        "by_kind": {
+          "impl": 2337,
+          "method": 4004,
+          "struct": 707,
+          "function": 2946,
+          "module": 522,
+          "enum": 93,
+          "macro": 185,
+          "trait": 78
+        },
+        "by_language": {
+          "rust": {
+            "count": 10872,
+            "lines": {
+              "count": 10872,
+              "min": 1,
+              "max": 1491,
+              "mean": 19.51,
+              "histogram": [
+                {
+                  "label": "1-10",
+                  "min": 1,
+                  "max": 10,
+                  "count": 6634
+                },
+                {
+                  "label": "11-20",
+                  "min": 11,
+                  "max": 20,
+                  "count": 1834
+                },
+                {
+                  "label": "21-40",
+                  "min": 21,
+                  "max": 40,
+                  "count": 1185
+                },
+                {
+                  "label": "41-80",
+                  "min": 41,
+                  "max": 80,
+                  "count": 970
+                },
+                {
+                  "label": "81-160",
+                  "min": 81,
+                  "max": 160,
+                  "count": 148
+                },
+                {
+                  "label": "161-320",
+                  "min": 161,
+                  "max": 320,
+                  "count": 54
+                },
+                {
+                  "label": "321+",
+                  "min": 321,
+                  "max": null,
+                  "count": 47
+                }
+              ],
+              "p25": 3,
+              "p50": 7,
+              "p75": 18,
+              "p90": 45,
+              "p99": 153
+            },
+            "chars": {
+              "count": 10872,
+              "min": 7,
+              "max": 12000,
+              "mean": 604.71,
+              "histogram": [
+                {
+                  "label": "0-200",
+                  "min": 0,
+                  "max": 200,
+                  "count": 5195
+                },
+                {
+                  "label": "201-500",
+                  "min": 201,
+                  "max": 500,
+                  "count": 2751
+                },
+                {
+                  "label": "501-1000",
+                  "min": 501,
+                  "max": 1000,
+                  "count": 1375
+                },
+                {
+                  "label": "1001-2000",
+                  "min": 1001,
+                  "max": 2000,
+                  "count": 674
+                },
+                {
+                  "label": "2001-4000",
+                  "min": 2001,
+                  "max": 4000,
+                  "count": 696
+                },
+                {
+                  "label": "4001-8000",
+                  "min": 4001,
+                  "max": 8000,
+                  "count": 114
+                },
+                {
+                  "label": "8001-12000",
+                  "min": 8001,
+                  "max": 12000,
+                  "count": 67
+                },
+                {
+                  "label": "12001+",
+                  "min": 12001,
+                  "max": null,
+                  "count": 0
+                }
+              ],
+              "p25": 102,
+              "p50": 214,
+              "p75": 543.25,
+              "p90": 1472,
+              "p99": 5756.85
+            }
+          }
+        },
+        "lines": {
+          "count": 10872,
+          "min": 1,
+          "max": 1491,
+          "mean": 19.51,
+          "histogram": [
+            {
+              "label": "1-10",
+              "min": 1,
+              "max": 10,
+              "count": 6634
+            },
+            {
+              "label": "11-20",
+              "min": 11,
+              "max": 20,
+              "count": 1834
+            },
+            {
+              "label": "21-40",
+              "min": 21,
+              "max": 40,
+              "count": 1185
+            },
+            {
+              "label": "41-80",
+              "min": 41,
+              "max": 80,
+              "count": 970
+            },
+            {
+              "label": "81-160",
+              "min": 81,
+              "max": 160,
+              "count": 148
+            },
+            {
+              "label": "161-320",
+              "min": 161,
+              "max": 320,
+              "count": 54
+            },
+            {
+              "label": "321+",
+              "min": 321,
+              "max": null,
+              "count": 47
+            }
+          ],
+          "p25": 3,
+          "p50": 7,
+          "p75": 18,
+          "p90": 45,
+          "p99": 153
+        },
+        "chars": {
+          "count": 10872,
+          "min": 7,
+          "max": 12000,
+          "mean": 604.71,
+          "histogram": [
+            {
+              "label": "0-200",
+              "min": 0,
+              "max": 200,
+              "count": 5195
+            },
+            {
+              "label": "201-500",
+              "min": 201,
+              "max": 500,
+              "count": 2751
+            },
+            {
+              "label": "501-1000",
+              "min": 501,
+              "max": 1000,
+              "count": 1375
+            },
+            {
+              "label": "1001-2000",
+              "min": 1001,
+              "max": 2000,
+              "count": 674
+            },
+            {
+              "label": "2001-4000",
+              "min": 2001,
+              "max": 4000,
+              "count": 696
+            },
+            {
+              "label": "4001-8000",
+              "min": 4001,
+              "max": 8000,
+              "count": 114
+            },
+            {
+              "label": "8001-12000",
+              "min": 8001,
+              "max": 12000,
+              "count": 67
+            },
+            {
+              "label": "12001+",
+              "min": 12001,
+              "max": null,
+              "count": 0
+            }
+          ],
+          "p25": 102,
+          "p50": 214,
+          "p75": 543.25,
+          "p90": 1472,
+          "p99": 5756.85
+        }
+      },
+      "embeddings": {
+        "model": "Xenova/all-MiniLM-L6-v2",
+        "dimensions": 384,
+        "mode": "full",
+        "counts": {
+          "entities": 11807,
+          "output": 11807,
+          "embedded": 11807,
+          "reused": 0,
+          "failed": 0
+        },
+        "by_entity_type": {
+          "Chunk": 10872,
+          "File": 838,
+          "Module": 92,
+          "Rule": 5
+        },
+        "throughput_per_s": 13.29
+      },
+      "graph": {
+        "nodes": {
+          "files": 838,
+          "chunks": 10872,
+          "rules": 5,
+          "adrs": 0,
+          "modules": 92,
+          "projects": 0
+        },
+        "edges": {
+          "total": 18837,
+          "by_type": {
+            "CALLS": 2074,
+            "CALLS_SQL": 0,
+            "CONSTRAINS": 1044,
+            "CONTAINS": 813,
+            "CONTAINS_MODULE": 90,
+            "DEFINES": 10872,
+            "EXPORTS": 2917,
+            "IMPLEMENTS": 1027,
+            "IMPORTS": 0,
+            "INCLUDES_FILE": 0,
+            "REFERENCES_PROJECT": 0,
+            "SUPERSEDES": 0,
+            "TRANSFORMS_CONFIG": 0,
+            "USES_CONFIG": 0,
+            "USES_CONFIG_KEY": 0,
+            "USES_RESOURCE": 0,
+            "USES_RESOURCE_KEY": 0,
+            "USES_SETTING": 0,
+            "USES_SETTING_KEY": 0
+          }
+        },
+        "chunk_connectivity": {
+          "chunk_chunk_edges": 2074,
+          "avg_degree": 0.38,
+          "max_degree": 31,
+          "isolated_count": 8885,
+          "isolated_pct": 81.72,
+          "degree": {
+            "count": 10872,
+            "min": 0,
+            "max": 31,
+            "mean": 0.38,
+            "histogram": [
+              {
+                "label": "0",
+                "min": 0,
+                "max": 0,
+                "count": 8885
+              },
+              {
+                "label": "1",
+                "min": 1,
+                "max": 1,
+                "count": 1064
+              },
+              {
+                "label": "2",
+                "min": 2,
+                "max": 2,
+                "count": 487
+              },
+              {
+                "label": "3-4",
+                "min": 3,
+                "max": 4,
+                "count": 273
+              },
+              {
+                "label": "5-8",
+                "min": 5,
+                "max": 8,
+                "count": 124
+              },
+              {
+                "label": "9-16",
+                "min": 9,
+                "max": 16,
+                "count": 34
+              },
+              {
+                "label": "17-32",
+                "min": 17,
+                "max": 32,
+                "count": 5
+              },
+              {
+                "label": "33+",
+                "min": 33,
+                "max": null,
+                "count": 0
+              }
+            ],
+            "p25": 0,
+            "p50": 0,
+            "p75": 0,
+            "p90": 1,
+            "p99": 5
+          },
+          "top_connected": [
+            {
+              "id": "chunk:tokio-util/tests/time_delay_queue.rs:ms:897-899",
+              "degree": 31
+            },
+            {
+              "id": "chunk:tokio-util/tests/length_delimited.rs:data:830-832",
+              "degree": 28
+            },
+            {
+              "id": "chunk:tokio/tests/io_async_fd.rs:socketpair:121-137",
+              "degree": 22
+            },
+            {
+              "id": "chunk:tokio/tests/fs_file.rs:tempfile:198-200",
+              "degree": 19
+            },
+            {
+              "id": "chunk:tokio/tests/fs_uring_file_read.rs:create_temp_file:39-45",
+              "degree": 19
+            },
+            {
+              "id": "chunk:tokio-stream/tests/stream_fused.rs:fused_iter:5-7",
+              "degree": 16
+            },
+            {
+              "id": "chunk:tokio/tests/rt_unstable_metrics.rs:current_thread:827-832",
+              "degree": 15
+            },
+            {
+              "id": "chunk:tokio/src/runtime/builder.rs:new:279-345",
+              "degree": 14
+            },
+            {
+              "id": "chunk:tokio/tests/dump.rs:dump:137-140",
+              "degree": 13
+            },
+            {
+              "id": "chunk:tokio/tests/dump.rs:dump:154-158",
+              "degree": 13
+            }
+          ]
+        }
+      },
+      "parse_errors": 0
+    }
+  ]
+}
