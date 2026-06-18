@@ -2,7 +2,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MCP_DIR="$REPO_ROOT/.context/mcp"
+CONTEXT_RUNTIME_DIR="$REPO_ROOT/.context/mcp"
+MCP_DIR="$CONTEXT_RUNTIME_DIR"
 TOTAL_STEPS=6
 STEP_INDEX=0
 
@@ -22,7 +23,7 @@ info "pipeline: deps -> ingest -> embeddings -> graph -> status"
 
 mkdir -p "$MCP_DIR/.npm-cache"
 
-step "Installing MCP dependencies"
+step "Installing context runtime dependencies"
 info "note: upstream RyuGraph dependencies may print deprecation warnings during install"
 NPM_CONFIG_CACHE="$MCP_DIR/.npm-cache" npm --prefix "$MCP_DIR" install --no-fund --no-update-notifier --loglevel=warn
 

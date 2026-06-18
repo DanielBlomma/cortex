@@ -2,7 +2,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MCP_DIR="$REPO_ROOT/.context/mcp"
+CONTEXT_RUNTIME_DIR="$REPO_ROOT/.context/mcp"
+MCP_DIR="$CONTEXT_RUNTIME_DIR"
 
 if [[ ! -f "$MCP_DIR/package.json" ]]; then
   echo "[graph-load] missing $MCP_DIR/package.json"
@@ -10,7 +11,7 @@ if [[ ! -f "$MCP_DIR/package.json" ]]; then
 fi
 
 if [[ ! -d "$MCP_DIR/node_modules" ]]; then
-  echo "[graph-load] node_modules missing in .context/mcp/"
+  echo "[graph-load] node_modules missing in context runtime (.context/mcp compatibility path)"
   echo "[graph-load] run: cd .context/mcp && NPM_CONFIG_CACHE=$MCP_DIR/.npm-cache npm install"
   exit 1
 fi

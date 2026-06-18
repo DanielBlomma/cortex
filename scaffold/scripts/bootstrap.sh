@@ -3,7 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-MCP_DIR="$REPO_ROOT/.context/mcp"
+CONTEXT_RUNTIME_DIR="$REPO_ROOT/.context/mcp"
+MCP_DIR="$CONTEXT_RUNTIME_DIR"
 TOTAL_STEPS=6
 STEP_INDEX=0
 
@@ -55,7 +56,7 @@ install_deps_if_changed() {
   fi
 }
 
-step "Installing MCP dependencies"
+step "Installing context runtime dependencies"
 info "note: upstream RyuGraph dependencies may print deprecation warnings during install"
 install_deps_if_changed "$MCP_DIR" "$MCP_DIR/.npm-cache"
 install_deps_if_changed "$REPO_ROOT/.context/scripts/parsers" "$REPO_ROOT/.context/scripts/parsers/.npm-cache"

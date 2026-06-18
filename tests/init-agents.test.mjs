@@ -12,11 +12,11 @@ function makeRepo(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
-function runInit(targetDir) {
+function runInit(targetDir, extraArgs = [], options = {}) {
   const result = spawnSync(
     process.execPath,
-    [CLI_PATH, "init", targetDir, "--no-connect", "--no-watch"],
-    { encoding: "utf8" },
+    [CLI_PATH, "init", targetDir, ...extraArgs, "--no-watch"],
+    { encoding: "utf8", ...options },
   );
 
   if (result.status !== 0) {
@@ -24,18 +24,19 @@ function runInit(targetDir) {
       `cortex init failed with code ${result.status}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
     );
   }
+  return result;
 }
 
 test("cortex init scaffolds AGENTS.md for Codex-compatible repos", () => {
   const repoRoot = makeRepo("cortex-init-agents-");
 
   try {
-    runInit(repoRoot);
+    runInit(repoRoot, ["--no-connect"]);
 
     const agentsPath = path.join(repoRoot, "AGENTS.md");
     const contents = fs.readFileSync(agentsPath, "utf8");
 
-    assert.match(contents, /## Required: Always use Cortex MCP tools/);
+    assert.match(contents, /## Required: Always use Cortex context/);
     assert.match(contents, /<!-- cortex:auto:start -->[\s\S]*Run `cortex update`/);
   } finally {
     fs.rmSync(repoRoot, { recursive: true, force: true });
@@ -53,7 +54,7 @@ test("cortex init preserves existing AGENTS.md content while ensuring the Cortex
       "utf8",
     );
 
-    runInit(repoRoot);
+    runInit(repoRoot, ["--no-connect"]);
 
     const contents = fs.readFileSync(agentsPath, "utf8");
 
@@ -75,7 +76,7 @@ test("cortex init installs Cortex scripts under .context without touching projec
     fs.mkdirSync(projectScripts, { recursive: true });
     fs.writeFileSync(projectScript, "#!/usr/bin/env bash\necho project build\n", "utf8");
 
-    runInit(repoRoot);
+    runInit(repoRoot, ["--no-connect"]);
 
     assert.equal(fs.readFileSync(projectScript, "utf8"), "#!/usr/bin/env bash\necho project build\n");
     assert.equal(fs.existsSync(path.join(repoRoot, ".context", "scripts", "context.sh")), true);
@@ -100,7 +101,7 @@ test("cortex init cleans up legacy Cortex root scripts but keeps project scripts
     fs.mkdirSync(path.join(projectScripts, "parsers"), { recursive: true });
     fs.writeFileSync(path.join(projectScripts, "parsers", "package.json"), "{}\n", "utf8");
 
-    runInit(repoRoot);
+    runInit(repoRoot, ["--no-connect"]);
 
     assert.equal(fs.existsSync(path.join(repoRoot, ".context", "scripts", "context.sh")), true);
     assert.equal(fs.existsSync(path.join(projectScripts, "context.sh")), false);
@@ -108,5 +109,41 @@ test("cortex init cleans up legacy Cortex root scripts but keeps project scripts
     assert.equal(fs.existsSync(path.join(projectScripts, "build.sh")), true);
   } finally {
     fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test("cortex init skips MCP client registration by default", () => {
+  const repoRoot = makeRepo("cortex-init-connect-default-");
+
+  try {
+    const result = runInit(repoRoot);
+
+    assert.match(result.stdout, /MCP connect skipped/);
+    assert.doesNotMatch(result.stdout, /MCP connect: Codex \+ Claude Code/);
+    assert.equal(fs.existsSync(path.join(repoRoot, ".context", "mcp", "package.json")), true);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test("cortex init --connect keeps MCP client registration as an explicit compatibility path", () => {
+  const repoRoot = makeRepo("cortex-init-connect-explicit-");
+  const fakeBin = makeRepo("cortex-empty-path-");
+
+  try {
+    const result = runInit(repoRoot, ["--connect"], {
+      env: {
+        ...process.env,
+        PATH: fakeBin,
+      },
+    });
+
+    assert.match(result.stdout, /MCP connect: Codex \+ Claude Code/);
+    assert.match(result.stdout, /codex CLI not found, skipping Codex MCP registration/);
+    assert.match(result.stdout, /claude CLI not found, skipping Claude Code MCP registration/);
+    assert.match(result.stdout, /no MCP clients connected/);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+    fs.rmSync(fakeBin, { recursive: true, force: true });
   }
 });

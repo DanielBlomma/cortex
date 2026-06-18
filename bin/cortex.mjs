@@ -27,6 +27,7 @@ const PACKAGE_JSON_PATH = path.join(PACKAGE_ROOT, "package.json");
 // only the three editable config files". Generated artifacts (db,
 // embeddings, cache, hooks, mcp/, govern.local.json) never land in git.
 const MCP_PROJECT_REL = path.join(".context", "mcp");
+const CONTEXT_RUNTIME_REL = MCP_PROJECT_REL;
 const CONTEXT_SCRIPTS_REL = path.join(".context", "scripts");
 
 // `.context/*` (not `.context/`) so the !-negations below actually re-include
@@ -67,7 +68,7 @@ function printHelp() {
 
   console.log(helpSection("CONTEXT"));
   console.log(helpRow("init [path]", "Scaffold a project with --force/--bootstrap/--connect/--watch"));
-  console.log(helpRow("connect [path]", "Re-register MCP clients (Codex + Claude Code)"));
+  console.log(helpRow("connect [path]", "Register MCP clients (Codex + Claude Code)"));
   console.log(helpRow("bootstrap", "Install deps, ingest, embed, load graph"));
   console.log(helpRow("update", "Refresh context for changed files"));
   console.log(helpRow("status", "Project context status"));
@@ -75,6 +76,11 @@ function printHelp() {
   console.log(helpRow("ingest [--changed] [--verbose]", "Re-index source files"));
   console.log(helpRow("embed [--changed]", "Recompute embeddings"));
   console.log(helpRow("graph-load [--no-reset]", "Reload the dependency graph"));
+  console.log(helpRow("search <query> [--json]", "Search local graph+RAG context"));
+  console.log(helpRow("related <entity-id> [--json]", "Show related context entities"));
+  console.log(helpRow("impact <query|entity-id> [--json]", "Trace likely impact paths"));
+  console.log(helpRow("rules [--json]", "List active context rules"));
+  console.log(helpRow("explain <query|entity-id> [--json]", "Show search score evidence"));
   console.log(helpRow("dashboard [--interval <sec>]", "Live local dashboard"));
   console.log(helpRow("memory-compile [--dry-run] [--verbose]", "Compile memory artifacts"));
   console.log(helpRow("memory-lint [--verbose] [--json]", "Lint compiled memory"));
@@ -119,7 +125,7 @@ function parseInitArgs(args) {
   let target = process.cwd();
   let force = false;
   let bootstrap = false;
-  let connect = true;
+  let connect = false;
   let watch = true;
 
   for (const arg of args) {
@@ -810,9 +816,9 @@ async function maybeInstallGitHooks(targetDir) {
 }
 
 function ensureProjectInitialized(targetDir) {
-  const mcpPackageJson = path.join(targetDir, MCP_PROJECT_REL, "package.json");
-  if (!fs.existsSync(mcpPackageJson)) {
-    throw new Error(`Missing ${mcpPackageJson}. Run 'cortex init --bootstrap' first.`);
+  const runtimePackageJson = path.join(targetDir, CONTEXT_RUNTIME_REL, "package.json");
+  if (!fs.existsSync(runtimePackageJson)) {
+    throw new Error(`Missing ${runtimePackageJson}. Run 'cortex init --bootstrap' first.`);
   }
 }
 
@@ -882,7 +888,7 @@ async function maybeMigrateScaffold(targetDir, command) {
 
   console.error(
     `[cortex] scaffold in ${targetDir} is out of date ` +
-      `(missing .context/scripts/doctor.sh, .context/mcp/package.json, doctor subcommand in context.sh, ` +
+      `(missing .context/scripts/doctor.sh, context runtime package.json, doctor subcommand in context.sh, ` +
       `or carries a legacy mcp/ directory at the project root).`
   );
 
@@ -985,7 +991,7 @@ async function run() {
     await maybeInstallGitHooks(target);
 
     console.log(`[cortex] initialized in ${target}`);
-    console.log("[cortex] scaffold copied: .context/, .context/scripts/, .context/mcp/, .githooks/, docs/");
+    console.log("[cortex] scaffold copied: .context/, .context/scripts/, context runtime (.context/mcp compatibility path), .githooks/, docs/");
     console.log(`[cortex] Claude commands ready: /context-update (${helpers.claude.total} files)`);
     if (helpers.codex.changed) {
       console.log("[cortex] Codex workflow instructions added to AGENTS.md");
@@ -1002,7 +1008,7 @@ async function run() {
     if (connect) {
       console.log("[cortex] MCP connect: Codex + Claude Code (if CLIs are installed)");
     } else {
-      console.log("[cortex] MCP connect skipped (--no-connect)");
+      console.log("[cortex] MCP connect skipped (run 'cortex connect' or init with --connect)");
     }
 
     if (watch) {
@@ -1087,6 +1093,10 @@ async function run() {
     return runStageCommandShim(rest);
   }
 
+  if (QUERY_COMMANDS.has(command)) {
+    return runQueryCommandShim(command, rest);
+  }
+
   const passthrough = new Set([
     "bootstrap",
     "update",
@@ -1144,25 +1154,28 @@ function isPidAlive(pid) {
   }
 }
 
-function resolveProjectMcpDist() {
+function resolveProjectRuntimeDist() {
   // v2.0.5: project layout was moved from <cwd>/mcp/ to <cwd>/.context/mcp/.
-  // PACKAGE_ROOT/scaffold/mcp/ is still the source tree the scaffold is
-  // copied from; the actual built code lives in each project's
-  // <cwd>/.context/mcp/dist/ after bootstrap.
+  // The runtime still lives there for compatibility, but CLI commands now
+  // treat it as the local context runtime rather than an MCP-only surface.
   const target = process.env.CORTEX_PROJECT_ROOT?.trim() || process.cwd();
-  return path.join(target, MCP_PROJECT_REL, "dist");
+  return path.join(target, CONTEXT_RUNTIME_REL, "dist");
+}
+
+function resolveProjectMcpDist() {
+  return resolveProjectRuntimeDist();
 }
 
 function resolveDaemonEntry() {
-  return path.join(resolveProjectMcpDist(), "daemon", "main.js");
+  return path.join(resolveProjectRuntimeDist(), "daemon", "main.js");
 }
 
 function resolveHookEntry(name) {
-  return path.join(resolveProjectMcpDist(), "hooks", `${name}.js`);
+  return path.join(resolveProjectRuntimeDist(), "hooks", `${name}.js`);
 }
 
 function resolveCliEntry(name) {
-  return path.join(resolveProjectMcpDist(), "cli", `${name}.js`);
+  return path.join(resolveProjectRuntimeDist(), "cli", `${name}.js`);
 }
 
 async function runDaemonCommand(args) {
@@ -1347,7 +1360,7 @@ function loadGovernModule() {
   const entry = resolveCliEntry("govern");
   if (!fs.existsSync(entry)) {
     throw new Error(
-      `Build the project's MCP first (missing ${entry}). Run 'cortex bootstrap' in the project root.`
+      `Build the project's context runtime first (missing ${entry}). Run 'cortex bootstrap' in the project root.`
     );
   }
   return import(pathToFileURL(entry).href);
@@ -1480,7 +1493,7 @@ async function runEnterpriseInstall(args) {
 
   const enterpriseEntry = resolveCliEntry("enterprise-setup");
   if (!fs.existsSync(enterpriseEntry)) {
-    printBullet("fail", `Build the project's MCP first (missing ${enterpriseEntry}). Run 'cortex bootstrap' in the project root.`);
+    printBullet("fail", `Build the project's context runtime first (missing ${enterpriseEntry}). Run 'cortex bootstrap' in the project root.`);
     process.exit(1);
   }
   const enterpriseMod = await import(pathToFileURL(enterpriseEntry).href);
@@ -1575,6 +1588,7 @@ async function runEnterpriseInstall(args) {
 }
 
 const RUN_CLIS = new Set(["claude", "codex", "copilot"]);
+const QUERY_COMMANDS = new Set(["search", "related", "impact", "rules", "explain"]);
 
 async function runRunCommand(args) {
   const sub = args[0];
@@ -1601,7 +1615,7 @@ async function runRunCommand(args) {
   const entry = resolveCliEntry("run");
   if (!fs.existsSync(entry)) {
     throw new Error(
-      `Build the project's MCP first (missing ${entry}). Run 'cortex bootstrap' in the project root.`
+      `Build the project's context runtime first (missing ${entry}). Run 'cortex bootstrap' in the project root.`
     );
   }
   const mod = await import(pathToFileURL(entry).href);
@@ -1615,11 +1629,24 @@ async function runStageCommandShim(args) {
   const entry = resolveCliEntry("stage");
   if (!fs.existsSync(entry)) {
     throw new Error(
-      `Build the project's MCP first (missing ${entry}). Run 'cortex bootstrap' in the project root.`,
+      `Build the project's context runtime first (missing ${entry}). Run 'cortex bootstrap' in the project root.`,
     );
   }
   const mod = await import(pathToFileURL(entry).href);
   await mod.runStageCommand(args);
+}
+
+async function runQueryCommandShim(command, args) {
+  const target = process.env.CORTEX_PROJECT_ROOT?.trim() || process.cwd();
+  process.env.CORTEX_PROJECT_ROOT = path.resolve(target);
+  const entry = resolveCliEntry("query");
+  if (!fs.existsSync(entry)) {
+    throw new Error(
+      `Build the project's context runtime first (missing ${entry}). Run 'cortex bootstrap' in the project root.`
+    );
+  }
+  const mod = await import(pathToFileURL(entry).href);
+  await mod.runQueryCommand([command, ...args]);
 }
 
 async function runTelemetryCommand(args) {
@@ -1627,7 +1654,7 @@ async function runTelemetryCommand(args) {
   if (sub === "test") {
     const entry = resolveCliEntry("telemetry-test");
     if (!fs.existsSync(entry)) {
-      throw new Error(`Build the project's MCP first (missing ${entry}). Run 'cortex bootstrap' in the project root.`);
+      throw new Error(`Build the project's context runtime first (missing ${entry}). Run 'cortex bootstrap' in the project root.`);
     }
     const mod = await import(pathToFileURL(entry).href);
     const code = await mod.runTelemetryTest();

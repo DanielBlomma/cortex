@@ -502,7 +502,7 @@ export function computeCoverageDiagnostics({ candidateFiles, indexedDocuments, c
 // Bootstrap step markers printed by scaffold/scripts/bootstrap.sh, mapped to
 // stable phase keys. The numbered prefix looks like "[cortex][2/6] <title>".
 const PHASE_MARKERS = [
-  { key: "deps", pattern: /\[cortex\]\[\d+\/\d+\] Installing MCP dependencies/ },
+  { key: "deps", pattern: /\[cortex\]\[\d+\/\d+\] Installing (?:MCP|context runtime) dependencies/ },
   { key: "ingest", pattern: /\[cortex\]\[\d+\/\d+\] Indexing repository context/ },
   { key: "embed", pattern: /\[cortex\]\[\d+\/\d+\] Generating semantic embeddings/ },
   { key: "graph_load", pattern: /\[cortex\]\[\d+\/\d+\] Loading RyuGraph/ },

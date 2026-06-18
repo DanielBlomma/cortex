@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { isScaffoldOutOfDate } from "../bin/cortex.mjs";
+
+const PROJECT_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 const NEW_CONTEXT_SH = `#!/usr/bin/env bash
 set -euo pipefail
@@ -88,4 +91,35 @@ test("returns true when only legacy root scripts/context.sh exists", () => {
   fs.mkdirSync(path.join(root, "scripts"), { recursive: true });
   fs.writeFileSync(path.join(root, "scripts", "context.sh"), NEW_CONTEXT_SH);
   assert.equal(isScaffoldOutOfDate(root), true);
+});
+
+test("runtime naming keeps .context/mcp as the compatibility path", () => {
+  const cli = fs.readFileSync(path.join(PROJECT_ROOT, "bin", "cortex.mjs"), "utf8");
+  const bootstrap = fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "scripts", "bootstrap.sh"), "utf8");
+  const embed = fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "scripts", "embed.sh"), "utf8");
+  const graphLoad = fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "scripts", "load-ryu.sh"), "utf8");
+  const doctor = fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "scripts", "doctor.sh"), "utf8");
+  const rootBootstrap = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "bootstrap.sh"), "utf8");
+
+  assert.match(cli, /const CONTEXT_RUNTIME_REL = MCP_PROJECT_REL;/);
+  assert.match(cli, /function resolveProjectRuntimeDist\(\)/);
+  assert.match(bootstrap, /CONTEXT_RUNTIME_DIR="\$REPO_ROOT\/\.context\/mcp"/);
+  assert.match(embed, /CONTEXT_RUNTIME_DIR="\$REPO_ROOT\/\.context\/mcp"/);
+  assert.match(graphLoad, /CONTEXT_RUNTIME_DIR="\$REPO_ROOT\/\.context\/mcp"/);
+  assert.match(doctor, /CONTEXT_RUNTIME_DIR="\$CONTEXT_DIR\/mcp"/);
+  assert.match(bootstrap, /MCP_DIR="\$CONTEXT_RUNTIME_DIR"/);
+  assert.match(rootBootstrap, /CONTEXT_RUNTIME_DIR="\$REPO_ROOT\/\.context\/mcp"/);
+  assert.match(rootBootstrap, /MCP_DIR="\$CONTEXT_RUNTIME_DIR"/);
+});
+
+test("memory scripts import shared helpers through the context runtime dist", () => {
+  const memoryCompile = fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "scripts", "memory-compile.mjs"), "utf8");
+  const memoryLint = fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "scripts", "memory-lint.mjs"), "utf8");
+  const rootMemoryCompile = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "memory-compile.mjs"), "utf8");
+
+  assert.match(memoryCompile, /const CONTEXT_RUNTIME_DIST = path\.resolve\(__dirname, "\.\.\/mcp\/dist"\);/);
+  assert.match(memoryCompile, /pathToFileURL\(path\.join\(CONTEXT_RUNTIME_DIST, "frontmatter\.js"\)\)\.href/);
+  assert.match(memoryLint, /const CONTEXT_RUNTIME_DIST = path\.resolve\(__dirname, "\.\.\/mcp\/dist"\);/);
+  assert.match(memoryLint, /pathToFileURL\(path\.join\(CONTEXT_RUNTIME_DIST, "frontmatter\.js"\)\)\.href/);
+  assert.match(rootMemoryCompile, /const CONTEXT_RUNTIME_DIST = path\.resolve\(__dirname, "\.\.\/\.context\/mcp\/dist"\);/);
 });
