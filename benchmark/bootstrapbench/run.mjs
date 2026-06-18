@@ -30,6 +30,7 @@ import {
   writeJson
 } from "./lib.mjs";
 import { aggregateResults } from "./aggregate.mjs";
+import { stoppedEvalContainers } from "./cleanup.mjs";
 
 const HARNESS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HARNESS_DIR, "..", "..");
@@ -82,7 +83,12 @@ function validateConfig(raw, configPath) {
       platform: raw.docker?.platform ?? null,
       // CPU quota per container; "auto" divides the daemon's CPUs by
       // parallelism so co-located embedders don't oversubscribe cores.
-      cpus: raw.docker?.cpus ?? "auto"
+      cpus: raw.docker?.cpus ?? "auto",
+      // Hard memory limit per container (e.g. "12g"), passed as --memory and
+      // --memory-swap. Essential for big models: the embedding scheduler's gate
+      // is cgroup-aware, so without a limit it reads the whole host and
+      // over-commits its session pool (large repos then OOM). null = no limit.
+      memory: raw.docker?.memory ?? null
     },
     cortex: {
       source: raw.cortex?.source ?? "local",
@@ -113,6 +119,12 @@ function validateConfig(raw, configPath) {
   }
   if (!Number.isFinite(config.timeout_minutes) || config.timeout_minutes <= 0) {
     throw usageError("Config 'timeout_minutes' must be a positive number");
+  }
+  if (config.docker.memory !== null) {
+    const memory = String(config.docker.memory);
+    if (!/^[0-9]+(\.[0-9]+)?[bkmgBKMG]?$/.test(memory) || Number.parseFloat(memory) <= 0) {
+      throw usageError(`Config 'docker.memory' must be a positive docker size like "12g" or "512m", got '${config.docker.memory}'`);
+    }
   }
   return config;
 }
@@ -282,6 +294,26 @@ let interrupted = false;
 const DAEMON_ERROR_PATTERN = /Cannot connect to the Docker daemon|docker daemon is not running/i;
 let infrastructureFailure = null;
 
+// Remove stopped eval containers left by a prior crashed or SIGKILLed run.
+// Normal runs self-remove via `docker run --rm`, so this only finds leftovers
+// after an abnormal exit. Best-effort: any failure here is logged, never fatal.
+async function sweepLeftoverContainers() {
+  try {
+    const ps = await runCommand({
+      command: "docker",
+      args: ["ps", "-a", "--format", "{{.Names}} {{.Status}}"],
+      timeoutMs: 30 * 1000
+    });
+    if (!ps.ok) return;
+    const leftover = stoppedEvalContainers(ps.stdout);
+    if (leftover.length === 0) return;
+    console.log(`[run] sweeping ${leftover.length} leftover bb-* container(s) from a prior run`);
+    await runCommand({ command: "docker", args: ["rm", "--force", ...leftover], timeoutMs: 60 * 1000 });
+  } catch (error) {
+    console.warn(`[run] leftover-container sweep skipped: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 function installSignalHandlers() {
   const cleanup = (signal) => {
     if (interrupted) {
@@ -346,6 +378,9 @@ async function runItem(item, config, paths) {
       ...(paths.cpusPerContainer
         ? ["--cpus", String(paths.cpusPerContainer), "-e", `CORTEX_EMBED_THREADS=${paths.cpusPerContainer}`]
         : []),
+      // --memory-swap = --memory disables swap, so the scheduler's cgroup-aware
+      // gate sizes its pool to fit instead of thrashing or over-committing.
+      ...(config.docker.memory ? ["--memory", config.docker.memory, "--memory-swap", config.docker.memory] : []),
       "--name",
       item.containerName,
       "-v",
@@ -451,6 +486,9 @@ async function main() {
   if (paths.cpusPerContainer) {
     console.log(`[run] cpu quota per container: ${paths.cpusPerContainer}`);
   }
+  if (config.docker.memory) {
+    console.log(`[run] memory limit per container: ${config.docker.memory}`);
+  }
 
   const items = buildWorkItems(repos, config, runId, cortexSource);
   console.log(
@@ -466,6 +504,7 @@ async function main() {
 
   ensureDir(paths.itemsDir);
   installSignalHandlers();
+  await sweepLeftoverContainers();
   writeJson(path.join(runDir, "config.json"), { ...config, run_id: runId, started_at: startedAt });
 
   if (config.docker.build && !hasFlag(args, "--skip-build")) {

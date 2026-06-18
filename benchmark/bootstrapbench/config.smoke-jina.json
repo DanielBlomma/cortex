@@ -1,0 +1,20 @@
+{
+  "run_name": "smoke-jina",
+  "repos": [
+    "iamkun/dayjs",
+    "expressjs/express"
+  ],
+  "embed_models": [
+    "jinaai/jina-embeddings-v2-base-code"
+  ],
+  "cortex": {
+    "source": "local"
+  },
+  "parallelism": 1,
+  "timeout_minutes": 60,
+  "docker": {
+    "image": "cortex-bootstrapbench:jina",
+    "build": true
+  },
+  "results_dir": "benchmark/bootstrapbench/results"
+}

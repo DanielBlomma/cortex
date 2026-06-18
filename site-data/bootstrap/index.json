@@ -2,14 +2,24 @@
   "schema_version": 1,
   "versions": [
     {
+      "version": "2.1.3",
+      "run_id": "subset-jina-213",
+      "generated_at": "2026-06-15T21:23:42.191Z",
+      "models": [
+        "jinaai/jina-embeddings-v2-base-code"
+      ],
+      "source": "local",
+      "repos": 10
+    },
+    {
       "version": "2.0.19",
       "run_id": "full-2019",
-      "generated_at": "2026-06-12T05:34:50.388Z",
+      "generated_at": "2026-06-17T01:01:10.647Z",
       "models": [
         "Xenova/all-MiniLM-L6-v2"
       ],
       "source": "npm",
-      "repos": 32
+      "repos": 69
     }
   ]
 }

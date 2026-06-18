@@ -1,0 +1,29 @@
+{
+  "run_name": "subset-jina",
+  "repos": [
+    "alibaba/fastjson2",
+    "google/gson",
+    "BurntSushi/ripgrep",
+    "sharkdp/bat",
+    "cli/cli",
+    "fmtlib/fmt",
+    "sveltejs/svelte",
+    "iamkun/dayjs",
+    "pallets/flask",
+    "psf/requests"
+  ],
+  "embed_models": [
+    "jinaai/jina-embeddings-v2-base-code"
+  ],
+  "cortex": {
+    "source": "local"
+  },
+  "parallelism": 2,
+  "timeout_minutes": 1440,
+  "docker": {
+    "image": "cortex-bootstrapbench:jina",
+    "build": true,
+    "memory": "8g"
+  },
+  "results_dir": "benchmark/bootstrapbench/results"
+}

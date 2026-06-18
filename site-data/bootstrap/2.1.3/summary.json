@@ -1,0 +1,1237 @@
+{
+  "schema_version": 1,
+  "run": {
+    "id": "subset-jina-213",
+    "generated_at": "2026-06-15T21:23:42.191Z",
+    "cortex_version": "2.1.3"
+  },
+  "aggregate": {
+    "totals": {
+      "items": 10,
+      "succeeded": 10,
+      "failed": 0,
+      "chunks": 70264,
+      "files": 11468,
+      "edges": 155819,
+      "duration_ms": 8170354,
+      "indexed_lines": 1525385,
+      "tracked_lines": 3039236,
+      "repos": 10,
+      "models": [
+        "jinaai/jina-embeddings-v2-base-code"
+      ]
+    },
+    "by_model": {
+      "jinaai/jina-embeddings-v2-base-code": {
+        "items": 10,
+        "repos": 10,
+        "chunks": 70264,
+        "embedded": 31918,
+        "failed_embeddings": 0,
+        "dimensions": 768,
+        "avg_throughput_per_s": 4.48,
+        "chunk_lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 38194
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 12255
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 7710
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 9322
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 1765
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 656
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 362
+          }
+        ],
+        "chunk_chars_histogram": [
+          {
+            "label": "0-200",
+            "min": 0,
+            "max": 200,
+            "count": 28208
+          },
+          {
+            "label": "201-500",
+            "min": 201,
+            "max": 500,
+            "count": 16544
+          },
+          {
+            "label": "501-1000",
+            "min": 501,
+            "max": 1000,
+            "count": 9787
+          },
+          {
+            "label": "1001-2000",
+            "min": 1001,
+            "max": 2000,
+            "count": 6764
+          },
+          {
+            "label": "2001-4000",
+            "min": 2001,
+            "max": 4000,
+            "count": 6750
+          },
+          {
+            "label": "4001-8000",
+            "min": 4001,
+            "max": 8000,
+            "count": 1584
+          },
+          {
+            "label": "8001-12000",
+            "min": 8001,
+            "max": 12000,
+            "count": 623
+          },
+          {
+            "label": "12001+",
+            "min": 12001,
+            "max": null,
+            "count": 4
+          }
+        ]
+      }
+    },
+    "by_language": {
+      "markdown": {
+        "chunks": 5480,
+        "repos": 10,
+        "mean_chunk_lines": 25.66,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 2166
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 1463
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 876
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 868
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 71
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 24
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 12
+          }
+        ]
+      },
+      "java": {
+        "chunks": 45384,
+        "repos": 3,
+        "mean_chunk_lines": 24.03,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 26143
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 7654
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 4492
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 5393
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 1072
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 397
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 233
+          }
+        ]
+      },
+      "go": {
+        "chunks": 7748,
+        "repos": 3,
+        "mean_chunk_lines": 39.26,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 2887
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 1251
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 1157
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 1817
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 434
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 140
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 62
+          }
+        ]
+      },
+      "rust": {
+        "chunks": 3835,
+        "repos": 2,
+        "mean_chunk_lines": 22.37,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 2211
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 661
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 402
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 441
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 65
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 38
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 17
+          }
+        ]
+      },
+      "ruby": {
+        "chunks": 11,
+        "repos": 2,
+        "mean_chunk_lines": 15.91,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 6
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 1
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 3
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 1
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 0
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 0
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 0
+          }
+        ]
+      },
+      "javascript": {
+        "chunks": 2638,
+        "repos": 4,
+        "mean_chunk_lines": 31.36,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 1233
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 473
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 318
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 486
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 65
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 40
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 23
+          }
+        ]
+      },
+      "bash": {
+        "chunks": 3,
+        "repos": 2,
+        "mean_chunk_lines": 6.67,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 2
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 1
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 0
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 0
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 0
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 0
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 0
+          }
+        ]
+      },
+      "c": {
+        "chunks": 1329,
+        "repos": 2,
+        "mean_chunk_lines": 14.29,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 1028
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 111
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 82
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 84
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 13
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 5
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 6
+          }
+        ]
+      },
+      "cpp": {
+        "chunks": 1040,
+        "repos": 2,
+        "mean_chunk_lines": 9.54,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 756
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 172
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 83
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 24
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 5
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 0
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 0
+          }
+        ]
+      },
+      "python": {
+        "chunks": 2698,
+        "repos": 4,
+        "mean_chunk_lines": 18.24,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 1700
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 443
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 293
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 203
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 39
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 11
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 9
+          }
+        ]
+      },
+      "sql": {
+        "chunks": 21,
+        "repos": 2,
+        "mean_chunk_lines": 13.29,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 4
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 16
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 1
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 0
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 0
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 0
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 0
+          }
+        ]
+      },
+      "typescript": {
+        "chunks": 77,
+        "repos": 2,
+        "mean_chunk_lines": 14.83,
+        "lines_histogram": [
+          {
+            "label": "1-10",
+            "min": 1,
+            "max": 10,
+            "count": 58
+          },
+          {
+            "label": "11-20",
+            "min": 11,
+            "max": 20,
+            "count": 9
+          },
+          {
+            "label": "21-40",
+            "min": 21,
+            "max": 40,
+            "count": 3
+          },
+          {
+            "label": "41-80",
+            "min": 41,
+            "max": 80,
+            "count": 5
+          },
+          {
+            "label": "81-160",
+            "min": 81,
+            "max": 160,
+            "count": 1
+          },
+          {
+            "label": "161-320",
+            "min": 161,
+            "max": 320,
+            "count": 1
+          },
+          {
+            "label": "321+",
+            "min": 321,
+            "max": null,
+            "count": 0
+          }
+        ]
+      }
+    },
+    "relations_by_type": {
+      "CALLS": 7100,
+      "CALLS_SQL": 0,
+      "CONSTRAINS": 9851,
+      "CONTAINS": 7867,
+      "CONTAINS_MODULE": 449,
+      "DEFINES": 70264,
+      "EXPORTS": 46612,
+      "IMPLEMENTS": 9562,
+      "IMPORTS": 4112,
+      "INCLUDES_FILE": 2,
+      "REFERENCES_PROJECT": 0,
+      "SUPERSEDES": 0,
+      "TRANSFORMS_CONFIG": 0,
+      "USES_CONFIG": 0,
+      "USES_CONFIG_KEY": 0,
+      "USES_RESOURCE": 0,
+      "USES_RESOURCE_KEY": 0,
+      "USES_SETTING": 0,
+      "USES_SETTING_KEY": 0
+    },
+    "repo_rows": [
+      {
+        "key": "alibaba__fastjson2",
+        "name": "alibaba/fastjson2",
+        "languages": [
+          "java"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "3697c2d37cd659d2a94543093d0d08cb4baf4d73",
+        "model": "jinaai/jina-embeddings-v2-base-code",
+        "status": "embed_failed",
+        "error": null,
+        "tracked_files": 4870,
+        "tracked_bytes": 149452863,
+        "tracked_lines": 1961542,
+        "indexed_lines": 692764,
+        "files": 4745,
+        "chunks": 43514,
+        "chunk_p50_lines": 9,
+        "chunk_mean_lines": 24.2,
+        "edges": 89354,
+        "chunk_chunk_edges": 1431,
+        "avg_degree": 0.07,
+        "isolated_pct": 98.4,
+        "embedded": null,
+        "dimensions": null,
+        "total_ms": 57283,
+        "ingest_ms": 14272,
+        "embed_ms": 38343
+      },
+      {
+        "key": "burntsushi__ripgrep",
+        "name": "BurntSushi/ripgrep",
+        "languages": [
+          "rust"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "82313cf95849bfe425109ad9506a52154879b1b1",
+        "model": "jinaai/jina-embeddings-v2-base-code",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 222,
+        "tracked_bytes": 3117867,
+        "tracked_lines": 72943,
+        "indexed_lines": 67294,
+        "files": 160,
+        "chunks": 2987,
+        "chunk_p50_lines": 8,
+        "chunk_mean_lines": 24.16,
+        "edges": 5134,
+        "chunk_chunk_edges": 745,
+        "avg_degree": 0.5,
+        "isolated_pct": 79.04,
+        "embedded": 3187,
+        "dimensions": 768,
+        "total_ms": 731316,
+        "ingest_ms": 3013,
+        "embed_ms": 725584
+      },
+      {
+        "key": "cli__cli",
+        "name": "cli/cli",
+        "languages": [
+          "go"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "57b9b207d900114092f30d78020c193b40621dfa",
+        "model": "jinaai/jina-embeddings-v2-base-code",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 1280,
+        "tracked_bytes": 22209216,
+        "tracked_lines": 326850,
+        "indexed_lines": 277471,
+        "files": 1043,
+        "chunks": 8087,
+        "chunk_p50_lines": 17,
+        "chunk_mean_lines": 38.28,
+        "edges": 18484,
+        "chunk_chunk_edges": 2485,
+        "avg_degree": 0.61,
+        "isolated_pct": 68.11,
+        "embedded": 9415,
+        "dimensions": 768,
+        "total_ms": 3173984,
+        "ingest_ms": 2216,
+        "embed_ms": 3168032
+      },
+      {
+        "key": "fmtlib__fmt",
+        "name": "fmtlib/fmt",
+        "languages": [
+          "cpp"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "e8deaf2ec3b53ced589fce6f640061e5b32eeeaa",
+        "model": "jinaai/jina-embeddings-v2-base-code",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 142,
+        "tracked_bytes": 3091494,
+        "tracked_lines": 84849,
+        "indexed_lines": 82173,
+        "files": 115,
+        "chunks": 2608,
+        "chunk_p50_lines": 5,
+        "chunk_mean_lines": 15.32,
+        "edges": 8442,
+        "chunk_chunk_edges": 843,
+        "avg_degree": 0.65,
+        "isolated_pct": 75.27,
+        "embedded": 2743,
+        "dimensions": 768,
+        "total_ms": 546345,
+        "ingest_ms": 19972,
+        "embed_ms": 523644
+      },
+      {
+        "key": "google__gson",
+        "name": "google/gson",
+        "languages": [
+          "java"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "004e7a4949e08b430e3c8996998ee5a17ff9423a",
+        "model": "jinaai/jina-embeddings-v2-base-code",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 311,
+        "tracked_bytes": 2292570,
+        "tracked_lines": 61383,
+        "indexed_lines": 58252,
+        "files": 288,
+        "chunks": 4673,
+        "chunk_p50_lines": 8,
+        "chunk_mean_lines": 25.28,
+        "edges": 8871,
+        "chunk_chunk_edges": 74,
+        "avg_degree": 0.03,
+        "isolated_pct": 99.17,
+        "embedded": 4993,
+        "dimensions": 768,
+        "total_ms": 1048104,
+        "ingest_ms": 1508,
+        "embed_ms": 1043506
+      },
+      {
+        "key": "iamkun__dayjs",
+        "name": "iamkun/dayjs",
+        "languages": [
+          "javascript"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "6609c5e54347a60bf8d327dee36190069012ba47",
+        "model": "jinaai/jina-embeddings-v2-base-code",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 380,
+        "tracked_bytes": 2481586,
+        "tracked_lines": 65582,
+        "indexed_lines": 22412,
+        "files": 369,
+        "chunks": 363,
+        "chunk_p50_lines": 6,
+        "chunk_mean_lines": 13.29,
+        "edges": 1012,
+        "chunk_chunk_edges": 79,
+        "avg_degree": 0.44,
+        "isolated_pct": 77.69,
+        "embedded": 754,
+        "dimensions": 768,
+        "total_ms": 285098,
+        "ingest_ms": 857,
+        "embed_ms": 282353
+      },
+      {
+        "key": "pallets__flask",
+        "name": "pallets/flask",
+        "languages": [
+          "python"
+        ],
+        "benches": [
+          "Verified"
+        ],
+        "sha": "36e4a824f340fdee7ed50937ba8e7f6bc7d17f81",
+        "model": "jinaai/jina-embeddings-v2-base-code",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 236,
+        "tracked_bytes": 1814815,
+        "tracked_lines": 38330,
+        "indexed_lines": 33984,
+        "files": 197,
+        "chunks": 1684,
+        "chunk_p50_lines": 5,
+        "chunk_mean_lines": 15.92,
+        "edges": 3884,
+        "chunk_chunk_edges": 251,
+        "avg_degree": 0.3,
+        "isolated_pct": 83.91,
+        "embedded": 1912,
+        "dimensions": 768,
+        "total_ms": 316259,
+        "ingest_ms": 1059,
+        "embed_ms": 312948
+      },
+      {
+        "key": "psf__requests",
+        "name": "psf/requests",
+        "languages": [
+          "python"
+        ],
+        "benches": [
+          "Verified"
+        ],
+        "sha": "6f66281a1d6326b1b9c4ac09ca30de0fc4e6ef43",
+        "model": "jinaai/jina-embeddings-v2-base-code",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 130,
+        "tracked_bytes": 4451407,
+        "tracked_lines": 30751,
+        "indexed_lines": 18117,
+        "files": 82,
+        "chunks": 757,
+        "chunk_p50_lines": 8,
+        "chunk_mean_lines": 27.46,
+        "edges": 1592,
+        "chunk_chunk_edges": 72,
+        "avg_degree": 0.19,
+        "isolated_pct": 88.51,
+        "embedded": 855,
+        "dimensions": 768,
+        "total_ms": 165796,
+        "ingest_ms": 1442,
+        "embed_ms": 162327
+      },
+      {
+        "key": "sharkdp__bat",
+        "name": "sharkdp/bat",
+        "languages": [
+          "rust"
+        ],
+        "benches": [
+          "Multi"
+        ],
+        "sha": "af1f53d9a977154216d01435991fe33631b74713",
+        "model": "jinaai/jina-embeddings-v2-base-code",
+        "status": "embed_failed",
+        "error": null,
+        "tracked_files": 909,
+        "tracked_bytes": 7546709,
+        "tracked_lines": 122201,
+        "indexed_lines": 56582,
+        "files": 419,
+        "chunks": 1783,
+        "chunk_p50_lines": 9,
+        "chunk_mean_lines": 23,
+        "edges": 3072,
+        "chunk_chunk_edges": 215,
+        "avg_degree": 0.24,
+        "isolated_pct": 87.66,
+        "embedded": null,
+        "dimensions": null,
+        "total_ms": 11278,
+        "ingest_ms": 3611,
+        "embed_ms": 5399
+      },
+      {
+        "key": "sveltejs__svelte",
+        "name": "sveltejs/svelte",
+        "languages": [
+          "javascript"
+        ],
+        "benches": [
+          "Multi",
+          "Poly"
+        ],
+        "sha": "a9f48540e236d326714a1148b9d61cf785c0f98a",
+        "model": "jinaai/jina-embeddings-v2-base-code",
+        "status": "ok",
+        "error": null,
+        "tracked_files": 8937,
+        "tracked_bytes": 6943606,
+        "tracked_lines": 274805,
+        "indexed_lines": 216336,
+        "files": 4050,
+        "chunks": 3808,
+        "chunk_p50_lines": 9,
+        "chunk_mean_lines": 25.51,
+        "edges": 15974,
+        "chunk_chunk_edges": 905,
+        "avg_degree": 0.48,
+        "isolated_pct": 76.26,
+        "embedded": 8059,
+        "dimensions": 768,
+        "total_ms": 1834891,
+        "ingest_ms": 2111,
+        "embed_ms": 1830386
+      }
+    ]
+  },
+  "repos": [
+    {
+      "key": "alibaba__fastjson2",
+      "name": "alibaba/fastjson2",
+      "languages": [
+        "java"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "jinaai/jina-embeddings-v2-base-code"
+      ],
+      "statuses": [
+        "embed_failed"
+      ],
+      "chunks": 43514,
+      "edges": 89354
+    },
+    {
+      "key": "burntsushi__ripgrep",
+      "name": "BurntSushi/ripgrep",
+      "languages": [
+        "rust"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "jinaai/jina-embeddings-v2-base-code"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 2987,
+      "edges": 5134
+    },
+    {
+      "key": "cli__cli",
+      "name": "cli/cli",
+      "languages": [
+        "go"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "jinaai/jina-embeddings-v2-base-code"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 8087,
+      "edges": 18484
+    },
+    {
+      "key": "fmtlib__fmt",
+      "name": "fmtlib/fmt",
+      "languages": [
+        "cpp"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "jinaai/jina-embeddings-v2-base-code"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 2608,
+      "edges": 8442
+    },
+    {
+      "key": "google__gson",
+      "name": "google/gson",
+      "languages": [
+        "java"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "jinaai/jina-embeddings-v2-base-code"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 4673,
+      "edges": 8871
+    },
+    {
+      "key": "iamkun__dayjs",
+      "name": "iamkun/dayjs",
+      "languages": [
+        "javascript"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "jinaai/jina-embeddings-v2-base-code"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 363,
+      "edges": 1012
+    },
+    {
+      "key": "pallets__flask",
+      "name": "pallets/flask",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Verified"
+      ],
+      "models": [
+        "jinaai/jina-embeddings-v2-base-code"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 1684,
+      "edges": 3884
+    },
+    {
+      "key": "psf__requests",
+      "name": "psf/requests",
+      "languages": [
+        "python"
+      ],
+      "benches": [
+        "Verified"
+      ],
+      "models": [
+        "jinaai/jina-embeddings-v2-base-code"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 757,
+      "edges": 1592
+    },
+    {
+      "key": "sharkdp__bat",
+      "name": "sharkdp/bat",
+      "languages": [
+        "rust"
+      ],
+      "benches": [
+        "Multi"
+      ],
+      "models": [
+        "jinaai/jina-embeddings-v2-base-code"
+      ],
+      "statuses": [
+        "embed_failed"
+      ],
+      "chunks": 1783,
+      "edges": 3072
+    },
+    {
+      "key": "sveltejs__svelte",
+      "name": "sveltejs/svelte",
+      "languages": [
+        "javascript"
+      ],
+      "benches": [
+        "Multi",
+        "Poly"
+      ],
+      "models": [
+        "jinaai/jina-embeddings-v2-base-code"
+      ],
+      "statuses": [
+        "ok"
+      ],
+      "chunks": 3808,
+      "edges": 15974
+    }
+  ]
+}
