@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildSearchResults } from "../dist/searchResults.js";
+import { buildSearchResults, buildSearchResultsWithStats } from "../dist/searchResults.js";
 
 function makeEntity(id, entityType, overrides = {}) {
   return {
@@ -164,4 +164,42 @@ test("ranking is preserved when score fields are omitted from the response", () 
 
   assert.deepEqual(results.map((result) => result.id), ["strong", "middle"]);
   assert.equal("score" in results[0], false);
+});
+
+test("search results can consume a repeatable candidate generator with stats", () => {
+  let passes = 0;
+  const candidateSource = function* () {
+    passes += 1;
+    yield makeEntity("weak", "Chunk", { text: "weak query" });
+    yield makeEntity("strong", "Chunk", { text: "strong query" });
+    yield makeEntity("middle", "Chunk", { text: "middle query" });
+  };
+
+  const { results, totalCandidates } = buildSearchResultsWithStats({
+    candidates: candidateSource,
+    degreeByEntity: new Map(),
+    queryTokens: ["query"],
+    queryPhrase: "query",
+    ranking: { semantic: 1, graph: 0, trust: 0, recency: 0 },
+    includeScores: false,
+    includeMatchedRules: false,
+    includeContent: false,
+    queryVector: null,
+    embeddingVectors: new Map(),
+    topK: 2,
+    minLexicalRelevance: 0,
+    minVectorRelevance: 0,
+    semanticScorer: (_tokens, _phrase, text) => {
+      if (text.includes("strong")) return 0.9;
+      if (text.includes("middle")) return 0.5;
+      return 0.1;
+    },
+    vectorScorer: () => 0,
+    recencyScorer: () => 0,
+    legacyDataAccessBooster: () => 0
+  });
+
+  assert.equal(passes, 2);
+  assert.equal(totalCandidates, 3);
+  assert.deepEqual(results.map((result) => result.id), ["strong", "middle"]);
 });

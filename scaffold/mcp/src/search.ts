@@ -2,7 +2,7 @@ import { embedQuery, getEmbeddingRuntimeWarning, loadEmbeddingIndex } from "./em
 import {
   buildChunkPartOfRelations,
   buildEntitySearchMap,
-  buildSearchEntities,
+  iterateSearchEntities,
   entityCatalog
 } from "./contextEntities.js";
 import { relationDegree } from "./graphMetrics.js";
@@ -19,7 +19,7 @@ import {
   semanticScore,
   tokenize
 } from "./searchCore.js";
-import { buildSearchResults } from "./searchResults.js";
+import { buildSearchResultsWithStats } from "./searchResults.js";
 import { traverseImpactGraph } from "./impactTraversal.js";
 import { buildEmptyRelatedResponse, buildRelatedResponseMeta } from "./relatedResponse.js";
 import { traverseRelatedGraph } from "./relatedTraversal.js";
@@ -39,6 +39,7 @@ import type {
   ImpactParams,
   RelatedParams,
   RelationType,
+  SearchEntity,
   SearchParams,
   ToolPayload
 } from "./types.js";
@@ -57,6 +58,17 @@ const IMPACT_RELATION_TYPES = new Set([
   "PART_OF"
 ]);
 
+function* filterSearchCandidates(
+  candidates: Iterable<SearchEntity>,
+  includeDeprecated: boolean
+): Generator<SearchEntity> {
+  for (const entity of candidates) {
+    if (includeDeprecated || entity.status.toLowerCase() !== "deprecated") {
+      yield entity;
+    }
+  }
+}
+
 export async function runContextSearch(parsed: SearchParams): Promise<ToolPayload> {
   const searchPresetConfig = resolveSearchResponsePreset(parsed);
   const responsePreset = searchPresetConfig.responsePreset;
@@ -68,16 +80,15 @@ export async function runContextSearch(parsed: SearchParams): Promise<ToolPayloa
   const degreeByEntity = relationDegree(allRelations);
   const queryTokens = expandQueryTokens(Array.from(new Set(tokenize(parsed.query))));
   const queryPhrase = normalizeText(parsed.query).trim();
-  const candidates = buildSearchEntities(data, includeContent).filter(
-    (entity) => parsed.include_deprecated || entity.status.toLowerCase() !== "deprecated"
-  );
+  const candidates = () =>
+    filterSearchCandidates(iterateSearchEntities(data, includeContent), parsed.include_deprecated);
   const embeddings = loadEmbeddingIndex();
   const queryVector =
     embeddings.model && embeddings.vectors.size > 0
       ? await embedQuery(parsed.query, embeddings.model)
       : null;
 
-  const results = buildSearchResults({
+  const { results, totalCandidates } = buildSearchResultsWithStats({
     candidates,
     degreeByEntity,
     queryTokens,
@@ -107,7 +118,7 @@ export async function runContextSearch(parsed: SearchParams): Promise<ToolPayloa
     include_matched_rules: includeMatchedRules,
     include_content: includeContent,
     ranking: data.ranking,
-    total_candidates: candidates.length,
+    total_candidates: totalCandidates,
     context_source: data.source,
     warning: warningMessages.length > 0 ? warningMessages.join(" | ") : undefined,
     semantic_engine:
