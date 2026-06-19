@@ -59,6 +59,14 @@ function runIngest(root, extraEnv = {}) {
   });
 }
 
+function readJsonl(file) {
+  return fs.readFileSync(file, "utf8")
+    .trim()
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+}
+
 test("ingest memory trace is opt-in and emits checkpoint JSON lines", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-ingest-trace-"));
   try {
@@ -104,6 +112,50 @@ test("ingest memory trace is opt-in and emits checkpoint JSON lines", () => {
     assert.equal(writeRecord.counts.files, 1);
     assert.ok(writeRecord.counts.chunks >= 1);
     assert.ok(writeRecord.counts.total_relations >= 1);
+
+    const ruleMatchRecord = records.find((record) => record.label === "tokens:rule_matching_complete");
+    assert.equal(ruleMatchRecord.counts.file_token_sets, 1);
+    assert.equal(ruleMatchRecord.counts.file_token_sets_retained, 0);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("ingest rule matching keeps duplicate rule ids de-duplicated", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-ingest-rules-"));
+  try {
+    writeFixture(root);
+    fs.writeFileSync(
+      path.join(root, ".context", "rules.yaml"),
+      [
+        "rules:",
+        "  - id: rule.trace",
+        "    description: First duplicate trace rule",
+        "    priority: 10",
+        "    enforce: true",
+        "  - id: rule.trace",
+        "    description: Second duplicate trace rule",
+        "    priority: 10",
+        "    enforce: true",
+        ""
+      ].join("\n"),
+      "utf8"
+    );
+
+    const result = runIngest(root);
+    assert.equal(result.status, 0, result.stderr);
+
+    const constrains = readJsonl(path.join(root, ".context", "cache", "relations.constrains.jsonl"));
+    const implementsRelations = readJsonl(path.join(root, ".context", "cache", "relations.implements.jsonl"));
+
+    assert.equal(
+      constrains.filter((relation) => relation.from === "rule.trace" && relation.to === "file:src/app.js").length,
+      1
+    );
+    assert.equal(
+      implementsRelations.filter((relation) => relation.from === "file:src/app.js" && relation.to === "rule.trace").length,
+      1
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
