@@ -1,6 +1,6 @@
 {
   "name": "cortex",
-  "version": "2.2.2",
+  "version": "2.2.3",
   "description": "Cortex local context CLI with an optional MCP bridge for Claude Code",
   "author": {
     "name": "Daniel Blomma",
