@@ -75,8 +75,12 @@ function buildRelationSearchSignals(data: ContextData): Map<string, string> {
   return new Map([...signalsByEntity.entries()].map(([id, parts]) => [id, parts.join("\n")]));
 }
 
-export function buildSearchEntities(data: ContextData, includeContent: boolean): SearchEntity[] {
-  const entities: SearchEntity[] = [];
+function buildSearchEntityIndexes(data: ContextData): {
+  fileRuleLinks: Map<string, string[]>;
+  relationSignals: Map<string, string>;
+  adrPathSet: Set<string>;
+  filePathById: Map<string, string>;
+} {
   const fileRuleLinks = groupRuleLinks(data.relations);
   const relationSignals = buildRelationSearchSignals(data);
   const adrPathSet = new Set(
@@ -84,6 +88,15 @@ export function buildSearchEntities(data: ContextData, includeContent: boolean):
       .map((adr) => adr.path.trim().toLowerCase())
       .filter((adrPath) => adrPath.length > 0)
   );
+  const filePathById = new Map(
+    data.documents.filter((document) => document.kind === "CODE").map((document) => [document.id, document.path])
+  );
+
+  return { fileRuleLinks, relationSignals, adrPathSet, filePathById };
+}
+
+export function* iterateSearchEntities(data: ContextData, includeContent: boolean): Generator<SearchEntity> {
+  const { fileRuleLinks, relationSignals, adrPathSet, filePathById } = buildSearchEntityIndexes(data);
 
   for (const document of data.documents) {
     const normalizedPath = document.path.trim().toLowerCase();
@@ -91,7 +104,7 @@ export function buildSearchEntities(data: ContextData, includeContent: boolean):
       continue;
     }
 
-    entities.push({
+    yield {
       id: document.id,
       entity_type: "File",
       kind: document.kind,
@@ -105,11 +118,11 @@ export function buildSearchEntities(data: ContextData, includeContent: boolean):
       snippet: document.excerpt,
       matched_rules: fileRuleLinks.get(document.id) ?? [],
       content: includeContent ? document.content : undefined
-    });
+    };
   }
 
   for (const rule of data.rules) {
-    entities.push({
+    yield {
       id: rule.id,
       entity_type: "Rule",
       kind: "RULE",
@@ -123,11 +136,11 @@ export function buildSearchEntities(data: ContextData, includeContent: boolean):
       snippet: rule.body.slice(0, 500),
       matched_rules: [rule.id],
       content: includeContent ? rule.body : undefined
-    });
+    };
   }
 
   for (const adr of data.adrs) {
-    entities.push({
+    yield {
       id: adr.id,
       entity_type: "ADR",
       kind: "ADR",
@@ -141,16 +154,12 @@ export function buildSearchEntities(data: ContextData, includeContent: boolean):
       snippet: adr.body.slice(0, 500),
       matched_rules: [],
       content: includeContent ? adr.body : undefined
-    });
+    };
   }
-
-  const filePathById = new Map(
-    data.documents.filter((document) => document.kind === "CODE").map((document) => [document.id, document.path])
-  );
 
   for (const chunk of data.chunks) {
     const filePath = filePathById.get(chunk.file_id) ?? "";
-    entities.push({
+    yield {
       id: chunk.id,
       entity_type: "Chunk",
       kind: chunk.kind || "chunk",
@@ -164,11 +173,11 @@ export function buildSearchEntities(data: ContextData, includeContent: boolean):
       snippet: chunk.description || chunk.body.slice(0, 500),
       matched_rules: fileRuleLinks.get(chunk.file_id) ?? [],
       content: includeContent ? chunk.body : undefined
-    });
+    };
   }
 
   for (const module of data.modules) {
-    entities.push({
+    yield {
       id: module.id,
       entity_type: "Module",
       kind: "MODULE",
@@ -182,11 +191,11 @@ export function buildSearchEntities(data: ContextData, includeContent: boolean):
       snippet: (module.summary || "").slice(0, 500),
       matched_rules: [],
       content: includeContent ? module.summary : undefined
-    });
+    };
   }
 
   for (const project of data.projects) {
-    entities.push({
+    yield {
       id: project.id,
       entity_type: "Project",
       kind: project.kind.toUpperCase() || "PROJECT",
@@ -200,10 +209,12 @@ export function buildSearchEntities(data: ContextData, includeContent: boolean):
       snippet: (project.summary || "").slice(0, 500),
       matched_rules: [],
       content: includeContent ? project.summary : undefined
-    });
+    };
   }
+}
 
-  return entities;
+export function buildSearchEntities(data: ContextData, includeContent: boolean): SearchEntity[] {
+  return Array.from(iterateSearchEntities(data, includeContent));
 }
 
 export function buildChunkPartOfRelations(data: ContextData): RelationRecord[] {

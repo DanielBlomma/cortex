@@ -7,6 +7,13 @@ type RankedSearchResult = {
   rankScore: number;
 };
 
+type SearchCandidateSource = Iterable<SearchEntity> | (() => Iterable<SearchEntity>);
+
+type BaseChunkMetadata = {
+  label: string;
+  path: string;
+};
+
 function isWindowChunkId(id: string): boolean {
   return id.includes(":window:");
 }
@@ -35,8 +42,12 @@ function pruneRankedResults(bestById: Map<string, RankedSearchResult>, limit: nu
   }
 }
 
-export function buildSearchResults(params: {
-  candidates: SearchEntity[];
+function candidatesFrom(source: SearchCandidateSource): Iterable<SearchEntity> {
+  return typeof source === "function" ? source() : source;
+}
+
+export function buildSearchResultsWithStats(params: {
+  candidates: SearchCandidateSource;
   degreeByEntity: Map<string, number>;
   queryTokens: string[];
   queryPhrase: string;
@@ -53,9 +64,9 @@ export function buildSearchResults(params: {
   vectorScorer: (a: Float32Array, b: Float32Array) => number;
   recencyScorer: (isoDate: string) => number;
   legacyDataAccessBooster: (entity: SearchEntity, queryTokens: string[], queryPhrase: string) => number;
-}): Record<string, unknown>[] {
+}): { results: Record<string, unknown>[]; totalCandidates: number } {
   if (params.topK <= 0) {
-    return [];
+    return { results: [], totalCandidates: 0 };
   }
 
   // Graph score = midrank percentile of relation degree within the entity's
@@ -65,13 +76,23 @@ export function buildSearchResults(params: {
   // (every type averages ~0.5), so hub-heavy types like rules cannot drown
   // out leaf code files or doc sections.
   const sortedDegreesByType = new Map<string, number[]>();
-  for (const entity of params.candidates) {
+  const chunkCandidatesById = new Map<string, BaseChunkMetadata>();
+  let totalCandidates = 0;
+  for (const entity of candidatesFrom(params.candidates)) {
+    totalCandidates += 1;
     const degree = params.degreeByEntity.get(entity.id) ?? 0;
     const list = sortedDegreesByType.get(entity.entity_type);
     if (list) {
       list.push(degree);
     } else {
       sortedDegreesByType.set(entity.entity_type, [degree]);
+    }
+
+    if (entity.entity_type === "Chunk" && !isWindowChunkId(entity.id)) {
+      chunkCandidatesById.set(entity.id, {
+        label: entity.label,
+        path: entity.path
+      });
     }
   }
   for (const list of sortedDegreesByType.values()) {
@@ -90,17 +111,11 @@ export function buildSearchResults(params: {
     return sorted.length > 0 ? (lo + upper) / (2 * sorted.length) : 0;
   };
 
-  const chunkCandidatesById = new Map(
-    params.candidates
-      .filter((entity) => entity.entity_type === "Chunk" && !isWindowChunkId(entity.id))
-      .map((entity) => [entity.id, entity])
-  );
-
   const resultLimit = Math.max(1, params.topK);
   const pruneThreshold = Math.max(resultLimit * 4, 64);
   const bestById = new Map<string, RankedSearchResult>();
 
-  for (const entity of params.candidates) {
+  for (const entity of candidatesFrom(params.candidates)) {
     const lexicalSemantic = params.semanticScorer(params.queryTokens, params.queryPhrase, entity.text);
     const entityVector = params.embeddingVectors.get(entity.id);
     const vectorSemantic =
@@ -183,8 +198,13 @@ export function buildSearchResults(params: {
     }
   }
 
-  return [...bestById.values()]
+  const results = [...bestById.values()]
     .sort((a, b) => b.rankScore - a.rankScore)
     .slice(0, params.topK)
     .map((ranked) => ranked.result);
+  return { results, totalCandidates };
+}
+
+export function buildSearchResults(params: Parameters<typeof buildSearchResultsWithStats>[0]): Record<string, unknown>[] {
+  return buildSearchResultsWithStats(params).results;
 }
