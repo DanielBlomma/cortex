@@ -130,3 +130,38 @@ test("graph score never saturates to a shared constant for common degrees", () =
 
   assert.equal(unique.size, 3);
 });
+
+test("ranking is preserved when score fields are omitted from the response", () => {
+  const candidates = [
+    makeEntity("weak", "Chunk", { text: "weak query" }),
+    makeEntity("strong", "Chunk", { text: "strong query" }),
+    makeEntity("middle", "Chunk", { text: "middle query" })
+  ];
+
+  const results = buildSearchResults({
+    candidates,
+    degreeByEntity: new Map(),
+    queryTokens: ["query"],
+    queryPhrase: "query",
+    ranking: { semantic: 1, graph: 0, trust: 0, recency: 0 },
+    includeScores: false,
+    includeMatchedRules: false,
+    includeContent: false,
+    queryVector: null,
+    embeddingVectors: new Map(),
+    topK: 2,
+    minLexicalRelevance: 0,
+    minVectorRelevance: 0,
+    semanticScorer: (_tokens, _phrase, text) => {
+      if (text.includes("strong")) return 0.9;
+      if (text.includes("middle")) return 0.5;
+      return 0.1;
+    },
+    vectorScorer: () => 0,
+    recencyScorer: () => 0,
+    legacyDataAccessBooster: () => 0
+  });
+
+  assert.deepEqual(results.map((result) => result.id), ["strong", "middle"]);
+  assert.equal("score" in results[0], false);
+});
