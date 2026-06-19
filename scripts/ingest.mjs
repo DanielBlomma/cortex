@@ -1036,8 +1036,27 @@ function findSupersedesReferences(content) {
 }
 
 function writeJsonl(filePath, records) {
-  const body = records.map((record) => JSON.stringify(record)).join("\n");
-  fs.writeFileSync(filePath, body ? `${body}\n` : "", "utf8");
+  const fd = fs.openSync(filePath, "w");
+  try {
+    for (const record of records) {
+      fs.writeSync(fd, `${JSON.stringify(record)}\n`, undefined, "utf8");
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function stageJsonl(filePath, records) {
+  const stagedPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+  writeJsonl(stagedPath, records);
+  return {
+    commit() {
+      fs.renameSync(stagedPath, filePath);
+    },
+    discard() {
+      fs.rmSync(stagedPath, { force: true });
+    }
+  };
 }
 
 function sanitizeTsvCell(value) {
@@ -1046,11 +1065,15 @@ function sanitizeTsvCell(value) {
 }
 
 function writeTsv(filePath, headers, rows) {
-  const lines = [headers.join("\t")];
-  for (const row of rows) {
-    lines.push(row.map((value) => sanitizeTsvCell(value)).join("\t"));
+  const fd = fs.openSync(filePath, "w");
+  try {
+    fs.writeSync(fd, `${headers.join("\t")}\n`, undefined, "utf8");
+    for (const row of rows) {
+      fs.writeSync(fd, `${row.map((value) => sanitizeTsvCell(value)).join("\t")}\n`, undefined, "utf8");
+    }
+  } finally {
+    fs.closeSync(fd);
   }
-  fs.writeFileSync(filePath, `${lines.join("\n")}\n`, "utf8");
 }
 
 function readJsonlSafe(filePath) {
@@ -3228,6 +3251,8 @@ async function main() {
 
   const constrainsRelations = [];
   const implementsRelations = [];
+  const stagedDocumentCache = stageJsonl(path.join(CACHE_DIR, "documents.jsonl"), fileRecords);
+  const stagedFileEntityCache = stageJsonl(path.join(CACHE_DIR, "entities.file.jsonl"), fileRecords);
 
   const ruleMatchers = ruleRecords.map((ruleRecord) => ({
     ruleRecord,
@@ -3238,7 +3263,7 @@ async function main() {
   const implementsByKey = new Map();
 
   for (const fileRecord of fileRecords) {
-    const lower = fileRecord.content.toLowerCase();
+    const lower = String(fileRecord.content ?? "").toLowerCase();
     const tokens = fileTokenSet(fileRecord);
 
     for (const { ruleRecord, needle, keywords } of ruleMatchers) {
@@ -3276,6 +3301,8 @@ async function main() {
         }
       }
     }
+
+    delete fileRecord.content;
   }
 
   for (const { ruleRecord } of ruleMatchers) {
@@ -3297,8 +3324,8 @@ async function main() {
     }
   }
 
-  writeJsonl(path.join(CACHE_DIR, "documents.jsonl"), fileRecords);
-  writeJsonl(path.join(CACHE_DIR, "entities.file.jsonl"), fileRecords);
+  stagedDocumentCache.commit();
+  stagedFileEntityCache.commit();
   writeJsonl(path.join(CACHE_DIR, "entities.adr.jsonl"), adrRecords);
   writeJsonl(path.join(CACHE_DIR, "entities.rule.jsonl"), ruleRecords);
   writeJsonl(path.join(CACHE_DIR, "entities.chunk.jsonl"), chunkRecords);

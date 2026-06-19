@@ -98,6 +98,7 @@ test("ingest memory trace is opt-in and emits checkpoint JSON lines", () => {
       "parse:merge_complete",
       "materialize:chunks_relations",
       "materialize:modules_projects_relations",
+      "writes:file_cache_staged",
       "tokens:rule_matching_complete",
       "writes:manifest_complete"
     ]) {
@@ -116,6 +117,16 @@ test("ingest memory trace is opt-in and emits checkpoint JSON lines", () => {
     const ruleMatchRecord = records.find((record) => record.label === "tokens:rule_matching_complete");
     assert.equal(ruleMatchRecord.counts.file_token_sets, 1);
     assert.equal(ruleMatchRecord.counts.file_token_sets_retained, 0);
+    assert.equal(ruleMatchRecord.counts.file_content_records_released, 1);
+    assert.equal(ruleMatchRecord.counts.file_content_records_retained, 0);
+
+    const stagedRecord = records.find((record) => record.label === "writes:file_cache_staged");
+    assert.equal(stagedRecord.counts.file_content_records, 1);
+
+    const documents = readJsonl(path.join(root, ".context", "cache", "documents.jsonl"));
+    const fileEntities = readJsonl(path.join(root, ".context", "cache", "entities.file.jsonl"));
+    assert.match(documents[0].content, /rule\.trace/);
+    assert.match(fileEntities[0].content, /rule\.trace/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

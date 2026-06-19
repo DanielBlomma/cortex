@@ -758,6 +758,29 @@ function writeJsonl(filePath, records) {
   }
 }
 
+function stageJsonl(filePath, records) {
+  const stagedPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+  writeJsonl(stagedPath, records);
+  return {
+    commit() {
+      fs.renameSync(stagedPath, filePath);
+    },
+    discard() {
+      fs.rmSync(stagedPath, { force: true });
+    }
+  };
+}
+
+function countFileContentRecords(fileRecords) {
+  let count = 0;
+  for (const fileRecord of fileRecords) {
+    if (Object.prototype.hasOwnProperty.call(fileRecord, "content")) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
 function sanitizeTsvCell(value) {
   if (value === null || value === undefined) return "";
   return String(value).replace(/\t/g, " ").replace(/\r?\n/g, " ");
@@ -2288,7 +2311,8 @@ function resolveIngestWorkerCount(taskCount) {
   const raw = process.env.CORTEX_INGEST_WORKERS;
   const configured = raw !== undefined ? Number.parseInt(raw, 10) : Number.NaN;
   const cpuBudget = Math.max(1, (os.availableParallelism?.() ?? os.cpus().length) - 1);
-  const desired = Number.isFinite(configured) && configured >= 0 ? configured : Math.min(cpuBudget, 8);
+  const defaultWorkerLimit = taskCount >= 1000 ? 4 : 8;
+  const desired = Number.isFinite(configured) && configured >= 0 ? configured : Math.min(cpuBudget, defaultWorkerLimit);
   if (desired <= 1) return 1;
   // Worker spin-up plus per-worker WASM grammar init dominates on small or
   // incremental runs; stay sequential until there is enough work to amortize.
@@ -3352,6 +3376,12 @@ async function main() {
 
   const constrainsRelations = [];
   const implementsRelations = [];
+  const stagedDocumentCache = stageJsonl(path.join(CACHE_DIR, "documents.jsonl"), fileRecords);
+  const stagedFileEntityCache = stageJsonl(path.join(CACHE_DIR, "entities.file.jsonl"), fileRecords);
+  memoryTrace.checkpoint("writes:file_cache_staged", {
+    files: fileRecords.length,
+    file_content_records: countFileContentRecords(fileRecords)
+  });
   memoryTrace.checkpoint("tokens:rule_matching_start", {
     files: fileRecords.length,
     rules: ruleRecords.length
@@ -3365,9 +3395,10 @@ async function main() {
   const constrainsByKey = new Map();
   const implementsByKey = new Map();
   let fileTokenSetsProcessed = 0;
+  let fileContentRecordsReleased = 0;
 
   for (const fileRecord of fileRecords) {
-    const lower = fileRecord.content.toLowerCase();
+    const lower = String(fileRecord.content ?? "").toLowerCase();
     const tokens = fileTokenSet(fileRecord);
     fileTokenSetsProcessed += 1;
 
@@ -3406,6 +3437,11 @@ async function main() {
         }
       }
     }
+
+    if (Object.prototype.hasOwnProperty.call(fileRecord, "content")) {
+      delete fileRecord.content;
+      fileContentRecordsReleased += 1;
+    }
   }
 
   for (const { ruleRecord } of ruleMatchers) {
@@ -3430,6 +3466,8 @@ async function main() {
   memoryTrace.checkpoint("tokens:rule_matching_complete", {
     file_token_sets: fileTokenSetsProcessed,
     file_token_sets_retained: 0,
+    file_content_records_released: fileContentRecordsReleased,
+    file_content_records_retained: countFileContentRecords(fileRecords),
     rules: ruleRecords.length,
     relations_constrains: constrainsRelations.length,
     relations_implements: implementsRelations.length,
@@ -3442,8 +3480,8 @@ async function main() {
     rules: ruleRecords.length,
     chunks: chunkRecords.length
   });
-  writeJsonl(path.join(CACHE_DIR, "documents.jsonl"), fileRecords);
-  writeJsonl(path.join(CACHE_DIR, "entities.file.jsonl"), fileRecords);
+  stagedDocumentCache.commit();
+  stagedFileEntityCache.commit();
   writeJsonl(path.join(CACHE_DIR, "entities.adr.jsonl"), adrRecords);
   writeJsonl(path.join(CACHE_DIR, "entities.rule.jsonl"), ruleRecords);
   writeJsonl(path.join(CACHE_DIR, "entities.chunk.jsonl"), chunkRecords);
@@ -3834,5 +3872,6 @@ export {
   generateSectionHandlerRelations,
   getChunkParserForExtension,
   parseFilesInWorkers,
+  resolveIngestWorkerCount,
   resolveRelativeImportTargetId
 };

@@ -25,6 +25,7 @@ import {
   generateProjects,
   generateSectionHandlerRelations,
   getChunkParserForExtension,
+  resolveIngestWorkerCount,
   resolveRelativeImportTargetId
 } from "../scaffold/scripts/ingest.mjs";
 
@@ -58,6 +59,25 @@ test("getChunkParserForExtension: only dispatches current chunk-capable language
   assert.equal(getChunkParserForExtension(".settings")?.language, "settings");
   assert.equal(getChunkParserForExtension(".cpp")?.language, "cpp");
   assert.equal(getChunkParserForExtension(".c")?.language, "c");
+});
+
+test("resolveIngestWorkerCount: caps large default ingests while preserving env override", () => {
+  const original = process.env.CORTEX_INGEST_WORKERS;
+  try {
+    delete process.env.CORTEX_INGEST_WORKERS;
+    assert.equal(resolveIngestWorkerCount(49), 1);
+    assert.ok(resolveIngestWorkerCount(1000) >= 1);
+    assert.ok(resolveIngestWorkerCount(1000) <= 4);
+
+    process.env.CORTEX_INGEST_WORKERS = "8";
+    assert.equal(resolveIngestWorkerCount(1000), 8);
+  } finally {
+    if (original === undefined) {
+      delete process.env.CORTEX_INGEST_WORKERS;
+    } else {
+      process.env.CORTEX_INGEST_WORKERS = original;
+    }
+  }
 });
 
 test("extractSqlObjectReferencesFromContent: finds stored procedure command usage", () => {
