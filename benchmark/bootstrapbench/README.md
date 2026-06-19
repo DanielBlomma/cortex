@@ -71,10 +71,19 @@ node benchmark/bootstrapbench/run.mjs --config benchmark/bootstrapbench/config.e
 | `docker.build`    | `true`                           | pack cortex + rebuild image before run    |
 | `docker.platform` | host platform                    | set e.g. `linux/amd64` to force emulation |
 | `docker.cpus`     | `"auto"`                         | CPU quota per container (`auto` = daemon CPUs / parallelism; `null` = unlimited) |
+| `gates.max_rss_mb` | —                                | optional peak RSS ceiling; failed or missing RSS marks the item `gate_failed` |
+| `gates.max_duration_minutes` | —                    | optional total bootstrap duration ceiling |
+| `gates.by_repo`   | —                                | per-repo overrides keyed by manifest `name` or `key` |
 | `results_dir`     | `benchmark/bootstrapbench/results` | output root                             |
 
 Non-default embedding models are downloaded inside the container at runtime
 (network required); the model the image warmup used ships pre-cached.
+
+When gates are configured, the runner evaluates the completed `stats.json`
+against the resolved thresholds and rewrites the item with
+`run.status: "gate_failed"` if peak RSS or total duration exceeds the limit.
+A configured gate also fails when the corresponding metric is missing, so RSS
+sampling regressions cannot silently pass.
 
 > **Model cost note.** Each cortex version is measured with its own
 > shipped default embedding model (`config.example.json` currently pins

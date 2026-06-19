@@ -14,7 +14,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   ensureDir,
   hasFlag,
@@ -60,10 +60,80 @@ Config keys:
   docker.image     image tag (default cortex-bootstrapbench:local)
   docker.build     build the image before running (default true)
   results_dir      output root (default benchmark/bootstrapbench/results)
+  gates            optional max_rss_mb/max_duration_minutes thresholds
 `);
 }
 
-function validateConfig(raw, configPath) {
+function normalizePositiveNumber(value, fieldName) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) {
+    throw usageError(`Config '${fieldName}' must be a positive number`);
+  }
+  return number;
+}
+
+function normalizeGateSpec(raw, fieldName) {
+  if (raw === null || raw === undefined) {
+    return null;
+  }
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    throw usageError(`Config '${fieldName}' must be an object`);
+  }
+  if (raw.max_duration_ms !== undefined && raw.max_duration_minutes !== undefined) {
+    throw usageError(`Config '${fieldName}' cannot set both max_duration_ms and max_duration_minutes`);
+  }
+
+  const gate = {};
+  if (raw.max_rss_mb !== undefined) {
+    gate.max_rss_mb = normalizePositiveNumber(raw.max_rss_mb, `${fieldName}.max_rss_mb`);
+    gate.max_rss_kb = Math.round(gate.max_rss_mb * 1024);
+  }
+  if (raw.max_duration_ms !== undefined) {
+    gate.max_duration_ms = normalizePositiveNumber(raw.max_duration_ms, `${fieldName}.max_duration_ms`);
+  }
+  if (raw.max_duration_minutes !== undefined) {
+    gate.max_duration_ms = normalizePositiveNumber(raw.max_duration_minutes, `${fieldName}.max_duration_minutes`) * 60 * 1000;
+  }
+
+  return Object.keys(gate).length > 0 ? gate : null;
+}
+
+function normalizeGates(raw) {
+  if (raw === null || raw === undefined) {
+    return null;
+  }
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    throw usageError("Config 'gates' must be an object");
+  }
+  if (raw.by_repo !== undefined && (typeof raw.by_repo !== "object" || raw.by_repo === null || Array.isArray(raw.by_repo))) {
+    throw usageError("Config 'gates.by_repo' must be an object");
+  }
+
+  const byRepo = {};
+  for (const [repoName, repoGateRaw] of Object.entries(raw.by_repo ?? {})) {
+    if (!repoName.trim()) {
+      throw usageError("Config 'gates.by_repo' keys must be non-empty repo names or keys");
+    }
+    const repoGate = normalizeGateSpec(repoGateRaw, `gates.by_repo.${repoName}`);
+    if (repoGate) {
+      byRepo[repoName] = repoGate;
+    }
+  }
+
+  const defaults = normalizeGateSpec(raw, "gates") ?? {};
+  delete defaults.by_repo;
+
+  if (Object.keys(defaults).length === 0 && Object.keys(byRepo).length === 0) {
+    throw usageError("Config 'gates' must define max_rss_mb, max_duration_ms, max_duration_minutes, or by_repo thresholds");
+  }
+
+  return {
+    ...defaults,
+    by_repo: byRepo
+  };
+}
+
+export function validateConfig(raw, configPath) {
   if (!raw || typeof raw !== "object") {
     throw usageError(`Config ${configPath} must be a JSON object`);
   }
@@ -94,6 +164,7 @@ function validateConfig(raw, configPath) {
       source: raw.cortex?.source ?? "local",
       version: raw.cortex?.version ?? null
     },
+    gates: normalizeGates(raw.gates),
     results_dir: raw.results_dir ?? path.join("benchmark", "bootstrapbench", "results")
   };
 
@@ -127,6 +198,133 @@ function validateConfig(raw, configPath) {
     }
   }
   return config;
+}
+
+function round(value, digits = 2) {
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
+}
+
+function gateForStats(stats, gates) {
+  if (!gates) {
+    return null;
+  }
+  const repoKeys = [stats?.repo?.key, stats?.repo?.name].filter(Boolean);
+  const repoGate = repoKeys.map((key) => gates.by_repo?.[key]).find(Boolean) ?? {};
+  return {
+    max_rss_kb: repoGate.max_rss_kb ?? gates.max_rss_kb ?? null,
+    max_rss_mb: repoGate.max_rss_mb ?? gates.max_rss_mb ?? null,
+    max_duration_ms: repoGate.max_duration_ms ?? gates.max_duration_ms ?? null
+  };
+}
+
+function metricCheck({ metric, actual, threshold, displayActual, displayThreshold, unit }) {
+  if (!Number.isFinite(threshold)) {
+    return null;
+  }
+  if (!Number.isFinite(actual)) {
+    return {
+      metric,
+      status: "missing",
+      actual: null,
+      threshold: displayThreshold ?? threshold,
+      unit
+    };
+  }
+  return {
+    metric,
+    status: actual <= threshold ? "pass" : "fail",
+    actual: displayActual ?? actual,
+    threshold: displayThreshold ?? threshold,
+    unit
+  };
+}
+
+function numericMetric(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : NaN;
+}
+
+export function evaluateBenchmarkGates(stats, gates) {
+  const gate = gateForStats(stats, gates);
+  if (!gate || (!Number.isFinite(gate.max_rss_kb) && !Number.isFinite(gate.max_duration_ms))) {
+    return null;
+  }
+
+  const rssKb = numericMetric(stats?.memory?.max_rss_kb);
+  const durationMs = numericMetric(stats?.timings_ms?.total);
+  const checks = [
+    metricCheck({
+      metric: "max_rss_mb",
+      actual: rssKb,
+      threshold: gate.max_rss_kb,
+      displayActual: Number.isFinite(rssKb) ? round(rssKb / 1024) : null,
+      displayThreshold: gate.max_rss_mb,
+      unit: "MB"
+    }),
+    metricCheck({
+      metric: "total_duration_ms",
+      actual: durationMs,
+      threshold: gate.max_duration_ms,
+      unit: "ms"
+    })
+  ].filter(Boolean);
+  const failures = checks.filter((check) => check.status !== "pass");
+  return {
+    ok: failures.length === 0,
+    checks,
+    failures
+  };
+}
+
+function gateFailureMessage(failures) {
+  return failures
+    .map((failure) =>
+      failure.status === "missing"
+        ? `${failure.metric} missing (threshold ${failure.threshold}${failure.unit ? ` ${failure.unit}` : ""})`
+        : `${failure.metric} ${failure.actual}${failure.unit ? ` ${failure.unit}` : ""} > ${failure.threshold}${
+            failure.unit ? ` ${failure.unit}` : ""
+          }`
+    )
+    .join("; ");
+}
+
+function isGateEligibleStatus(status) {
+  return status === "ok" || status === "embed_failed" || status === "gate_failed";
+}
+
+function applyBenchmarkGates(stats, config, statsPath) {
+  if (!config.gates || !isGateEligibleStatus(stats?.run?.status)) {
+    return stats;
+  }
+  const evaluation = evaluateBenchmarkGates(stats, config.gates);
+  if (!evaluation) {
+    return stats;
+  }
+
+  const baseStatus = stats.run.status_before_gates ?? stats.run.status;
+  const baseError = stats.run.error_before_gates ?? stats.run.error ?? null;
+  const nextStats = {
+    ...stats,
+    run: {
+      ...stats.run,
+      status: baseStatus,
+      error: baseError,
+      status_before_gates: baseStatus,
+      error_before_gates: baseError,
+      gates: evaluation
+    }
+  };
+
+  if (!evaluation.ok) {
+    nextStats.run.status = "gate_failed";
+    nextStats.run.error = `benchmark gate failed: ${gateFailureMessage(evaluation.failures)}`;
+  }
+
+  writeJson(statsPath, nextStats);
+  if (!evaluation.ok) {
+    console.error(`[run] ${stats.repo?.key ?? "item"} failed benchmark gate: ${gateFailureMessage(evaluation.failures)}`);
+  }
+  return nextStats;
 }
 
 function selectRepos(manifest, selection) {
@@ -359,7 +557,7 @@ async function runItem(item, config, paths) {
     }
     if (existing && existing.run?.status !== "error") {
       console.log(`[run] skip ${item.itemKey} (already complete: ${existing.run?.status})`);
-      return existing;
+      return applyBenchmarkGates(existing, config, statsPathExisting);
     }
   }
 
@@ -415,7 +613,7 @@ async function runItem(item, config, paths) {
   const statsPath = path.join(itemDir, "stats.json");
   const stats = loadJsonIfExists(statsPath);
   if (stats) {
-    return stats;
+    return applyBenchmarkGates(stats, config, statsPath);
   }
   const reason = result.timedOut
     ? `timed out after ${config.timeout_minutes} minutes`
@@ -550,7 +748,9 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(error?.isUsageError ? 2 : 1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(error?.isUsageError ? 2 : 1);
+  });
+}
