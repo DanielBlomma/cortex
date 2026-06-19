@@ -14,5 +14,17 @@
     "build": true,
     "cpus": false
   },
+  "gates": {
+    "by_repo": {
+      "DanielBlomma/cortex": {
+        "max_rss_mb": 900,
+        "max_duration_minutes": 180
+      },
+      "angular/angular": {
+        "max_rss_mb": 1800,
+        "max_duration_minutes": 180
+      }
+    }
+  },
   "results_dir": "benchmark/bootstrapbench/results"
 }

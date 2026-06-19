@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import ryugraph, { type Connection, type PreparedStatement, type QueryResult, type RyuValue } from "ryugraph";
-import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
+import { readJsonl, readJsonlRecords, asString, asNumber, asBoolean } from "./jsonl.js";
 import { CACHE_DIR, CONTEXT_DIR, DB_PATH } from "./paths.js";
 import { CSV_COPY_OPTIONS, writeCsv, toCopyPathLiteral, type CsvValue } from "./graphCsv.js";
 import type { JsonObject } from "./types.js";
@@ -127,232 +127,244 @@ function readEntityFile(fileName: string): JsonObject[] {
   return readJsonl(path.join(CACHE_DIR, fileName));
 }
 
-function parseFiles(raw: JsonObject[]): FileEntity[] {
-  return raw
-    .map((item) => {
-      const id = asString(item.id);
-      const filePath = asString(item.path);
-      if (!id || !filePath) {
-        return null;
-      }
-
-      return {
-        id,
-        path: filePath,
-        kind: asString(item.kind, "DOC"),
-        excerpt: asString(item.excerpt),
-        checksum: asString(item.checksum),
-        updated_at: asString(item.updated_at),
-        source_of_truth: asBoolean(item.source_of_truth, false),
-        trust_level: asNumber(item.trust_level, 50),
-        status: asString(item.status, "active")
-      };
-    })
-    .filter((value): value is FileEntity => value !== null);
+function readEntityRecords(fileName: string): Iterable<JsonObject> {
+  return readJsonlRecords(path.join(CACHE_DIR, fileName));
 }
 
-function parseRules(raw: JsonObject[]): RuleEntity[] {
-  return raw
-    .map((item) => {
-      const id = asString(item.id);
-      if (!id) {
-        return null;
-      }
+function* parseFiles(raw: Iterable<JsonObject>): Generator<FileEntity> {
+  for (const item of raw) {
+    const id = asString(item.id);
+    const filePath = asString(item.path);
+    if (!id || !filePath) {
+      continue;
+    }
 
-      return {
-        id,
-        title: asString(item.title, id),
-        body: asString(item.body),
-        scope: asString(item.scope, "global"),
-        updated_at: asString(item.updated_at),
-        source_of_truth: asBoolean(item.source_of_truth, true),
-        trust_level: asNumber(item.trust_level, 95),
-        status: asString(item.status, "active"),
-        priority: asNumber(item.priority, 0)
-      };
-    })
-    .filter((value): value is RuleEntity => value !== null);
+    yield {
+      id,
+      path: filePath,
+      kind: asString(item.kind, "DOC"),
+      excerpt: asString(item.excerpt),
+      checksum: asString(item.checksum),
+      updated_at: asString(item.updated_at),
+      source_of_truth: asBoolean(item.source_of_truth, false),
+      trust_level: asNumber(item.trust_level, 50),
+      status: asString(item.status, "active")
+    };
+  }
 }
 
-function parseAdrs(raw: JsonObject[]): AdrEntity[] {
-  return raw
-    .map((item) => {
-      const id = asString(item.id);
-      if (!id) {
-        return null;
-      }
+function* parseRules(raw: Iterable<JsonObject>): Generator<RuleEntity> {
+  for (const item of raw) {
+    const id = asString(item.id);
+    if (!id) {
+      continue;
+    }
 
-      return {
-        id,
-        path: asString(item.path),
-        title: asString(item.title, id),
-        body: asString(item.body),
-        decision_date: asString(item.decision_date),
-        supersedes_id: asString(item.supersedes_id),
-        source_of_truth: asBoolean(item.source_of_truth, true),
-        trust_level: asNumber(item.trust_level, 95),
-        status: asString(item.status, "active")
-      };
-    })
-    .filter((value): value is AdrEntity => value !== null);
+    yield {
+      id,
+      title: asString(item.title, id),
+      body: asString(item.body),
+      scope: asString(item.scope, "global"),
+      updated_at: asString(item.updated_at),
+      source_of_truth: asBoolean(item.source_of_truth, true),
+      trust_level: asNumber(item.trust_level, 95),
+      status: asString(item.status, "active"),
+      priority: asNumber(item.priority, 0)
+    };
+  }
 }
 
-function parseChunks(raw: JsonObject[]): ChunkEntity[] {
-  return raw
-    .map((item) => {
-      const id = asString(item.id);
-      const file_id = asString(item.file_id);
-      const name = asString(item.name);
-      if (!id || !file_id || !name) {
-        return null;
-      }
+function* parseAdrs(raw: Iterable<JsonObject>): Generator<AdrEntity> {
+  for (const item of raw) {
+    const id = asString(item.id);
+    if (!id) {
+      continue;
+    }
 
-      return {
-        id,
-        file_id,
-        name,
-        kind: asString(item.kind, "function"),
-        signature: asString(item.signature),
-        body: asString(item.body),
-        description: asString(item.description),
-        start_line: asNumber(item.start_line, 0),
-        end_line: asNumber(item.end_line, 0),
-        language: asString(item.language, "javascript"),
-        exported: asBoolean(item.exported, false),
-        checksum: asString(item.checksum),
-        updated_at: asString(item.updated_at),
-        source_of_truth: asBoolean(item.source_of_truth, true),
-        trust_level: asNumber(item.trust_level, 80),
-        status: asString(item.status, "active")
-      };
-    })
-    .filter((value): value is ChunkEntity => value !== null);
+    yield {
+      id,
+      path: asString(item.path),
+      title: asString(item.title, id),
+      body: asString(item.body),
+      decision_date: asString(item.decision_date),
+      supersedes_id: asString(item.supersedes_id),
+      source_of_truth: asBoolean(item.source_of_truth, true),
+      trust_level: asNumber(item.trust_level, 95),
+      status: asString(item.status, "active")
+    };
+  }
 }
 
-function parseModules(raw: JsonObject[]): ModuleEntity[] {
-  return raw
-    .map((item) => {
-      const id = asString(item.id);
-      if (!id) {
-        return null;
-      }
+function* parseChunks(raw: Iterable<JsonObject>): Generator<ChunkEntity> {
+  for (const item of raw) {
+    const id = asString(item.id);
+    const file_id = asString(item.file_id);
+    const name = asString(item.name);
+    if (!id || !file_id || !name) {
+      continue;
+    }
 
-      return {
-        id,
-        path: asString(item.path),
-        name: asString(item.name),
-        summary: asString(item.summary),
-        file_count: asNumber(item.file_count, 0),
-        exported_symbols: asString(item.exported_symbols),
-        updated_at: asString(item.updated_at),
-        source_of_truth: asBoolean(item.source_of_truth, false),
-        trust_level: asNumber(item.trust_level, 75),
-        status: asString(item.status, "active")
-      };
-    })
-    .filter((value): value is ModuleEntity => value !== null);
+    yield {
+      id,
+      file_id,
+      name,
+      kind: asString(item.kind, "function"),
+      signature: asString(item.signature),
+      body: asString(item.body),
+      description: asString(item.description),
+      start_line: asNumber(item.start_line, 0),
+      end_line: asNumber(item.end_line, 0),
+      language: asString(item.language, "javascript"),
+      exported: asBoolean(item.exported, false),
+      checksum: asString(item.checksum),
+      updated_at: asString(item.updated_at),
+      source_of_truth: asBoolean(item.source_of_truth, true),
+      trust_level: asNumber(item.trust_level, 80),
+      status: asString(item.status, "active")
+    };
+  }
 }
 
-function parseProjects(raw: JsonObject[]): ProjectEntity[] {
-  return raw
-    .map((item) => {
-      const id = asString(item.id);
-      if (!id) {
-        return null;
-      }
+function* parseModules(raw: Iterable<JsonObject>): Generator<ModuleEntity> {
+  for (const item of raw) {
+    const id = asString(item.id);
+    if (!id) {
+      continue;
+    }
 
-      return {
-        id,
-        path: asString(item.path),
-        name: asString(item.name),
-        kind: asString(item.kind, "project"),
-        language: asString(item.language, "dotnet"),
-        target_framework: asString(item.target_framework),
-        summary: asString(item.summary),
-        file_count: asNumber(item.file_count, 0),
-        updated_at: asString(item.updated_at),
-        source_of_truth: asBoolean(item.source_of_truth, false),
-        trust_level: asNumber(item.trust_level, 80),
-        status: asString(item.status, "active")
-      };
-    })
-    .filter((value): value is ProjectEntity => value !== null);
+    yield {
+      id,
+      path: asString(item.path),
+      name: asString(item.name),
+      summary: asString(item.summary),
+      file_count: asNumber(item.file_count, 0),
+      exported_symbols: asString(item.exported_symbols),
+      updated_at: asString(item.updated_at),
+      source_of_truth: asBoolean(item.source_of_truth, false),
+      trust_level: asNumber(item.trust_level, 75),
+      status: asString(item.status, "active")
+    };
+  }
+}
+
+function* parseProjects(raw: Iterable<JsonObject>): Generator<ProjectEntity> {
+  for (const item of raw) {
+    const id = asString(item.id);
+    if (!id) {
+      continue;
+    }
+
+    yield {
+      id,
+      path: asString(item.path),
+      name: asString(item.name),
+      kind: asString(item.kind, "project"),
+      language: asString(item.language, "dotnet"),
+      target_framework: asString(item.target_framework),
+      summary: asString(item.summary),
+      file_count: asNumber(item.file_count, 0),
+      updated_at: asString(item.updated_at),
+      source_of_truth: asBoolean(item.source_of_truth, false),
+      trust_level: asNumber(item.trust_level, 80),
+      status: asString(item.status, "active")
+    };
+  }
+}
+
+function* parseRelationRecords(raw: Iterable<JsonObject>, noteField: string): Generator<Relation> {
+  for (const item of raw) {
+    const from = asString(item.from);
+    const to = asString(item.to);
+    if (!from || !to) {
+      continue;
+    }
+
+    yield {
+      from,
+      to,
+      note: asString(item[noteField as keyof JsonObject])
+    };
+  }
 }
 
 function parseRelations(fileName: string, noteField: string): Relation[] {
-  const raw = readEntityFile(fileName);
-  return raw
-    .map((item) => {
-      const from = asString(item.from);
-      const to = asString(item.to);
-      if (!from || !to) {
-        return null;
-      }
+  return Array.from(parseRelationRecords(readEntityRecords(fileName), noteField));
+}
 
-      return {
-        from,
-        to,
-        note: asString(item[noteField as keyof JsonObject])
-      };
-    })
-    .filter((value): value is Relation => value !== null);
+function* relationRecords(fileName: string, noteField: string): Generator<Relation> {
+  yield* parseRelationRecords(readEntityRecords(fileName), noteField);
+}
+
+function* parseCallRelationRecords(raw: Iterable<JsonObject>): Generator<CallRelation> {
+  for (const item of raw) {
+    const from = asString(item.from);
+    const to = asString(item.to);
+    if (!from || !to) {
+      continue;
+    }
+
+    yield {
+      from,
+      to,
+      call_type: asString(item.call_type, "direct")
+    };
+  }
 }
 
 function parseCallRelations(fileName: string): CallRelation[] {
-  const raw = readEntityFile(fileName);
-  return raw
-    .map((item) => {
-      const from = asString(item.from);
-      const to = asString(item.to);
-      if (!from || !to) {
-        return null;
-      }
+  return Array.from(parseCallRelationRecords(readEntityRecords(fileName)));
+}
 
-      return {
-        from,
-        to,
-        call_type: asString(item.call_type, "direct")
-      };
-    })
-    .filter((value): value is CallRelation => value !== null);
+function* callRelationRecords(fileName: string): Generator<CallRelation> {
+  yield* parseCallRelationRecords(readEntityRecords(fileName));
+}
+
+function* parseImportRelationRecords(raw: Iterable<JsonObject>): Generator<ImportRelation> {
+  for (const item of raw) {
+    const from = asString(item.from);
+    const to = asString(item.to);
+    if (!from || !to) {
+      continue;
+    }
+
+    yield {
+      from,
+      to,
+      import_name: asString(item.import_name, "")
+    };
+  }
 }
 
 function parseImportRelations(fileName: string): ImportRelation[] {
-  const raw = readEntityFile(fileName);
-  return raw
-    .map((item) => {
-      const from = asString(item.from);
-      const to = asString(item.to);
-      if (!from || !to) {
-        return null;
-      }
+  return Array.from(parseImportRelationRecords(readEntityRecords(fileName)));
+}
 
-      return {
-        from,
-        to,
-        import_name: asString(item.import_name, "")
-      };
-    })
-    .filter((value): value is ImportRelation => value !== null);
+function* importRelationRecords(fileName: string): Generator<ImportRelation> {
+  yield* parseImportRelationRecords(readEntityRecords(fileName));
+}
+
+function* parseSimpleRelationRecords(raw: Iterable<JsonObject>): Generator<Relation> {
+  for (const item of raw) {
+    const from = asString(item.from);
+    const to = asString(item.to);
+    if (!from || !to) {
+      continue;
+    }
+
+    yield {
+      from,
+      to,
+      note: ""
+    };
+  }
 }
 
 function parseSimpleRelations(fileName: string): Relation[] {
-  const raw = readEntityFile(fileName);
-  return raw
-    .map((item) => {
-      const from = asString(item.from);
-      const to = asString(item.to);
-      if (!from || !to) {
-        return null;
-      }
+  return Array.from(parseSimpleRelationRecords(readEntityRecords(fileName)));
+}
 
-      return {
-        from,
-        to,
-        note: ""
-      };
-    })
-    .filter((value): value is Relation => value !== null);
+function* simpleRelationRecords(fileName: string): Generator<Relation> {
+  yield* parseSimpleRelationRecords(readEntityRecords(fileName));
 }
 
 async function rows(result: QueryResult | QueryResult[]): Promise<Record<string, unknown>[]> {
@@ -460,12 +472,12 @@ type GraphData = {
 
 function parseGraphData(): GraphData {
   return {
-    fileEntities: parseFiles(readEntityFile("entities.file.jsonl")),
-    ruleEntities: parseRules(readEntityFile("entities.rule.jsonl")),
-    adrEntities: parseAdrs(readEntityFile("entities.adr.jsonl")),
-    chunkEntities: parseChunks(readEntityFile("entities.chunk.jsonl")),
-    moduleEntities: parseModules(readEntityFile("entities.module.jsonl")),
-    projectEntities: parseProjects(readEntityFile("entities.project.jsonl")),
+    fileEntities: Array.from(parseFiles(readEntityFile("entities.file.jsonl"))),
+    ruleEntities: Array.from(parseRules(readEntityFile("entities.rule.jsonl"))),
+    adrEntities: Array.from(parseAdrs(readEntityFile("entities.adr.jsonl"))),
+    chunkEntities: Array.from(parseChunks(readEntityFile("entities.chunk.jsonl"))),
+    moduleEntities: Array.from(parseModules(readEntityFile("entities.module.jsonl"))),
+    projectEntities: Array.from(parseProjects(readEntityFile("entities.project.jsonl"))),
     constrains: parseRelations("relations.constrains.jsonl", "note"),
     implementsEdges: parseRelations("relations.implements.jsonl", "note"),
     supersedes: parseRelations("relations.supersedes.jsonl", "reason"),
@@ -506,9 +518,10 @@ function filterEdges<T extends { from: string; to: string }>(
   })();
 }
 
-function* ids<T extends { id: string }>(items: Iterable<T>): Iterable<string> {
+function* collectIds<T extends { id: string }>(items: Iterable<T>, collected: Set<string>): Iterable<T> {
   for (const item of items) {
-    yield item.id;
+    collected.add(item.id);
+    yield item;
   }
 }
 
@@ -537,28 +550,28 @@ async function copyTable(
   await conn.query(`COPY ${table} FROM "${csvForCopy}" ${CSV_COPY_OPTIONS};`);
 }
 
-// Bulk path: one COPY per table instead of a prepared statement per row.
-// Only used on the reset path, where the freshly created tables are empty.
-// Produces a byte-identical graph to rowByRowLoad (same parsed arrays, same
-// node-then-edge order, same dangling-edge filtering).
-async function bulkLoad(conn: Connection, data: GraphData): Promise<void> {
+// Bulk path: one COPY per table instead of a prepared statement per row. Only
+// used on the reset path, where the freshly created tables are empty. It reads
+// node and relation JSONL streams directly into CSVs so the hot path retains
+// only endpoint id sets rather than a full parsed GraphData object.
+async function bulkLoad(conn: Connection): Promise<void> {
   fs.rmSync(GRAPH_IMPORT_DIR, { recursive: true, force: true });
   fs.mkdirSync(GRAPH_IMPORT_DIR, { recursive: true });
 
   try {
-    const fileIds = new Set(ids(data.fileEntities));
-    const ruleIds = new Set(ids(data.ruleEntities));
-    const adrIds = new Set(ids(data.adrEntities));
-    const chunkIds = new Set(ids(data.chunkEntities));
-    const moduleIds = new Set(ids(data.moduleEntities));
-    const projectIds = new Set(ids(data.projectEntities));
+    const fileIds = new Set<string>();
+    const ruleIds = new Set<string>();
+    const adrIds = new Set<string>();
+    const chunkIds = new Set<string>();
+    const moduleIds = new Set<string>();
+    const projectIds = new Set<string>();
 
   // Nodes first — edges reference them by primary key.
   await copyTable(
     conn,
     "File",
     ["id", "path", "kind", "excerpt", "checksum", "updated_at", "source_of_truth", "trust_level", "status"],
-    csvRows(data.fileEntities, (e) => [
+    csvRows(collectIds(parseFiles(readEntityRecords("entities.file.jsonl")), fileIds), (e) => [
       e.id, e.path, e.kind, e.excerpt, e.checksum, e.updated_at, e.source_of_truth, e.trust_level, e.status
     ])
   );
@@ -566,7 +579,7 @@ async function bulkLoad(conn: Connection, data: GraphData): Promise<void> {
     conn,
     "Rule",
     ["id", "title", "body", "scope", "priority", "updated_at", "source_of_truth", "trust_level", "status"],
-    csvRows(data.ruleEntities, (e) => [
+    csvRows(collectIds(parseRules(readEntityRecords("entities.rule.jsonl")), ruleIds), (e) => [
       e.id, e.title, e.body, e.scope, e.priority, e.updated_at, e.source_of_truth, e.trust_level, e.status
     ])
   );
@@ -574,7 +587,7 @@ async function bulkLoad(conn: Connection, data: GraphData): Promise<void> {
     conn,
     "ADR",
     ["id", "path", "title", "body", "decision_date", "supersedes_id", "source_of_truth", "trust_level", "status"],
-    csvRows(data.adrEntities, (e) => [
+    csvRows(collectIds(parseAdrs(readEntityRecords("entities.adr.jsonl")), adrIds), (e) => [
       e.id, e.path, e.title, e.body, e.decision_date, e.supersedes_id, e.source_of_truth, e.trust_level, e.status
     ])
   );
@@ -585,7 +598,7 @@ async function bulkLoad(conn: Connection, data: GraphData): Promise<void> {
       "id", "file_id", "name", "kind", "signature", "body", "description", "start_line", "end_line",
       "language", "exported", "checksum", "updated_at", "source_of_truth", "trust_level", "status"
     ],
-    csvRows(data.chunkEntities, (e) => [
+    csvRows(collectIds(parseChunks(readEntityRecords("entities.chunk.jsonl")), chunkIds), (e) => [
       e.id, e.file_id, e.name, e.kind, e.signature, e.body, e.description, e.start_line, e.end_line,
       e.language, e.exported, e.checksum, e.updated_at, e.source_of_truth, e.trust_level, e.status
     ])
@@ -594,7 +607,7 @@ async function bulkLoad(conn: Connection, data: GraphData): Promise<void> {
     conn,
     "Module",
     ["id", "path", "name", "summary", "file_count", "exported_symbols", "updated_at", "source_of_truth", "trust_level", "status"],
-    csvRows(data.moduleEntities, (e) => [
+    csvRows(collectIds(parseModules(readEntityRecords("entities.module.jsonl")), moduleIds), (e) => [
       e.id, e.path, e.name, e.summary, e.file_count, e.exported_symbols, e.updated_at, e.source_of_truth, e.trust_level, e.status
     ])
   );
@@ -605,7 +618,7 @@ async function bulkLoad(conn: Connection, data: GraphData): Promise<void> {
       "id", "path", "name", "kind", "language", "target_framework", "summary", "file_count",
       "updated_at", "source_of_truth", "trust_level", "status"
     ],
-    csvRows(data.projectEntities, (e) => [
+    csvRows(collectIds(parseProjects(readEntityRecords("entities.project.jsonl")), projectIds), (e) => [
       e.id, e.path, e.name, e.kind, e.language, e.target_framework, e.summary, e.file_count,
       e.updated_at, e.source_of_truth, e.trust_level, e.status
     ])
@@ -615,43 +628,43 @@ async function bulkLoad(conn: Connection, data: GraphData): Promise<void> {
   // (COPY into a rel table reads src key, dst key, then properties in schema
   // order), but emitting real names keeps the CSVs self-describing.
   await copyTable(conn, "CONSTRAINS", ["from", "to", "note"],
-    csvRows(filterEdges(data.constrains, ruleIds, fileIds), (e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(relationRecords("relations.constrains.jsonl", "note"), ruleIds, fileIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "IMPLEMENTS", ["from", "to", "note"],
-    csvRows(filterEdges(data.implementsEdges, fileIds, ruleIds), (e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(relationRecords("relations.implements.jsonl", "note"), fileIds, ruleIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "SUPERSEDES", ["from", "to", "reason"],
-    csvRows(filterEdges(data.supersedes, adrIds, adrIds), (e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(relationRecords("relations.supersedes.jsonl", "reason"), adrIds, adrIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "DEFINES", ["from", "to"],
-    csvRows(filterEdges(data.defines, fileIds, chunkIds), (e) => [e.from, e.to]));
+    csvRows(filterEdges(simpleRelationRecords("relations.defines.jsonl"), fileIds, chunkIds), (e) => [e.from, e.to]));
   await copyTable(conn, "CALLS", ["from", "to", "call_type"],
-    csvRows(filterEdges(data.calls, chunkIds, chunkIds), (e) => [e.from, e.to, e.call_type]));
+    csvRows(filterEdges(callRelationRecords("relations.calls.jsonl"), chunkIds, chunkIds), (e) => [e.from, e.to, e.call_type]));
   await copyTable(conn, "IMPORTS", ["from", "to", "import_name"],
-    csvRows(filterEdges(data.imports, chunkIds, fileIds), (e) => [e.from, e.to, e.import_name]));
+    csvRows(filterEdges(importRelationRecords("relations.imports.jsonl"), chunkIds, fileIds), (e) => [e.from, e.to, e.import_name]));
   await copyTable(conn, "CALLS_SQL", ["from", "to", "note"],
-    csvRows(filterEdges(data.callsSql, fileIds, chunkIds), (e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(relationRecords("relations.calls_sql.jsonl", "note"), fileIds, chunkIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "USES_CONFIG_KEY", ["from", "to", "note"],
-    csvRows(filterEdges(data.usesConfigKey, fileIds, chunkIds), (e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(relationRecords("relations.uses_config_key.jsonl", "note"), fileIds, chunkIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "USES_RESOURCE_KEY", ["from", "to", "note"],
-    csvRows(filterEdges(data.usesResourceKey, fileIds, chunkIds), (e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(relationRecords("relations.uses_resource_key.jsonl", "note"), fileIds, chunkIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "USES_SETTING_KEY", ["from", "to", "note"],
-    csvRows(filterEdges(data.usesSettingKey, fileIds, chunkIds), (e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(relationRecords("relations.uses_setting_key.jsonl", "note"), fileIds, chunkIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "CONTAINS", ["from", "to"],
-    csvRows(filterEdges(data.contains, moduleIds, fileIds), (e) => [e.from, e.to]));
+    csvRows(filterEdges(simpleRelationRecords("relations.contains.jsonl"), moduleIds, fileIds), (e) => [e.from, e.to]));
   await copyTable(conn, "CONTAINS_MODULE", ["from", "to"],
-    csvRows(filterEdges(data.containsModule, moduleIds, moduleIds), (e) => [e.from, e.to]));
+    csvRows(filterEdges(simpleRelationRecords("relations.contains_module.jsonl"), moduleIds, moduleIds), (e) => [e.from, e.to]));
   await copyTable(conn, "EXPORTS", ["from", "to"],
-    csvRows(filterEdges(data.exports, moduleIds, chunkIds), (e) => [e.from, e.to]));
+    csvRows(filterEdges(simpleRelationRecords("relations.exports.jsonl"), moduleIds, chunkIds), (e) => [e.from, e.to]));
   await copyTable(conn, "INCLUDES_FILE", ["from", "to"],
-    csvRows(filterEdges(data.includesFile, projectIds, fileIds), (e) => [e.from, e.to]));
+    csvRows(filterEdges(simpleRelationRecords("relations.includes_file.jsonl"), projectIds, fileIds), (e) => [e.from, e.to]));
   await copyTable(conn, "REFERENCES_PROJECT", ["from", "to", "note"],
-    csvRows(filterEdges(data.referencesProject, projectIds, projectIds), (e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(relationRecords("relations.references_project.jsonl", "note"), projectIds, projectIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "USES_RESOURCE", ["from", "to", "note"],
-    csvRows(filterEdges(data.usesResource, fileIds, fileIds), (e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(relationRecords("relations.uses_resource.jsonl", "note"), fileIds, fileIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "USES_SETTING", ["from", "to", "note"],
-    csvRows(filterEdges(data.usesSetting, fileIds, fileIds), (e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(relationRecords("relations.uses_setting.jsonl", "note"), fileIds, fileIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "USES_CONFIG", ["from", "to", "note"],
-    csvRows(filterEdges(data.usesConfig, fileIds, fileIds), (e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(relationRecords("relations.uses_config.jsonl", "note"), fileIds, fileIds), (e) => [e.from, e.to, e.note]));
   await copyTable(conn, "TRANSFORMS_CONFIG", ["from", "to", "note"],
-    csvRows(filterEdges(data.transformsConfig, fileIds, fileIds), (e) => [e.from, e.to, e.note]));
+    csvRows(filterEdges(relationRecords("relations.transforms_config.jsonl", "note"), fileIds, fileIds), (e) => [e.from, e.to, e.note]));
   } finally {
     fs.rmSync(GRAPH_IMPORT_DIR, { recursive: true, force: true });
   }
@@ -942,13 +955,11 @@ async function main(): Promise<void> {
   const ontologyStatements = parseOntologyStatements(fs.readFileSync(ONTOLOGY_PATH, "utf8"));
   await executeStatements(conn, ontologyStatements);
 
-  const data = parseGraphData();
-
   const bulkEnabled = reset && process.env.CORTEX_GRAPH_BULK_LOAD !== "never";
   let usedBulk = false;
   if (bulkEnabled) {
     try {
-      await bulkLoad(conn, data);
+      await bulkLoad(conn);
       usedBulk = true;
       console.log("[graph-load] loaded via COPY bulk import");
     } catch (error) {
@@ -959,6 +970,7 @@ async function main(): Promise<void> {
     }
   }
   if (!usedBulk) {
+    const data = parseGraphData();
     await rowByRowLoad(conn, data);
   }
 
