@@ -50,6 +50,32 @@ test("validateConfig: normalizes benchmark gates", () => {
   assert.equal(config.gates.by_repo["DanielBlomma/cortex"].max_duration_ms, 10_000);
 });
 
+test("validateConfig: normalizes extra container env and rejects managed env", () => {
+  const config = validateConfig(
+    minimalConfig({
+      env: {
+        CORTEX_EMBED_MAX_TOKENS: 2048,
+        CORTEX_EMBED_BATCH_SIZE: "4"
+      }
+    }),
+    "test.json"
+  );
+
+  assert.deepEqual(config.env, {
+    CORTEX_EMBED_MAX_TOKENS: "2048",
+    CORTEX_EMBED_BATCH_SIZE: "4"
+  });
+
+  assert.throws(
+    () => validateConfig(minimalConfig({ env: { CORTEX_EMBED_MODEL: "other" } }), "test.json"),
+    /managed by bootstrapbench/
+  );
+  assert.throws(
+    () => validateConfig(minimalConfig({ env: { PATH: "/tmp" } }), "test.json"),
+    /must be a CORTEX_\*/
+  );
+});
+
 test("validateConfig: rejects invalid gates", () => {
   assert.throws(
     () => validateConfig(minimalConfig({ gates: { max_rss_mb: 0 } }), "test.json"),

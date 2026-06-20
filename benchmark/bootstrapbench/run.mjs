@@ -59,6 +59,7 @@ Config keys:
   timeout_minutes  per-item timeout (default 90)
   docker.image     image tag (default cortex-bootstrapbench:local)
   docker.build     build the image before running (default true)
+  env              object of extra CORTEX_* env vars for benchmark containers
   results_dir      output root (default benchmark/bootstrapbench/results)
   gates            optional max_rss_mb/max_duration_minutes thresholds
 `);
@@ -133,6 +134,34 @@ function normalizeGates(raw) {
   };
 }
 
+function normalizeContainerEnv(raw) {
+  if (raw === null || raw === undefined) {
+    return {};
+  }
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    throw usageError("Config 'env' must be an object");
+  }
+
+  const env = {};
+  const reserved = new Set(["CORTEX_EMBED_MODEL", "CORTEX_EMBED_THREADS"]);
+  for (const [key, value] of Object.entries(raw)) {
+    if (!/^CORTEX_[A-Z0-9_]+$/.test(key)) {
+      throw usageError(`Config 'env.${key}' must be a CORTEX_* environment variable`);
+    }
+    if (reserved.has(key)) {
+      throw usageError(`Config 'env.${key}' is managed by bootstrapbench`);
+    }
+    if (value === null || value === undefined || (typeof value === "string" && value.length === 0)) {
+      throw usageError(`Config 'env.${key}' must be a non-empty string, number, or boolean`);
+    }
+    if (!["string", "number", "boolean"].includes(typeof value)) {
+      throw usageError(`Config 'env.${key}' must be a string, number, or boolean`);
+    }
+    env[key] = String(value);
+  }
+  return env;
+}
+
 export function validateConfig(raw, configPath) {
   if (!raw || typeof raw !== "object") {
     throw usageError(`Config ${configPath} must be a JSON object`);
@@ -165,6 +194,7 @@ export function validateConfig(raw, configPath) {
       version: raw.cortex?.version ?? null
     },
     gates: normalizeGates(raw.gates),
+    env: normalizeContainerEnv(raw.env),
     results_dir: raw.results_dir ?? path.join("benchmark", "bootstrapbench", "results")
   };
 
@@ -591,6 +621,7 @@ async function runItem(item, config, paths) {
       `BB_REPO_KEY=${item.repo.key}`,
       "-e",
       `BB_META_JSON=${JSON.stringify(meta)}`,
+      ...Object.entries(config.env).flatMap(([key, value]) => ["-e", `${key}=${value}`]),
       "-e",
       `CORTEX_EMBED_MODEL=${item.model}`,
       config.docker.image

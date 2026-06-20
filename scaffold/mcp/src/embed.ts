@@ -15,7 +15,9 @@ import {
   resolveMemoryHeadroom,
   resolveModelMaxTokens,
   resolvePoolConfig,
+  resolveTokenBudgetChoice,
   runWorkUnits,
+  truncateTextToTokenBudget,
   type EmbedExtractor,
   type MeasuredText,
   type PendingText
@@ -405,6 +407,14 @@ function roundVector(values: number[]): number[] {
   return values.map((value) => Number(value.toFixed(6)));
 }
 
+function resolveSignatureProfile(maxTokenCap: number | null): string {
+  return maxTokenCap ? `embed|max_tokens=${maxTokenCap}` : "";
+}
+
+function embeddingSignature(entitySignature: string, profile: string): string {
+  return profile ? hashText(`${profile}|${entitySignature}`) : entitySignature;
+}
+
 function* presentEmbeddingRecords(
   slots: Array<EmbeddingRecord | null>
 ): Generator<EmbeddingRecord> {
@@ -438,6 +448,14 @@ async function main(): Promise<void> {
   const chunks = parseChunkEntities(readJsonl(path.join(CACHE_DIR, "entities.chunk.jsonl")), filePathById);
 
   const entities: SearchEntity[] = [...documents, ...rules, ...adrs, ...modules, ...projects, ...chunks].sort((a, b) => a.id.localeCompare(b.id));
+  const uniqueSignatures = new Set<string>();
+  for (const entity of entities) {
+    uniqueSignatures.add(entity.signature);
+  }
+  const uniqueTextCount = uniqueSignatures.size;
+  const tokenBudget = resolveTokenBudgetChoice(process.env.CORTEX_EMBED_MAX_TOKENS, uniqueTextCount);
+  uniqueSignatures.clear();
+  const signatureProfile = resolveSignatureProfile(tokenBudget.cap);
 
   const existing = parseExistingEmbeddings(readJsonlRecords(EMBEDDINGS_PATH), modelId);
 
@@ -456,8 +474,9 @@ async function main(): Promise<void> {
   let dimensions = 0;
 
   entities.forEach((entity, index) => {
+    const signature = embeddingSignature(entity.signature, signatureProfile);
     const previous = existing.get(entity.id);
-    if (previous && previous.signature === entity.signature && previous.vector.length > 0) {
+    if (previous && previous.signature === signature && previous.vector.length > 0) {
       reused += 1;
       dimensions = dimensions || previous.vector.length;
       slots[index] = {
@@ -470,7 +489,7 @@ async function main(): Promise<void> {
         source_of_truth: entity.source_of_truth,
         trust_level: entity.trust_level,
         updated_at: entity.updated_at,
-        signature: entity.signature,
+        signature,
         model: modelId,
         dimensions: previous.vector.length
       };
@@ -522,6 +541,7 @@ async function main(): Promise<void> {
   // Fully warm cache: nothing to embed, so skip model loading entirely —
   // this is the common repeat-bootstrap / small-update path.
   let embedded = 0;
+  let modelMaxTokensUsed = 0;
   let result: { vectors: Map<number, number[]>; failures: Array<{ index: number; message: string }> } = {
     vectors: new Map(),
     failures: []
@@ -569,11 +589,22 @@ async function main(): Promise<void> {
 
     // Inference truncates at the model max; token counts must too, or one
     // giant file inflates scheduling cost and gate mass far beyond reality.
-    const modelMaxTokens = resolveModelMaxTokens(first.tokenizer?.model_max_length);
+    const modelMaxTokens = resolveModelMaxTokens(
+      first.tokenizer?.model_max_length,
+      tokenBudget.cap ?? undefined
+    );
+    modelMaxTokensUsed = modelMaxTokens;
     const countTokens = createTokenCounter(first.tokenizer, modelMaxTokens);
+    const countRawTokens = createTokenCounter(first.tokenizer, 131072);
 
-    const measured: MeasuredText[] = unique.map((item) => ({ ...item, tokens: countTokens(item.text) }));
+    const measured: MeasuredText[] = unique.map((item) => {
+      const text = truncateTextToTokenBudget(item.text, countRawTokens, modelMaxTokens);
+      return { ...item, text, tokens: countTokens(text) };
+    });
     const units = packWorkUnits(measured, schedulerOptions);
+    console.log(
+      `[embed] scheduler unique=${unique.length} units=${units.length} max_tokens<=${modelMaxTokens} token_budget=${tokenBudget.mode} reason=${tokenBudget.reason}`
+    );
     // Recompute headroom after the model copies are resident so the gate
     // reflects what is actually left for inference activations.
     const inFlightRaw = Number(process.env.CORTEX_EMBED_INFLIGHT_TOKENS);
@@ -598,7 +629,7 @@ async function main(): Promise<void> {
           source_of_truth: entity.source_of_truth,
           trust_level: entity.trust_level,
           updated_at: entity.updated_at,
-          signature: entity.signature,
+          signature: embeddingSignature(entity.signature, signatureProfile),
           model: modelId,
           dimensions: vector.length,
           vector
@@ -632,7 +663,7 @@ async function main(): Promise<void> {
   fs.writeFileSync(EMBEDDINGS_MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 
   console.log(
-    `[embed] mode=${mode} model=${modelId} dim=${dimensions} pool=${poolConfig.sessions}x${poolConfig.threadsPerSession} batch<=${schedulerOptions.batchMaxItems}`
+    `[embed] mode=${mode} model=${modelId} dim=${dimensions} pool=${poolConfig.sessions}x${poolConfig.threadsPerSession} batch<=${schedulerOptions.batchMaxItems} max_tokens<=${modelMaxTokensUsed || tokenBudget.cap || "model"} token_budget=${tokenBudget.mode}`
   );
   console.log(
     `[embed] entities=${entities.length} embedded=${embedded} reused=${reused} failed=${failed}`

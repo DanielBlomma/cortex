@@ -183,9 +183,46 @@ export function resolveMemoryHeadroom({
 /** Sanitizes a tokenizer-reported maximum sequence length. Sentinel and
  * absurd values (some configs report 1e30) fall back to 8192; anything
  * beyond 128k tokens is treated as absurd. */
-export function resolveModelMaxTokens(raw: unknown): number {
+export function resolveModelMaxTokens(raw: unknown, overrideRaw?: unknown): number {
   const value = Number(raw);
-  return Number.isFinite(value) && value >= 1 && value <= 131072 ? Math.floor(value) : 8192;
+  const modelMax = Number.isFinite(value) && value >= 1 && value <= 131072 ? Math.floor(value) : 8192;
+  const override = Number(overrideRaw);
+  if (Number.isFinite(override) && override >= 16 && override <= 131072) {
+    return Math.min(modelMax, Math.floor(override));
+  }
+  return modelMax;
+}
+
+export type TokenBudgetChoice = {
+  cap: number | null;
+  mode: "auto" | "explicit" | "model";
+  reason: string;
+};
+
+/**
+ * Chooses the requested embedding token budget before model load, so cache
+ * signatures can include the same cap that inference will later enforce.
+ * Auto mode is quality-preserving: it uses the model's own maximum by default
+ * and only truncates when the user explicitly requests a numeric cap.
+ */
+export function resolveTokenBudgetChoice(overrideRaw: unknown, uniqueCount: number): TokenBudgetChoice {
+  const raw = String(overrideRaw ?? "").trim().toLowerCase();
+  const override = Number(raw);
+  if (Number.isFinite(override) && override >= 16 && override <= 131072) {
+    const cap = Math.floor(override);
+    return { cap, mode: "explicit", reason: "env_override" };
+  }
+
+  if (raw === "model" || raw === "none" || raw === "off" || raw === "full") {
+    return { cap: null, mode: "model", reason: "env_full_model" };
+  }
+
+  const count = Number.isFinite(uniqueCount) && uniqueCount > 0 ? Math.floor(uniqueCount) : 0;
+  return {
+    cap: null,
+    mode: "auto",
+    reason: `quality_preserving_model_max:unique=${count}`
+  };
 }
 
 /**
@@ -214,6 +251,29 @@ export function createTokenCounter(
     }
     return Math.min(tokens, modelMaxTokens);
   };
+}
+
+export function truncateTextToTokenBudget(
+  text: string,
+  countTokens: (text: string) => number,
+  maxTokens: number
+): string {
+  if (!Number.isFinite(maxTokens) || maxTokens < 1 || countTokens(text) <= maxTokens) {
+    return text;
+  }
+
+  let low = 0;
+  let high = text.length;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (countTokens(text.slice(0, mid)) <= maxTokens) {
+      low = mid;
+    } else {
+      high = mid - 1;
+    }
+  }
+
+  return text.slice(0, low).trimEnd();
 }
 
 /** Estimated working memory one full pool session needs (model copy plus

@@ -413,12 +413,19 @@ Required npm configuration:
 ## Embedding performance
 
 Embedding generation tunes itself to the machine: the number of parallel
-workers, memory limits for long files, and skip-work caching are all derived
-from the available CPU cores and RAM at run time (container memory limits
-included). No configuration is needed — on a laptop or a CI runner, cortex
-picks safe, fast settings by itself. The one exception worth knowing:
-when several cortex instances share one machine, set `CORTEX_EMBED_THREADS`
-to give each its fair share of cores.
+workers, memory limits for long files, token budget, and skip-work caching are
+all derived from the available CPU cores, RAM, and repository size at run time
+(container memory limits included). No configuration is needed — on a laptop or
+a CI runner, cortex picks safe settings by itself.
+
+The embedding token budget defaults to `auto`, which preserves the embedding
+model's own maximum context. Cortex does not lower the default token budget
+just because a repository is large; lower caps can discard semantically useful
+text and are reserved for explicit benchmark or quality experiments. To force a
+specific capped run, set `CORTEX_EMBED_MAX_TOKENS` to a number such as `2048`;
+set it to `model` or `full` to make the full-model baseline explicit. When
+several cortex instances share one machine, set `CORTEX_EMBED_THREADS` to give
+each its fair share of cores.
 
 ## Limitations
 
