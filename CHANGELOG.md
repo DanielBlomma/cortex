@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.2.4 — 2026-06-20
+
+### Changed
+
+- Added an explicit embedding token-budget profile and benchmark support for
+  `CORTEX_EMBED_MAX_TOKENS`.
+- Kept the default `auto` token budget quality-preserving: Cortex uses the
+  embedding model's own maximum context unless a numeric cap is explicitly set.
+- Reduced embedding memory overhead by avoiding full normalized-text copies for
+  cached entities before deciding what needs re-embedding.
+
 ## 2.1.0 — 2026-06-11
 
 New features and behavior changes, no API breaks.
