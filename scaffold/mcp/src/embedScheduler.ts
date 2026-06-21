@@ -195,7 +195,7 @@ export function resolveModelMaxTokens(raw: unknown, overrideRaw?: unknown): numb
 
 export type TokenBudgetChoice = {
   cap: number | null;
-  mode: "auto" | "explicit" | "model";
+  mode: "auto" | "auto_degraded" | "explicit" | "model";
   reason: string;
 };
 
@@ -222,6 +222,74 @@ export function resolveTokenBudgetChoice(overrideRaw: unknown, uniqueCount: numb
     cap: null,
     mode: "auto",
     reason: `quality_preserving_model_max:unique=${count}`
+  };
+}
+
+const AUTO_TOKEN_BUDGET_CANDIDATES = [8192, 4096, 2048];
+const AUTO_TOKEN_BUDGET_MIN = 2048;
+const AUTO_TOKEN_BUDGET_SESSION_BYTES = 2.4e9;
+const AUTO_TOKEN_BUDGET_ACTIVATION_BYTES_AT_4096 = 3e9;
+const AUTO_TOKEN_BUDGET_MEMORY_MARGIN = 0.95;
+
+function estimateTokenBudgetMemoryBytes(maxTokens: number, sessions: number): number {
+  const sessionCount = Number.isFinite(sessions) && sessions >= 1 ? Math.floor(sessions) : 1;
+  const tokenCount = Number.isFinite(maxTokens) && maxTokens >= 1 ? Math.floor(maxTokens) : 8192;
+  const activationBytes =
+    AUTO_TOKEN_BUDGET_ACTIVATION_BYTES_AT_4096 * Math.pow(tokenCount / 4096, 2);
+  return sessionCount * AUTO_TOKEN_BUDGET_SESSION_BYTES + activationBytes;
+}
+
+/**
+ * Keeps auto quality-first but avoids choosing a token budget that is likely
+ * to OOM this process. Explicit numeric caps and explicit full-model modes are
+ * operator choices and are never degraded here.
+ */
+export function resolveEffectiveTokenBudget({
+  choice,
+  modelMaxTokens,
+  memoryBytes,
+  sessions
+}: {
+  choice: TokenBudgetChoice;
+  modelMaxTokens: number;
+  memoryBytes?: number;
+  sessions?: number;
+}): TokenBudgetChoice {
+  if (choice.mode !== "auto" || choice.cap !== null) {
+    return choice;
+  }
+  const modelMax =
+    Number.isFinite(modelMaxTokens) && modelMaxTokens >= 1 ? Math.floor(modelMaxTokens) : 8192;
+  if (modelMax <= AUTO_TOKEN_BUDGET_MIN) {
+    return choice;
+  }
+  if (!Number.isFinite(memoryBytes) || (memoryBytes as number) <= 0) {
+    return choice;
+  }
+
+  const available = (memoryBytes as number) * AUTO_TOKEN_BUDGET_MEMORY_MARGIN;
+  const candidates = AUTO_TOKEN_BUDGET_CANDIDATES
+    .filter((candidate) => candidate <= modelMax)
+    .sort((a, b) => b - a);
+  if (!candidates.includes(AUTO_TOKEN_BUDGET_MIN)) {
+    candidates.push(AUTO_TOKEN_BUDGET_MIN);
+  }
+
+  const selected =
+    candidates.find((candidate) => estimateTokenBudgetMemoryBytes(candidate, sessions ?? 1) <= available) ??
+    AUTO_TOKEN_BUDGET_MIN;
+
+  if (selected >= modelMax) {
+    return choice;
+  }
+
+  return {
+    cap: selected,
+    mode: "auto_degraded",
+    reason: `memory_headroom cap=${selected} model_max=${modelMax} sessions=${Math.max(
+      1,
+      Math.floor(sessions ?? 1)
+    )} headroom_mb=${Math.round((memoryBytes as number) / 1024 / 1024)}`
   };
 }
 

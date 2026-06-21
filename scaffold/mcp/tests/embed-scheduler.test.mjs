@@ -490,6 +490,58 @@ test("resolveTokenBudgetChoice: explicit caps and full-model opt-out win over au
   });
 });
 
+test("resolveEffectiveTokenBudget: auto degrades when model max is too expensive for headroom", async () => {
+  const { resolveEffectiveTokenBudget, resolveTokenBudgetChoice } = await import("../dist/embedScheduler.js");
+  const choice = resolveTokenBudgetChoice(undefined, 2237);
+  const degraded = resolveEffectiveTokenBudget({
+    choice,
+    modelMaxTokens: 8192,
+    memoryBytes: 7e9,
+    sessions: 2
+  });
+  assert.equal(degraded.mode, "auto_degraded");
+  assert.equal(degraded.cap, 2048);
+  assert.match(degraded.reason, /memory_headroom/);
+});
+
+test("resolveEffectiveTokenBudget: auto keeps model max when headroom is sufficient", async () => {
+  const { resolveEffectiveTokenBudget, resolveTokenBudgetChoice } = await import("../dist/embedScheduler.js");
+  const choice = resolveTokenBudgetChoice("auto", 2237);
+  assert.deepEqual(
+    resolveEffectiveTokenBudget({
+      choice,
+      modelMaxTokens: 8192,
+      memoryBytes: 64e9,
+      sessions: 2
+    }),
+    choice
+  );
+});
+
+test("resolveEffectiveTokenBudget: explicit caps and full-model opt-out are never degraded", async () => {
+  const { resolveEffectiveTokenBudget, resolveTokenBudgetChoice } = await import("../dist/embedScheduler.js");
+  const explicit = resolveTokenBudgetChoice("4096", 2237);
+  assert.deepEqual(
+    resolveEffectiveTokenBudget({
+      choice: explicit,
+      modelMaxTokens: 8192,
+      memoryBytes: 1e9,
+      sessions: 4
+    }),
+    explicit
+  );
+  const full = resolveTokenBudgetChoice("full", 2237);
+  assert.deepEqual(
+    resolveEffectiveTokenBudget({
+      choice: full,
+      modelMaxTokens: 8192,
+      memoryBytes: 1e9,
+      sessions: 4
+    }),
+    full
+  );
+});
+
 test("createTokenCounter: uses the tokenizer, clamps at model max, survives failures", async () => {
   const { createTokenCounter } = await import("../dist/embedScheduler.js");
   const tokenizer = (text) => ({ input_ids: { dims: [1, text.length * 2] } });

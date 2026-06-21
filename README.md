@@ -418,14 +418,15 @@ all derived from the available CPU cores, RAM, and repository size at run time
 (container memory limits included). No configuration is needed — on a laptop or
 a CI runner, cortex picks safe settings by itself.
 
-The embedding token budget defaults to `auto`, which preserves the embedding
-model's own maximum context. Cortex does not lower the default token budget
-just because a repository is large; lower caps can discard semantically useful
-text and are reserved for explicit benchmark or quality experiments. To force a
+The embedding token budget defaults to `auto`, which is quality-first but
+memory-aware. Cortex starts from the embedding model's own maximum context and
+only lowers the cap when the local memory headroom is unlikely to fit that
+model/context combination. Degraded auto runs are explicit in logs, for example
+`token_budget=auto_degraded reason=memory_headroom cap=2048`. To force a
 specific capped run, set `CORTEX_EMBED_MAX_TOKENS` to a number such as `2048`;
-set it to `model` or `full` to make the full-model baseline explicit. When
-several cortex instances share one machine, set `CORTEX_EMBED_THREADS` to give
-each its fair share of cores.
+set it to `model` or `full` to force the full-model baseline even on tight
+machines. When several cortex instances share one machine, set
+`CORTEX_EMBED_THREADS` to give each its fair share of cores.
 
 ## Limitations
 

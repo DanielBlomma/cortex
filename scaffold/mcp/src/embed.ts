@@ -11,6 +11,7 @@ import {
   DEFAULT_SCHEDULER_OPTIONS,
   groupDuplicates,
   packWorkUnits,
+  resolveEffectiveTokenBudget,
   resolveInFlightTokens,
   resolveMemoryHeadroom,
   resolveModelMaxTokens,
@@ -453,11 +454,7 @@ async function main(): Promise<void> {
     uniqueSignatures.add(entity.signature);
   }
   const uniqueTextCount = uniqueSignatures.size;
-  const tokenBudget = resolveTokenBudgetChoice(process.env.CORTEX_EMBED_MAX_TOKENS, uniqueTextCount);
   uniqueSignatures.clear();
-  const signatureProfile = resolveSignatureProfile(tokenBudget.cap);
-
-  const existing = parseExistingEmbeddings(readJsonlRecords(EMBEDDINGS_PATH), modelId);
 
   env.cacheDir = MODEL_CACHE_DIR;
   // Total thread budget for embedding. CORTEX_EMBED_THREADS caps it so
@@ -466,6 +463,29 @@ async function main(): Promise<void> {
   const threadsRaw = Number(process.env.CORTEX_EMBED_THREADS);
   const threadBudget =
     Number.isFinite(threadsRaw) && threadsRaw >= 1 ? Math.floor(threadsRaw) : os.cpus().length;
+  const readHeadroom = () =>
+    resolveMemoryHeadroom({
+      freeMemory: os.freemem(),
+      totalMemory: os.totalmem(),
+      constrainedMemory: process.constrainedMemory?.() ?? null,
+      availableMemory: process.availableMemory?.() ?? null
+    });
+  const memoryHeadroom = readHeadroom();
+  const previewPoolConfig = resolvePoolConfig({
+    threadBudget,
+    uniqueCount: uniqueTextCount,
+    memoryBytes: memoryHeadroom
+  });
+  const requestedTokenBudget = resolveTokenBudgetChoice(process.env.CORTEX_EMBED_MAX_TOKENS, uniqueTextCount);
+  const tokenBudget = resolveEffectiveTokenBudget({
+    choice: requestedTokenBudget,
+    modelMaxTokens: resolveModelMaxTokens(undefined, requestedTokenBudget.cap ?? undefined),
+    memoryBytes: memoryHeadroom,
+    sessions: previewPoolConfig.sessions
+  });
+  const signatureProfile = resolveSignatureProfile(tokenBudget.cap);
+
+  const existing = parseExistingEmbeddings(readJsonlRecords(EMBEDDINGS_PATH), modelId);
 
   let reused = 0;
   // Slot per entity keeps output in entity order; failed slots stay null.
@@ -505,14 +525,6 @@ async function main(): Promise<void> {
   // adapts to the machine so no tuning is expected from users. Container
   // limits (cgroups) and platforms that under-report free memory are both
   // handled inside resolveMemoryHeadroom.
-  const readHeadroom = () =>
-    resolveMemoryHeadroom({
-      freeMemory: os.freemem(),
-      totalMemory: os.totalmem(),
-      constrainedMemory: process.constrainedMemory?.() ?? null,
-      availableMemory: process.availableMemory?.() ?? null
-    });
-  const memoryHeadroom = readHeadroom();
   const poolConfig = resolvePoolConfig({
     threadBudget,
     poolOverride: Number(process.env.CORTEX_EMBED_POOL) || null,
@@ -663,7 +675,7 @@ async function main(): Promise<void> {
   fs.writeFileSync(EMBEDDINGS_MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 
   console.log(
-    `[embed] mode=${mode} model=${modelId} dim=${dimensions} pool=${poolConfig.sessions}x${poolConfig.threadsPerSession} batch<=${schedulerOptions.batchMaxItems} max_tokens<=${modelMaxTokensUsed || tokenBudget.cap || "model"} token_budget=${tokenBudget.mode}`
+    `[embed] mode=${mode} model=${modelId} dim=${dimensions} pool=${poolConfig.sessions}x${poolConfig.threadsPerSession} batch<=${schedulerOptions.batchMaxItems} max_tokens<=${modelMaxTokensUsed || tokenBudget.cap || "model"} token_budget=${tokenBudget.mode} reason=${tokenBudget.reason}`
   );
   console.log(
     `[embed] entities=${entities.length} embedded=${embedded} reused=${reused} failed=${failed}`
