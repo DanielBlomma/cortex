@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.2.5 — 2026-06-21
+
+### Changed
+
+- Made the default embedding token-budget `auto` mode memory-aware: Cortex
+  still starts from the embedding model's maximum context, but degrades to a
+  safe cap when local memory headroom is unlikely to fit the full context.
+
 ## 2.2.4 — 2026-06-20
 
 ### Changed
