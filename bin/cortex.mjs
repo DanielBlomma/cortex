@@ -198,81 +198,7 @@ function ensureScaffoldExists() {
 // Files that should never be overwritten if they already exist in the target.
 // These contain user-specific configuration that would be lost on re-init.
 const PRESERVE_FILES = new Set(["config.yaml", "rules.yaml", "enterprise.yml", "enterprise.yaml", "CLAUDE.md", "AGENTS.md"]);
-const DEFAULT_SOURCE_PATHS = [
-  "src",
-  "docs",
-  "design",
-  ".context/notes",
-  ".context/decisions",
-  "README.md"
-];
-const INIT_SKIP_DIRECTORIES = new Set([
-  ".git",
-  ".idea",
-  ".vscode",
-  "node_modules",
-  "dist",
-  "build",
-  "coverage",
-  ".next",
-  ".cache",
-  ".context",
-  "scripts",
-  ".githooks",
-  "bin",
-  "obj"
-]);
-const INIT_SOURCE_EXTENSIONS = new Set([
-  ".md",
-  ".mdx",
-  ".txt",
-  ".adoc",
-  ".rst",
-  ".yaml",
-  ".yml",
-  ".json",
-  ".toml",
-  ".csv",
-  ".ts",
-  ".tsx",
-  ".mts",
-  ".cts",
-  ".js",
-  ".jsx",
-  ".mjs",
-  ".cjs",
-  ".py",
-  ".go",
-  ".java",
-  ".cs",
-  ".vb",
-  ".sln",
-  ".vbproj",
-  ".csproj",
-  ".fsproj",
-  ".props",
-  ".targets",
-  ".config",
-  ".resx",
-  ".settings",
-  ".rb",
-  ".rs",
-  ".php",
-  ".swift",
-  ".kt",
-  ".sql",
-  ".sh",
-  ".bash",
-  ".zsh",
-  ".ps1",
-  ".c",
-  ".h",
-  ".cpp",
-  ".hpp",
-  ".cc",
-  ".hh"
-]);
-const ROOT_DOC_PATHS = new Set(["docs", "design"]);
+const DEFAULT_SOURCE_PATHS = ["."];
 
 function copyDirectory(sourceDir, targetDir) {
   fs.mkdirSync(targetDir, { recursive: true });
@@ -318,92 +244,8 @@ function slugifyRepoId(value) {
   return dashed || "cortex";
 }
 
-function isInterestingSourceFile(fileName) {
-  const base = fileName.toLowerCase();
-  const ext = path.extname(fileName).toLowerCase();
-  return INIT_SOURCE_EXTENSIONS.has(ext) || base === "readme" || base.startsWith("readme.");
-}
-
-function directoryContainsInterestingFiles(directoryPath) {
-  const stack = [directoryPath];
-  while (stack.length > 0) {
-    const current = stack.pop();
-    let entries = [];
-    try {
-      entries = fs.readdirSync(current, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-
-    for (const entry of entries) {
-      const absolutePath = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        if (INIT_SKIP_DIRECTORIES.has(entry.name)) {
-          continue;
-        }
-        stack.push(absolutePath);
-        continue;
-      }
-
-      if (entry.isFile() && isInterestingSourceFile(entry.name)) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-
 function detectInitialSourcePaths(targetDir) {
-  if (!fs.existsSync(targetDir)) {
-    return [...DEFAULT_SOURCE_PATHS];
-  }
-
-  let entries = [];
-  try {
-    entries = fs.readdirSync(targetDir, { withFileTypes: true });
-  } catch {
-    return [...DEFAULT_SOURCE_PATHS];
-  }
-
-  const codeDirs = [];
-  const docDirs = [];
-  const rootFiles = [];
-
-  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-    const absolutePath = path.join(targetDir, entry.name);
-
-    if (entry.isDirectory()) {
-      if (INIT_SKIP_DIRECTORIES.has(entry.name)) {
-        continue;
-      }
-      if (!directoryContainsInterestingFiles(absolutePath)) {
-        continue;
-      }
-
-      const bucket = ROOT_DOC_PATHS.has(entry.name) ? docDirs : codeDirs;
-      bucket.push(toPosixPath(entry.name));
-      continue;
-    }
-
-    if (entry.isFile() && isInterestingSourceFile(entry.name)) {
-      rootFiles.push(toPosixPath(entry.name));
-    }
-  }
-
-  const readmeFiles = rootFiles.filter((filePath) => /^readme(\.|$)/i.test(path.basename(filePath)));
-  const nonReadmeRootFiles = rootFiles.filter((filePath) => !readmeFiles.includes(filePath));
-  const detected = [
-    ...codeDirs,
-    ...nonReadmeRootFiles,
-    ...docDirs,
-    ".context/notes",
-    ".context/decisions",
-    ...readmeFiles
-  ];
-  const uniqueDetected = [...new Set(detected)];
-  const hasConcreteRepoContent = uniqueDetected.some((value) => !value.startsWith(".context/"));
-  return hasConcreteRepoContent ? uniqueDetected : [...DEFAULT_SOURCE_PATHS];
+  return [...DEFAULT_SOURCE_PATHS];
 }
 
 function buildInitialConfig(targetDir) {
@@ -418,12 +260,10 @@ function buildInitialConfig(targetDir) {
     "  - RULE",
     "  - CODE",
     "  - WIKI",
-    "# graph weight is low because graph degree mostly measures how many rules",
-    "# constrain an entity (docs are hubs, leaf code is not). Tuned as a pair with",
-    "# the midrank-percentile graph_score.",
+    "# Tuned together with the midrank-percentile graph_score in searchResults.ts.",
     "ranking:",
-    "  semantic: 0.55",
-    "  graph: 0.10",
+    "  semantic: 0.40",
+    "  graph: 0.25",
     "  trust: 0.20",
     "  recency: 0.15",
     "runtime:",

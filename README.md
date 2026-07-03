@@ -428,6 +428,12 @@ set it to `model` or `full` to force the full-model baseline even on tight
 machines. When several cortex instances share one machine, set
 `CORTEX_EMBED_THREADS` to give each its fair share of cores.
 
+For experiments on very large repositories, `CORTEX_EMBED_TEXT_PROFILE=compact-files`
+compacts only large file-level embedding records while keeping chunk-level
+embedding text full. The default remains `full`; use the compact profile only
+with a before/after semantic quality check because file-level compaction can
+change retrieval behavior.
+
 ## Limitations
 
 - Requires repo initialization (`cortex init --bootstrap`).

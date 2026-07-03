@@ -17,6 +17,7 @@ import {
   normalizeText,
   recencyScore,
   semanticScore,
+  structuralSearchBoost,
   tokenize
 } from "./searchCore.js";
 import { buildSearchResultsWithStats } from "./searchResults.js";
@@ -105,6 +106,7 @@ export async function runContextSearch(parsed: SearchParams): Promise<ToolPayloa
     semanticScorer: semanticScore,
     vectorScorer: cosineSimilarity,
     recencyScorer: recencyScore,
+    structuralSearchBooster: structuralSearchBoost,
     legacyDataAccessBooster: legacyDataAccessBoost
   });
 

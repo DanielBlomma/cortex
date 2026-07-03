@@ -198,11 +198,12 @@ try {
 
 node -e '
 const path = require("node:path");
-const { execSync } = require("node:child_process");
+const { execFileSync, execSync } = require("node:child_process");
 
 const repoRoot = process.argv[1];
 const cacheDir = process.argv[2];
 const localVersionEnv = process.argv[3] || "";
+const VERSION_LOOKUP_TIMEOUT_MS = Number(process.env.CORTEX_VERSION_LOOKUP_TIMEOUT_MS || 8000);
 
 function parseVersion(value) {
   const match = String(value || "").trim().match(/^v?(\d+)\.(\d+)\.(\d+)$/);
@@ -225,7 +226,7 @@ function getLocalVersion() {
   }
 
   try {
-    const output = execSync("cortex --version", {
+    const output = execFileSync("cortex", ["--version"], {
       cwd: repoRoot,
       stdio: ["ignore", "pipe", "ignore"],
       encoding: "utf8",
@@ -282,11 +283,11 @@ try {
     const npmCache = path.join(cacheDir, "npm-cache");
     let latestRaw = "";
     try {
-      latestRaw = execSync("npm view github:DanielBlomma/cortex version --json", {
+      latestRaw = execFileSync("npm", ["view", "github:DanielBlomma/cortex", "version", "--json"], {
         cwd: repoRoot,
         stdio: ["ignore", "pipe", "pipe"],
         encoding: "utf8",
-        timeout: 2500,
+        timeout: VERSION_LOOKUP_TIMEOUT_MS,
         env: { ...process.env, NPM_CONFIG_CACHE: npmCache }
       }).trim();
     } catch (error) {
@@ -317,13 +318,19 @@ try {
     process.exit(0);
   }
 
-  const hasUpdate = compareVersions(latestParsed, localParsed) > 0;
+  const comparison = compareVersions(latestParsed, localParsed);
   console.log(`[status] cortex_latest_version=${latestVersion}`);
 
-  if (hasUpdate) {
+  if (comparison > 0) {
+    console.log("[status] cortex_version_state=update-available");
     console.log("[status] cortex_update_available=yes");
     console.log("[status] run: npm i -g github:DanielBlomma/cortex");
+  } else if (comparison < 0) {
+    console.log("[status] cortex_version_state=local-newer");
+    console.log("[status] cortex_update_available=no");
+    console.log("[status] note: local Cortex is newer than the published version");
   } else {
+    console.log("[status] cortex_version_state=current");
     console.log("[status] cortex_update_available=no");
   }
 } catch (error) {

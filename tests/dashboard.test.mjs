@@ -122,3 +122,39 @@ test("render hides healthy C# parser state", () => {
 
   assert.doesNotMatch(output, /Parser warning \(C#\):/i);
 });
+
+test("render distinguishes local-newer version state from current", () => {
+  const output = stripAnsi(render({
+    baseline: { files: 1, lines: 10, chars: 100, tokens: 25 },
+    cortex: {
+      files: 1,
+      chunks: 1,
+      rules: 0,
+      adrs: 0,
+      totalEntities: 2,
+      relations: { calls: 0, defines: 1, constrains: 0, implements: 0, imports: 0, supersedes: 0, total: 1 },
+    },
+    tokens: {
+      codebase: 25,
+      baselinePerTask: 25,
+      cortexPerTask: 5,
+      filesPerTask: 1,
+      queriesPerTask: 1,
+      ratio: 5,
+      reduction: 80,
+    },
+    embeddings: null,
+    parserHealth: {},
+    freshness: { percent: 100 },
+    version: { state: "local-newer", local: "2.2.5", latest: "2.2.3" },
+    topConnected: [],
+    timestamps: {
+      lastIngest: "just now",
+      lastGraph: "just now",
+      lastEmbed: "never",
+    },
+  }, false));
+
+  assert.match(output, /Version:\s+2\.2\.5\s+Published: 2\.2\.3 local newer/);
+  assert.doesNotMatch(output, /Latest: 2\.2\.3/);
+});

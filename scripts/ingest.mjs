@@ -741,11 +741,11 @@ function parseRules(rulesText) {
 function walkDirectory(directoryPath, files) {
   const entries = fs.readdirSync(directoryPath, { withFileTypes: true });
   for (const entry of entries) {
-    if (entry.isDirectory() && SKIP_DIRECTORIES.has(entry.name)) {
+    const absolutePath = path.join(directoryPath, entry.name);
+    if (entry.isDirectory() && shouldSkipDirectory(absolutePath, entry.name)) {
       continue;
     }
 
-    const absolutePath = path.join(directoryPath, entry.name);
     if (entry.isDirectory()) {
       walkDirectory(absolutePath, files);
       continue;
@@ -757,10 +757,40 @@ function walkDirectory(directoryPath, files) {
   }
 }
 
+function shouldSkipDirectory(absolutePath, entryName) {
+  if (entryName === "bin" && path.resolve(path.dirname(absolutePath)) === REPO_ROOT) {
+    return false;
+  }
+  return SKIP_DIRECTORIES.has(entryName);
+}
+
+function normalizeSourcePrefix(sourcePath) {
+  const source = toPosixPath(sourcePath).replace(/^\.\/+/, "").replace(/\/+$/, "");
+  return source === "." ? "" : source;
+}
+
+function normalizeRelativePath(relPath) {
+  return toPosixPath(relPath).replace(/^\.\/+/, "").replace(/\/+$/, "");
+}
+
+function hasSkippedDirectorySegment(relPath) {
+  const parts = normalizeRelativePath(relPath).split("/").filter(Boolean);
+  return parts.some((part, index) => {
+    if (part === "bin" && index === 0) {
+      return false;
+    }
+    return SKIP_DIRECTORIES.has(part);
+  });
+}
+
 function hasSourcePrefix(relPath, sourcePaths) {
+  const normalizedRelPath = normalizeRelativePath(relPath);
+  if (!normalizedRelPath || hasSkippedDirectorySegment(normalizedRelPath)) {
+    return false;
+  }
   return sourcePaths.some((sourcePath) => {
-    const source = toPosixPath(sourcePath).replace(/\/+$/, "");
-    return relPath === source || relPath.startsWith(`${source}/`);
+    const source = normalizeSourcePrefix(sourcePath);
+    return source === "" || normalizedRelPath === source || normalizedRelPath.startsWith(`${source}/`);
   });
 }
 
@@ -911,6 +941,9 @@ function collectCandidateFiles(sourcePaths, mode) {
   }
 
   for (const sourcePath of sourcePaths) {
+    if (hasSkippedDirectorySegment(sourcePath)) {
+      continue;
+    }
     const absoluteSourcePath = path.resolve(REPO_ROOT, sourcePath);
     if (!fs.existsSync(absoluteSourcePath)) {
       continue;

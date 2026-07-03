@@ -1,0 +1,47 @@
+# Agent Work Orders
+
+These work orders are the manager backlog. Each work order should receive a
+fresh context packet before implementation starts.
+
+| ID | Agent Team | Work Order | Primary Outputs | Validation Evidence | Depends On | Status |
+|---|---|---|---|---|---|---|
+| WO-001 | Parsers and Ingest | Fix JS/TS parser coverage gaps exposed by Angular: `.tsx`/`.jsx` parser registration, `.mts` support, TS walker node coverage, and chunks for interface/type/enum/class-field Angular patterns. | Parser changes plus focused JS/TS tests. | `node --test tests/javascript-parser.test.mjs tests/ingest-units.test.mjs`; full `npm test` passed 2026-06-16. | None | Implemented |
+| WO-002 | Parsers and Ingest | Improve JS/TS graph quality for Angular-style code by normalizing same-class calls and adding cross-file import/alias call resolution where reliable. | Ingest relation changes, parser call metadata if needed, regression fixture with component/service calls. | Root parser/ingest tests; new negative tests for ambiguous aliases. | WO-001 preferred | Ready |
+| WO-003 | Parsers and Ingest | Add first-pass Angular resource extraction for component metadata and local templates/styles (`templateUrl`, `styleUrl(s)`, `.html`, `.scss`/`.css`). | Parser/ingest support for component-to-resource relations or file references, fixture app. | Focused ingest fixture plus root tests. | WO-001 | Ready |
+| WO-004 | Frontend and Benchmarks | Make bootstrapbench coverage loss diagnosable by exporting unsupported/skipped breakdown by extension and parser eligibility. | `benchmark/bootstrapbench/` stats/export updates for coverage diagnostics, skipped extension breakdowns, and parser eligibility. | `node --test tests/bootstrapbench-stats.test.mjs tests/bootstrapbench-aggregate.test.mjs`; full `npm test` passed 2026-06-16. | None | Implemented |
+| WO-005 | CLI and Scaffold | Tune or surface source-path auto-detection for large monorepos so broad directories like Angular `goldens`, `third_party`, and generated examples do not dominate unnoticed. | Source-path detection diagnostics or conservative config affordance, tests for monorepo layout. | `node --test tests/init-config.test.mjs`; root tests if detection behavior changes. | WO-004 preferred | Ready |
+| WO-006 | Control Manager + Validation | Audit Norbert perf branches for merge/regression risk and define a memory benchmark gate. | Branch disposition, memory benchmark contract, context packet `002-memory-regression-audit.md`; bootstrapbench RSS export/aggregation. | Read-only git ancestry/merge-tree evidence and four explorer handoffs completed 2026-06-16; RSS gate implemented and full `npm test` passed 2026-06-16. | None | Implemented |
+| WO-007 | Core MCP | Reduce graph-load peak memory by streaming JSONL parsing and CSV/bulk-load writes or by replacing bulk arrays with bounded batches. | Streaming graph CSV writer, generator row projection/filtering in bulk load, graph CSV tests. | `npm test` in `scaffold/mcp` passed 319/319; full root `npm test` passed 2026-06-16. | WO-006 | First pass implemented |
+| WO-008 | Core MCP | Reduce embedding/search vector memory by streaming embedding index/output handling and retaining Float32Array-only vectors without full raw JSON arrays. | Streaming JSONL helpers, streaming embedding index/read/write, scheduler `onVector` callback, embedding JSONL tests. | `npm test` in `scaffold/mcp` passed 319/319; full root `npm test` passed 2026-06-16. | WO-006 | First pass implemented |
+| WO-009 | Parsers and Ingest | Reduce ingest peak memory and safely revisit worker parsing without duplicating large file content or parser state unnecessarily. | Streaming ingest JSONL/TSV writers, worker path-based parsing, immediate worker-result cleanup, rule-match lowercase map removal. | Focused ingest/bootstrapbench tests passed 79/79; full root `npm test` passed 2026-06-16. | WO-006 | First pass implemented |
+| WO-010 | Parsers and Ingest | Add opt-in ingest memory trace checkpoints so Angular peak RSS can be tied to retained ingest structures before deeper edits. | `CORTEX_INGEST_TRACE_MEMORY` trace support plus focused ingest validation. | Focused ingest tests; syntax check. | WO-009 | Assigned |
+| WO-011 | Validation | Run Cortex/Angular memory benchmark after WO-010 and analyze RSS plus ingest trace output. | New ignored benchmark evidence and next memory recommendation. | Benchmark run `memory-rss-trace-2026-06-16` succeeded 2/2; manual Angular ingest trace captured. | WO-010 | Implemented |
+| WO-012 | Control Manager + Validation | Prepare clean PR/readiness plan and stale draft-branch disposition for the local Angular and memory improvements. | Staging list, PR split recommendation, validation gates, stale-branch disposition. | Read-only git evidence. | WO-006 | Implemented |
+| WO-013 | Parsers and Ingest | Reduce Angular ingest memory by consuming worker parse results without retaining a full all-results map before merge. | Bounded/streamed worker result handling with deterministic merge order and focused tests. | Focused ingest tests passed 47/47; full root `npm test` passed 193/193. | WO-011 | Implemented |
+| WO-014 | Validation | Validate WO-013 with Cortex/Angular RSS benchmark and Angular ingest trace comparison. | New ignored benchmark/trace evidence and next memory recommendation. | Benchmark run `memory-rss-stream-2026-06-16` succeeded 2/2; manual Angular trace captured. | WO-013 | Implemented |
+| WO-015 | Control Manager + Architecture | Decide and document the CLI-first migration contract before implementation. | ADR/plan, context packet `008-cli-first-migration.md`, updated acceptance/risk/work-order traceability. | Docs review; no runtime behavior changes. | None | Implemented locally |
+| WO-016 | CLI and Runtime | Add CLI retrieval parity commands for search, related, impact, rules, and explain while reusing existing retrieval semantics. | `cortex search`, `related`, `impact`, `rules`, `explain` with `--json`, focused CLI tests, no MCP default changes yet. | MCP test suite passed 325/325; full root `npm test` passed 193/193; query shim test passed. | WO-015 | Implemented locally |
+| WO-017 | CLI and Scaffold | Separate indexing/bootstrap from MCP client registration and make MCP connect opt-in or compatibility-only. | `bin/cortex.mjs` init/connect behavior, init/scaffold tests, compatibility messaging. | MCP test suite passed 325/325; full root `npm test` passed 195/195; focused init/scaffold/query tests passed. | WO-016 preferred | Implemented locally |
+| WO-018 | Core Runtime | Introduce neutral runtime naming/shim so `.context/mcp` remains as compatibility path while CLI becomes the primary caller. | Runtime path helper/message cleanup, script naming shim for bootstrap/embed/graph-load/doctor/memory scripts. | Focused script syntax/static assertions passed; full root `npm test` passed 195/195; MCP test suite passed 325/325; `git diff --check` passed. | WO-016 | Implemented locally |
+| WO-019 | Docs and Release | Reposition public docs/package/release gates from MCP-first to CLI-first and decide whether MCP removal requires a breaking release. | README/scaffold/live agent instructions now default to CLI retrieval; package/plugin/workflow wording is neutralized without renaming compatibility surfaces; npm pack contents are narrowed to exclude generated scaffold artifacts. | Explorer audits completed; focused init/scaffold tests passed 15/15; `npm run release:check-version-sync` passed; `npm pack --dry-run --json` passed with no generated scaffold artifacts; full root `npm test` passed 195/195; `git diff --check` passed. | WO-017, WO-018 | Implemented locally |
+| WO-020 | Embedding and Validation | Evaluate repo-aware embedding token budgeting/compression so large repos embed faster without losing semantic retrieval quality. | Query-pack gate plus experimental `CORTEX_EMBED_TEXT_PROFILE=compact-files` for large file-level records only. | Baseline `semantic-quality-quick-baseline-20260623`; final after gate `semantic-quality-quick-compact-files-reviewfix-20260624`; MCP `npm test` 340/340; root `npm test` 216/216 before reviewfix. Remaining validation before promotion: Angular and fastjson2 after runs. | None | Implemented locally as opt-in experiment |
+
+## Manager Assignment Checklist
+
+- Create or refresh a context packet.
+- Confirm the agent owns a disjoint file/entity scope.
+- Record the assignment in `handoff-ledger.md`.
+- Assign required reviewer roles from `review-iteration-protocol.md`.
+- Require validation output before accepting the handoff: focused tests during
+  iteration, full matrix once at acceptance (CI is the authoritative full run).
+- Require review findings to be fixed or explicitly deferred before manager acceptance.
+- After manager acceptance and green CI, auto-advance per the canonical rule in
+  `workflow-playbook.md`: multiple `Ready` work orders may run in parallel when
+  their owned scopes are disjoint, each on its own branch/PR.
+- Update `risk-register.md` and `acceptance-matrix.md`.
+- If the work order changed a contract or architectural decision, update any
+  mirrored rules (code-context tooling, lint rules) in the same acceptance so
+  they do not serve stale guidance.
+- Record the PR / work order / feature issue mapping in the
+  `acceptance-matrix.md` traceability table and in the PR body before merge;
+  mirror to issue-tracker items when needed.

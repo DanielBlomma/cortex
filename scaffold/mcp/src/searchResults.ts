@@ -42,6 +42,68 @@ function pruneRankedResults(bestById: Map<string, RankedSearchResult>, limit: nu
   }
 }
 
+function secondarySignalScale(semantic: number): number {
+  return Math.min(1, 0.15 + Math.max(0, semantic) * 0.85);
+}
+
+function isTestEvidenceEntity(entity: SearchEntity): boolean {
+  return /(^|\/)(tests?|__tests__)\//u.test(entity.path) || /\.(test|spec)\.[^.]+$/u.test(entity.path);
+}
+
+function testEvidenceBoost(entity: SearchEntity, semantic: number, lexicalSemantic: number): number {
+  if (!isTestEvidenceEntity(entity)) {
+    return 0;
+  }
+  if (semantic >= 0.5 && lexicalSemantic >= 0.4) {
+    return 0.07;
+  }
+  if (semantic >= 0.4 && lexicalSemantic >= 0.25) {
+    return 0.04;
+  }
+  return 0;
+}
+
+function resultPathKey(result: SearchResult): string {
+  const path = typeof result.path === "string" ? result.path : "";
+  return path || String(result.id ?? "");
+}
+
+function selectDiverseResults(rankedResults: RankedSearchResult[], topK: number): RankedSearchResult[] {
+  const remaining = rankedResults
+    .map((ranked, index) => ({ ranked, index }))
+    .sort((a, b) => b.ranked.rankScore - a.ranked.rankScore || a.index - b.index);
+  const selected: RankedSearchResult[] = [];
+  const selectedByPath = new Map<string, number>();
+
+  while (selected.length < topK && remaining.length > 0) {
+    let bestIndex = 0;
+    let bestAdjustedScore = Number.NEGATIVE_INFINITY;
+    let bestRankScore = Number.NEGATIVE_INFINITY;
+
+    for (let index = 0; index < remaining.length; index += 1) {
+      const candidate = remaining[index].ranked;
+      const pathCount = selectedByPath.get(resultPathKey(candidate.result)) ?? 0;
+      const samePathPenalty = pathCount === 0 ? 0 : Math.min(0.12, pathCount * 0.04);
+      const adjustedScore = candidate.rankScore - samePathPenalty;
+      if (
+        adjustedScore > bestAdjustedScore ||
+        (adjustedScore === bestAdjustedScore && candidate.rankScore > bestRankScore)
+      ) {
+        bestIndex = index;
+        bestAdjustedScore = adjustedScore;
+        bestRankScore = candidate.rankScore;
+      }
+    }
+
+    const [picked] = remaining.splice(bestIndex, 1);
+    selected.push(picked.ranked);
+    const pathKey = resultPathKey(picked.ranked.result);
+    selectedByPath.set(pathKey, (selectedByPath.get(pathKey) ?? 0) + 1);
+  }
+
+  return selected;
+}
+
 function candidatesFrom(source: SearchCandidateSource): Iterable<SearchEntity> {
   return typeof source === "function" ? source() : source;
 }
@@ -63,6 +125,7 @@ export function buildSearchResultsWithStats(params: {
   semanticScorer: (queryTokens: string[], queryPhrase: string, text: string) => number;
   vectorScorer: (a: Float32Array, b: Float32Array) => number;
   recencyScorer: (isoDate: string) => number;
+  structuralSearchBooster?: (entity: SearchEntity, queryTokens: string[], queryPhrase: string) => number;
   legacyDataAccessBooster: (entity: SearchEntity, queryTokens: string[], queryPhrase: string) => number;
 }): { results: Record<string, unknown>[]; totalCandidates: number } {
   if (params.topK <= 0) {
@@ -112,7 +175,8 @@ export function buildSearchResultsWithStats(params: {
   };
 
   const resultLimit = Math.max(1, params.topK);
-  const pruneThreshold = Math.max(resultLimit * 4, 64);
+  const diversityPoolLimit = Math.max(resultLimit * 3, resultLimit);
+  const pruneThreshold = Math.max(diversityPoolLimit * 2, 64);
   const bestById = new Map<string, RankedSearchResult>();
 
   for (const entity of candidatesFrom(params.candidates)) {
@@ -134,12 +198,17 @@ export function buildSearchResultsWithStats(params: {
     const graphScore = midrankPercentile(sortedDegreesByType.get(entity.entity_type) ?? [], degree);
     const trustScore = Math.max(0, Math.min(1, entity.trust_level / 100));
     const dateScore = params.recencyScorer(entity.updated_at);
+    const structuralBoost = params.structuralSearchBooster?.(entity, params.queryTokens, params.queryPhrase) ?? 0;
+    const evidenceBoost = testEvidenceBoost(entity, semantic, lexicalSemantic);
+    const secondaryScale = secondarySignalScale(Math.max(semantic, structuralBoost));
 
     let score = 0;
     score += params.ranking.semantic * semantic;
-    score += params.ranking.graph * graphScore;
-    score += params.ranking.trust * trustScore;
-    score += params.ranking.recency * dateScore;
+    score += params.ranking.graph * graphScore * secondaryScale;
+    score += params.ranking.trust * trustScore * secondaryScale;
+    score += params.ranking.recency * dateScore * secondaryScale;
+    score += structuralBoost;
+    score += evidenceBoost;
     score += params.legacyDataAccessBooster(entity, params.queryTokens, params.queryPhrase);
 
     if (entity.source_of_truth) {
@@ -194,13 +263,15 @@ export function buildSearchResultsWithStats(params: {
     }
 
     if (bestById.size > pruneThreshold) {
-      pruneRankedResults(bestById, resultLimit);
+      pruneRankedResults(bestById, diversityPoolLimit);
     }
   }
 
-  const results = [...bestById.values()]
+  const rankedResults = [...bestById.values()]
     .sort((a, b) => b.rankScore - a.rankScore)
-    .slice(0, params.topK)
+    .slice(0, diversityPoolLimit);
+  const results = selectDiverseResults(rankedResults, params.topK)
+    .sort((a, b) => b.rankScore - a.rankScore)
     .map((ranked) => ranked.result);
   return { results, totalCandidates };
 }
