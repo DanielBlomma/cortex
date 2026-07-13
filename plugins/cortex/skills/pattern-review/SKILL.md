@@ -7,11 +7,7 @@ description: Use when reviewing a changed file, diff, or pull request - retrieve
 
 ## Workflow
 
-For each changed file:
-
-```bash
-cortex pattern-evidence <file-path> --json
-```
+For each changed file, run `cortex pattern-evidence <file-path> --json`
 
 Evidence is ordered by locality: same file, same module, same feature area,
 then repository-wide fallback.

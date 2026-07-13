@@ -38,6 +38,19 @@ for (const skillName of EXPECTED_SKILLS) {
     assert.ok(frontmatter.description.length >= 40, "description too short to trigger well");
     const bodyLines = body.split("\n").length;
     assert.ok(bodyLines <= MAX_BODY_LINES, `body has ${bodyLines} lines (max ${MAX_BODY_LINES})`);
-    assert.match(body, /cortex |context\.review/, "body must reference cortex commands");
+    assert.match(
+      body,
+      /`cortex [a-z][^`]*`|`context\.review`/,
+      "body must reference a backticked cortex command",
+    );
   });
 }
+
+test("skills directory contains exactly the expected skills", () => {
+  const actual = fs
+    .readdirSync(SKILLS_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+  assert.deepEqual(actual, [...EXPECTED_SKILLS].sort());
+});
