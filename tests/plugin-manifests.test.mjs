@@ -43,3 +43,12 @@ test("mcp config runs the workspace-following npx command", () => {
   const mcp = readJson("plugins/cortex/.mcp.json");
   assert.ok(mcp.mcpServers.cortex, "cortex MCP server must be defined");
 });
+
+test("codex mcp config is a direct server map the codex schema accepts", () => {
+  const codex = readJson("plugins/cortex/.codex-plugin/plugin.json");
+  const codexMcp = readJson("plugins/cortex/.codex-plugin/mcp.json");
+  assert.match(codex.mcpServers, /mcp\.json$/);
+  assert.ok(codexMcp.cortex, "direct server map must define the cortex server");
+  assert.equal(codexMcp.cortex.command, "npx");
+  assert.equal("mcpServers" in codexMcp, false, "codex file must not use the camelCase wrapper");
+});

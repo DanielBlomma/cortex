@@ -2,5 +2,5 @@
   "name": "cortex",
   "version": "2.3.0",
   "description": "Cortex local context: search, impact, rules, and pattern evidence for the active workspace",
-  "mcpServers": "./.mcp.json"
+  "mcpServers": "./.codex-plugin/mcp.json"
 }
