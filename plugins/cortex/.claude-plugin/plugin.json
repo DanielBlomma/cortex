@@ -1,6 +1,6 @@
 {
   "name": "cortex",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Cortex local context: five behavior skills, a session bootstrap, and an optional MCP bridge",
   "author": {
     "name": "Daniel Blomma",

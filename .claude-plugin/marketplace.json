@@ -9,7 +9,7 @@
       "name": "cortex",
       "source": "./plugins/cortex",
       "description": "AI-powered code context: search, impact, rules, and pattern evidence backed by a local index",
-      "version": "2.3.0"
+      "version": "2.4.0"
     }
   ]
 }
