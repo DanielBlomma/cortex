@@ -84,6 +84,19 @@ test("missing index warns and suggests cortex bootstrap", () => {
   }
 });
 
+test("indexed repo without update marker reports unknown freshness", () => {
+  const nowMs = 1_800_000_000_000;
+  const { repoRoot } = makeContextRepo();
+  try {
+    const contextDir = findContextDir(repoRoot);
+    const text = renderBootstrap(readStatus(contextDir, nowMs), nowMs);
+    assert.match(text, /Index last updated: unknown\./);
+    assert.doesNotMatch(text, /WARNING|more than 7 days/);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
 test("no .context directory yields no output and exit 0", () => {
   const plainDir = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-session-plain-"));
   try {
@@ -92,6 +105,7 @@ test("no .context directory yields no output and exit 0", () => {
     const result = runScript(plainDir);
     assert.equal(result.status, 0);
     assert.equal(result.stdout, "");
+    assert.equal(result.stderr, "");
   } finally {
     fs.rmSync(plainDir, { recursive: true, force: true });
   }

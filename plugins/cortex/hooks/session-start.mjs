@@ -7,7 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
+import { pathToFileURL } from "node:url";
 
 const CACHE_RELATIVE_PATH = path.join("cache", "session-status.json");
 const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -120,7 +120,7 @@ export function main(stdinText, fallbackCwd) {
 }
 
 const isDirectRun =
-  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isDirectRun) {
   try {
     let stdinText = "";
