@@ -38,6 +38,9 @@ test("cortex init scaffolds AGENTS.md for Codex-compatible repos", () => {
 
     assert.match(contents, /## Required: Always use Cortex context/);
     assert.match(contents, /<!-- cortex:auto:start -->[\s\S]*Run `cortex update`/);
+    assert.match(contents, /using-cortex/);
+    assert.match(contents, /cortex search "<query>" --json/);
+    assert.match(contents, /cortex pattern-evidence/);
   } finally {
     fs.rmSync(repoRoot, { recursive: true, force: true });
   }
