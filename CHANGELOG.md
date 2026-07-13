@@ -1,5 +1,31 @@
 # Changelog
 
+## 2.3.0 — 2026-07-13
+
+### Added
+
+- Added `cortex pattern-evidence <file-path|entity-id>` for cited, structured
+  review evidence ordered by same file, module, feature area, and repository
+  fallback.
+- Integrated bounded, non-blocking pattern context into enterprise
+  `context.review` without changing policy pass/fail or workflow trust.
+
+### Changed
+
+- Made equal-score search ordering deterministic with stable entity/path
+  tie-breaks.
+- Added strict numeric validation for CLI query limits.
+- Fixed the enterprise runtime package-version lookup so compiled enterprise
+  tools load from the packaged MCP runtime.
+- Made `context.review` scope=changed list staged and untracked files in
+  repositories without commits instead of falling back to a full project
+  walk that ignores `.gitignore`.
+- Made pattern review context load the Cortex index once per review instead
+  of once per target, and cached the ranking reference-time scan per loaded
+  index.
+- Unified review path canonicalization and text comparison on the shared
+  pattern-evidence and search helpers.
+
 ## 2.2.5 — 2026-06-21
 
 ### Changed
