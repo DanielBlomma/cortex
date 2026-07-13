@@ -15,6 +15,7 @@ import {
 const SCRIPT_PATH = fileURLToPath(
   new URL("../plugins/cortex/hooks/session-start.mjs", import.meta.url),
 );
+const CLI_PATH = fileURLToPath(new URL("../bin/cortex.mjs", import.meta.url));
 
 function makeContextRepo({ indexed = true, epochSeconds = null } = {}) {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-session-"));
@@ -200,5 +201,40 @@ test("stdin cwd wins over process cwd and nested dirs resolve upward", () => {
   } finally {
     fs.rmSync(repoRoot, { recursive: true, force: true });
     fs.rmSync(elsewhere, { recursive: true, force: true });
+  }
+});
+
+test("cortex update invalidates the session status cache", () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-session-invalidate-"));
+  const contextDir = path.join(repoRoot, ".context");
+  const scriptsDir = path.join(contextDir, "scripts");
+  const cachePath = path.join(contextDir, "cache", "session-status.json");
+  try {
+    fs.mkdirSync(scriptsDir, { recursive: true });
+    fs.mkdirSync(path.join(contextDir, "mcp"), { recursive: true });
+    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    fs.writeFileSync(
+      path.join(scriptsDir, "context.sh"),
+      '#!/usr/bin/env bash\ncase "$1" in\n  doctor)\n    ;;\nesac\nexit 0\n',
+      { mode: 0o755 },
+    );
+    fs.writeFileSync(path.join(scriptsDir, "doctor.sh"), "#!/usr/bin/env bash\nexit 0\n", {
+      mode: 0o755,
+    });
+    fs.writeFileSync(path.join(contextDir, "mcp", "package.json"), "{}\n", "utf8");
+    fs.writeFileSync(
+      cachePath,
+      JSON.stringify({ computed_at_ms: 1, indexed: false, last_update_ms: null }),
+      "utf8",
+    );
+
+    const result = spawnSync(process.execPath, [CLI_PATH, "update"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(fs.existsSync(cachePath), false, "stale session status cache must be removed");
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
   }
 });

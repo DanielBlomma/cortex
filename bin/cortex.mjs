@@ -801,12 +801,31 @@ async function ensureProjectInitializedForMcp(targetDir) {
   }
 }
 
+// The session bootstrap hook caches index status for 10 minutes; drop the
+// cache whenever a command may have changed the index so new sessions never
+// see a stale "no index"/"index is old" verdict.
+const INDEX_MUTATING_COMMANDS = new Set(["bootstrap", "update", "refresh", "ingest", "embed", "graph-load"]);
+
+function invalidateSessionStatusCache(cwd) {
+  try {
+    fs.rmSync(path.join(cwd, ".context", "cache", "session-status.json"), { force: true });
+  } catch {
+    // best effort: a stale cache only delays the status refresh
+  }
+}
+
 async function runContextCommand(cwd, contextArgs) {
   const contextScript = path.join(cwd, CONTEXT_SCRIPTS_REL, "context.sh");
   if (!fs.existsSync(contextScript)) {
     throw new Error(`Missing ${contextScript}. Run 'cortex init' first.`);
   }
-  await runCommand("bash", [contextScript, ...contextArgs], cwd);
+  try {
+    await runCommand("bash", [contextScript, ...contextArgs], cwd);
+  } finally {
+    if (INDEX_MUTATING_COMMANDS.has(contextArgs[0])) {
+      invalidateSessionStatusCache(cwd);
+    }
+  }
 }
 
 async function run() {
