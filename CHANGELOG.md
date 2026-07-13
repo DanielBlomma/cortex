@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Added a native agent behavior layer: dual plugin manifests (Claude Code +
+  Codex), five Cortex skills with trigger descriptions, a cached
+  SessionStart bootstrap that survives clear/compaction, and a Claude Code
+  marketplace entry.
+
+### Changed
+
+- Upgraded the `cortex init` AGENTS.md section from an update reminder to a
+  compact using-cortex bootstrap.
+
 ## 2.3.0 — 2026-07-13
 
 ### Added

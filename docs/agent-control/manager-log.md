@@ -416,6 +416,8 @@ file must stay small enough that a fresh manager session can read it whole.
 - WO-023 assigned (context packet 013): native agent integration and session
   bootstrap on branch `feat/native-agent-integration`. Design spec approved
   by the user; REQ-12 added to the acceptance matrix.
+- WO-023 implemented locally on `feat/native-agent-integration`; full root +
+  MCP suites and version-sync check passed. Awaiting user review/merge.
 
 ## Archive
 
