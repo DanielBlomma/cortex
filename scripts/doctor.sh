@@ -179,15 +179,33 @@ fi
 
 # Quick runtime import check
 if [[ -f "$MCP_DIR/dist/server.js" ]] && [[ -d "$MCP_DIR/node_modules" ]]; then
-  MCP_CHECK=$(cd "$REPO_ROOT" && timeout 10 node -e '
-    const start = Date.now();
-    try {
-      require("./.context/mcp/dist/graph.js");
-      console.log("ok " + (Date.now() - start));
-    } catch(e) {
-      console.log("fail " + e.message);
+  MCP_CHECK=$(cd "$REPO_ROOT" && node -e '
+    const { spawnSync } = require("node:child_process");
+    const timeoutMs = Number(process.env.CORTEX_DOCTOR_GRAPH_TIMEOUT_MS || 30000);
+    const probe = [
+      "const start = Date.now();",
+      "try {",
+      "  require(\"./.context/mcp/dist/graph.js\");",
+      "  console.log(\"ok \" + (Date.now() - start));",
+      "} catch (e) {",
+      "  console.log(\"fail \" + (e && e.message ? e.message : String(e)));",
+      "  process.exitCode = 1;",
+      "}"
+    ].join("\n");
+    const result = spawnSync(process.execPath, ["-e", probe], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: timeoutMs
+    });
+    if (result.error && result.error.code === "ETIMEDOUT") {
+      console.log("fail timeout after " + timeoutMs + "ms");
+    } else if (result.error) {
+      console.log("fail " + result.error.message);
+    } else {
+      const lines = String(result.stdout || "").trim().split(/\r?\n/).filter(Boolean);
+      console.log(lines[lines.length - 1] || ("fail exit " + (result.status ?? "unknown")));
     }
-  ' 2>/dev/null || echo "fail timeout")
+  ' 2>/dev/null || echo "fail graph check crashed")
   if [[ "$MCP_CHECK" == ok* ]]; then
     MS="${MCP_CHECK#ok }"
     pass "Graph module loads (${MS}ms)"

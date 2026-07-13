@@ -1,7 +1,9 @@
 import { runContextRules } from "../rules.js";
+import { runPatternEvidence } from "../patternEvidence.js";
 import { runContextImpact, runContextRelated, runContextSearch } from "../search.js";
 import type {
   ImpactParams,
+  PatternEvidenceParams,
   RelatedParams,
   RelationType,
   RulesParams,
@@ -29,7 +31,7 @@ type JsonEnvelope = {
   };
 };
 
-const QUERY_COMMANDS = new Set(["search", "related", "impact", "rules", "explain"]);
+const QUERY_COMMANDS = new Set(["search", "related", "impact", "rules", "explain", "pattern-evidence"]);
 
 const ENTITY_ID_PREFIXES = [
   "file:",
@@ -66,6 +68,8 @@ export async function runQueryCommand(args: string[]): Promise<void> {
         return await runRules(rest);
       case "explain":
         return await runExplain(rest);
+      case "pattern-evidence":
+        return await runPatternEvidenceCommand(rest);
       default:
         throw new Error(`Unknown query command: ${command}`);
     }
@@ -93,6 +97,7 @@ function printHelp(): void {
     "  cortex impact <query-or-entity-id> [--entity-id <id>] [--query <q>] [--depth <n>] [--top-k <n>] [--json]",
     "  cortex rules [--scope <scope>] [--include-inactive] [--json]",
     "  cortex explain <query-or-entity-id> [--top-k <n>] [--json]",
+    "  cortex pattern-evidence <file-path|entity-id> [--query <text>] [--top-k <n>] [--json]",
     "",
     "These commands read the local Cortex graph and emit MCP-equivalent data with --json.",
   ];
@@ -157,7 +162,11 @@ function parsePositiveIntFlag(
   if (typeof raw !== "string" || raw.trim().length === 0) {
     throw new Error(`--${name} requires a numeric value`);
   }
-  const parsed = Number.parseInt(raw, 10);
+  const normalized = raw.trim();
+  if (!/^[1-9]\d*$/.test(normalized)) {
+    throw new Error(`--${name} must be an integer from 1 to ${max}`);
+  }
+  const parsed = Number(normalized);
   if (!Number.isInteger(parsed) || parsed <= 0 || parsed > max) {
     throw new Error(`--${name} must be an integer from 1 to ${max}`);
   }
@@ -452,4 +461,29 @@ async function runExplain(args: string[]): Promise<void> {
     return;
   }
   printSummary("explain", data);
+}
+
+async function runPatternEvidenceCommand(args: string[]): Promise<void> {
+  const { flags, rest } = parseArgs(args);
+  const target = optionalString(flags, "target") ?? positionalText(rest, "file-path-or-entity-id");
+  const input: PatternEvidenceParams = {
+    target,
+    query: optionalString(flags, "query"),
+    top_k: parsePositiveIntFlag(flags, "top-k", 3, 10),
+    include_deprecated: isFlagEnabled(flags, "include-deprecated"),
+  };
+  const data = await runPatternEvidence(input);
+  if (isFlagEnabled(flags, "json")) {
+    emitEnvelope("pattern-evidence", input, data);
+    return;
+  }
+
+  const tiers = Array.isArray(data.tiers) ? data.tiers : [];
+  process.stdout.write(`pattern-evidence: local_pattern_found=${String(data.local_pattern_found)}\n`);
+  for (const value of tiers) {
+    if (!value || typeof value !== "object") continue;
+    const tier = value as Record<string, unknown>;
+    const evidence = Array.isArray(tier.evidence) ? tier.evidence : [];
+    process.stdout.write(`- ${String(tier.name ?? "")}: ${evidence.length}\n`);
+  }
 }

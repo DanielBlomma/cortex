@@ -11,11 +11,14 @@ import {
   DEFAULT_SCHEDULER_OPTIONS,
   groupDuplicates,
   packWorkUnits,
+  resolveEffectiveTokenBudget,
   resolveInFlightTokens,
   resolveMemoryHeadroom,
   resolveModelMaxTokens,
   resolvePoolConfig,
+  resolveTokenBudgetChoice,
   runWorkUnits,
+  truncateTextToTokenBudget,
   type EmbedExtractor,
   type MeasuredText,
   type PendingText
@@ -28,6 +31,31 @@ const MODEL_CACHE_DIR = PATHS.embeddingsModelCache;
 const EMBEDDINGS_DIR = path.dirname(EMBEDDINGS_PATH);
 
 export const DEFAULT_MODEL_ID = "jinaai/jina-embeddings-v2-base-code";
+export const COMPACT_FILE_TEXT_STRATEGY = "compact_files_v1";
+export const COMPACT_FILE_TEXT_THRESHOLD_CHARS = 32768;
+export const COMPACT_FILE_TEXT_TARGET_CHARS = 16000;
+
+const COMPACT_FILE_SIGNAL_BUDGET_CHARS = 4096;
+const COMPACT_FILE_SIGNAL_MAX_LINE_CHARS = 512;
+const COMPACT_FILE_MIN_HEAD_CHARS = 4096;
+const COMPACT_FILE_MIN_TAIL_CHARS = 2048;
+
+export type EmbedTextProfile = "full" | "compact-files";
+
+type FileEmbeddingTextResult = {
+  text: string;
+  profile: EmbedTextProfile;
+  compacted: boolean;
+  original_chars: number;
+  text_chars: number;
+  omitted_chars: number;
+};
+
+type ParseFileEntitiesOptions = {
+  textProfile?: EmbedTextProfile;
+};
+
+type SignatureEntityType = "File" | "Rule" | "ADR" | "Module" | "Project" | "Chunk";
 
 export function resolveModelId(): string {
   return (process.env.CORTEX_EMBED_MODEL ?? DEFAULT_MODEL_ID).trim() || DEFAULT_MODEL_ID;
@@ -45,6 +73,11 @@ type FileEntity = {
   updated_at: string;
   text: string;
   signature: string;
+  text_profile: EmbedTextProfile;
+  text_compacted: boolean;
+  text_original_chars: number;
+  text_chars: number;
+  text_omitted_chars: number;
 };
 
 type RuleEntity = {
@@ -152,6 +185,129 @@ function normalizeText(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
+export function resolveEmbedTextProfile(raw = process.env.CORTEX_EMBED_TEXT_PROFILE): EmbedTextProfile {
+  const value = (raw ?? "").trim().toLowerCase();
+  if (!value || value === "full") {
+    return "full";
+  }
+  if (value === "compact-files") {
+    return "compact-files";
+  }
+  throw new Error(
+    `Unsupported CORTEX_EMBED_TEXT_PROFILE=${JSON.stringify(raw)}; expected "full" or "compact-files"`
+  );
+}
+
+function isSignalLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return false;
+  }
+  return (
+    /^(import|export)\b/.test(trimmed) ||
+    /^(abstract\s+|async\s+|public\s+|private\s+|protected\s+|static\s+|readonly\s+|override\s+)*(class|interface|type|enum|function)\b/.test(trimmed) ||
+    /^(const|let|var)\s+[$A-Z_a-z][$\w]*\s*=/.test(trimmed) ||
+    /^(describe|it|test)\s*\(/.test(trimmed) ||
+    /^(@[A-Z_a-z][$\w]*|#[#\s])/.test(trimmed) ||
+    /^```[A-Za-z0-9_-]+/.test(trimmed) ||
+    /\b(route|router|endpoint|controller|handler|middleware|permission|auth|token|secret|security|todo|fixme)\b/i.test(trimmed)
+  );
+}
+
+function collectSignalLines(content: string, budgetChars: number): string {
+  const lines: string[] = [];
+  const seen = new Set<string>();
+  let used = 0;
+
+  for (const line of content.split(/\r?\n/)) {
+    if (!isSignalLine(line)) {
+      continue;
+    }
+    const normalized = line.trimEnd();
+    const signalLine = normalized.length > COMPACT_FILE_SIGNAL_MAX_LINE_CHARS
+      ? `${normalized.slice(0, COMPACT_FILE_SIGNAL_MAX_LINE_CHARS)} [cortex ${COMPACT_FILE_TEXT_STRATEGY} signal_line_truncated_chars=${normalized.length - COMPACT_FILE_SIGNAL_MAX_LINE_CHARS}]`
+      : normalized;
+    if (seen.has(signalLine)) {
+      continue;
+    }
+    const next = used + signalLine.length + 1;
+    if (next > budgetChars) {
+      continue;
+    }
+    lines.push(signalLine);
+    seen.add(signalLine);
+    used = next;
+  }
+
+  return lines.join("\n");
+}
+
+export function buildFileEmbeddingText(
+  filePath: string,
+  excerpt: string,
+  content: string,
+  profile: EmbedTextProfile = "full"
+): FileEmbeddingTextResult {
+  const fullText = `${filePath}\n${excerpt}\n${content}`;
+  if (profile === "full" || fullText.length <= COMPACT_FILE_TEXT_THRESHOLD_CHARS) {
+    return {
+      text: fullText,
+      profile,
+      compacted: false,
+      original_chars: fullText.length,
+      text_chars: fullText.length,
+      omitted_chars: 0
+    };
+  }
+
+  const signalText = collectSignalLines(content, COMPACT_FILE_SIGNAL_BUDGET_CHARS);
+  const markerPrefix = `[cortex ${COMPACT_FILE_TEXT_STRATEGY} omitted_chars=`;
+  const staticChars =
+    filePath.length +
+    excerpt.length +
+    signalText.length +
+    markerPrefix.length +
+    64;
+  const available = Math.max(
+    COMPACT_FILE_MIN_HEAD_CHARS + COMPACT_FILE_MIN_TAIL_CHARS,
+    COMPACT_FILE_TEXT_TARGET_CHARS - staticChars
+  );
+  const headChars = Math.max(COMPACT_FILE_MIN_HEAD_CHARS, Math.floor(available * 0.62));
+  const tailChars = Math.max(COMPACT_FILE_MIN_TAIL_CHARS, available - headChars);
+  const head = content.slice(0, headChars);
+  const tail = content.slice(-tailChars);
+  const omittedChars = Math.max(0, content.length - head.length - tail.length);
+  const marker = `${markerPrefix}${omittedChars}]`;
+  const compactText = [
+    filePath,
+    excerpt,
+    head,
+    marker,
+    signalText ? `[cortex ${COMPACT_FILE_TEXT_STRATEGY} signal_lines]\n${signalText}` : "",
+    tail
+  ].filter((part) => part.length > 0).join("\n");
+
+  if (compactText.length >= fullText.length) {
+    return {
+      text: fullText,
+      profile,
+      compacted: false,
+      original_chars: fullText.length,
+      text_chars: fullText.length,
+      omitted_chars: 0
+    };
+  }
+
+  return {
+    text: compactText,
+    profile,
+    compacted: true,
+    original_chars: fullText.length,
+    text_chars: compactText.length,
+    omitted_chars: fullText.length - compactText.length
+  };
+}
+
 function ensureRequiredFiles(): void {
   const required = [
     path.join(CACHE_DIR, "documents.jsonl"),
@@ -166,7 +322,8 @@ function ensureRequiredFiles(): void {
   }
 }
 
-export function parseFileEntities(raw: JsonObject[]): FileEntity[] {
+export function parseFileEntities(raw: JsonObject[], options: ParseFileEntitiesOptions = {}): FileEntity[] {
+  const textProfile = options.textProfile ?? "full";
   return raw
     .map((item) => {
       const id = asString(item.id);
@@ -179,7 +336,7 @@ export function parseFileEntities(raw: JsonObject[]): FileEntity[] {
       const excerpt = asString(item.excerpt);
       const updatedAt = asString(item.updated_at);
       const checksum = asString(item.checksum, hashText(content));
-      const text = `${filePath}\n${excerpt}\n${content}`;
+      const embeddingText = buildFileEmbeddingText(filePath, excerpt, content, textProfile);
 
       return {
         id,
@@ -191,8 +348,13 @@ export function parseFileEntities(raw: JsonObject[]): FileEntity[] {
         source_of_truth: asBoolean(item.source_of_truth, false),
         trust_level: asNumber(item.trust_level, 50),
         updated_at: updatedAt,
-        text,
-        signature: hashText(`file|${checksum}|${updatedAt}|${hashText(text)}`)
+        text: embeddingText.text,
+        signature: hashText(`file|${checksum}|${updatedAt}|${hashText(embeddingText.text)}`),
+        text_profile: embeddingText.profile,
+        text_compacted: embeddingText.compacted,
+        text_original_chars: embeddingText.original_chars,
+        text_chars: embeddingText.text_chars,
+        text_omitted_chars: embeddingText.omitted_chars
       };
     })
     .filter((value): value is FileEntity => value !== null);
@@ -405,6 +567,30 @@ function roundVector(values: number[]): number[] {
   return values.map((value) => Number(value.toFixed(6)));
 }
 
+export function resolveSignatureProfile(
+  maxTokenCap: number | null,
+  textProfile: EmbedTextProfile = "full",
+  entityType?: SignatureEntityType
+): string {
+  const parts: string[] = [];
+  if (maxTokenCap) {
+    parts.push(`max_tokens=${maxTokenCap}`);
+  }
+  if (textProfile === "compact-files" && (entityType === undefined || entityType === "File")) {
+    parts.push(
+      "text_profile=compact-files",
+      COMPACT_FILE_TEXT_STRATEGY,
+      `threshold_chars=${COMPACT_FILE_TEXT_THRESHOLD_CHARS}`,
+      `target_chars=${COMPACT_FILE_TEXT_TARGET_CHARS}`
+    );
+  }
+  return parts.length ? `embed|${parts.join("|")}` : "";
+}
+
+function embeddingSignature(entitySignature: string, profile: string): string {
+  return profile ? hashText(`${profile}|${entitySignature}`) : entitySignature;
+}
+
 function* presentEmbeddingRecords(
   slots: Array<EmbeddingRecord | null>
 ): Generator<EmbeddingRecord> {
@@ -423,8 +609,19 @@ async function main(): Promise<void> {
   fs.mkdirSync(MODEL_CACHE_DIR, { recursive: true });
 
   const modelId = resolveModelId();
+  const textProfile = resolveEmbedTextProfile();
 
-  const documents = parseFileEntities(readJsonl(path.join(CACHE_DIR, "documents.jsonl")));
+  const documents = parseFileEntities(readJsonl(path.join(CACHE_DIR, "documents.jsonl")), { textProfile });
+  const textProfileStats = {
+    strategy: textProfile === "compact-files" ? COMPACT_FILE_TEXT_STRATEGY : null,
+    threshold_chars: textProfile === "compact-files" ? COMPACT_FILE_TEXT_THRESHOLD_CHARS : null,
+    target_chars: textProfile === "compact-files" ? COMPACT_FILE_TEXT_TARGET_CHARS : null,
+    file_entities: documents.length,
+    compacted_files: documents.filter((doc) => doc.text_compacted).length,
+    original_chars: documents.reduce((total, doc) => total + doc.text_original_chars, 0),
+    text_chars: documents.reduce((total, doc) => total + doc.text_chars, 0),
+    saved_chars: documents.reduce((total, doc) => total + doc.text_omitted_chars, 0)
+  };
   const rules = parseRuleEntities(readJsonl(path.join(CACHE_DIR, "entities.rule.jsonl")));
   const adrs = parseAdrEntities(readJsonl(path.join(CACHE_DIR, "entities.adr.jsonl")));
   const modules = parseModuleEntities(readJsonl(path.join(CACHE_DIR, "entities.module.jsonl")));
@@ -438,8 +635,12 @@ async function main(): Promise<void> {
   const chunks = parseChunkEntities(readJsonl(path.join(CACHE_DIR, "entities.chunk.jsonl")), filePathById);
 
   const entities: SearchEntity[] = [...documents, ...rules, ...adrs, ...modules, ...projects, ...chunks].sort((a, b) => a.id.localeCompare(b.id));
-
-  const existing = parseExistingEmbeddings(readJsonlRecords(EMBEDDINGS_PATH), modelId);
+  const uniqueSignatures = new Set<string>();
+  for (const entity of entities) {
+    uniqueSignatures.add(entity.signature);
+  }
+  const uniqueTextCount = uniqueSignatures.size;
+  uniqueSignatures.clear();
 
   env.cacheDir = MODEL_CACHE_DIR;
   // Total thread budget for embedding. CORTEX_EMBED_THREADS caps it so
@@ -448,6 +649,32 @@ async function main(): Promise<void> {
   const threadsRaw = Number(process.env.CORTEX_EMBED_THREADS);
   const threadBudget =
     Number.isFinite(threadsRaw) && threadsRaw >= 1 ? Math.floor(threadsRaw) : os.cpus().length;
+  const readHeadroom = () =>
+    resolveMemoryHeadroom({
+      freeMemory: os.freemem(),
+      totalMemory: os.totalmem(),
+      constrainedMemory: process.constrainedMemory?.() ?? null,
+      availableMemory: process.availableMemory?.() ?? null
+    });
+  const memoryHeadroom = readHeadroom();
+  const previewPoolConfig = resolvePoolConfig({
+    threadBudget,
+    uniqueCount: uniqueTextCount,
+    memoryBytes: memoryHeadroom
+  });
+  const requestedTokenBudget = resolveTokenBudgetChoice(process.env.CORTEX_EMBED_MAX_TOKENS, uniqueTextCount);
+  const tokenBudget = resolveEffectiveTokenBudget({
+    choice: requestedTokenBudget,
+    modelMaxTokens: resolveModelMaxTokens(undefined, requestedTokenBudget.cap ?? undefined),
+    memoryBytes: memoryHeadroom,
+    sessions: previewPoolConfig.sessions
+  });
+  const defaultSignatureProfile = resolveSignatureProfile(tokenBudget.cap, "full");
+  const fileSignatureProfile = resolveSignatureProfile(tokenBudget.cap, textProfile, "File");
+  const signatureProfileForEntity = (entity: SearchEntity) =>
+    entity.type === "File" ? fileSignatureProfile : defaultSignatureProfile;
+
+  const existing = parseExistingEmbeddings(readJsonlRecords(EMBEDDINGS_PATH), modelId);
 
   let reused = 0;
   // Slot per entity keeps output in entity order; failed slots stay null.
@@ -456,8 +683,10 @@ async function main(): Promise<void> {
   let dimensions = 0;
 
   entities.forEach((entity, index) => {
+    const signatureProfile = signatureProfileForEntity(entity);
+    const signature = embeddingSignature(entity.signature, signatureProfile);
     const previous = existing.get(entity.id);
-    if (previous && previous.signature === entity.signature && previous.vector.length > 0) {
+    if (previous && previous.signature === signature && previous.vector.length > 0) {
       reused += 1;
       dimensions = dimensions || previous.vector.length;
       slots[index] = {
@@ -470,7 +699,7 @@ async function main(): Promise<void> {
         source_of_truth: entity.source_of_truth,
         trust_level: entity.trust_level,
         updated_at: entity.updated_at,
-        signature: entity.signature,
+        signature,
         model: modelId,
         dimensions: previous.vector.length
       };
@@ -486,14 +715,6 @@ async function main(): Promise<void> {
   // adapts to the machine so no tuning is expected from users. Container
   // limits (cgroups) and platforms that under-report free memory are both
   // handled inside resolveMemoryHeadroom.
-  const readHeadroom = () =>
-    resolveMemoryHeadroom({
-      freeMemory: os.freemem(),
-      totalMemory: os.totalmem(),
-      constrainedMemory: process.constrainedMemory?.() ?? null,
-      availableMemory: process.availableMemory?.() ?? null
-    });
-  const memoryHeadroom = readHeadroom();
   const poolConfig = resolvePoolConfig({
     threadBudget,
     poolOverride: Number(process.env.CORTEX_EMBED_POOL) || null,
@@ -522,6 +743,7 @@ async function main(): Promise<void> {
   // Fully warm cache: nothing to embed, so skip model loading entirely —
   // this is the common repeat-bootstrap / small-update path.
   let embedded = 0;
+  let modelMaxTokensUsed = 0;
   let result: { vectors: Map<number, number[]>; failures: Array<{ index: number; message: string }> } = {
     vectors: new Map(),
     failures: []
@@ -569,11 +791,22 @@ async function main(): Promise<void> {
 
     // Inference truncates at the model max; token counts must too, or one
     // giant file inflates scheduling cost and gate mass far beyond reality.
-    const modelMaxTokens = resolveModelMaxTokens(first.tokenizer?.model_max_length);
+    const modelMaxTokens = resolveModelMaxTokens(
+      first.tokenizer?.model_max_length,
+      tokenBudget.cap ?? undefined
+    );
+    modelMaxTokensUsed = modelMaxTokens;
     const countTokens = createTokenCounter(first.tokenizer, modelMaxTokens);
+    const countRawTokens = createTokenCounter(first.tokenizer, 131072);
 
-    const measured: MeasuredText[] = unique.map((item) => ({ ...item, tokens: countTokens(item.text) }));
+    const measured: MeasuredText[] = unique.map((item) => {
+      const text = truncateTextToTokenBudget(item.text, countRawTokens, modelMaxTokens);
+      return { ...item, text, tokens: countTokens(text) };
+    });
     const units = packWorkUnits(measured, schedulerOptions);
+    console.log(
+      `[embed] scheduler unique=${unique.length} units=${units.length} max_tokens<=${modelMaxTokens} token_budget=${tokenBudget.mode} reason=${tokenBudget.reason}`
+    );
     // Recompute headroom after the model copies are resident so the gate
     // reflects what is actually left for inference activations.
     const inFlightRaw = Number(process.env.CORTEX_EMBED_INFLIGHT_TOKENS);
@@ -585,6 +818,7 @@ async function main(): Promise<void> {
       maxInFlightTokens,
       onVector(index, rawVector) {
         const entity = entities[index];
+        const signatureProfile = signatureProfileForEntity(entity);
         const vector = roundVector(rawVector);
         embedded += 1;
         dimensions = dimensions || vector.length;
@@ -598,7 +832,7 @@ async function main(): Promise<void> {
           source_of_truth: entity.source_of_truth,
           trust_level: entity.trust_level,
           updated_at: entity.updated_at,
-          signature: entity.signature,
+          signature: embeddingSignature(entity.signature, signatureProfile),
           model: modelId,
           dimensions: vector.length,
           vector
@@ -619,6 +853,13 @@ async function main(): Promise<void> {
     mode,
     model: modelId,
     dimensions,
+    text_profile: textProfile,
+    signature_profile: fileSignatureProfile === defaultSignatureProfile ? defaultSignatureProfile : "per_entity",
+    signature_profiles: {
+      default: defaultSignatureProfile,
+      file: fileSignatureProfile
+    },
+    text_profile_stats: textProfileStats,
     counts: {
       entities: entities.length,
       output: outputCount,
@@ -632,7 +873,10 @@ async function main(): Promise<void> {
   fs.writeFileSync(EMBEDDINGS_MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 
   console.log(
-    `[embed] mode=${mode} model=${modelId} dim=${dimensions} pool=${poolConfig.sessions}x${poolConfig.threadsPerSession} batch<=${schedulerOptions.batchMaxItems}`
+    `[embed] mode=${mode} model=${modelId} dim=${dimensions} pool=${poolConfig.sessions}x${poolConfig.threadsPerSession} batch<=${schedulerOptions.batchMaxItems} max_tokens<=${modelMaxTokensUsed || tokenBudget.cap || "model"} token_budget=${tokenBudget.mode} reason=${tokenBudget.reason} text_profile=${textProfile}`
+  );
+  console.log(
+    `[embed] text_profile=${textProfile} compacted_files=${textProfileStats.compacted_files}/${textProfileStats.file_entities} saved_chars=${textProfileStats.saved_chars}`
   );
   console.log(
     `[embed] entities=${entities.length} embedded=${embedded} reused=${reused} failed=${failed}`

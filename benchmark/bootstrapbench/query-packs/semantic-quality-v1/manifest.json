@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "pack": "semantic-quality-v1",
+  "created_at": "2026-06-23",
+  "query_language": "en",
+  "default_top_k": 10,
+  "review_status": "agent_drafted",
+  "purpose": "Before/after semantic retrieval quality checks for embedding token-budget and text-profile experiments.",
+  "repos": [
+    {
+      "repo_key": "danielblomma__cortex",
+      "repo": "DanielBlomma/cortex",
+      "repo_sha": "051d4e6a87d968795482f65d900eda5dc8a94aae",
+      "file": "danielblomma__cortex.jsonl",
+      "query_count": 8
+    },
+    {
+      "repo_key": "sharkdp__bat",
+      "repo": "sharkdp/bat",
+      "repo_sha": "af1f53d9a977154216d01435991fe33631b74713",
+      "file": "sharkdp__bat.jsonl",
+      "query_count": 8
+    },
+    {
+      "repo_key": "angular__angular",
+      "repo": "angular/angular",
+      "repo_sha": "71bb19d772aa77a30922fb896f775b58a0862c36",
+      "file": "angular__angular.jsonl",
+      "query_count": 8
+    },
+    {
+      "repo_key": "alibaba__fastjson2",
+      "repo": "alibaba/fastjson2",
+      "repo_sha": "3697c2d37cd659d2a94543093d0d08cb4baf4d73",
+      "file": "alibaba__fastjson2.jsonl",
+      "query_count": 8
+    }
+  ]
+}

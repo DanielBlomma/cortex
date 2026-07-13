@@ -1,5 +1,64 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Added a native agent behavior layer: dual plugin manifests (Claude Code +
+  Codex), five Cortex skills with trigger descriptions, a cached
+  SessionStart bootstrap that survives clear/compaction, and a Claude Code
+  marketplace entry.
+
+### Changed
+
+- Upgraded the `cortex init` AGENTS.md section from an update reminder to a
+  compact using-cortex bootstrap.
+
+## 2.3.0 — 2026-07-13
+
+### Added
+
+- Added `cortex pattern-evidence <file-path|entity-id>` for cited, structured
+  review evidence ordered by same file, module, feature area, and repository
+  fallback.
+- Integrated bounded, non-blocking pattern context into enterprise
+  `context.review` without changing policy pass/fail or workflow trust.
+
+### Changed
+
+- Made equal-score search ordering deterministic with stable entity/path
+  tie-breaks.
+- Added strict numeric validation for CLI query limits.
+- Fixed the enterprise runtime package-version lookup so compiled enterprise
+  tools load from the packaged MCP runtime.
+- Made `context.review` scope=changed list staged and untracked files in
+  repositories without commits instead of falling back to a full project
+  walk that ignores `.gitignore`.
+- Made pattern review context load the Cortex index once per review instead
+  of once per target, and cached the ranking reference-time scan per loaded
+  index.
+- Unified review path canonicalization and text comparison on the shared
+  pattern-evidence and search helpers.
+
+## 2.2.5 — 2026-06-21
+
+### Changed
+
+- Made the default embedding token-budget `auto` mode memory-aware: Cortex
+  still starts from the embedding model's maximum context, but degrades to a
+  safe cap when local memory headroom is unlikely to fit the full context.
+
+## 2.2.4 — 2026-06-20
+
+### Changed
+
+- Added an explicit embedding token-budget profile and benchmark support for
+  `CORTEX_EMBED_MAX_TOKENS`.
+- Kept the default `auto` token budget quality-preserving: Cortex uses the
+  embedding model's own maximum context unless a numeric cap is explicitly set.
+- Reduced embedding memory overhead by avoiding full normalized-text copies for
+  cached entities before deciding what needs re-embedding.
+
 ## 2.1.0 — 2026-06-11
 
 New features and behavior changes, no API breaks.

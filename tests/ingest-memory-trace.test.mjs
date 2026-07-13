@@ -41,7 +41,7 @@ function writeFixture(root) {
   );
 }
 
-function runIngest(root, extraEnv = {}) {
+function runIngest(root, extraEnv = {}, args = []) {
   const env = {
     ...process.env,
     CORTEX_PROJECT_ROOT: root,
@@ -52,11 +52,20 @@ function runIngest(root, extraEnv = {}) {
     delete env.CORTEX_INGEST_TRACE_MEMORY;
   }
 
-  return spawnSync(process.execPath, [INGEST], {
+  return spawnSync(process.execPath, [INGEST, ...args], {
     cwd: root,
     env,
     encoding: "utf8"
   });
+}
+
+function runCommand(command, args, cwd) {
+  const result = spawnSync(command, args, {
+    cwd,
+    encoding: "utf8"
+  });
+  assert.equal(result.status, 0, result.stderr);
+  return result;
 }
 
 function readJsonl(file) {
@@ -127,6 +136,62 @@ test("ingest memory trace is opt-in and emits checkpoint JSON lines", () => {
     const fileEntities = readJsonl(path.join(root, ".context", "cache", "entities.file.jsonl"));
     assert.match(documents[0].content, /rule\.trace/);
     assert.match(fileEntities[0].content, /rule\.trace/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("repo-root source path indexes repository files while skipping .context", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-ingest-root-source-"));
+  try {
+    writeFixture(root);
+    fs.mkdirSync(path.join(root, ".context", "cache"), { recursive: true });
+    fs.mkdirSync(path.join(root, ".context", "notes"), { recursive: true });
+    fs.mkdirSync(path.join(root, "bin"), { recursive: true });
+    fs.mkdirSync(path.join(root, "Project", "bin", "Debug"), { recursive: true });
+    fs.mkdirSync(path.join(root, "scripts"), { recursive: true });
+    fs.writeFileSync(path.join(root, ".context", "config.yaml"), "repo_id: fixture\nsource_paths:\n  - .\n", "utf8");
+    fs.writeFileSync(path.join(root, ".context", "cache", "generated.js"), "export const generated = true;\n", "utf8");
+    fs.writeFileSync(path.join(root, ".context", "notes", "note.md"), "# Internal note\n", "utf8");
+    fs.writeFileSync(path.join(root, "bin", "tool.mjs"), "console.log('tool');\n", "utf8");
+    fs.writeFileSync(path.join(root, "Project", "bin", "Debug", "generated.js"), "export const generated = true;\n", "utf8");
+    fs.writeFileSync(path.join(root, "scripts", "deploy.sh"), "echo deploy\n", "utf8");
+    fs.writeFileSync(path.join(root, "README.md"), "# Fixture\n", "utf8");
+
+    const result = runIngest(root);
+    assert.equal(result.status, 0, result.stderr);
+
+    const fileEntities = readJsonl(path.join(root, ".context", "cache", "entities.file.jsonl"));
+    const paths = fileEntities.map((record) => record.path).sort();
+    assert.ok(paths.includes("README.md"));
+    assert.ok(paths.includes("bin/tool.mjs"));
+    assert.ok(paths.includes("scripts/deploy.sh"));
+    assert.ok(paths.includes("src/app.js"));
+    assert.equal(paths.some((filePath) => filePath.startsWith(".context/")), false);
+    assert.equal(paths.some((filePath) => filePath.startsWith("Project/bin/")), false);
+
+    runCommand("git", ["init"], root);
+    runCommand("git", ["checkout", "-b", "main"], root);
+    runCommand("git", ["config", "user.email", "tests@example.com"], root);
+    runCommand("git", ["config", "user.name", "Cortex Tests"], root);
+    runCommand("git", ["add", "README.md", "bin/tool.mjs", "scripts/deploy.sh", "src/app.js"], root);
+    runCommand("git", ["commit", "-m", "initial fixture"], root);
+
+    fs.appendFileSync(path.join(root, "src", "app.js"), "\n// changed through root source path\n", "utf8");
+    fs.writeFileSync(path.join(root, ".context", "cache", "generated.js"), "export const changed = true;\n", "utf8");
+
+    const changed = runIngest(root, {}, ["--changed"]);
+    assert.equal(changed.status, 0, changed.stderr);
+    assert.match(changed.stdout, /^\[ingest\] incremental changed_candidates=/m);
+
+    const changedFileEntities = readJsonl(path.join(root, ".context", "cache", "entities.file.jsonl"));
+    const changedPaths = changedFileEntities.map((record) => record.path).sort();
+    assert.ok(changedPaths.includes("README.md"));
+    assert.ok(changedPaths.includes("bin/tool.mjs"));
+    assert.ok(changedPaths.includes("scripts/deploy.sh"));
+    assert.ok(changedPaths.includes("src/app.js"));
+    assert.equal(changedPaths.some((filePath) => filePath.startsWith(".context/")), false);
+    assert.equal(changedPaths.some((filePath) => filePath.startsWith("Project/bin/")), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -20,6 +20,19 @@ const CONFIG_ENVIRONMENT_TOKENS = [
 ];
 
 const QUERY_TOKEN_EXPANSIONS: Record<string, string[]> = {
+  dashboard: ["status"],
+  embed: ["embedding", "embeddings"],
+  embedding: ["embed", "embeddings"],
+  embeddings: ["embed", "embedding"],
+  git: ["githooks"],
+  hook: ["hooks", "githooks"],
+  hooks: ["hook", "githooks"],
+  import: ["imports"],
+  imports: ["import"],
+  javascript: ["js"],
+  parser: ["parsers"],
+  parsers: ["parser"],
+  status: ["dashboard"],
   semantisk: ["semantic"],
   sökning: ["search"],
   sokning: ["search"],
@@ -30,15 +43,105 @@ const QUERY_TOKEN_EXPANSIONS: Record<string, string[]> = {
   avvikelse: ["deviation"]
 };
 
+const STRUCTURAL_QUERY_STOP_TOKENS = new Set([
+  "about",
+  "after",
+  "and",
+  "are",
+  "before",
+  "between",
+  "does",
+  "from",
+  "happen",
+  "happens",
+  "has",
+  "how",
+  "into",
+  "the",
+  "their",
+  "then",
+  "through",
+  "when",
+  "where",
+  "while",
+  "with",
+  "what",
+  "which",
+  "who",
+  "why"
+]);
+
+const IDENTIFIER_COMPOUND_TOKENS = new Set(["csharp", "fsharp", "graphql", "javascript", "typescript", "vbnet"]);
+const LANGUAGE_TOKEN_GROUPS = [
+  ["javascript", "typescript", "js", "ts"],
+  ["csharp", "cs"],
+  ["vbnet", "vb"],
+  ["fsharp", "fs"],
+  ["java"],
+  ["cpp"],
+  ["python", "py"],
+  ["rust", "rs"],
+  ["ruby", "rb"],
+  ["go"],
+  ["php"],
+  ["swift"],
+  ["kotlin", "kt"],
+  ["sql"]
+];
+
 export function normalizeText(value: string): string {
   return value.normalize("NFKC").toLowerCase();
 }
 
+function normalizeLanguageAliases(value: string): string {
+  return value
+    .replace(/(^|[^\p{L}\p{N}])c#(?=$|[^\p{L}\p{N}])/giu, "$1 csharp ")
+    .replace(/(^|[^\p{L}\p{N}])f#(?=$|[^\p{L}\p{N}])/giu, "$1 fsharp ")
+    .replace(/(^|[^\p{L}\p{N}])vb\.net(?=$|[^\p{L}\p{N}])/giu, "$1 vbnet ");
+}
+
+function splitIdentifierPart(part: string): string[] {
+  const split = part
+    .replace(/([\p{Ll}\p{N}])([\p{Lu}])/gu, "$1 $2")
+    .replace(/([\p{Lu}]+)([\p{Lu}][\p{Ll}])/gu, "$1 $2")
+    .split(/\s+/u)
+    .filter(Boolean);
+  if (split.length <= 1) {
+    return [];
+  }
+
+  const merged: string[] = [];
+  for (let index = 0; index < split.length; index += 1) {
+    const current = normalizeText(split[index]);
+    const next = index + 1 < split.length ? normalizeText(split[index + 1]) : "";
+    const compound = `${current}${next}`;
+    if (next && IDENTIFIER_COMPOUND_TOKENS.has(compound)) {
+      merged.push(compound);
+      index += 1;
+      continue;
+    }
+    merged.push(current);
+  }
+  return merged;
+}
+
 export function tokenize(value: string): string[] {
-  return normalizeText(value)
-    .split(/[^\p{L}\p{N}]+/gu)
-    .map((part) => part.trim())
-    .filter((part) => part.length >= 2);
+  const tokens: string[] = [];
+  for (const rawPart of normalizeLanguageAliases(value).normalize("NFKC").split(/[^\p{L}\p{N}]+/gu)) {
+    const part = rawPart.trim();
+    if (part.length < 2) {
+      continue;
+    }
+
+    const variants = [part, ...splitIdentifierPart(part)];
+    for (const variant of variants) {
+      const token = normalizeText(variant).trim();
+      if (token.length >= 2) {
+        tokens.push(token);
+      }
+    }
+  }
+  return tokens;
 }
 
 export function expandQueryTokens(tokens: string[]): string[] {
@@ -55,18 +158,69 @@ export function expandQueryTokens(tokens: string[]): string[] {
   return Array.from(expanded);
 }
 
-function daysSince(isoDate: string): number {
+function relatedQueryTokens(token: string): string[] {
+  const related = new Set<string>(QUERY_TOKEN_EXPANSIONS[token] ?? []);
+  for (const [source, aliases] of Object.entries(QUERY_TOKEN_EXPANSIONS)) {
+    if (!aliases.includes(token)) {
+      continue;
+    }
+    related.add(source);
+    for (const alias of aliases) {
+      related.add(alias);
+    }
+  }
+  return Array.from(related);
+}
+
+function queryTokenGroups(queryTokens: string[]): string[][] {
+  const inputTokens = new Set(queryTokens);
+  const visited = new Set<string>();
+  const groups: string[][] = [];
+
+  for (const token of queryTokens) {
+    if (visited.has(token)) {
+      continue;
+    }
+
+    const group = new Set<string>();
+    const queue = [token];
+    for (let index = 0; index < queue.length; index += 1) {
+      const current = queue[index];
+      if (group.has(current)) {
+        continue;
+      }
+      group.add(current);
+
+      for (const related of relatedQueryTokens(current)) {
+        group.add(related);
+        if (inputTokens.has(related) && !visited.has(related)) {
+          queue.push(related);
+        }
+      }
+    }
+
+    for (const member of group) {
+      if (inputTokens.has(member)) {
+        visited.add(member);
+      }
+    }
+    groups.push(Array.from(group));
+  }
+
+  return groups;
+}
+
+function daysSince(isoDate: string, referenceTimeMs: number): number {
   const timestamp = Date.parse(isoDate);
   if (Number.isNaN(timestamp)) {
     return 3650;
   }
 
-  const now = Date.now();
-  return Math.max(0, (now - timestamp) / (1000 * 60 * 60 * 24));
+  return Math.max(0, (referenceTimeMs - timestamp) / (1000 * 60 * 60 * 24));
 }
 
-export function recencyScore(isoDate: string): number {
-  const days = daysSince(isoDate);
+export function recencyScore(isoDate: string, referenceTimeMs = Date.now()): number {
+  const days = daysSince(isoDate, referenceTimeMs);
   return 1 / (1 + days / 30);
 }
 
@@ -80,14 +234,15 @@ export function semanticScore(queryTokens: string[], queryPhrase: string, text: 
     return 0;
   }
 
+  const tokenGroups = queryTokenGroups(queryTokens);
   let matched = 0;
-  for (const token of queryTokens) {
-    if (textTokenSet.has(token)) {
+  for (const group of tokenGroups) {
+    if (group.some((token) => textTokenSet.has(token))) {
       matched += 1;
     }
   }
 
-  const overlap = matched / queryTokens.length;
+  const overlap = matched / tokenGroups.length;
   if (overlap <= 0) {
     return 0;
   }
@@ -95,6 +250,93 @@ export function semanticScore(queryTokens: string[], queryPhrase: string, text: 
   const normalizedText = normalizeText(text);
   const phraseBonus = queryPhrase && normalizedText.includes(queryPhrase) ? 0.15 : 0;
   return Math.min(1, overlap * 0.85 + phraseBonus);
+}
+
+function structuralQueryTokens(queryTokens: string[]): string[] {
+  return queryTokens.filter((token) => token.length >= 3 && !STRUCTURAL_QUERY_STOP_TOKENS.has(token));
+}
+
+function tokenSet(value: string): Set<string> {
+  return new Set(tokenize(value));
+}
+
+function overlapCount(queryTokens: string[], targetTokens: Set<string>): number {
+  let matched = 0;
+  for (const token of queryTokens) {
+    if (targetTokens.has(token)) {
+      matched += 1;
+    }
+  }
+  return matched;
+}
+
+function basenameWithoutExtension(pathValue: string): string {
+  const base = pathValue.split(/[\\/]/u).pop() ?? pathValue;
+  const extensionIndex = base.lastIndexOf(".");
+  return extensionIndex > 0 ? base.slice(0, extensionIndex) : base;
+}
+
+function languageGroupsForTokens(tokens: Set<string>): Set<number> {
+  const groups = new Set<number>();
+  for (let index = 0; index < LANGUAGE_TOKEN_GROUPS.length; index += 1) {
+    if (LANGUAGE_TOKEN_GROUPS[index].some((token) => tokens.has(token))) {
+      groups.add(index);
+    }
+  }
+  return groups;
+}
+
+function hasLanguageGroupOverlap(a: Set<number>, b: Set<number>): boolean {
+  for (const value of a) {
+    if (b.has(value)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function structuralSearchBoost(entity: SearchEntity, queryTokens: string[], queryPhrase: string): number {
+  const structuralTokens = structuralQueryTokens(queryTokens);
+  if (structuralTokens.length === 0) {
+    return 0;
+  }
+
+  const pathTokens = tokenSet(entity.path);
+  const labelTokens = tokenSet(entity.label);
+  const pathMatches = overlapCount(structuralTokens, pathTokens);
+  const basenameMatches = overlapCount(structuralTokens, tokenSet(basenameWithoutExtension(entity.path)));
+  const labelMatches = overlapCount(structuralTokens, labelTokens);
+  const kindMatches = overlapCount(structuralTokens, tokenSet(entity.kind));
+
+  let boost = 0;
+  boost += Math.min(0.1, pathMatches * 0.035);
+  boost += Math.min(0.08, basenameMatches * 0.06);
+  boost += Math.min(0.08, labelMatches * 0.04);
+  boost += Math.min(0.03, kindMatches * 0.02);
+
+  const normalizedPath = normalizeText(entity.path);
+  const normalizedLabel = normalizeText(entity.label);
+  const compactPhrase = queryPhrase.replace(/[^\p{L}\p{N}]+/gu, "");
+  if (compactPhrase.length >= 8) {
+    const compactPath = normalizedPath.replace(/[^\p{L}\p{N}]+/gu, "");
+    const compactLabel = normalizedLabel.replace(/[^\p{L}\p{N}]+/gu, "");
+    if (compactPath.includes(compactPhrase) || compactLabel.includes(compactPhrase)) {
+      boost += 0.04;
+    }
+  }
+
+  const queryLanguageGroups = languageGroupsForTokens(new Set(queryTokens));
+  const pathLanguageGroups = languageGroupsForTokens(new Set([...pathTokens, ...labelTokens]));
+  if (
+    queryLanguageGroups.size > 0 &&
+    pathLanguageGroups.size > 0 &&
+    pathTokens.has("parsers") &&
+    !hasLanguageGroupOverlap(queryLanguageGroups, pathLanguageGroups)
+  ) {
+    boost -= 0.08;
+  }
+
+  return Math.min(0.2, boost);
 }
 
 function queryHasAnyToken(queryTokens: string[], candidates: string[]): boolean {

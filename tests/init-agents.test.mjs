@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { renderBootstrap } from "../plugins/cortex/hooks/session-start.mjs";
 
 const CLI_PATH = fileURLToPath(new URL("../bin/cortex.mjs", import.meta.url));
 
@@ -38,6 +39,27 @@ test("cortex init scaffolds AGENTS.md for Codex-compatible repos", () => {
 
     assert.match(contents, /## Required: Always use Cortex context/);
     assert.match(contents, /<!-- cortex:auto:start -->[\s\S]*Run `cortex update`/);
+    assert.match(contents, /using-cortex/);
+    assert.match(contents, /cortex search "<query>" --json/);
+    assert.match(contents, /cortex pattern-evidence/);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test("AGENTS.md section covers every command in the session bootstrap hook", () => {
+  const nowMs = Date.now();
+  const bootstrap = renderBootstrap({ indexed: true, last_update_ms: nowMs }, nowMs);
+  const commands = bootstrap.match(/`cortex [^`]+`/g) ?? [];
+  assert.ok(commands.length >= 3, "bootstrap must name concrete cortex commands");
+
+  const repoRoot = makeRepo("cortex-init-agents-parity-");
+  try {
+    runInit(repoRoot, ["--no-connect"]);
+    const contents = fs.readFileSync(path.join(repoRoot, "AGENTS.md"), "utf8");
+    for (const command of commands) {
+      assert.ok(contents.includes(command), `${command} missing from the AGENTS.md section`);
+    }
   } finally {
     fs.rmSync(repoRoot, { recursive: true, force: true });
   }

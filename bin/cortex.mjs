@@ -81,6 +81,7 @@ function printHelp() {
   console.log(helpRow("impact <query|entity-id> [--json]", "Trace likely impact paths"));
   console.log(helpRow("rules [--json]", "List active context rules"));
   console.log(helpRow("explain <query|entity-id> [--json]", "Show search score evidence"));
+  console.log(helpRow("pattern-evidence <file|entity-id> [--query <text>] [--top-k <n>] [--json]", "Collect cited repo-local pattern evidence"));
   console.log(helpRow("dashboard [--interval <sec>]", "Live local dashboard"));
   console.log(helpRow("memory-compile [--dry-run] [--verbose]", "Compile memory artifacts"));
   console.log(helpRow("memory-lint [--verbose] [--json]", "Lint compiled memory"));
@@ -198,81 +199,7 @@ function ensureScaffoldExists() {
 // Files that should never be overwritten if they already exist in the target.
 // These contain user-specific configuration that would be lost on re-init.
 const PRESERVE_FILES = new Set(["config.yaml", "rules.yaml", "enterprise.yml", "enterprise.yaml", "CLAUDE.md", "AGENTS.md"]);
-const DEFAULT_SOURCE_PATHS = [
-  "src",
-  "docs",
-  "design",
-  ".context/notes",
-  ".context/decisions",
-  "README.md"
-];
-const INIT_SKIP_DIRECTORIES = new Set([
-  ".git",
-  ".idea",
-  ".vscode",
-  "node_modules",
-  "dist",
-  "build",
-  "coverage",
-  ".next",
-  ".cache",
-  ".context",
-  "scripts",
-  ".githooks",
-  "bin",
-  "obj"
-]);
-const INIT_SOURCE_EXTENSIONS = new Set([
-  ".md",
-  ".mdx",
-  ".txt",
-  ".adoc",
-  ".rst",
-  ".yaml",
-  ".yml",
-  ".json",
-  ".toml",
-  ".csv",
-  ".ts",
-  ".tsx",
-  ".mts",
-  ".cts",
-  ".js",
-  ".jsx",
-  ".mjs",
-  ".cjs",
-  ".py",
-  ".go",
-  ".java",
-  ".cs",
-  ".vb",
-  ".sln",
-  ".vbproj",
-  ".csproj",
-  ".fsproj",
-  ".props",
-  ".targets",
-  ".config",
-  ".resx",
-  ".settings",
-  ".rb",
-  ".rs",
-  ".php",
-  ".swift",
-  ".kt",
-  ".sql",
-  ".sh",
-  ".bash",
-  ".zsh",
-  ".ps1",
-  ".c",
-  ".h",
-  ".cpp",
-  ".hpp",
-  ".cc",
-  ".hh"
-]);
-const ROOT_DOC_PATHS = new Set(["docs", "design"]);
+const DEFAULT_SOURCE_PATHS = ["."];
 
 function copyDirectory(sourceDir, targetDir) {
   fs.mkdirSync(targetDir, { recursive: true });
@@ -318,92 +245,8 @@ function slugifyRepoId(value) {
   return dashed || "cortex";
 }
 
-function isInterestingSourceFile(fileName) {
-  const base = fileName.toLowerCase();
-  const ext = path.extname(fileName).toLowerCase();
-  return INIT_SOURCE_EXTENSIONS.has(ext) || base === "readme" || base.startsWith("readme.");
-}
-
-function directoryContainsInterestingFiles(directoryPath) {
-  const stack = [directoryPath];
-  while (stack.length > 0) {
-    const current = stack.pop();
-    let entries = [];
-    try {
-      entries = fs.readdirSync(current, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-
-    for (const entry of entries) {
-      const absolutePath = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        if (INIT_SKIP_DIRECTORIES.has(entry.name)) {
-          continue;
-        }
-        stack.push(absolutePath);
-        continue;
-      }
-
-      if (entry.isFile() && isInterestingSourceFile(entry.name)) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-
 function detectInitialSourcePaths(targetDir) {
-  if (!fs.existsSync(targetDir)) {
-    return [...DEFAULT_SOURCE_PATHS];
-  }
-
-  let entries = [];
-  try {
-    entries = fs.readdirSync(targetDir, { withFileTypes: true });
-  } catch {
-    return [...DEFAULT_SOURCE_PATHS];
-  }
-
-  const codeDirs = [];
-  const docDirs = [];
-  const rootFiles = [];
-
-  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-    const absolutePath = path.join(targetDir, entry.name);
-
-    if (entry.isDirectory()) {
-      if (INIT_SKIP_DIRECTORIES.has(entry.name)) {
-        continue;
-      }
-      if (!directoryContainsInterestingFiles(absolutePath)) {
-        continue;
-      }
-
-      const bucket = ROOT_DOC_PATHS.has(entry.name) ? docDirs : codeDirs;
-      bucket.push(toPosixPath(entry.name));
-      continue;
-    }
-
-    if (entry.isFile() && isInterestingSourceFile(entry.name)) {
-      rootFiles.push(toPosixPath(entry.name));
-    }
-  }
-
-  const readmeFiles = rootFiles.filter((filePath) => /^readme(\.|$)/i.test(path.basename(filePath)));
-  const nonReadmeRootFiles = rootFiles.filter((filePath) => !readmeFiles.includes(filePath));
-  const detected = [
-    ...codeDirs,
-    ...nonReadmeRootFiles,
-    ...docDirs,
-    ".context/notes",
-    ".context/decisions",
-    ...readmeFiles
-  ];
-  const uniqueDetected = [...new Set(detected)];
-  const hasConcreteRepoContent = uniqueDetected.some((value) => !value.startsWith(".context/"));
-  return hasConcreteRepoContent ? uniqueDetected : [...DEFAULT_SOURCE_PATHS];
+  return [...DEFAULT_SOURCE_PATHS];
 }
 
 function buildInitialConfig(targetDir) {
@@ -418,12 +261,10 @@ function buildInitialConfig(targetDir) {
     "  - RULE",
     "  - CODE",
     "  - WIKI",
-    "# graph weight is low because graph degree mostly measures how many rules",
-    "# constrain an entity (docs are hubs, leaf code is not). Tuned as a pair with",
-    "# the midrank-percentile graph_score.",
+    "# Tuned together with the midrank-percentile graph_score in searchResults.ts.",
     "ranking:",
-    "  semantic: 0.55",
-    "  graph: 0.10",
+    "  semantic: 0.40",
+    "  graph: 0.25",
     "  trust: 0.20",
     "  recency: 0.15",
     "runtime:",
@@ -645,6 +486,10 @@ function installCodexAgentsSection(targetDir) {
   const startMarker = "<!-- cortex:auto:start -->";
   const endMarker = "<!-- cortex:auto:end -->";
   const section = `## Cortex Auto Workflow
+- Use the \`using-cortex\` skill if available; otherwise follow the commands below.
+- Search before answering code questions: \`cortex search "<query>" --json\`; never answer from memory.
+- Check \`cortex rules --json\` before suggesting changes and \`cortex impact "<query>" --json\` before refactors.
+- Review changed files with \`cortex pattern-evidence <file> --json\` before finalizing.
 - Run \`cortex update\` before completing substantial code changes.
 - If background sync is enabled, check with \`cortex watch status\`.`;
   const changed = upsertSectionByMarkers(agentsPath, startMarker, endMarker, section);
@@ -956,12 +801,31 @@ async function ensureProjectInitializedForMcp(targetDir) {
   }
 }
 
+// The session bootstrap hook caches index status for 10 minutes; drop the
+// cache whenever a command may have changed the index so new sessions never
+// see a stale "no index"/"index is old" verdict.
+const INDEX_MUTATING_COMMANDS = new Set(["bootstrap", "update", "refresh", "ingest", "embed", "graph-load"]);
+
+function invalidateSessionStatusCache(cwd) {
+  try {
+    fs.rmSync(path.join(cwd, ".context", "cache", "session-status.json"), { force: true });
+  } catch {
+    // best effort: a stale cache only delays the status refresh
+  }
+}
+
 async function runContextCommand(cwd, contextArgs) {
   const contextScript = path.join(cwd, CONTEXT_SCRIPTS_REL, "context.sh");
   if (!fs.existsSync(contextScript)) {
     throw new Error(`Missing ${contextScript}. Run 'cortex init' first.`);
   }
-  await runCommand("bash", [contextScript, ...contextArgs], cwd);
+  try {
+    await runCommand("bash", [contextScript, ...contextArgs], cwd);
+  } finally {
+    if (INDEX_MUTATING_COMMANDS.has(contextArgs[0])) {
+      invalidateSessionStatusCache(cwd);
+    }
+  }
 }
 
 async function run() {
@@ -1588,7 +1452,7 @@ async function runEnterpriseInstall(args) {
 }
 
 const RUN_CLIS = new Set(["claude", "codex", "copilot"]);
-const QUERY_COMMANDS = new Set(["search", "related", "impact", "rules", "explain"]);
+const QUERY_COMMANDS = new Set(["search", "related", "impact", "rules", "explain", "pattern-evidence"]);
 
 async function runRunCommand(args) {
   const sub = args[0];

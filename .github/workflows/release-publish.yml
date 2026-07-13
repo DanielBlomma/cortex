@@ -52,7 +52,7 @@ jobs:
 
       - name: Run root tests
         run: |
-          node tests/context-regressions.test.mjs
+          npm test
 
       - name: Run context runtime and MCP compatibility tests
         working-directory: scaffold/mcp

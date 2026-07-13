@@ -143,6 +143,26 @@ Check context status:
 cortex status
 ```
 
+## Agent plugin (Claude Code + Codex)
+
+The `plugins/cortex` directory is a dual-manifest agent plugin: five behavior
+skills (`using-cortex`, `repo-research`, `change-impact`, `pattern-review`,
+`context-review`), a SessionStart bootstrap that re-injects Cortex
+instructions after new sessions, `/clear`, and compaction (Claude Code), and
+an MCP config that follows the active workspace.
+
+Claude Code:
+
+```bash
+/plugin marketplace add DanielBlomma/cortex
+/plugin install cortex@cortex
+```
+
+Codex discovers the same skills through `.codex-plugin/plugin.json`; repos
+initialized with `cortex init` also get an AGENTS.md bootstrap section as a
+fallback when the plugin is not installed. The CLI remains the engine — the
+plugin only adds the behavior layer, and `cortex connect` stays opt-in.
+
 ## Query From The CLI
 
 Use the CLI as the default local agent interface:
@@ -153,6 +173,7 @@ cortex related file:src/auth.ts --json
 cortex impact "payment service" --json
 cortex rules --json
 cortex explain "where retries are configured" --json
+cortex pattern-evidence src/auth.ts --query "error handling" --json
 ```
 
 These commands read the same local graph, embeddings, and rules used by the MCP server, but they do not require an MCP client registration.
@@ -381,11 +402,38 @@ cortex related <entity-id> [--json]
 cortex impact <query|entity-id> [--json]
 cortex rules [--json]
 cortex explain <query|entity-id> [--json]
+cortex pattern-evidence <file-path|entity-id> [--query <text>] [--top-k <n>] [--json]
 cortex status
 cortex dashboard [--interval <sec>]
 cortex watch [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>] [--mode <auto|event|poll>]
 cortex help
 ```
+
+## Enterprise Pattern Review
+
+Enterprise `context.review` includes bounded repo-local pattern context by
+default. This evidence is advisory and does not change policy validator totals,
+workflow approval, or review trust.
+
+Optional MCP inputs:
+
+- `include_pattern_evidence` — enable or disable pattern context (default `true`).
+- `pattern_query` — shared pattern query; otherwise Cortex derives one per file.
+- `pattern_top_k` — evidence items per locality tier, from 1 to 5 (default `2`).
+- `pattern_limit` — analyzed review targets, from 1 to 25 (default `10`).
+
+The response adds `pattern_review` with deterministic targets, the canonical
+review question, cited evidence tiers, explicit repository fallback, unindexed
+status, and omitted-file counts. Pattern evidence never constitutes automatic
+code approval. Enterprise pattern review is lexical-only and never downloads an
+embedding model or calls an external service.
+
+Every target uses the same response fields. `status` is one of
+`local_evidence`, `repo_fallback`, `no_evidence`, `not_indexed`, or `error`;
+`local_pattern_found` and `fallback_used` are always explicit booleans, and
+`evidence_order` plus all four `tiers` are always present. Unavailable evidence
+uses empty tiers and sanitized messages rather than local paths or runtime
+errors.
 
 ## Automated Release
 
@@ -413,12 +461,26 @@ Required npm configuration:
 ## Embedding performance
 
 Embedding generation tunes itself to the machine: the number of parallel
-workers, memory limits for long files, and skip-work caching are all derived
-from the available CPU cores and RAM at run time (container memory limits
-included). No configuration is needed — on a laptop or a CI runner, cortex
-picks safe, fast settings by itself. The one exception worth knowing:
-when several cortex instances share one machine, set `CORTEX_EMBED_THREADS`
-to give each its fair share of cores.
+workers, memory limits for long files, token budget, and skip-work caching are
+all derived from the available CPU cores, RAM, and repository size at run time
+(container memory limits included). No configuration is needed — on a laptop or
+a CI runner, cortex picks safe settings by itself.
+
+The embedding token budget defaults to `auto`, which is quality-first but
+memory-aware. Cortex starts from the embedding model's own maximum context and
+only lowers the cap when the local memory headroom is unlikely to fit that
+model/context combination. Degraded auto runs are explicit in logs, for example
+`token_budget=auto_degraded reason=memory_headroom cap=2048`. To force a
+specific capped run, set `CORTEX_EMBED_MAX_TOKENS` to a number such as `2048`;
+set it to `model` or `full` to force the full-model baseline even on tight
+machines. When several cortex instances share one machine, set
+`CORTEX_EMBED_THREADS` to give each its fair share of cores.
+
+For experiments on very large repositories, `CORTEX_EMBED_TEXT_PROFILE=compact-files`
+compacts only large file-level embedding records while keeping chunk-level
+embedding text full. The default remains `full`; use the compact profile only
+with a before/after semantic quality check because file-level compaction can
+change retrieval behavior.
 
 ## Limitations
 

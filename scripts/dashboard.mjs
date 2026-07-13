@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -284,12 +284,11 @@ function getLocalCliVersion() {
   }
 
   try {
-    const output = execSync("cortex --version", {
+    const output = execFileSync("cortex", ["--version"], {
       cwd: REPO_ROOT,
       stdio: ["ignore", "pipe", "ignore"],
       encoding: "utf8",
       timeout: 1500,
-      shell: true,
     }).trim();
     if (parseVersion(output)) {
       return output;
@@ -329,13 +328,12 @@ function getVersionStatus() {
     } else {
       try {
         const npmCache = path.join(CACHE_DIR, "npm-cache");
-        const latestRaw = execSync("npm view github:DanielBlomma/cortex version --json", {
+        const latestRaw = execFileSync("npm", ["view", "github:DanielBlomma/cortex", "version", "--json"], {
           cwd: REPO_ROOT,
           stdio: ["ignore", "pipe", "pipe"],
           encoding: "utf8",
           timeout: VERSION_LOOKUP_TIMEOUT_MS,
           env: { ...process.env, NPM_CONFIG_CACHE: npmCache },
-          shell: true,
         }).trim();
         const parsedLatest = JSON.parse(latestRaw);
         const latest = Array.isArray(parsedLatest)
@@ -350,20 +348,30 @@ function getVersionStatus() {
             latest,
             message: "unsupported latest version format",
           };
-        } else if (compareVersions(latestParsed, localParsed) > 0) {
-          value = {
-            state: "update-available",
-            local,
-            latest,
-            message: null,
-          };
         } else {
-          value = {
-            state: "current",
-            local,
-            latest,
-            message: null,
-          };
+          const comparison = compareVersions(latestParsed, localParsed);
+          if (comparison > 0) {
+            value = {
+              state: "update-available",
+              local,
+              latest,
+              message: null,
+            };
+          } else if (comparison < 0) {
+            value = {
+              state: "local-newer",
+              local,
+              latest,
+              message: "local build is newer than published version",
+            };
+          } else {
+            value = {
+              state: "current",
+              local,
+              latest,
+              message: null,
+            };
+          }
         }
       } catch (error) {
         value = {
@@ -688,6 +696,9 @@ function render(data, isTTY) {
   if (data.version.state === "update-available") {
     lines.push(sideBorder(
       `Version: ${bold(col("UPDATE AVAILABLE", C.red))} ${col(`${data.version.local} -> ${data.version.latest}`, C.red)}`, w));
+  } else if (data.version.state === "local-newer") {
+    lines.push(sideBorder(
+      `Version: ${col(data.version.local, C.yellow)} ${dim(`Published: ${data.version.latest} local newer`)}`, w));
   } else if (data.version.state === "current") {
     lines.push(sideBorder(
       `Version: ${col(data.version.local, C.green)} ${dim(`Latest: ${data.version.latest}`)}`, w));

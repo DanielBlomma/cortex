@@ -95,6 +95,11 @@ function main() {
       transform: (value) => syncPluginManifest(value, version)
     },
     {
+      path: "plugins/cortex/.codex-plugin/plugin.json",
+      required: true,
+      transform: (value) => syncPluginManifest(value, version)
+    },
+    {
       path: ".claude-plugin/marketplace.json",
       required: false,
       transform: (value) => syncMarketplace(value, version)

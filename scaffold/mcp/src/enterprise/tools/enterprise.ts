@@ -4,6 +4,7 @@ import { readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { walkProjectFiles } from "./walk.js";
+import { resolveChangedReviewFiles } from "../reviews/changed-files.js";
 import type { EnterpriseConfig } from "../../core/config.js";
 import type { TelemetryCollector } from "../../core/telemetry/collector.js";
 import type { AuditWriter } from "../../core/audit/writer.js";
@@ -16,6 +17,7 @@ import { queueViolation } from "../violations/push.js";
 import { getReviewPushContext, queueReviewResult } from "../reviews/push.js";
 import { partitionReviewPolicies } from "../reviews/policy-selection.js";
 import { recordQueuedReviewTrustState } from "../reviews/trust-state.js";
+import { buildPatternReviewContext } from "../reviews/pattern-context.js";
 import { pushWorkflowSnapshot } from "../workflow/push.js";
 import { OUTBOUND_DATA_BOUNDARY } from "../privacy/boundary.js";
 import {
@@ -40,6 +42,25 @@ import { recordToolActivity } from "../index.js";
 type ToolPayload = Record<string, unknown>;
 
 const VALID_ROLES = new Set<Role>(["admin", "developer", "readonly"]);
+
+export function buildContextReviewAuditInput(input: {
+  scope: "all" | "changed";
+  include_passed: boolean;
+  include_pattern_evidence: boolean;
+  pattern_query?: string;
+  pattern_top_k: number;
+  pattern_limit: number;
+}): Record<string, unknown> {
+  return {
+    scope: input.scope,
+    include_passed: input.include_passed,
+    include_pattern_evidence: input.include_pattern_evidence,
+    pattern_query_present: Boolean(input.pattern_query),
+    pattern_query_length: input.pattern_query?.length ?? 0,
+    pattern_top_k: input.pattern_top_k,
+    pattern_limit: input.pattern_limit,
+  };
+}
 
 function snapshotReviewedFiles(
   projectRoot: string,
@@ -828,12 +849,20 @@ export function registerEnterpriseTools(
       description:
         "Run enterprise policy validators against the current project. " +
         "Checks enforced policies (test coverage, file size, external API calls, code review) " +
-        "and returns pass/fail results with actionable details.",
+        "and returns pass/fail results plus non-blocking repo-local pattern evidence.",
       inputSchema: z.object({
         scope: z.enum(["all", "changed"]).default("changed")
           .describe("'changed' validates only git-modified files; 'all' validates everything"),
         include_passed: z.boolean().default(true)
           .describe("Include passing validators in results"),
+        include_pattern_evidence: z.boolean().default(true)
+          .describe("Include bounded, local-only repo pattern context without changing pass/fail"),
+        pattern_query: z.string().trim().min(1).max(1000).optional()
+          .describe("Optional shared pattern query; omitted queries are derived per target"),
+        pattern_top_k: z.number().int().min(1).max(5).default(2)
+          .describe("Maximum evidence items returned per locality tier and target"),
+        pattern_limit: z.number().int().min(1).max(25).default(10)
+          .describe("Maximum review targets analyzed for pattern evidence"),
       }),
     },
     async (input) => {
@@ -844,6 +873,10 @@ export function registerEnterpriseTools(
       const parsed = z.object({
         scope: z.enum(["all", "changed"]).default("changed"),
         include_passed: z.boolean().default(true),
+        include_pattern_evidence: z.boolean().default(true),
+        pattern_query: z.string().trim().min(1).max(1000).optional(),
+        pattern_top_k: z.number().int().min(1).max(5).default(2),
+        pattern_limit: z.number().int().min(1).max(25).default(10),
       }).parse(input ?? {});
 
       const projectRoot = process.env.CORTEX_PROJECT_ROOT?.trim() || process.cwd();
@@ -859,40 +892,7 @@ export function registerEnterpriseTools(
       //   project review; no git dependency.
       let changedFiles: string[] | undefined;
       if (parsed.scope === "changed") {
-        // Use `git rev-parse --is-inside-work-tree` to distinguish
-        // "valid repo, nothing changed" (→ empty list, reviewer sees
-        // nothing to scan) from "not a repo / git broken" (→ walk the
-        // project so scope=changed still returns meaningful results
-        // when run outside a git checkout).
-        let inGitRepo = false;
-        try {
-          const { execSync } = await import("node:child_process");
-          execSync("git rev-parse --is-inside-work-tree", {
-            cwd: projectRoot,
-            encoding: "utf8",
-            timeout: 3000,
-            stdio: ["ignore", "pipe", "ignore"],
-          });
-          inGitRepo = true;
-        } catch {
-          inGitRepo = false;
-        }
-
-        if (inGitRepo) {
-          try {
-            const { execSync } = await import("node:child_process");
-            const output = execSync("git diff --name-only HEAD 2>/dev/null || git diff --name-only", {
-              cwd: projectRoot,
-              encoding: "utf8",
-              timeout: 5000,
-            });
-            changedFiles = output.split("\n").map((f) => f.trim()).filter(Boolean);
-          } catch {
-            changedFiles = [];
-          }
-        } else {
-          changedFiles = walkProjectFiles(projectRoot);
-        }
+        changedFiles = resolveChangedReviewFiles(projectRoot) ?? walkProjectFiles(projectRoot);
       } else {
         changedFiles = walkProjectFiles(projectRoot);
       }
@@ -914,6 +914,14 @@ export function registerEnterpriseTools(
         projectRoot,
         changedFiles,
       }, config.validators);
+      const patternReview = await buildPatternReviewContext({
+        files: changedFiles ?? [],
+        enabled: parsed.include_pattern_evidence,
+        query: parsed.pattern_query,
+        topK: parsed.pattern_top_k,
+        limit: parsed.pattern_limit,
+      });
+      const patternSummary = patternReview.summary as Record<string, unknown>;
 
       // Filter out passed if requested
       const results = parsed.include_passed
@@ -944,7 +952,7 @@ export function registerEnterpriseTools(
       recordToolActivity({
         timestamp: now,
         tool: "context.review",
-        input: parsed as Record<string, unknown>,
+        input: buildContextReviewAuditInput(parsed),
         result_count: output.results.length,
         entities_returned: output.results.map((r) => r.policy_id),
         rules_applied: output.results.filter((r) => !r.pass).map((r) => r.policy_id),
@@ -958,6 +966,10 @@ export function registerEnterpriseTools(
           failed: output.summary.failed,
           warnings: output.results.filter((r) => !r.pass && r.severity === "warning").length,
           skipped: skippedPolicies.length,
+          pattern_analyzed: patternSummary.analyzed ?? 0,
+          pattern_local_evidence: patternSummary.local_evidence ?? 0,
+          pattern_repo_fallback: patternSummary.repo_fallback ?? 0,
+          pattern_omitted: patternSummary.omitted ?? 0,
         },
       });
 
@@ -1018,6 +1030,7 @@ export function registerEnterpriseTools(
         workflow_source: trustState.workflow.source,
         delivery: trustState.delivery,
         trust_warnings: trustState.trust_warnings,
+        pattern_review: patternReview,
       });
     },
   );
