@@ -36,12 +36,14 @@ test("session hook is wired for startup, resume, clear, and compact", () => {
   for (const source of ["startup", "resume", "clear", "compact"]) {
     assert.ok(matcher.includes(source), `SessionStart matcher must include ${source}`);
   }
+  assert.equal(entries[0].hooks[0].type, "command");
   assert.match(entries[0].hooks[0].command, /session-start\.mjs/);
 });
 
 test("mcp config runs the workspace-following npx command", () => {
   const mcp = readJson("plugins/cortex/.mcp.json");
   assert.ok(mcp.mcpServers.cortex, "cortex MCP server must be defined");
+  assert.equal(mcp.mcpServers.cortex.command, "npx");
 });
 
 test("codex mcp config is a direct server map the codex schema accepts", () => {
@@ -50,5 +52,11 @@ test("codex mcp config is a direct server map the codex schema accepts", () => {
   assert.match(codex.mcpServers, /mcp\.json$/);
   assert.ok(codexMcp.cortex, "direct server map must define the cortex server");
   assert.equal(codexMcp.cortex.command, "npx");
+  const claudeMcp = readJson("plugins/cortex/.mcp.json");
+  assert.deepEqual(
+    codexMcp.cortex,
+    claudeMcp.mcpServers.cortex,
+    "codex and claude MCP server definitions must be identical",
+  );
   assert.equal("mcpServers" in codexMcp, false, "codex file must not use the camelCase wrapper");
 });
