@@ -84,13 +84,15 @@ test("missing index warns and suggests cortex bootstrap", () => {
   }
 });
 
-test("indexed repo without update marker reports unknown freshness", () => {
+test("indexed repo without update marker falls back to index file mtime", () => {
   const nowMs = 1_800_000_000_000;
-  const { repoRoot } = makeContextRepo();
+  const { repoRoot, contextDir } = makeContextRepo();
+  const graphPath = path.join(contextDir, "db", "graph.ryu");
+  const recent = new Date(nowMs - 60 * 1000);
+  fs.utimesSync(graphPath, recent, recent);
   try {
-    const contextDir = findContextDir(repoRoot);
     const text = renderBootstrap(readStatus(contextDir, nowMs), nowMs);
-    assert.match(text, /Index last updated: unknown\./);
+    assert.match(text, /Index last updated: \d{4}-\d{2}-\d{2}T/);
     assert.doesNotMatch(text, /WARNING|more than 7 days/);
   } finally {
     fs.rmSync(repoRoot, { recursive: true, force: true });
@@ -149,6 +151,34 @@ test("expired cache is recomputed", () => {
     assert.equal(readStatus(contextDir, nowMs).indexed, true);
   } finally {
     fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test("fresh index files count as fresh even when the epoch marker is old", () => {
+  const nowMs = 1_800_000_000_000;
+  const { repoRoot, contextDir } = makeContextRepo({ epochSeconds: 1_700_000_000 });
+  const graphPath = path.join(contextDir, "db", "graph.ryu");
+  const recent = new Date(nowMs - 60 * 1000);
+  fs.utimesSync(graphPath, recent, recent);
+  try {
+    const text = renderBootstrap(readStatus(contextDir, nowMs), nowMs);
+    assert.doesNotMatch(text, /more than 7 days old/);
+    assert.match(text, /Index last updated: \d{4}-\d{2}-\d{2}T/);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test("context search stops at a git boundary", () => {
+  const outer = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-session-boundary-"));
+  try {
+    fs.mkdirSync(path.join(outer, ".context"), { recursive: true });
+    const innerRepo = path.join(outer, "unrelated-repo");
+    fs.mkdirSync(path.join(innerRepo, ".git"), { recursive: true });
+    assert.equal(findContextDir(innerRepo), null);
+    assert.equal(findContextDir(outer), path.join(outer, ".context"));
+  } finally {
+    fs.rmSync(outer, { recursive: true, force: true });
   }
 });
 

@@ -24,6 +24,9 @@ export function findContextDir(startDir) {
     } catch {
       // not here: keep walking up
     }
+    if (fs.existsSync(path.join(dir, ".git"))) {
+      return null;
+    }
     const parent = path.dirname(dir);
     if (parent === dir) {
       return null;
@@ -33,20 +36,33 @@ export function findContextDir(startDir) {
 }
 
 export function computeStatus(contextDir, nowMs) {
-  const indexed =
-    fs.existsSync(path.join(contextDir, "db", "graph.ryu")) ||
-    fs.existsSync(path.join(contextDir, "embeddings", "entities.jsonl"));
+  const indexFiles = [
+    path.join(contextDir, "db", "graph.ryu"),
+    path.join(contextDir, "embeddings", "entities.jsonl"),
+  ];
+  let indexed = false;
   let lastUpdateMs = null;
+  for (const indexFile of indexFiles) {
+    try {
+      const mtimeMs = fs.statSync(indexFile).mtimeMs;
+      indexed = true;
+      if (lastUpdateMs === null || mtimeMs > lastUpdateMs) {
+        lastUpdateMs = mtimeMs;
+      }
+    } catch {
+      // index file missing: keep looking
+    }
+  }
   try {
     const epoch = Number.parseInt(
       fs.readFileSync(path.join(contextDir, "hooks", "last-update.epoch"), "utf8").trim(),
       10,
     );
-    if (Number.isFinite(epoch) && epoch > 0) {
+    if (Number.isFinite(epoch) && epoch > 0 && (lastUpdateMs === null || epoch * 1000 > lastUpdateMs)) {
       lastUpdateMs = epoch * 1000;
     }
   } catch {
-    // no update marker: freshness stays unknown
+    // no update marker: index mtimes already cover freshness
   }
   return { computed_at_ms: nowMs, indexed, last_update_ms: lastUpdateMs };
 }
