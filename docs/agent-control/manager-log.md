@@ -389,6 +389,28 @@ file must stay small enough that a fresh manager session can read it whole.
   expected hits (82.86%), up from the regressed 27/35. The recovered hits were
   both in `cortex-semantic-005`, returning it from 3/5 to 5/5.
 
+## 2026-07-12
+
+- Accepted WO-021 after independent Code Quality, Contract, and Validation
+  review. Every finding was fixed in iteration; no deferrals remain. The new
+  `cortex pattern-evidence` command ranks separately by file/module/feature/repo
+  locality from one graph and embedding snapshot, emits cited chunk lines and
+  explicit fallback state, and uses stable reference time and equal-score
+  ordering. Final validation: pattern/query 17/17, ranking 13/13, MCP 357/357,
+  root 216/216 plus 81 context regressions, deterministic live JSON, strict
+  malformed-flag errors, version-sync, 247-file npm pack dry-run, and clean
+  diff. Release metadata is synced to 2.3.0.
+- Accepted WO-022 after independent Code Quality, Contract, Security and
+  Privacy, and Validation review. Every finding was fixed in iteration; no
+  deferrals remain. Enterprise `context.review` now returns bounded,
+  lexical-only `pattern_review` context for deterministic changed and untracked
+  targets. Results use uniform cited status envelopes and sanitized diagnostics;
+  audit metadata contains counts and query length only. Pattern evidence stays
+  advisory and does not alter validator, workflow, trust, or policy pass/fail.
+  Final validation: focused pattern/review 14/14, MCP 364/364, root 216/216 plus
+  81 context regressions, build, version-sync, 250-file npm pack dry-run, and
+  clean diff. WO-022 and REQ-11 are accepted locally for 2.3.0.
+
 ## Archive
 
 <!-- list rotated archive files here, e.g.

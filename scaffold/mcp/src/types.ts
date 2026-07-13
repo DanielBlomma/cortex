@@ -203,6 +203,13 @@ export type RulesParams = {
   include_inactive: boolean;
 };
 
+export type PatternEvidenceParams = {
+  target: string;
+  query?: string;
+  top_k: number;
+  include_deprecated?: boolean;
+};
+
 export type ReloadParams = {
   force: boolean;
 };

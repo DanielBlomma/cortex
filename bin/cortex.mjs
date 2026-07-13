@@ -81,6 +81,7 @@ function printHelp() {
   console.log(helpRow("impact <query|entity-id> [--json]", "Trace likely impact paths"));
   console.log(helpRow("rules [--json]", "List active context rules"));
   console.log(helpRow("explain <query|entity-id> [--json]", "Show search score evidence"));
+  console.log(helpRow("pattern-evidence <file|entity-id> [--query <text>] [--top-k <n>] [--json]", "Collect cited repo-local pattern evidence"));
   console.log(helpRow("dashboard [--interval <sec>]", "Live local dashboard"));
   console.log(helpRow("memory-compile [--dry-run] [--verbose]", "Compile memory artifacts"));
   console.log(helpRow("memory-lint [--verbose] [--json]", "Lint compiled memory"));
@@ -1428,7 +1429,7 @@ async function runEnterpriseInstall(args) {
 }
 
 const RUN_CLIS = new Set(["claude", "codex", "copilot"]);
-const QUERY_COMMANDS = new Set(["search", "related", "impact", "rules", "explain"]);
+const QUERY_COMMANDS = new Set(["search", "related", "impact", "rules", "explain", "pattern-evidence"]);
 
 async function runRunCommand(args) {
   const sub = args[0];

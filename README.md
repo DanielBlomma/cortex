@@ -153,6 +153,7 @@ cortex related file:src/auth.ts --json
 cortex impact "payment service" --json
 cortex rules --json
 cortex explain "where retries are configured" --json
+cortex pattern-evidence src/auth.ts --query "error handling" --json
 ```
 
 These commands read the same local graph, embeddings, and rules used by the MCP server, but they do not require an MCP client registration.
@@ -381,11 +382,38 @@ cortex related <entity-id> [--json]
 cortex impact <query|entity-id> [--json]
 cortex rules [--json]
 cortex explain <query|entity-id> [--json]
+cortex pattern-evidence <file-path|entity-id> [--query <text>] [--top-k <n>] [--json]
 cortex status
 cortex dashboard [--interval <sec>]
 cortex watch [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>] [--mode <auto|event|poll>]
 cortex help
 ```
+
+## Enterprise Pattern Review
+
+Enterprise `context.review` includes bounded repo-local pattern context by
+default. This evidence is advisory and does not change policy validator totals,
+workflow approval, or review trust.
+
+Optional MCP inputs:
+
+- `include_pattern_evidence` — enable or disable pattern context (default `true`).
+- `pattern_query` — shared pattern query; otherwise Cortex derives one per file.
+- `pattern_top_k` — evidence items per locality tier, from 1 to 5 (default `2`).
+- `pattern_limit` — analyzed review targets, from 1 to 25 (default `10`).
+
+The response adds `pattern_review` with deterministic targets, the canonical
+review question, cited evidence tiers, explicit repository fallback, unindexed
+status, and omitted-file counts. Pattern evidence never constitutes automatic
+code approval. Enterprise pattern review is lexical-only and never downloads an
+embedding model or calls an external service.
+
+Every target uses the same response fields. `status` is one of
+`local_evidence`, `repo_fallback`, `no_evidence`, `not_indexed`, or `error`;
+`local_pattern_found` and `fallback_used` are always explicit booleans, and
+`evidence_order` plus all four `tiers` are always present. Unavailable evidence
+uses empty tiers and sanitized messages rather than local paths or runtime
+errors.
 
 ## Automated Release
 

@@ -37,6 +37,8 @@ import {
   resolveSearchResponsePreset
 } from "./presets.js";
 import type {
+  ContextData,
+  EmbeddingIndex,
   ImpactParams,
   RelatedParams,
   RelationType,
@@ -59,33 +61,53 @@ const IMPACT_RELATION_TYPES = new Set([
   "PART_OF"
 ]);
 
+export type ContextSearchOptions = {
+  data?: ContextData;
+  candidate_filter?: (entity: SearchEntity) => boolean;
+  reference_time_ms?: number;
+  embedding_index?: EmbeddingIndex;
+  query_vector?: Float32Array | null;
+};
+
 function* filterSearchCandidates(
   candidates: Iterable<SearchEntity>,
-  includeDeprecated: boolean
+  includeDeprecated: boolean,
+  candidateFilter?: (entity: SearchEntity) => boolean
 ): Generator<SearchEntity> {
   for (const entity of candidates) {
-    if (includeDeprecated || entity.status.toLowerCase() !== "deprecated") {
+    if (
+      (includeDeprecated || entity.status.toLowerCase() !== "deprecated") &&
+      (!candidateFilter || candidateFilter(entity))
+    ) {
       yield entity;
     }
   }
 }
 
-export async function runContextSearch(parsed: SearchParams): Promise<ToolPayload> {
+export async function runContextSearch(
+  parsed: SearchParams,
+  options: ContextSearchOptions = {}
+): Promise<ToolPayload> {
   const searchPresetConfig = resolveSearchResponsePreset(parsed);
   const responsePreset = searchPresetConfig.responsePreset;
   const includeScores = searchPresetConfig.includeScores;
   const includeMatchedRules = searchPresetConfig.includeMatchedRules;
   const includeContent = searchPresetConfig.includeContent;
-  const data = await loadContextData();
+  const data = options.data ?? await loadContextData();
   const allRelations = [...data.relations, ...buildChunkPartOfRelations(data)];
   const degreeByEntity = relationDegree(allRelations);
   const queryTokens = expandQueryTokens(Array.from(new Set(tokenize(parsed.query))));
   const queryPhrase = normalizeText(parsed.query).trim();
   const candidates = () =>
-    filterSearchCandidates(iterateSearchEntities(data, includeContent), parsed.include_deprecated);
-  const embeddings = loadEmbeddingIndex();
-  const queryVector =
-    embeddings.model && embeddings.vectors.size > 0
+    filterSearchCandidates(
+      iterateSearchEntities(data, includeContent),
+      parsed.include_deprecated,
+      options.candidate_filter
+    );
+  const embeddings = options.embedding_index ?? loadEmbeddingIndex();
+  const queryVector = Object.prototype.hasOwnProperty.call(options, "query_vector")
+    ? options.query_vector ?? null
+    : embeddings.model && embeddings.vectors.size > 0
       ? await embedQuery(parsed.query, embeddings.model)
       : null;
 
@@ -105,7 +127,9 @@ export async function runContextSearch(parsed: SearchParams): Promise<ToolPayloa
     minVectorRelevance: MIN_VECTOR_RELEVANCE,
     semanticScorer: semanticScore,
     vectorScorer: cosineSimilarity,
-    recencyScorer: recencyScore,
+    recencyScorer: options.reference_time_ms === undefined
+      ? recencyScore
+      : (isoDate) => recencyScore(isoDate, options.reference_time_ms),
     structuralSearchBooster: structuralSearchBoost,
     legacyDataAccessBooster: legacyDataAccessBoost
   });

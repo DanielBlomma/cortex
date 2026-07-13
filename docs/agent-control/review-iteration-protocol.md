@@ -114,6 +114,9 @@ lives in `workflow-playbook.md`. Review-specific rules:
 Implementation agents are expected to meet this baseline before reviewer handoff:
 
 - Code follows existing local patterns and avoids unnecessary abstraction.
+- Pattern review follows the evidence order and citation requirement in
+  `context-packets/010-repo-local-pattern-review.md`; general best practices are
+  a fallback when no applicable local pattern is found.
 - Names describe domain behavior instead of implementation trivia.
 - Comments explain non-obvious policy, security, or transaction choices only.
 - Tests cover meaningful behavior and negative cases, not only happy paths.

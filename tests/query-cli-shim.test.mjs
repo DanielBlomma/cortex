@@ -36,6 +36,16 @@ test("top-level query commands dispatch to the project query CLI runtime", () =>
     const parsed = JSON.parse(result.stdout);
     assert.deepEqual(parsed.args, ["search", "rule.source_of_truth", "--json"]);
     assert.equal(fs.realpathSync(parsed.root), fs.realpathSync(repoRoot));
+
+    const patternResult = spawnSync(
+      process.execPath,
+      [CLI_PATH, "pattern-evidence", "bin/cortex.mjs", "--json"],
+      { cwd: repoRoot, encoding: "utf8" },
+    );
+    assert.equal(patternResult.status, 0, patternResult.stderr);
+    const patternParsed = JSON.parse(patternResult.stdout);
+    assert.deepEqual(patternParsed.args, ["pattern-evidence", "bin/cortex.mjs", "--json"]);
+    assert.equal(fs.realpathSync(patternParsed.root), fs.realpathSync(repoRoot));
   } finally {
     fs.rmSync(repoRoot, { recursive: true, force: true });
   }

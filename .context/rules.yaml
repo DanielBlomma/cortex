@@ -19,6 +19,11 @@ rules:
     priority: 90
     enforce: true
 
+  - id: rule.repo_local_pattern_review
+    description: "Pattern reviews must prefer file-local and repo-local evidence and cite concrete code or docs; see docs/agent-control/context-packets/010-repo-local-pattern-review.md."
+    priority: 85
+    enforce: true
+
   - id: rule.context_budget
     description: "Limit runtime context to highest-signal evidence blocks (top_k)."
     priority: 80

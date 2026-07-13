@@ -21,7 +21,7 @@ import { pushWorkflowSnapshot, setWorkflowPushContext } from "./workflow/push.js
 import { hasWorkflowState, loadWorkflowState } from "./workflow/state.js";
 
 const require = createRequire(import.meta.url);
-const pkg = require("../package.json") as { version: string };
+const pkg = require("../../package.json") as { version: string };
 
 export const name = "cortex-enterprise";
 export const version: string = pkg.version;

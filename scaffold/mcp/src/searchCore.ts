@@ -210,18 +210,17 @@ function queryTokenGroups(queryTokens: string[]): string[][] {
   return groups;
 }
 
-function daysSince(isoDate: string): number {
+function daysSince(isoDate: string, referenceTimeMs: number): number {
   const timestamp = Date.parse(isoDate);
   if (Number.isNaN(timestamp)) {
     return 3650;
   }
 
-  const now = Date.now();
-  return Math.max(0, (now - timestamp) / (1000 * 60 * 60 * 24));
+  return Math.max(0, (referenceTimeMs - timestamp) / (1000 * 60 * 60 * 24));
 }
 
-export function recencyScore(isoDate: string): number {
-  const days = daysSince(isoDate);
+export function recencyScore(isoDate: string, referenceTimeMs = Date.now()): number {
+  const days = daysSince(isoDate, referenceTimeMs);
   return 1 / (1 + days / 30);
 }
 

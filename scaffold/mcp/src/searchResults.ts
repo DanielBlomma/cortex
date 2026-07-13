@@ -28,13 +28,25 @@ function baseChunkLabel(label: string): string {
   return markerIndex === -1 ? label : label.slice(0, markerIndex);
 }
 
+export function compareText(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function rankedResultKey(ranked: RankedSearchResult): string {
+  return `${String(ranked.result.id ?? "")}\u0000${String(ranked.result.path ?? "")}`;
+}
+
+function compareRankedResults(a: RankedSearchResult, b: RankedSearchResult): number {
+  return b.rankScore - a.rankScore || compareText(rankedResultKey(a), rankedResultKey(b));
+}
+
 function pruneRankedResults(bestById: Map<string, RankedSearchResult>, limit: number): void {
   if (bestById.size <= limit) {
     return;
   }
 
   const retained = [...bestById.entries()]
-    .sort(([, a], [, b]) => b.rankScore - a.rankScore)
+    .sort(([, a], [, b]) => compareRankedResults(a, b))
     .slice(0, limit);
   bestById.clear();
   for (const [id, result] of retained) {
@@ -70,8 +82,8 @@ function resultPathKey(result: SearchResult): string {
 
 function selectDiverseResults(rankedResults: RankedSearchResult[], topK: number): RankedSearchResult[] {
   const remaining = rankedResults
-    .map((ranked, index) => ({ ranked, index }))
-    .sort((a, b) => b.ranked.rankScore - a.ranked.rankScore || a.index - b.index);
+    .map((ranked) => ({ ranked }))
+    .sort((a, b) => compareRankedResults(a.ranked, b.ranked));
   const selected: RankedSearchResult[] = [];
   const selectedByPath = new Map<string, number>();
 
@@ -79,19 +91,23 @@ function selectDiverseResults(rankedResults: RankedSearchResult[], topK: number)
     let bestIndex = 0;
     let bestAdjustedScore = Number.NEGATIVE_INFINITY;
     let bestRankScore = Number.NEGATIVE_INFINITY;
+    let bestKey = "";
 
     for (let index = 0; index < remaining.length; index += 1) {
       const candidate = remaining[index].ranked;
       const pathCount = selectedByPath.get(resultPathKey(candidate.result)) ?? 0;
       const samePathPenalty = pathCount === 0 ? 0 : Math.min(0.12, pathCount * 0.04);
       const adjustedScore = candidate.rankScore - samePathPenalty;
+      const candidateKey = rankedResultKey(candidate);
       if (
         adjustedScore > bestAdjustedScore ||
-        (adjustedScore === bestAdjustedScore && candidate.rankScore > bestRankScore)
+        (adjustedScore === bestAdjustedScore && candidate.rankScore > bestRankScore) ||
+        (adjustedScore === bestAdjustedScore && candidate.rankScore === bestRankScore && candidateKey < bestKey)
       ) {
         bestIndex = index;
         bestAdjustedScore = adjustedScore;
         bestRankScore = candidate.rankScore;
+        bestKey = candidateKey;
       }
     }
 
@@ -268,10 +284,10 @@ export function buildSearchResultsWithStats(params: {
   }
 
   const rankedResults = [...bestById.values()]
-    .sort((a, b) => b.rankScore - a.rankScore)
+    .sort(compareRankedResults)
     .slice(0, diversityPoolLimit);
   const results = selectDiverseResults(rankedResults, params.topK)
-    .sort((a, b) => b.rankScore - a.rankScore)
+    .sort(compareRankedResults)
     .map((ranked) => ranked.result);
   return { results, totalCandidates };
 }
