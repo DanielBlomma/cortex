@@ -1,0 +1,15 @@
+{
+  "name": "cortex",
+  "owner": {
+    "name": "Daniel Blomma",
+    "email": "daniel.blomma@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "cortex",
+      "source": "./plugins/cortex",
+      "description": "AI-powered code context: search, impact, rules, and pattern evidence backed by a local index",
+      "version": "2.3.0"
+    }
+  ]
+}

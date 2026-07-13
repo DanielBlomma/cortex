@@ -411,6 +411,14 @@ file must stay small enough that a fresh manager session can read it whole.
   81 context regressions, build, version-sync, 250-file npm pack dry-run, and
   clean diff. WO-022 and REQ-11 are accepted locally for 2.3.0.
 
+## 2026-07-13
+
+- WO-023 assigned (context packet 013): native agent integration and session
+  bootstrap on branch `feat/native-agent-integration`. Design spec approved
+  by the user; REQ-12 added to the acceptance matrix.
+- WO-023 implemented locally on `feat/native-agent-integration`; full root +
+  MCP suites and version-sync check passed. Awaiting user review/merge.
+
 ## Archive
 
 <!-- list rotated archive files here, e.g.

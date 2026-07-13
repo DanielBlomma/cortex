@@ -143,6 +143,26 @@ Check context status:
 cortex status
 ```
 
+## Agent plugin (Claude Code + Codex)
+
+The `plugins/cortex` directory is a dual-manifest agent plugin: five behavior
+skills (`using-cortex`, `repo-research`, `change-impact`, `pattern-review`,
+`context-review`), a SessionStart bootstrap that re-injects Cortex
+instructions after new sessions, `/clear`, and compaction (Claude Code), and
+an MCP config that follows the active workspace.
+
+Claude Code:
+
+```bash
+/plugin marketplace add DanielBlomma/cortex
+/plugin install cortex@cortex
+```
+
+Codex discovers the same skills through `.codex-plugin/plugin.json`; repos
+initialized with `cortex init` also get an AGENTS.md bootstrap section as a
+fallback when the plugin is not installed. The CLI remains the engine — the
+plugin only adds the behavior layer, and `cortex connect` stays opt-in.
+
 ## Query From The CLI
 
 Use the CLI as the default local agent interface:

@@ -1,7 +1,7 @@
 {
   "name": "cortex",
   "version": "2.3.0",
-  "description": "Cortex local context CLI with an optional MCP bridge for Claude Code",
+  "description": "Cortex local context: five behavior skills, a session bootstrap, and an optional MCP bridge",
   "author": {
     "name": "Daniel Blomma",
     "email": "daniel.blomma@gmail.com"
