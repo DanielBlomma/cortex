@@ -1,0 +1,188 @@
+# Cortex CLI and Ingest Modularization Plan
+
+## Goal
+
+Split the large CLI and ingest entry points into cohesive modules, establish
+one packaged ingest source of truth, and make scaffold upgrades remove obsolete
+Cortex-managed files safely. Preserve all observable behavior.
+
+## Baseline
+
+- Version: `2.4.1`
+- Commit: `5ae3b00948bad26af2e5eaea60ce0b52567db352`
+- Branch: `refactor/cli-ingest-modularization`
+- Program packet:
+  `docs/agent-control/context-packets/016-cli-ingest-modularization.md`
+
+## Program Rules
+
+- One work order per fresh session.
+- Write the next context packet and handoff state before ending each work
+  order.
+- Extract code without redesigning behavior.
+- Keep each commit independently testable.
+- Run focused tests during extraction and the full matrix at acceptance.
+- Do not bump the package version until integrated validation is accepted.
+
+## WO-026 — Characterization and Baseline
+
+### CLI contract
+
+- [ ] Inventory every command, alias, option, default, and passthrough.
+- [ ] Add a subprocess-based command matrix that records exit status and
+  stdout/stderr ownership.
+- [ ] Cover `help`, `version`, unknown commands, malformed flags, query shims,
+  daemon status outside a project, init/connect behavior, and missing-runtime
+  diagnostics.
+- [ ] Assert JSON envelope structure semantically rather than snapshotting
+  unstable timestamps or local paths.
+- [ ] Retain direct-import tests for `slugifyRepoId`,
+  `detectInitialSourcePaths`, `buildInitialConfig`, and
+  `isScaffoldOutOfDate`.
+
+### Enterprise contract
+
+- [ ] Keep the existing positional-secret, stdin-only, no-echo, trusted
+  runtime, identity-ordering, config-permission, and verified-daemon tests.
+- [ ] Add any missing CLI-stream or exit-status assertions needed to detect
+  extraction regressions.
+
+### Ingest contract
+
+- [ ] Build a compact multilingual fixture covering code, Markdown, config,
+  resources, SQL, project metadata, rules, and incremental deletion.
+- [ ] Record canonical full-ingest JSONL/TSV output hashes after normalizing
+  intentionally variable timestamps.
+- [ ] Compare sequential and parallel output byte-for-byte.
+- [ ] Cover changed ingest, deleted paths, unavailable parsers, zero workers,
+  crashed workers, and deterministic ordering.
+- [ ] Record the existing memory-trace labels and required fields.
+
+### Baseline evidence
+
+- [ ] Run focused tests and both full suites.
+- [ ] Run three comparable Cortex/Angular memory measurements and record the
+  median peak RSS and duration by phase.
+- [ ] Inspect a `2.4.1` package dry run and clean temporary install.
+- [ ] Update handoff/risk/acceptance state and create a focused WO-027 context
+  packet.
+
+## WO-027 — CLI Modularization
+
+### Pure helpers
+
+- [ ] Extract help rendering and argument parsing.
+- [ ] Extract process execution/result helpers.
+- [ ] Extract scaffold path/config helpers.
+- [ ] Re-export compatibility helpers from `bin/cortex.mjs`.
+- [ ] Run CLI characterization tests after each extraction commit.
+
+### Command handlers
+
+- [ ] Extract context query and passthrough handling.
+- [ ] Extract connect/init/scaffold handling.
+- [ ] Extract daemon handling without changing handshake or PID behavior.
+- [ ] Extract hooks and telemetry handling.
+- [ ] Extract Enterprise handling last, keeping trusted package resolution
+  physically separate from project runtime resolution.
+- [ ] Compose handlers in a small router with explicit command ownership.
+
+### Acceptance
+
+- [ ] `bin/cortex.mjs` is a thin executable boundary.
+- [ ] CLI and Enterprise focused tests pass.
+- [ ] Root and MCP full suites pass.
+- [ ] Package dry run includes every `bin/cli/` module.
+- [ ] Review findings are resolved and WO-028 receives a fresh packet.
+
+## WO-028 — Canonical Ingest Source and Pure Modules
+
+### Source ownership
+
+- [ ] Declare `scaffold/scripts/lib/ingest/` as the canonical implementation.
+- [ ] Make `scaffold/scripts/ingest.mjs` a thin packaged entry.
+- [ ] Make root `scripts/ingest.mjs` a thin development entry using the same
+  canonical implementation.
+- [ ] Update tests so unit behavior targets canonical modules and entrypoint
+  tests cover both wrappers.
+
+### Pure extraction order
+
+- [ ] Arguments, environment parsing, and constants.
+- [ ] File/path normalization, Git changes, candidate collection, and skip
+  policy.
+- [ ] JSONL/TSV readers and streaming writers.
+- [ ] Chunk IDs, chunk descriptions, windows, and module generation.
+- [ ] Config/resource/SQL relation builders.
+- [ ] Project and solution relation builders.
+- [ ] Incremental-state hydration and removal helpers.
+
+### Acceptance
+
+- [ ] No duplicated ingest implementation remains.
+- [ ] Full and changed fixture outputs match the WO-026 baseline.
+- [ ] Sequential/parallel equivalence remains byte-identical.
+- [ ] Focused and full suites pass.
+- [ ] Package dry run contains all nested ingest modules.
+- [ ] Review findings are resolved and WO-029 receives a fresh packet.
+
+## WO-029 — Ingest Orchestration and Workers
+
+- [ ] Extract parser loading/dispatch composition.
+- [ ] Extract worker-count resolution and worker protocol handling.
+- [ ] Extract streaming worker result consumption.
+- [ ] Preserve sorted file-record merge order.
+- [ ] Preserve inline fallback for missing, invalid, crashed, and disabled
+  workers.
+- [ ] Extract the main pipeline into explicit stages without copying whole
+  record collections between stages.
+- [ ] Keep trace checkpoint names and count fields stable.
+- [ ] Run output-equivalence, worker-crash, timeout, memory-trace, and full
+  tests.
+- [ ] Rerun comparable memory measurements and investigate median peak-RSS
+  movement above five percent.
+- [ ] Resolve reviews and create a fresh WO-030 packet.
+
+## WO-030 — Managed Scaffold Upgrade Hygiene
+
+- [ ] Define a versioned manifest of files owned by Cortex scaffolding.
+- [ ] Persist enough prior-manifest state to identify obsolete managed files.
+- [ ] Remove only manifest-owned paths inside the expected managed root.
+- [ ] Reject traversal and symlink escapes.
+- [ ] Preserve config, rules, ontology edits where applicable, Enterprise
+  secrets, and agent instructions.
+- [ ] Preserve unknown user-created files.
+- [ ] Add upgrade fixtures for removed, renamed, modified, unknown, symlinked,
+  and secret-bearing files.
+- [ ] Prove `init --force` repairs Enterprise config mode to `0600`.
+- [ ] Prove a stale generated source cannot survive and break bootstrap.
+- [ ] Resolve reviews and create a fresh WO-031 packet.
+
+## WO-031 — Integrated Validation and Release Readiness
+
+- [ ] Run syntax checks for all entrypoints and extracted modules.
+- [ ] Run focused CLI, init, migration, Enterprise, ingest, worker, memory, and
+  context-regression suites.
+- [ ] Run complete root and MCP suites.
+- [ ] Run dependency audits and version-sync checks.
+- [ ] Pack the npm artifact and inspect its file list.
+- [ ] Install the packed artifact into a clean temporary global prefix.
+- [ ] Run `init --bootstrap`, `doctor`, `search --json`, update, and forced
+  upgrade smokes in temporary repositories.
+- [ ] Confirm no local source upload or unexpected network path was added.
+- [ ] Compare final repeated memory evidence with WO-026.
+- [ ] Complete Code Quality, Contract, Security, Integration, Validation, and
+  Ops/Release review.
+- [ ] Bump to `2.4.2` only after all acceptance gates pass.
+
+## Final Definition of Done
+
+- Public behavior is unchanged except that forced upgrades safely remove
+  obsolete Cortex-managed generated files.
+- CLI and ingest entrypoints are thin and readable.
+- Development and packaged ingestion use one implementation.
+- Enterprise remains fail-closed and package-trusted.
+- Ingest output stays deterministic and byte-identical for fixed inputs.
+- Memory does not materially regress.
+- The packed release bootstraps and searches successfully from a clean
+  installation.

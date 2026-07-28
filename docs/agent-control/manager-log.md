@@ -7,13 +7,24 @@ Rotation rule: at each day rollover (or at ~150 lines), move the previous day's
 entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State. This
 file must stay small enough that a fresh manager session can read it whole.
 
-## Current State (2026-06-23)
+## Current State (2026-07-28)
 
 <!-- The fresh-manager test applies to this section: a brand-new manager
      session must be able to continue from here with zero chat history.
      Summarize: accepted/merged work orders, work orders with open evidence
      gates, next planned work orders, and open tooling risks. -->
 
+- `v2.4.1` is the modularization baseline at
+  `5ae3b00948bad26af2e5eaea60ce0b52567db352` on `origin/main`.
+- The user approved CLI/ingest modularization and requested a clean-context
+  handoff. The program is saved in context packet 016 and the detailed plan at
+  `docs/superpowers/plans/2026-07-28-cli-ingest-modularization.md`.
+- Work orders WO-026 through WO-031 and REQ-15 are planned on
+  `refactor/cli-ingest-modularization`. R14 covers behavior/security/data/memory
+  regression risk; R15 covers safe managed-scaffold ownership and cleanup.
+- Next action: start a fresh session with packet 016 and execute WO-026 only
+  (characterization tests plus memory/package baseline). Do not begin CLI
+  extraction until WO-026 is accepted and a smaller WO-027 packet exists.
 - PR #96 and PR #97 merged and released as `v2.1.4`. Angular/parser/benchmark
   and first-pass memory improvements are on `main`.
 - User decision on 2026-06-18: move Cortex from MCP-first to CLI-first for
@@ -476,6 +487,12 @@ file must stay small enough that a fresh manager session can read it whole.
   context regressions pass; workflow YAML, version sync, `git diff --check`,
   and the 380-entry package dry-run pass. GitHub default-branch alerts remain
   expected until the branch is merged.
+- User approved the maintainability improvement plan and explicitly requested
+  a clean-context handoff before implementation. Created branch
+  `refactor/cli-ingest-modularization` from the released `v2.4.1` commit,
+  context packet 016, the detailed implementation plan, WO-026 through WO-031,
+  REQ-15, and risks R14/R15. WO-026 is the only Ready work order; its required
+  reviewers are named in the packet and handoff ledger.
 
 ## Archive
 
