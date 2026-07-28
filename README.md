@@ -79,7 +79,7 @@ The result is an assistant that behaves as if it already knows your codebase, be
 
 ## Requirements
 
-- Node.js 20+
+- Node.js 20.9+ (Node 20 LTS or newer)
 - Git repository
 - Optional for MCP registration: `claude` and/or `codex` CLI in `PATH`
 

@@ -458,6 +458,24 @@ file must stay small enough that a fresh manager session can read it whole.
   optional watcher stopped; `cortex doctor` exited successfully with 6/8 checks
   while warning about expected dirty-worktree freshness (87%) and a local graph
   module load timeout.
+- User requested remediation of the Dependabot findings reported when the
+  Enterprise branch was pushed. Created WO-025 / REQ-14 and context packet 015
+  on the same unreleased 2.4.1 branch. Registry audit baseline is one high
+  frontend finding and 13 MCP vulnerable package nodes; root and parser
+  lockfiles are clean. GitHub's private alert API remains unavailable because
+  the configured `gh` token is stale.
+- Accepted WO-025 locally. Frontend now resolves PostCSS 8.5.23. MCP resolves
+  SDK 1.30.0 and patched Hono, parser, archive, protobuf, ONNX ZIP, and Sharp
+  chains; explicit overrides are limited to upstream ranges that did not admit
+  their patched version. Node support is aligned to 20.9 LTS. Release bump,
+  release publish, and Pages now enforce low-or-higher audit gates.
+- Final WO-025 evidence: every committed npm lockfile audits at zero; frontend
+  and MCP clean installs pass; frontend build passes; a local Transformers
+  smoke produced a 384-dimensional embedding while patched Sharp and adm-zip
+  completed image/archive operations; MCP 413/413 and root 254/254 plus 81/81
+  context regressions pass; workflow YAML, version sync, `git diff --check`,
+  and the 380-entry package dry-run pass. GitHub default-branch alerts remain
+  expected until the branch is merged.
 
 ## Archive
 

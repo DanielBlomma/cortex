@@ -28,6 +28,9 @@
 - Added verified socket-based daemon stop/restart. Bootstrap now restarts an
   already-running daemon so the upgraded security code replaces the old
   in-memory runtime, and init repairs preserved Enterprise configs to `0600`.
+- Updated the frontend and packaged MCP dependency trees to patched PostCSS,
+  SDK, Hono, archive, URI, YAML, protobuf, ONNX ZIP, and Sharp versions. All
+  committed npm lockfiles now have a zero-vulnerability audit target.
 
 ### Changed
 
@@ -46,6 +49,8 @@
   `cortex enterprise status --json` reports
   `enterprise.host_identity_bound: true`; Cortex never auto-enrolls from a
   repository config.
+- The minimum supported runtime is Node.js 20.9 (the first Node 20 LTS
+  release), required by the patched native embedding dependency chain.
 - Before re-enrollment, review legacy `~/.cortex/skills.local.json` records
   without `credential_id`, back up each exact matching Claude/Codex skill
   directory outside the discovery roots, and back up the state file. Ambiguous

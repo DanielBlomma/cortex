@@ -60,6 +60,9 @@ jobs:
           npm ci
           npm run test:ci
 
+      - name: Audit committed dependency trees
+        run: npm run audit:dependencies
+
       - name: Verify npm package contents
         run: npm pack --dry-run
 

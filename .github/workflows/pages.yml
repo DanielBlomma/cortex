@@ -37,6 +37,9 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci --prefix frontend
 
+      - name: Audit frontend dependencies
+        run: npm audit --package-lock-only --audit-level=low --prefix frontend
+
       - name: Build site
         run: npm run build --prefix frontend
 
