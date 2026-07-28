@@ -10,6 +10,7 @@ import {
 } from "../dist/core/workflow/synced-capability-registry.js";
 import { evaluateToolCall } from "../dist/core/workflow/enforcement.js";
 import { createRun } from "../dist/core/workflow/run-lifecycle.js";
+import { enterpriseCredentialId } from "../dist/core/license.js";
 
 function makeWorkspace() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "cortex-synced-caps-"));
@@ -47,6 +48,23 @@ function writeCache(dir, payload) {
     JSON.stringify(payload, null, 2),
     "utf8",
   );
+}
+
+function configureEnterprise(cwd) {
+  const endpoint = "https://licenses.example.com";
+  const apiKey = "ent_capability_12345678";
+  fs.mkdirSync(path.join(cwd, ".context"), { recursive: true });
+  fs.writeFileSync(
+    path.join(cwd, ".context", "enterprise.yml"),
+    [
+      "enterprise:",
+      `  api_key: ${apiKey}`,
+      `  endpoint: ${endpoint}`,
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  return enterpriseCredentialId(endpoint, apiKey);
 }
 
 test("syncedCapabilitiesCachePath: defaults to ~/.cortex/capabilities.local.json", () => {
@@ -107,16 +125,33 @@ test("loadSyncedCapabilities: returns valid capability definitions", () => {
   assert.deepEqual(loaded["frontend-builder"].write_globs, ["src/components/**"]);
 });
 
+test("loadSyncedCapabilities: rejects a cache bound to another Enterprise identity", () => {
+  const dir = makeWorkspace();
+  writeCache(dir, {
+    credential_id: "identity-a",
+    capabilities: {
+      "frontend-builder": {
+        capability_name: "frontend-builder",
+        updated_at: "2026-05-07T12:00:00.000Z",
+        definition: FRONTEND_BUILDER,
+      },
+    },
+  });
+  assert.deepEqual(loadSyncedCapabilities(dir, "identity-b"), {});
+});
+
 test("evaluateToolCall integration: synced capability is consulted via merged registry", () => {
   const cwd = makeWorkspace();
   // Sandbox the home-dir-based loader.
   const fakeHome = makeWorkspace();
   process.env.HOME = fakeHome;
   try {
+    const credentialId = configureEnterprise(cwd);
     fs.mkdirSync(path.join(fakeHome, ".cortex"), { recursive: true });
     fs.writeFileSync(
       path.join(fakeHome, ".cortex", "capabilities.local.json"),
       JSON.stringify({
+        credential_id: credentialId,
         capabilities: {
           "frontend-builder": {
             capability_name: "frontend-builder",
@@ -163,6 +198,7 @@ test("evaluateToolCall integration: synced capability with same name as bundled 
   const fakeHome = makeWorkspace();
   process.env.HOME = fakeHome;
   try {
+    const credentialId = configureEnterprise(cwd);
     // Override the bundled "builder" capability with a much stricter version
     // — only test files writable.
     const stricterBuilder = {
@@ -176,6 +212,7 @@ test("evaluateToolCall integration: synced capability with same name as bundled 
     fs.writeFileSync(
       path.join(fakeHome, ".cortex", "capabilities.local.json"),
       JSON.stringify({
+        credential_id: credentialId,
         capabilities: {
           builder: {
             capability_name: "builder",

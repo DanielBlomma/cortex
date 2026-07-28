@@ -1,7 +1,7 @@
 import { appendFile, mkdir } from "node:fs/promises";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { userInfo } from "node:os";
+import { platform, userInfo } from "node:os";
 import {
   detectUngoverned,
   enforceFinding,
@@ -9,12 +9,16 @@ import {
   type EnforcementMode,
   type UngovernedFinding,
 } from "../cli/ungoverned-detector.js";
+import { writeGlobalUngovernedEvent } from "./global-host-events.js";
+import { getGovernManagedPath } from "../core/govern-paths.js";
 
 export type ScannerOptions = {
   cwd: string;
   intervalMs?: number;
   mode?: EnforcementMode;
   detectorOptions?: DetectorOptions;
+  credentialId?: string;
+  managedPathOverrides?: Partial<Record<"claude" | "codex", string>>;
   onFinding?: (finding: UngovernedFinding & { action: string }) => void;
 };
 
@@ -38,7 +42,28 @@ function readMode(cwd: string): EnforcementMode {
   }
 }
 
-function readManagedTier1Clis(cwd: string): Set<string> {
+function isExpectedManagedArtifact(
+  cli: "claude" | "codex",
+  path: string,
+): boolean {
+  try {
+    const stat = lstatSync(path);
+    if (!stat.isFile() || stat.isSymbolicLink()) return false;
+    const raw = readFileSync(path, "utf8");
+    if (cli === "codex") {
+      return raw.startsWith("# Cortex govern — codex requirements");
+    }
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return parsed.allowManagedHooksOnly === true;
+  } catch {
+    return false;
+  }
+}
+
+function readManagedTier1Clis(
+  cwd: string,
+  overrides?: Partial<Record<"claude" | "codex", string>>,
+): Set<string> {
   const stateFile = join(cwd, ".context", "govern.local.json");
   const managed = new Set<string>();
   if (!existsSync(stateFile)) return managed;
@@ -49,7 +74,13 @@ function readManagedTier1Clis(cwd: string): Set<string> {
     };
     for (const [cli, inst] of Object.entries(parsed.installs ?? {})) {
       if (!TIER1_CLIS.has(cli)) continue;
-      if (!inst?.path || !existsSync(inst.path)) continue;
+      const tier1Cli = cli as "claude" | "codex";
+      const expectedPath =
+        overrides?.[tier1Cli] ??
+        getGovernManagedPath(tier1Cli, platform());
+      if (!isExpectedManagedArtifact(tier1Cli, expectedPath)) {
+        continue;
+      }
       managed.add(cli);
     }
   } catch {
@@ -79,7 +110,10 @@ export async function writeHostAuditEvent(
 
 export async function runScanOnce(options: ScannerOptions): Promise<UngovernedFinding[]> {
   const mode = options.mode ?? readMode(options.cwd);
-  const managedTier1Clis = readManagedTier1Clis(options.cwd);
+  const managedTier1Clis = readManagedTier1Clis(
+    options.cwd,
+    options.managedPathOverrides,
+  );
   const findings = filterManagedTier1Findings(
     detectUngoverned(options.detectorOptions),
     managedTier1Clis,
@@ -87,26 +121,24 @@ export async function runScanOnce(options: ScannerOptions): Promise<UngovernedFi
   const me = userInfo().username;
   for (const finding of findings) {
     const action = enforceFinding(finding, { mode, currentUser: me });
-    const event = {
-      event_type: "ungoverned_ai_session_detected",
-      timestamp: finding.detected_at,
-      host_id: finding.host_id,
-      cli: finding.cli,
-      binary: finding.binary,
-      pid: finding.pid,
-      ppid: finding.ppid,
-      user: finding.user,
-      args: finding.args,
-      parent_chain: finding.parent_chain,
-      mode,
-      action,
-    };
-    try {
-      await writeHostAuditEvent(options.cwd, event);
-    } catch (err) {
-      process.stderr.write(
-        `[cortex-daemon] failed to write ungoverned audit: ${err instanceof Error ? err.message : String(err)}\n`,
-      );
+    // A host process snapshot has no trustworthy project attribution. Store
+    // it only in the credential-bound user-global queue; never in whichever
+    // project happened to register first.
+    if (options.credentialId) {
+      writeGlobalUngovernedEvent(options.credentialId, {
+        event_type: "ungoverned_ai_session_detected",
+        timestamp: finding.detected_at,
+        host_id: finding.host_id,
+        cli: finding.cli,
+        binary: finding.binary,
+        pid: finding.pid,
+        ppid: finding.ppid,
+        user: finding.user,
+        args: finding.args,
+        parent_chain: finding.parent_chain,
+        mode,
+        action,
+      });
     }
     options.onFinding?.({ ...finding, action });
   }

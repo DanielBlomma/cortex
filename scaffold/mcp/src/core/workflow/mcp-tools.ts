@@ -96,6 +96,7 @@ export function runWorkflowStart(
 ) {
   const resolved = resolveWorkflowDefinition(input.workflow_id, {
     registry: ctx.workflows,
+    cwd: ctx.cwd,
     bundledFallbackPolicy: ctx.bundledFallbackPolicy,
   });
   const workflow = resolved.workflow;
@@ -130,6 +131,7 @@ export function runWorkflowAdvance(
   }
   const workflow = resolveWorkflowDefinition(state.workflow_id, {
     registry: ctx.workflows,
+    cwd: ctx.cwd,
   }).workflow;
   const stage = workflow.stages.find((s) => s.name === input.stage);
   if (!stage) {
@@ -210,6 +212,7 @@ export function runWorkflowEnvelope(
   }
   const workflow = resolveWorkflowDefinition(state.workflow_id, {
     registry: ctx.workflows,
+    cwd: ctx.cwd,
   }).workflow;
   const envelope = composeStageEnvelope({
     cwd: ctx.cwd,

@@ -5,6 +5,8 @@ import os from "node:os";
 import path from "node:path";
 
 import { runScanOnce, writeHostAuditEvent, startUngovernedScanner } from "../dist/daemon/ungoverned-scanner.js";
+import { claimEnterpriseHostIdentity } from "../dist/core/enterprise-host-identity.js";
+import { enterpriseCredentialId } from "../dist/core/license.js";
 
 function makeWorkspace(governMode, installs = null) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-ungoverned-"));
@@ -41,7 +43,7 @@ test("writeHostAuditEvent appends one JSONL line per call", async () => {
   }
 });
 
-test("runScanOnce: writes audit event with action=logged in advisory mode", async () => {
+test("runScanOnce: does not write unattributed host process metadata into project audit", async () => {
   const { root } = makeWorkspace("advisory");
   try {
     const fakeProcs = [
@@ -54,17 +56,61 @@ test("runScanOnce: writes audit event with action=logged in advisory mode", asyn
     });
     assert.equal(findings.length, 1);
 
-    const date = new Date().toISOString().slice(0, 10);
-    const file = path.join(root, ".context", "audit", `host-events-${date}.jsonl`);
-    const events = fs.readFileSync(file, "utf8").trim().split("\n").map(JSON.parse);
-    assert.equal(events.length, 1);
-    assert.equal(events[0].event_type, "ungoverned_ai_session_detected");
-    assert.equal(events[0].cli, "claude");
-    assert.equal(events[0].mode, "advisory");
-    assert.equal(events[0].action, "logged");
-    assert.equal(events[0].host_id, "test-host");
+    assert.equal(
+      fs.existsSync(path.join(root, ".context", "audit")),
+      false,
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("runScanOnce: writes detections only to the credential-bound user-global queue", async () => {
+  const { root } = makeWorkspace("advisory");
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-global-events-"));
+  const endpoint = "https://events.example.com";
+  const apiKey = "ent_global_events_12345678";
+  const credentialId = enterpriseCredentialId(endpoint, apiKey);
+  process.env.HOME = homeDir;
+  try {
+    assert.equal(
+      claimEnterpriseHostIdentity(credentialId, endpoint),
+      true,
+    );
+    await runScanOnce({
+      cwd: root,
+      credentialId,
+      detectorOptions: {
+        hostId: "host-global",
+        processes: [
+          {
+            pid: 4321,
+            ppid: 1,
+            user: os.userInfo().username,
+            comm: "claude",
+            args: "claude --prompt private",
+          },
+        ],
+      },
+    });
+
+    assert.equal(fs.existsSync(path.join(root, ".context", "audit")), false);
+    const queueDir = path.join(homeDir, ".cortex", "host-events");
+    const queueFile = fs.readdirSync(queueDir).find((name) =>
+      name.startsWith("ungoverned-")
+    );
+    assert.ok(queueFile);
+    assert.equal(fs.statSync(path.join(queueDir, queueFile)).mode & 0o777, 0o600);
+    const event = JSON.parse(
+      fs.readFileSync(path.join(queueDir, queueFile), "utf8").trim(),
+    );
+    assert.equal(event.credential_id, credentialId);
+    assert.equal(event.pid, 4321);
+    assert.match(event.args, /private/);
+  } finally {
+    delete process.env.HOME;
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(homeDir, { recursive: true, force: true });
   }
 });
 
@@ -91,12 +137,11 @@ test("runScanOnce: enforced mode marks action=sigterm but our mock doesn't actua
       process.kill = origKill;
     }
 
-    const date = new Date().toISOString().slice(0, 10);
-    const file = path.join(root, ".context", "audit", `host-events-${date}.jsonl`);
-    const events = fs.readFileSync(file, "utf8").trim().split("\n").map(JSON.parse);
-    assert.equal(events[0].mode, "enforced");
-    assert.equal(events[0].action, "sigterm");
     assert.deepEqual(killed, [99999, "SIGTERM"]);
+    assert.equal(
+      fs.existsSync(path.join(root, ".context", "audit")),
+      false,
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -127,9 +172,15 @@ test("runScanOnce: emits onFinding callback per detection", async () => {
 test("runScanOnce: skips Tier 1 CLIs that already have managed installs", async () => {
   const { root } = makeWorkspace("enforced");
   const managedClaudePath = path.join(root, "managed-settings.json");
-  fs.writeFileSync(managedClaudePath, "{}\n");
+  fs.writeFileSync(
+    managedClaudePath,
+    JSON.stringify({ allowManagedHooksOnly: true }) + "\n",
+  );
   const managedCodexPath = path.join(root, "requirements.toml");
-  fs.writeFileSync(managedCodexPath, "# managed\n");
+  fs.writeFileSync(
+    managedCodexPath,
+    "# Cortex govern — codex requirements (test).\n",
+  );
   fs.writeFileSync(
     path.join(root, ".context", "govern.local.json"),
     JSON.stringify({
@@ -160,16 +211,47 @@ test("runScanOnce: skips Tier 1 CLIs that already have managed installs", async 
     const findings = await runScanOnce({
       cwd: root,
       mode: "enforced",
+      managedPathOverrides: {
+        claude: managedClaudePath,
+        codex: managedCodexPath,
+      },
       detectorOptions: { processes: fakeProcs, hostId: "test-host" },
     });
     assert.equal(findings.length, 1);
     assert.equal(findings[0].cli, "copilot");
 
-    const date = new Date().toISOString().slice(0, 10);
-    const file = path.join(root, ".context", "audit", `host-events-${date}.jsonl`);
-    const events = fs.readFileSync(file, "utf8").trim().split("\n").map(JSON.parse);
-    assert.equal(events.length, 1);
-    assert.equal(events[0].cli, "copilot");
+    assert.equal(fs.existsSync(path.join(root, ".context", "audit")), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("runScanOnce: forged persisted paths cannot suppress Tier 1 findings", async () => {
+  const { root } = makeWorkspace("advisory", {
+    claude: {
+      mode: "advisory",
+      path: "/bin/sh",
+      version: "forged",
+      frameworks: [],
+      installed_at: "now",
+    },
+  });
+  try {
+    const findings = await runScanOnce({
+      cwd: root,
+      mode: "advisory",
+      detectorOptions: {
+        processes: [{
+          pid: 7654,
+          ppid: 1,
+          user: os.userInfo().username,
+          comm: "claude",
+          args: "claude --prompt hi",
+        }],
+      },
+    });
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].cli, "claude");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

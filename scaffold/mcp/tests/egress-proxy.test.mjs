@@ -237,3 +237,40 @@ test("egress proxy: stop() closes the server", async () => {
   assert.equal(proxy.isRunning(), false);
   fs.rmSync(cwd, { recursive: true, force: true });
 });
+
+test("egress proxy: an unattributed shared connection is not written into either project audit boundary", async () => {
+  const echo = await startEchoServer();
+  const projectA = makeProject();
+  const projectB = makeProject();
+  const proxy = await startEgressProxy({ port: 0, hostId: "test-host" });
+  try {
+    await new Promise((resolve, reject) => {
+      const client = net.connect(proxy.port, "127.0.0.1", () => {
+        client.write(
+          `GET http://127.0.0.1:${echo.port}/health HTTP/1.1\r\n` +
+            `Host: 127.0.0.1:${echo.port}\r\n\r\n`,
+        );
+      });
+      client.on("data", () => {
+        client.end();
+        resolve();
+      });
+      client.on("error", reject);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    assert.equal(
+      fs.existsSync(path.join(projectA, ".context", "audit")),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(path.join(projectB, ".context", "audit")),
+      false,
+    );
+  } finally {
+    await proxy.stop();
+    await new Promise((resolve) => echo.server.close(resolve));
+    fs.rmSync(projectA, { recursive: true, force: true });
+    fs.rmSync(projectB, { recursive: true, force: true });
+  }
+});

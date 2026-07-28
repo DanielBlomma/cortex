@@ -289,7 +289,12 @@ test("uninstall removes managed file and updates state", async () => {
     });
     assert.equal(fs.existsSync(target), true);
 
-    const result = await runGovernUninstall({ cli: "claude", cwd: root, skipRoot: true });
+    const result = await runGovernUninstall({
+      cli: "claude",
+      cwd: root,
+      skipRoot: true,
+      pathOverride: { claude: target },
+    });
     assert.equal(result.ok, true, result.message);
     assert.equal(fs.existsSync(target), false);
 
@@ -329,7 +334,12 @@ test("uninstall in enforced mode requires --break-glass + --reason", async () =>
       skipRoot: true,
     });
 
-    const blocked = await runGovernUninstall({ cli: "claude", cwd: root, skipRoot: true });
+    const blocked = await runGovernUninstall({
+      cli: "claude",
+      cwd: root,
+      skipRoot: true,
+      pathOverride: { claude: target },
+    });
     assert.equal(blocked.ok, false);
     assert.match(blocked.message, /enforced mode/);
     assert.equal(fs.existsSync(target), true);
@@ -339,6 +349,7 @@ test("uninstall in enforced mode requires --break-glass + --reason", async () =>
       cwd: root,
       breakGlass: true,
       skipRoot: true,
+      pathOverride: { claude: target },
     });
     assert.equal(noReason.ok, false);
     assert.match(noReason.message, /requires --reason/);
@@ -349,9 +360,91 @@ test("uninstall in enforced mode requires --break-glass + --reason", async () =>
       breakGlass: true,
       reason: "Incident response",
       skipRoot: true,
+      pathOverride: { claude: target },
     });
     assert.equal(allowed.ok, true, allowed.message);
     assert.equal(fs.existsSync(target), false);
+  } finally {
+    server.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("uninstall ignores a persisted managed path and removes only the derived target", async () => {
+  const { root, ctx } = makeProject({
+    apiKey: "ent_test_key_12345678",
+    baseUrl: "https://example.com",
+  });
+  const victim = path.join(root, "victim.txt");
+  const derived = path.join(root, "derived-managed.json");
+  fs.writeFileSync(victim, "do not delete");
+  fs.writeFileSync(derived, "managed");
+  fs.writeFileSync(
+    path.join(ctx, "govern.local.json"),
+    JSON.stringify({
+      installs: {
+        claude: {
+          path: victim,
+          version: "attacker-controlled",
+          frameworks: [],
+          installed_at: new Date().toISOString(),
+          mode: "advisory",
+        },
+      },
+    }),
+  );
+  try {
+    const result = await runGovernUninstall({
+      cli: "claude",
+      cwd: root,
+      skipRoot: true,
+      pathOverride: { claude: derived },
+    });
+    assert.equal(result.ok, true, result.message);
+    assert.equal(fs.readFileSync(victim, "utf8"), "do not delete");
+    assert.equal(fs.existsSync(derived), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("govern state replacement does not follow a dangling project-state symlink", async () => {
+  const { server, baseUrl } = await startMockServer({
+    "GET /api/v1/govern/config": (_req, res) => {
+      res.setHeader("ETag", '"v1"');
+      res.end(JSON.stringify({
+        cli: "claude",
+        managed_settings: { allowManagedHooksOnly: true },
+        deny_rules: [],
+        tamper_config: {
+          heartbeat_interval_seconds: 60,
+          missing_threshold_seconds: 300,
+        },
+        frameworks: [{ id: "iso27001", version: "1" }],
+      }));
+    },
+    "POST /api/v1/govern/applied": (_req, res) =>
+      res.end(JSON.stringify({ ok: true })),
+  });
+  const { root, ctx } = makeProject({
+    apiKey: "ent_state_symlink_12345678",
+    baseUrl,
+  });
+  const victim = path.join(root, "must-not-be-created");
+  const statePath = path.join(ctx, "govern.local.json");
+  const managedPath = path.join(root, "managed.json");
+  fs.symlinkSync(victim, statePath);
+  try {
+    const result = await runGovernInstall({
+      cli: "claude",
+      cwd: root,
+      skipRoot: true,
+      pathOverride: { claude: managedPath },
+    });
+    assert.equal(result.ok, true, result.message);
+    assert.equal(fs.existsSync(victim), false);
+    assert.equal(fs.lstatSync(statePath).isSymbolicLink(), false);
+    assert.equal(fs.statSync(statePath).mode & 0o777, 0o600);
   } finally {
     server.close();
     fs.rmSync(root, { recursive: true, force: true });

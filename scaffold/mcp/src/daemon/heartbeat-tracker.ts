@@ -130,6 +130,7 @@ export class HeartbeatTracker {
     const now = options.now ?? new Date();
     const thresholdMs = options.missingThresholdSeconds * 1000;
     const flagged: TamperLockEntry[] = [];
+    const allowedCwds = new Set(options.cwds);
 
     for (const [sessionId, state] of this.sessions) {
       // Cleanup sessions that have been silent forever — they crashed.
@@ -140,6 +141,7 @@ export class HeartbeatTracker {
       }
 
       if (state.ended) continue;
+      if (!allowedCwds.has(state.cwd)) continue;
       // Need at least 2 heartbeats for the "had-activity-then-silence"
       // signal — a single SessionStart followed by silence may just be a
       // user opening Claude and walking away.

@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { loadEnterpriseConfig } from "../core/config.js";
+import { isAllowedEnterpriseEndpoint } from "../core/secure-endpoint.js";
 
 /**
  * Phase 7 sync flow — host-events pusher.
@@ -148,6 +149,10 @@ export async function pushHostEvents(cwd: string): Promise<PushOutcome> {
   const baseUrl = (config.enterprise.base_url || config.enterprise.endpoint).trim();
   if (!apiKey || !baseUrl) {
     outcome.errors.push("enterprise not configured");
+    return outcome;
+  }
+  if (!isAllowedEnterpriseEndpoint(baseUrl)) {
+    outcome.errors.push("insecure or invalid enterprise endpoint");
     return outcome;
   }
 

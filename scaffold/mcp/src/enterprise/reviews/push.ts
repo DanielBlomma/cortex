@@ -1,4 +1,5 @@
 import { recordReviewDeliveryStatus } from "./trust-state.js";
+import { isAllowedEnterpriseEndpoint } from "../../core/secure-endpoint.js";
 
 export type ReviewPushItem = {
   policy_id: string;
@@ -50,6 +51,14 @@ export async function pushReviewResults(
 ): Promise<ReviewPushResult> {
   if (pending.length === 0) {
     return { success: true, count: 0, attempted: false };
+  }
+  if (!isAllowedEnterpriseEndpoint(baseUrl)) {
+    return {
+      success: false,
+      count: 0,
+      error: "insecure or invalid enterprise endpoint",
+      attempted: false,
+    };
   }
 
   const reviewsUrl = `${baseUrl.replace(/\/$/, "")}/api/v1/reviews/push`;

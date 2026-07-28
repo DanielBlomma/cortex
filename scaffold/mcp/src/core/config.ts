@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Role, RBACConfig } from "./rbac/check.js";
 import { parseValidatorsConfig, type ValidatorsConfig } from "./validators/config.js";
+import { isAllowedEnterpriseEndpoint } from "./secure-endpoint.js";
 
 export type TelemetryConfig = {
   enabled: boolean;
@@ -201,7 +202,10 @@ function isLikelyHttpUrl(value: string): boolean {
 
 export function resolveEnterpriseActivation(config: EnterpriseConfig): EnterpriseActivation {
   const apiKey = config.enterprise.api_key.trim();
-  const endpoint = config.enterprise.endpoint.trim();
+  const endpoint = (
+    config.enterprise.base_url ||
+    config.enterprise.endpoint
+  ).trim();
 
   if (!apiKey) {
     return { active: false, reason: "missing_api_key", api_key: null, endpoint: endpoint || null };
@@ -215,7 +219,10 @@ export function resolveEnterpriseActivation(config: EnterpriseConfig): Enterpris
     return { active: false, reason: "invalid_api_key_format", api_key: apiKey, endpoint };
   }
 
-  if (!isLikelyHttpUrl(endpoint)) {
+  if (
+    !isLikelyHttpUrl(endpoint) ||
+    !isAllowedEnterpriseEndpoint(endpoint)
+  ) {
     return { active: false, reason: "invalid_endpoint_format", api_key: apiKey, endpoint };
   }
 

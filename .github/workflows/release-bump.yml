@@ -58,11 +58,22 @@ jobs:
           node scripts/sync-release-version.mjs --check
 
       - name: Install parser dependencies
-        run: npm install --prefix scaffold/scripts/parsers
+        run: npm ci --prefix scaffold/scripts/parsers
 
-      - name: Validate tests
+      - name: Validate root tests
         run: |
-          node tests/context-regressions.test.mjs
+          npm test
+
+      - name: Install MCP dependencies
+        run: npm ci --prefix scaffold/mcp
+
+      - name: Validate MCP tests
+        run: npm --prefix scaffold/mcp run test:ci
+
+      - name: Validate release package
+        run: |
+          npm run release:check-version-sync
+          npm pack --dry-run
 
       - name: Read release version
         id: version
@@ -74,7 +85,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.value }}
         run: |
-          git add package.json server.json plugins/cortex/.claude-plugin/plugin.json plugins/cortex/.codex-plugin/plugin.json .claude-plugin/marketplace.json
+          git add package.json package-lock.json server.json plugins/cortex/.claude-plugin/plugin.json plugins/cortex/.codex-plugin/plugin.json .claude-plugin/marketplace.json
           if git diff --cached --quiet; then
             echo "No release metadata changes to commit."
             exit 1

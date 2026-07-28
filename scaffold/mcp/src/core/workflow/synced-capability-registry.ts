@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { configuredEnterpriseCredentialId } from "../enterprise-identity.js";
 import {
   capabilityDefinitionSchema,
   type CapabilityDefinition,
@@ -27,6 +28,7 @@ type LocalCapabilityRecord = {
 };
 
 type LocalCapabilitiesState = {
+  credential_id?: string;
   capabilities?: Record<string, LocalCapabilityRecord>;
 };
 
@@ -42,6 +44,7 @@ export function syncedCapabilitiesCachePath(dir?: string): string {
  */
 export function loadSyncedCapabilities(
   dir?: string,
+  expectedCredentialId?: string,
 ): Record<string, CapabilityDefinition> {
   const path = syncedCapabilitiesCachePath(dir);
   if (!existsSync(path)) return {};
@@ -50,6 +53,18 @@ export function loadSyncedCapabilities(
   try {
     parsed = JSON.parse(readFileSync(path, "utf8")) as LocalCapabilitiesState;
   } catch {
+    return {};
+  }
+  const requiredCredentialId =
+    expectedCredentialId ??
+    (dir ? undefined : configuredEnterpriseCredentialId(process.cwd()));
+  if (!dir && !requiredCredentialId) {
+    return {};
+  }
+  if (
+    requiredCredentialId &&
+    parsed.credential_id !== requiredCredentialId
+  ) {
     return {};
   }
   const records = parsed.capabilities;

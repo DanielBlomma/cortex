@@ -6,6 +6,11 @@ import {
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { loadEnterpriseConfig } from "../core/config.js";
+import { matchesEnterpriseHostIdentity } from "../core/enterprise-host-identity.js";
+import {
+  enterpriseCredentialId,
+  isAllowedLicenseEndpoint,
+} from "../core/license.js";
 import {
   capabilityDefinitionSchema,
   type CapabilityDefinition,
@@ -51,6 +56,7 @@ type LocalCapabilityRecord = {
 };
 
 type LocalCapabilitiesState = {
+  credential_id?: string;
   capabilities: Record<string, LocalCapabilityRecord>;
   last_synced_at?: string;
 };
@@ -75,6 +81,10 @@ function readSyncedCapabilitiesState(): LocalCapabilitiesState {
   try {
     const parsed = JSON.parse(readFileSync(path, "utf8")) as LocalCapabilitiesState;
     return {
+      credential_id:
+        typeof parsed.credential_id === "string"
+          ? parsed.credential_id
+          : undefined,
       capabilities: parsed.capabilities ?? {},
       last_synced_at: parsed.last_synced_at,
     };
@@ -145,6 +155,28 @@ export async function runCapabilitySyncOnce(
     await writeAudit(cwd, outcome);
     return outcome;
   }
+  if (!isAllowedLicenseEndpoint(baseUrl)) {
+    const outcome: CapabilitySyncOutcome = {
+      kind: "failed",
+      error: "insecure or invalid enterprise endpoint",
+    };
+    await writeAudit(cwd, outcome);
+    return outcome;
+  }
+
+  const credentialId = enterpriseCredentialId(baseUrl, apiKey);
+  if (!matchesEnterpriseHostIdentity(credentialId)) {
+    const outcome: CapabilitySyncOutcome = {
+      kind: "failed",
+      error:
+        "enterprise identity conflict: this user profile is already enrolled to another endpoint or API key",
+    };
+    await writeAudit(cwd, outcome);
+    return outcome;
+  }
+  const state = readSyncedCapabilitiesState();
+  const identityChanged = state.credential_id !== credentialId;
+  state.credential_id = credentialId;
 
   let manifest: ManifestEntry[];
   try {
@@ -158,7 +190,6 @@ export async function runCapabilitySyncOnce(
     return outcome;
   }
 
-  const state = readSyncedCapabilitiesState();
   const remoteByName = new Map(manifest.map((e) => [e.capability_name, e]));
 
   const added: string[] = [];
@@ -169,7 +200,8 @@ export async function runCapabilitySyncOnce(
     const local = state.capabilities[entry.capability_name];
     const isNew = !local;
     const isChanged =
-      Boolean(local) && local.updated_at !== entry.updated_at;
+      Boolean(local) &&
+      (identityChanged || local.updated_at !== entry.updated_at);
     if (!isNew && !isChanged) continue;
 
     let fetched: FetchedCapability;
@@ -218,6 +250,10 @@ export async function runCapabilitySyncOnce(
 
   const totalChanged = added.length + changed.length + removed.length;
   if (totalChanged === 0) {
+    if (identityChanged) {
+      state.last_synced_at = new Date().toISOString();
+      writeSyncedCapabilitiesState(state);
+    }
     const outcome: CapabilitySyncOutcome = {
       kind: "unchanged",
       count: manifest.length,

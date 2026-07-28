@@ -419,6 +419,46 @@ file must stay small enough that a fresh manager session can read it whole.
 - WO-023 implemented locally on `feat/native-agent-integration`; full root +
   MCP suites and version-sync check passed. Awaiting user review/merge.
 
+## 2026-07-28
+
+- User chose to retain Enterprise and harden its security boundary after the
+  2.4.0 application review.
+- Created WO-024, REQ-13, R13, and context packet 014 on branch
+  `fix/enterprise-security-boundary`. Scope covers remote skill filesystem
+  containment, credential-bound license caching, protected API-key onboarding
+  and storage, and project-correct per-user daemon enforcement. General PID,
+  malformed hook-settings, and scaffold-version findings remain out of scope.
+- WO-024 first pass completed for review. Focused MCP security/daemon tests
+  pass 27/27 and root enterprise CLI tests pass 2/2. Release metadata is
+  staged at 2.4.1. Assigned Security, Ops/Release, and Validation reviewers;
+  full suites and Cortex refresh remain acceptance gates.
+- Accepted WO-024 locally after iterative Security, Ops/Release, and Validation
+  review. Blocker/major findings fixed in iteration included remote skill
+  traversal/deletion, cross-credential caches and artifacts, cleartext bearer
+  egress, first-project host metadata leakage, unsafe API-key rotation,
+  privileged project-runtime execution and symlink/state file sinks, persisted
+  govern deletion paths, unverified daemon PID handling, false install success,
+  and project-dependent emergency daemon control.
+- Final architecture keeps Enterprise behind explicit verified enrollment:
+  privileged operations load the package-owned compiled runtime, project-local
+  operations run as the sudo target user, host-global services and a mode-0600
+  process-event queue are bound to one durable endpoint identity, and
+  same-endpoint key rotation purges marker-owned skills/caches before rebinding.
+  Existing installations deliberately re-enroll; unmarked legacy skills use a
+  documented reviewed backup/reconciliation step.
+- Final evidence: MCP 413/413; root 254/254 plus 81/81 context regressions;
+  security regressions 47/47; TypeScript, version-sync, syntax, and clean-diff
+  checks; 380-entry npm pack including trusted dist; extracted-package
+  `enterprise status --json`; Security and Ops/Release reported no
+  blocker/major findings. Validation reported only a minor missing
+  heartbeat-to-registry integration test; it is explicitly deferred because
+  registry identity isolation, heartbeat behavior, focused boundary tests, and
+  both full suites pass.
+- `cortex update` completed successfully. `cortex watch status` reports the
+  optional watcher stopped; `cortex doctor` exited successfully with 6/8 checks
+  while warning about expected dirty-worktree freshness (87%) and a local graph
+  module load timeout.
+
 ## Archive
 
 <!-- list rotated archive files here, e.g.

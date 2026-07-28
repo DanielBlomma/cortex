@@ -12,6 +12,10 @@ import {
   recordReviewDeliveryStatus,
 } from "../dist/enterprise/reviews/trust-state.js";
 import { syncedWorkflowsCachePath } from "../dist/core/workflow/synced-registry.js";
+import { enterpriseCredentialId } from "../dist/core/license.js";
+
+const ENTERPRISE_ENDPOINT = "https://licenses.example.com";
+const ENTERPRISE_KEY = "ent_review_contract_12345678";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const reviewFixture = JSON.parse(
@@ -25,6 +29,16 @@ function makeProject() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-review-contract-"));
   const contextDir = path.join(root, ".context");
   fs.mkdirSync(contextDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(contextDir, "enterprise.yml"),
+    [
+      "enterprise:",
+      `  api_key: ${ENTERPRISE_KEY}`,
+      `  endpoint: ${ENTERPRISE_ENDPOINT}`,
+      "",
+    ].join("\n"),
+    "utf8",
+  );
   const taskDir = path.join(root, ".agents", "task-1");
   fs.mkdirSync(taskDir, { recursive: true });
   fs.writeFileSync(
@@ -49,6 +63,10 @@ function enableSyncedSecureBuild(homeDir) {
     syncedWorkflowsCachePath(syncedDir),
     JSON.stringify(
       {
+        credential_id: enterpriseCredentialId(
+          ENTERPRISE_ENDPOINT,
+          ENTERPRISE_KEY,
+        ),
         workflows: {
           "secure-build": {
             workflow_id: "secure-build",

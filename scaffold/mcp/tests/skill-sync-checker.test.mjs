@@ -6,9 +6,34 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  runSkillSyncForCli,
-  runSkillSyncOnce,
+  runSkillSyncForCli as runSkillSyncForCliImpl,
+  runSkillSyncOnce as runSkillSyncOnceImpl,
 } from "../dist/daemon/skill-sync-checker.js";
+import { enterpriseCredentialId } from "../dist/core/license.js";
+import { claimEnterpriseHostIdentity } from "../dist/core/enterprise-host-identity.js";
+
+const TEST_ENDPOINT = "https://example.com";
+const TEST_API_KEY = "ent_test_12345678";
+
+function enrollTestIdentity() {
+  assert.equal(
+    claimEnterpriseHostIdentity(
+      enterpriseCredentialId(TEST_ENDPOINT, TEST_API_KEY),
+      TEST_ENDPOINT,
+    ),
+    true,
+  );
+}
+
+async function runSkillSyncForCli(cwd, cli) {
+  enrollTestIdentity();
+  return runSkillSyncForCliImpl(cwd, cli);
+}
+
+async function runSkillSyncOnce(cwd, clis) {
+  enrollTestIdentity();
+  return runSkillSyncOnceImpl(cwd, clis);
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const skillFixture = JSON.parse(
@@ -76,6 +101,7 @@ function createFetchStub(state) {
     }
 
     if (url.pathname.startsWith("/api/v1/govern/skills/")) {
+      if (typeof state.bodyFetches === "number") state.bodyFetches += 1;
       const name = decodeURIComponent(url.pathname.split("/").pop() ?? "");
       if (!(name in state.bodies)) {
         return {
@@ -274,4 +300,422 @@ test("runSkillSyncOnce: consumes the shared org-skillz contract fixture end-to-e
     skillFixture.markdown["claude-playbook"],
   );
   assert.ok(!fs.existsSync(skillPath(homeDir, "claude", "alpha-codex")));
+});
+
+test("runSkillSyncForCli: rejects unsafe remote names before fetching or writing skill bodies", async () => {
+  const { cwd } = makeWorkspace();
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-skill-home-"));
+  process.env.HOME = homeDir;
+  const victimDir = path.join(homeDir, "Documents");
+  fs.mkdirSync(victimDir);
+  fs.writeFileSync(path.join(victimDir, "sentinel.txt"), "keep", "utf8");
+  let bodyFetches = 0;
+
+  globalThis.fetch = async (input) => {
+    const url = input instanceof URL ? input : new URL(input);
+    if (url.pathname.endsWith("/manifest")) {
+      return {
+        ok: true,
+        json: async () => ({
+          skills: [{
+            name: "../../Documents",
+            scope: "global",
+            updated_at: "2026-07-28T00:00:00.000Z",
+          }],
+        }),
+      };
+    }
+    bodyFetches += 1;
+    throw new Error("body fetch must not occur");
+  };
+
+  const outcome = await runSkillSyncForCli(cwd, "codex");
+  assert.equal(outcome.kind, "failed");
+  assert.match(outcome.error, /invalid skill name/);
+  assert.equal(bodyFetches, 0);
+  assert.equal(
+    fs.readFileSync(path.join(victimDir, "sentinel.txt"), "utf8"),
+    "keep",
+  );
+});
+
+test("runSkillSyncForCli: ignores persisted absolute paths when removing legacy state", async () => {
+  const { cwd } = makeWorkspace();
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-skill-home-"));
+  process.env.HOME = homeDir;
+  const victimDir = path.join(homeDir, "Documents");
+  fs.mkdirSync(victimDir);
+  fs.writeFileSync(path.join(victimDir, "SKILL.md"), "not managed", "utf8");
+  fs.writeFileSync(path.join(victimDir, "sentinel.txt"), "keep", "utf8");
+  fs.mkdirSync(path.dirname(daemonStatePath(homeDir)), { recursive: true });
+  fs.writeFileSync(
+    daemonStatePath(homeDir),
+    JSON.stringify({
+      skills: {
+        "codex:safe-skill": {
+          cli: "codex",
+          scope: "global",
+          updated_at: "2026-07-27T00:00:00.000Z",
+          path: path.join(victimDir, "SKILL.md"),
+        },
+      },
+    }),
+    "utf8",
+  );
+  globalThis.fetch = createFetchStub({
+    manifests: { codex: [] },
+    bodies: {},
+  });
+
+  const outcome = await runSkillSyncForCli(cwd, "codex");
+  assert.equal(outcome.kind, "synced");
+  assert.deepEqual(outcome.removed, ["safe-skill"]);
+  assert.equal(
+    fs.readFileSync(path.join(victimDir, "sentinel.txt"), "utf8"),
+    "keep",
+  );
+  assert.equal(fs.existsSync(path.join(victimDir, "SKILL.md")), true);
+});
+
+test("runSkillSyncForCli: refuses to write through a managed skill directory symlink", {
+  skip: process.platform === "win32",
+}, async () => {
+  const { cwd } = makeWorkspace();
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-skill-home-"));
+  process.env.HOME = homeDir;
+  const victimDir = path.join(homeDir, "victim");
+  const skillsRoot = path.join(homeDir, ".codex", "skills");
+  fs.mkdirSync(victimDir);
+  fs.mkdirSync(skillsRoot, { recursive: true });
+  fs.writeFileSync(path.join(victimDir, "SKILL.md"), "keep", "utf8");
+  fs.symlinkSync(victimDir, path.join(skillsRoot, "global-skill"), "dir");
+  const remote = {
+    bodyFetches: 0,
+    manifests: {
+      codex: [{
+        name: "global-skill",
+        scope: "global",
+        updated_at: "2026-07-28T00:00:00.000Z",
+      }],
+    },
+    bodies: {
+      "global-skill": "remote replacement",
+    },
+  };
+  globalThis.fetch = createFetchStub(remote);
+
+  const outcome = await runSkillSyncForCli(cwd, "codex");
+  assert.equal(outcome.kind, "failed");
+  assert.match(outcome.error, /symbolic link/);
+  assert.equal(remote.bodyFetches, 0);
+  assert.equal(
+    fs.readFileSync(path.join(victimDir, "SKILL.md"), "utf8"),
+    "keep",
+  );
+});
+
+test("runSkillSyncForCli: refuses to overwrite an unmanaged personal skill collision", async () => {
+  const { cwd } = makeWorkspace();
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-skill-home-"));
+  process.env.HOME = homeDir;
+  const personalDir = path.dirname(
+    skillPath(homeDir, "codex", "global-skill"),
+  );
+  fs.mkdirSync(personalDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(personalDir, "SKILL.md"),
+    "personal content",
+    "utf8",
+  );
+  fs.writeFileSync(path.join(personalDir, "notes.txt"), "keep", "utf8");
+  const remote = {
+    bodyFetches: 0,
+    manifests: {
+      codex: [{
+        name: "global-skill",
+        scope: "global",
+        updated_at: "2026-07-28T00:00:00.000Z",
+      }],
+    },
+    bodies: { "global-skill": "remote replacement" },
+  };
+  globalThis.fetch = createFetchStub(remote);
+
+  const outcome = await runSkillSyncForCli(cwd, "codex");
+  assert.equal(outcome.kind, "failed");
+  assert.match(outcome.error, /not owned by Cortex/);
+  assert.equal(remote.bodyFetches, 0);
+  assert.equal(
+    fs.readFileSync(path.join(personalDir, "SKILL.md"), "utf8"),
+    "personal content",
+  );
+  assert.equal(
+    fs.readFileSync(path.join(personalDir, "notes.txt"), "utf8"),
+    "keep",
+  );
+});
+
+test("runSkillSyncForCli: refuses a symlinked CLI skills root", {
+  skip: process.platform === "win32",
+}, async () => {
+  const { cwd } = makeWorkspace();
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-skill-home-"));
+  process.env.HOME = homeDir;
+  const victimDir = path.join(homeDir, "outside");
+  const cliDir = path.join(homeDir, ".codex");
+  fs.mkdirSync(victimDir);
+  fs.mkdirSync(cliDir);
+  fs.symlinkSync(victimDir, path.join(cliDir, "skills"), "dir");
+  const remote = {
+    bodyFetches: 0,
+    manifests: {
+      codex: [{
+        name: "global-skill",
+        scope: "global",
+        updated_at: "2026-07-28T00:00:00.000Z",
+      }],
+    },
+    bodies: { "global-skill": "remote replacement" },
+  };
+  globalThis.fetch = createFetchStub(remote);
+
+  const outcome = await runSkillSyncForCli(cwd, "codex");
+  assert.equal(outcome.kind, "failed");
+  assert.match(outcome.error, /skills root must not be a symbolic link/);
+  assert.equal(remote.bodyFetches, 0);
+  assert.deepEqual(fs.readdirSync(victimDir), []);
+});
+
+test("runSkillSyncForCli: a second credential cannot mutate the first credential's managed skills", async () => {
+  const { cwd, contextDir } = makeWorkspace();
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-skill-home-"));
+  process.env.HOME = homeDir;
+  const remote = {
+    manifests: {
+      codex: [{
+        name: "global-skill",
+        scope: "global",
+        updated_at: "2026-07-28T00:00:00.000Z",
+      }],
+    },
+    bodies: { "global-skill": "identity A" },
+  };
+  globalThis.fetch = createFetchStub(remote);
+
+  const first = await runSkillSyncForCli(cwd, "codex");
+  assert.equal(first.kind, "synced");
+  const installed = skillPath(homeDir, "codex", "global-skill");
+  assert.equal(fs.readFileSync(installed, "utf8"), "identity A");
+  assert.ok(
+    fs.existsSync(path.join(path.dirname(installed), ".cortex-managed.json")),
+  );
+
+  fs.writeFileSync(
+    path.join(contextDir, "enterprise.yml"),
+    [
+      "enterprise:",
+      "  api_key: ent_other_12345678",
+      "  endpoint: https://other.example.com",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  remote.manifests.codex = [];
+
+  const second = await runSkillSyncForCli(cwd, "codex");
+  assert.equal(second.kind, "failed");
+  assert.match(second.error, /identity conflict/);
+  assert.equal(fs.readFileSync(installed, "utf8"), "identity A");
+});
+
+test("runSkillSyncForCli: removal refuses unowned files added to a managed directory", async () => {
+  const { cwd } = makeWorkspace();
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-skill-home-"));
+  process.env.HOME = homeDir;
+  const remote = {
+    manifests: {
+      codex: [{
+        name: "global-skill",
+        scope: "global",
+        updated_at: "2026-07-28T00:00:00.000Z",
+      }],
+    },
+    bodies: { "global-skill": "managed" },
+  };
+  globalThis.fetch = createFetchStub(remote);
+  assert.equal((await runSkillSyncForCli(cwd, "codex")).kind, "synced");
+
+  const installedDir = path.dirname(
+    skillPath(homeDir, "codex", "global-skill"),
+  );
+  fs.writeFileSync(path.join(installedDir, "personal-note.txt"), "keep", "utf8");
+  remote.manifests.codex = [];
+
+  const outcome = await runSkillSyncForCli(cwd, "codex");
+  assert.equal(outcome.kind, "failed");
+  assert.match(outcome.error, /contains unowned files/);
+  assert.equal(
+    fs.readFileSync(path.join(installedDir, "personal-note.txt"), "utf8"),
+    "keep",
+  );
+});
+
+test("runSkillSyncForCli: refuses a managed SKILL.md symlink before fetching replacement content", {
+  skip: process.platform === "win32",
+}, async () => {
+  const { cwd } = makeWorkspace();
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-skill-home-"));
+  process.env.HOME = homeDir;
+  const remote = {
+    bodyFetches: 0,
+    manifests: {
+      codex: [{
+        name: "global-skill",
+        scope: "global",
+        updated_at: "2026-07-28T00:00:00.000Z",
+      }],
+    },
+    bodies: { "global-skill": "managed v1" },
+  };
+  globalThis.fetch = createFetchStub(remote);
+  assert.equal((await runSkillSyncForCli(cwd, "codex")).kind, "synced");
+  assert.equal(remote.bodyFetches, 1);
+
+  const installed = skillPath(homeDir, "codex", "global-skill");
+  const victim = path.join(homeDir, "victim.txt");
+  fs.writeFileSync(victim, "keep", "utf8");
+  fs.unlinkSync(installed);
+  fs.symlinkSync(victim, installed);
+  remote.manifests.codex[0].updated_at = "2026-07-28T01:00:00.000Z";
+  remote.bodies["global-skill"] = "managed v2";
+
+  const outcome = await runSkillSyncForCli(cwd, "codex");
+  assert.equal(outcome.kind, "failed");
+  assert.match(outcome.error, /skill file must not be a symbolic link/);
+  assert.equal(remote.bodyFetches, 1);
+  assert.equal(fs.readFileSync(victim, "utf8"), "keep");
+});
+
+test("runSkillSyncForCli: rejects malformed manifest variants before any body fetch", async () => {
+  const variants = [
+    {
+      label: "absolute name",
+      manifest: [{
+        name: "/tmp/owned",
+        scope: "global",
+        updated_at: "2026-07-28T00:00:00.000Z",
+      }],
+    },
+    {
+      label: "separator-only name",
+      manifest: [{
+        name: "../",
+        scope: "global",
+        updated_at: "2026-07-28T00:00:00.000Z",
+      }],
+    },
+    {
+      label: "dot name",
+      manifest: [{
+        name: ".",
+        scope: "global",
+        updated_at: "2026-07-28T00:00:00.000Z",
+      }],
+    },
+    {
+      label: "malformed entry",
+      manifest: [null],
+    },
+    {
+      label: "invalid scope",
+      manifest: [{
+        name: "safe-name",
+        scope: "project",
+        updated_at: "2026-07-28T00:00:00.000Z",
+      }],
+    },
+    {
+      label: "missing timestamp",
+      manifest: [{
+        name: "safe-name",
+        scope: "global",
+        updated_at: "",
+      }],
+    },
+    {
+      label: "duplicate name",
+      manifest: [
+        {
+          name: "safe-name",
+          scope: "global",
+          updated_at: "2026-07-28T00:00:00.000Z",
+        },
+        {
+          name: "safe-name",
+          scope: "global",
+          updated_at: "2026-07-28T00:00:00.000Z",
+        },
+      ],
+    },
+  ];
+
+  for (const variant of variants) {
+    const { cwd } = makeWorkspace();
+    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-skill-home-"));
+    process.env.HOME = homeDir;
+    let bodyFetches = 0;
+    globalThis.fetch = async (input) => {
+      const url = input instanceof URL ? input : new URL(input);
+      if (url.pathname.endsWith("/manifest")) {
+        return {
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          json: async () => ({ skills: variant.manifest }),
+        };
+      }
+      bodyFetches += 1;
+      throw new Error("body fetch must not occur");
+    };
+    const outcome = await runSkillSyncForCli(cwd, "codex");
+    assert.equal(outcome.kind, "failed", variant.label);
+    assert.equal(bodyFetches, 0, variant.label);
+  }
+});
+
+test("runSkillSyncForCli: sanitizes an unsafe legacy state key without filesystem mutation", async () => {
+  const { cwd } = makeWorkspace();
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-skill-home-"));
+  process.env.HOME = homeDir;
+  const victimDir = path.join(homeDir, "Documents");
+  fs.mkdirSync(victimDir);
+  fs.writeFileSync(path.join(victimDir, "sentinel.txt"), "keep", "utf8");
+  fs.mkdirSync(path.dirname(daemonStatePath(homeDir)), { recursive: true });
+  fs.writeFileSync(
+    daemonStatePath(homeDir),
+    JSON.stringify({
+      skills: {
+        "codex:../../Documents": {
+          cli: "codex",
+          scope: "global",
+          updated_at: "2026-07-27T00:00:00.000Z",
+          path: victimDir,
+        },
+      },
+    }),
+    "utf8",
+  );
+  globalThis.fetch = createFetchStub({
+    manifests: { codex: [] },
+    bodies: {},
+  });
+
+  const outcome = await runSkillSyncForCli(cwd, "codex");
+  assert.equal(outcome.kind, "unchanged");
+  assert.equal(
+    fs.readFileSync(path.join(victimDir, "sentinel.txt"), "utf8"),
+    "keep",
+  );
+  const state = JSON.parse(fs.readFileSync(daemonStatePath(homeDir), "utf8"));
+  assert.deepEqual(state.skills, {});
 });

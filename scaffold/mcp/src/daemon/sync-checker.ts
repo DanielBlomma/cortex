@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { loadEnterpriseConfig } from "../core/config.js";
+import { isAllowedEnterpriseEndpoint } from "../core/secure-endpoint.js";
 import { writeHostAuditEvent } from "./ungoverned-scanner.js";
 
 /**
@@ -83,6 +84,9 @@ export async function checkSyncForCli(
   const baseUrl = (config.enterprise.base_url || config.enterprise.endpoint).trim();
   if (!apiKey || !baseUrl) {
     return { kind: "failed", error: "enterprise not configured" };
+  }
+  if (!isAllowedEnterpriseEndpoint(baseUrl)) {
+    return { kind: "failed", error: "insecure or invalid enterprise endpoint" };
   }
   const frameworks = activeFrameworks(cwd);
   if (frameworks.length === 0) {

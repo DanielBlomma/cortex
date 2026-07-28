@@ -1,5 +1,71 @@
 # Changelog
 
+## 2.4.1 — 2026-07-28
+
+### Security
+
+- Validated remote enterprise skill names, blocked symlink targets, and
+  added Cortex ownership markers so personal skill directories cannot be
+  overwritten or recursively deleted. Deletion targets are derived from
+  managed CLI roots instead of trusting cached absolute paths.
+- Bound license-cache reuse to the normalized endpoint and a one-way API-key
+  fingerprint. Malformed, future-dated, and expired cache assertions fail
+  closed; HTTP 401/403 responses reject authorization without grace.
+- Changed enterprise onboarding to read API keys from stdin and atomically
+  create `.context/enterprise.yml` with mode `0600`. Remote endpoints require
+  HTTPS, with a loopback-only HTTP exception for local development.
+- Bound user-global organization artifacts and host process detection to one
+  opaque Enterprise credential identity per OS user. A conflicting endpoint
+  is rejected, same-endpoint API-key rotation safely purges old marker-owned
+  skills and caches, and only one host-wide process scanner runs.
+- Moved unattributed process findings into a credential-bound, mode-`0600`
+  user-global queue instead of the first project's audit directory.
+- Enterprise admin commands now execute only package-owned trusted code.
+  Repository runtime modules and project-local state writes never execute with
+  root authority; persisted govern paths are not deletion authority.
+- Suppressed shared-proxy project audit events when a connection has no
+  trustworthy project attribution.
+- Added verified socket-based daemon stop/restart. Bootstrap now restarts an
+  already-running daemon so the upgraded security code replaces the old
+  in-memory runtime, and init repairs preserved Enterprise configs to `0600`.
+
+### Changed
+
+- Replace `sudo cortex enterprise <api-key>` with:
+
+  ```bash
+  printf '%s\n' "$CORTEX_API_KEY" |
+    sudo cortex enterprise install --api-key-stdin
+  ```
+
+- After updating the npm package, run `cortex init --force` and
+  `cortex bootstrap`. The latter safely restarts a verified running daemon;
+  an npm update alone does not activate this fix in an existing process.
+- Existing Enterprise users must then rerun the stdin install to create the
+  durable host-identity marker. Confirm
+  `cortex enterprise status --json` reports
+  `enterprise.host_identity_bound: true`; Cortex never auto-enrolls from a
+  repository config.
+- Before re-enrollment, review legacy `~/.cortex/skills.local.json` records
+  without `credential_id`, back up each exact matching Claude/Codex skill
+  directory outside the discovery roots, and back up the state file. Ambiguous
+  legacy directories are deliberately not adopted or deleted automatically.
+
+### Rollout and emergency containment
+
+- Do not downgrade to 2.4.0: that reopens the remote skill traversal boundary.
+  Use a forward fix.
+- Before rollout, back up `.context/enterprise.yml` with ownership and mode
+  preserved. After restore, verify the correct owner and run
+  `chmod 600 .context/enterprise.yml`.
+- If suspicious remote organization content is observed, run
+  `cortex daemon stop` and stop Enterprise AI sessions until a forward fix is
+  installed. Enforced hooks intentionally fail closed while the daemon is
+  unavailable.
+- After rollout, verify `cortex daemon status` reports a verified PID,
+  `cortex enterprise status` is healthy, the config mode is `0600`, and a
+  canary organization sync cannot overwrite an unmanaged personal skill.
+
 ## 2.4.0 — 2026-07-13
 
 ### Added

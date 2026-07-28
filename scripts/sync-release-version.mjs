@@ -67,6 +67,23 @@ function syncMarketplace(marketplace, version) {
   return next;
 }
 
+function syncPackageLock(packageLock, version, packageName) {
+  const next = structuredClone(packageLock);
+  next.version = version;
+  if (
+    !next.packages ||
+    typeof next.packages !== "object" ||
+    !next.packages[""]
+  ) {
+    throw new Error("Invalid package-lock.json: missing root package entry");
+  }
+  next.packages[""].version = version;
+  if (next.packages[""].name && next.packages[""].name !== packageName) {
+    throw new Error("package-lock.json root package name does not match package.json");
+  }
+  return next;
+}
+
 function isEqualJson(a, b) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
@@ -84,6 +101,11 @@ function main() {
   }
 
   const syncPlan = [
+    {
+      path: "package-lock.json",
+      required: true,
+      transform: (value) => syncPackageLock(value, version, packageName)
+    },
     {
       path: "server.json",
       required: true,

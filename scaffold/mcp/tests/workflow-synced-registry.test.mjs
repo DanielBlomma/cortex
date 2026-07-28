@@ -11,6 +11,7 @@ import {
 import { resolveWorkflowDefinition } from "../dist/core/workflow/resolution.js";
 import { runWorkflowStart } from "../dist/core/workflow/mcp-tools.js";
 import { SECURE_BUILD_WORKFLOW } from "../dist/core/workflow/default-workflows.js";
+import { enterpriseCredentialId } from "../dist/core/license.js";
 
 function makeWorkspace() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "cortex-synced-registry-"));
@@ -47,6 +48,23 @@ function writeCache(dir, payload) {
     JSON.stringify(payload, null, 2),
     "utf8",
   );
+}
+
+function configureEnterprise(cwd) {
+  const endpoint = "https://licenses.example.com";
+  const apiKey = "ent_workflow_12345678";
+  fs.mkdirSync(path.join(cwd, ".context"), { recursive: true });
+  fs.writeFileSync(
+    path.join(cwd, ".context", "enterprise.yml"),
+    [
+      "enterprise:",
+      `  api_key: ${apiKey}`,
+      `  endpoint: ${endpoint}`,
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  return enterpriseCredentialId(endpoint, apiKey);
 }
 
 test("syncedWorkflowsCachePath: defaults to ~/.cortex/workflows.local.json", () => {
@@ -110,6 +128,22 @@ test("loadSyncedWorkflows: returns valid workflow definitions keyed by workflow_
   assert.equal(loaded.tiny.stages.length, 2);
 });
 
+test("loadSyncedWorkflows: rejects a cache bound to another Enterprise identity", () => {
+  const dir = makeWorkspace();
+  writeCache(dir, {
+    credential_id: "identity-a",
+    workflows: {
+      tiny: {
+        workflow_id: "tiny",
+        version: 1,
+        updated_at: "2026-05-06T12:00:00.000Z",
+        definition: TINY_WORKFLOW,
+      },
+    },
+  });
+  assert.deepEqual(loadSyncedWorkflows(dir, "identity-b"), {});
+});
+
 test("resolveWorkflow integration: synced workflow takes precedence over bundled default", () => {
   // We can't easily intercept loadSyncedWorkflows() from inside
   // mcp-tools.ts (it reads from a fixed home-dir path). Instead, exercise
@@ -148,10 +182,12 @@ test("resolveWorkflow integration: synced cache adds new workflow_ids beyond def
   const fakeHome = makeWorkspace();
   process.env.HOME = fakeHome;
   try {
+    const credentialId = configureEnterprise(cwd);
     fs.mkdirSync(path.join(fakeHome, ".cortex"), { recursive: true });
     fs.writeFileSync(
       path.join(fakeHome, ".cortex", "workflows.local.json"),
       JSON.stringify({
+        credential_id: credentialId,
         workflows: {
           tiny: {
             workflow_id: "tiny",
@@ -215,7 +251,10 @@ test("resolveWorkflowDefinition: unknown workflow errors list bundled and synced
   const fakeHome = makeWorkspace();
   process.env.HOME = fakeHome;
   try {
+    const cwd = makeWorkspace();
+    const credentialId = configureEnterprise(cwd);
     writeCache(path.join(fakeHome, ".cortex"), {
+      credential_id: credentialId,
       workflows: {
         tiny: {
           workflow_id: "tiny",
@@ -226,7 +265,7 @@ test("resolveWorkflowDefinition: unknown workflow errors list bundled and synced
       },
     });
     assert.throws(
-      () => resolveWorkflowDefinition("missing-workflow"),
+      () => resolveWorkflowDefinition("missing-workflow", { cwd }),
       /Available bundled: secure-build\. Available synced: tiny\./,
     );
   } finally {

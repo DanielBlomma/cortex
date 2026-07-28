@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { configuredEnterpriseCredentialId } from "../enterprise-identity.js";
 import { workflowDefinitionSchema, type WorkflowDefinition } from "./schemas.js";
 
 /**
@@ -25,6 +26,7 @@ type LocalWorkflowRecord = {
 };
 
 type LocalWorkflowsState = {
+  credential_id?: string;
   workflows?: Record<string, LocalWorkflowRecord>;
 };
 
@@ -40,6 +42,7 @@ export function syncedWorkflowsCachePath(dir?: string): string {
  */
 export function loadSyncedWorkflows(
   dir?: string,
+  expectedCredentialId?: string,
 ): Record<string, WorkflowDefinition> {
   const path = syncedWorkflowsCachePath(dir);
   if (!existsSync(path)) return {};
@@ -48,6 +51,18 @@ export function loadSyncedWorkflows(
   try {
     parsed = JSON.parse(readFileSync(path, "utf8")) as LocalWorkflowsState;
   } catch {
+    return {};
+  }
+  const requiredCredentialId =
+    expectedCredentialId ??
+    (dir ? undefined : configuredEnterpriseCredentialId(process.cwd()));
+  if (!dir && !requiredCredentialId) {
+    return {};
+  }
+  if (
+    requiredCredentialId &&
+    parsed.credential_id !== requiredCredentialId
+  ) {
     return {};
   }
   const records = parsed.workflows;

@@ -1,4 +1,5 @@
 import type { AuditEntry } from "../../core/audit/writer.js";
+import { isAllowedEnterpriseEndpoint } from "../../core/secure-endpoint.js";
 import { sanitizeAuditEntryForPush } from "../privacy/boundary.js";
 
 export type AuditPushContext = {
@@ -39,6 +40,13 @@ export async function pushAuditEvents(
 ): Promise<AuditPushResult> {
   if (pending.length === 0) {
     return { success: true, count: 0 };
+  }
+  if (!isAllowedEnterpriseEndpoint(baseUrl)) {
+    return {
+      success: false,
+      count: 0,
+      error: "insecure or invalid enterprise endpoint",
+    };
   }
 
   const auditUrl = `${baseUrl.replace(/\/$/, "")}/api/v1/audit/push`;

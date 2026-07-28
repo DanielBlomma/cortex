@@ -1,4 +1,5 @@
 import type { WorkflowState } from "./state.js";
+import { isAllowedEnterpriseEndpoint } from "../../core/secure-endpoint.js";
 
 export type WorkflowPushContext = {
   repo?: string;
@@ -25,6 +26,12 @@ export async function pushWorkflowSnapshot(
 ): Promise<WorkflowPushResult> {
   if (!baseUrl || !apiKey) {
     return { success: false, error: "endpoint or api_key not configured" };
+  }
+  if (!isAllowedEnterpriseEndpoint(baseUrl)) {
+    return {
+      success: false,
+      error: "insecure or invalid enterprise endpoint",
+    };
   }
 
   const workflowUrl = `${baseUrl.replace(/\/$/, "")}/api/v1/workflow/push`;

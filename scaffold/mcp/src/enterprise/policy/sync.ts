@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { OrgPolicy, PolicyStore } from "../../core/policy/store.js";
+import { isAllowedEnterpriseEndpoint } from "../../core/secure-endpoint.js";
 
 const CloudPolicySchema = z.object({
   id: z.string().min(1).max(200),
@@ -56,6 +57,17 @@ export async function syncFromCloud(
       source: "cloud",
       timestamp: new Date().toISOString(),
       error: "endpoint or api_key not configured",
+    };
+    lastSync = result;
+    return result;
+  }
+  if (!isAllowedEnterpriseEndpoint(endpoint)) {
+    const result: SyncResult = {
+      success: false,
+      synced: 0,
+      source: "cloud",
+      timestamp: new Date().toISOString(),
+      error: "insecure or invalid enterprise endpoint",
     };
     lastSync = result;
     return result;

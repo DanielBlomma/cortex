@@ -42,8 +42,16 @@ test("repair: errors when managed file is missing", async () => {
       },
     },
   });
+  const expectedPath = path.join(
+    os.tmpdir(),
+    "definitely-not-here-derived-claude-managed.json",
+  );
   try {
-    const result = await runGovernRepair({ cwd: root, skipRoot: true });
+    const result = await runGovernRepair({
+      cwd: root,
+      skipRoot: true,
+      pathOverride: { claude: expectedPath },
+    });
     assert.equal(result.ok, false);
     assert.match(result.message, /missing/);
   } finally {
@@ -72,7 +80,11 @@ test("repair: errors when copilot shim has been replaced", async () => {
     }),
   );
   try {
-    const result = await runGovernRepair({ cwd: root, skipRoot: true });
+    const result = await runGovernRepair({
+      cwd: root,
+      skipRoot: true,
+      pathOverride: { copilot: fakeShim },
+    });
     assert.equal(result.ok, false);
     assert.match(result.message, /no longer a cortex shim/);
   } finally {
@@ -116,6 +128,7 @@ test("repair: clears tamper lock when managed paths verify clean", async () => {
       cwd: root,
       skipRoot: true,
       reason: "Operator reviewed and cleared",
+      pathOverride: { claude: claudeManaged },
     });
     assert.equal(result.ok, true, result.message);
     assert.equal(result.removed_lock, true);
@@ -147,7 +160,11 @@ test("repair: success even when there is no lock — paths still verified", asyn
     }),
   );
   try {
-    const result = await runGovernRepair({ cwd: root, skipRoot: true });
+    const result = await runGovernRepair({
+      cwd: root,
+      skipRoot: true,
+      pathOverride: { claude: claudeManaged },
+    });
     assert.equal(result.ok, true, result.message);
     assert.equal(result.removed_lock, false);
     assert.match(result.message, /No tamper lock present/);

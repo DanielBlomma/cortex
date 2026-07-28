@@ -148,6 +148,32 @@ test("detectTamper: ended session is not flagged", () => {
   assert.equal(findings.length, 0);
 });
 
+test("detectTamper: only evaluates project roots registered by the daemon", () => {
+  const tracker = new HeartbeatTracker();
+  for (const cwd of ["/first", "/second"]) {
+    tracker.recordHeartbeat({
+      cli: "claude",
+      hook: "SessionStart",
+      session_id: `session-${cwd}`,
+      cwd,
+      ts: ts(-10 * 60 * 1000),
+    });
+    tracker.recordHeartbeat({
+      cli: "claude",
+      hook: "PreToolUse",
+      session_id: `session-${cwd}`,
+      cwd,
+      ts: ts(-9 * 60 * 1000),
+    });
+  }
+
+  const findings = tracker.detectTamper({
+    cwds: ["/second"],
+    missingThresholdSeconds: 60,
+  });
+  assert.deepEqual(findings.map((finding) => finding.cwd), ["/second"]);
+});
+
 test("detectTamper: stale session beyond cleanupAfterMs is auto-removed", () => {
   const tracker = new HeartbeatTracker({ cleanupAfterMs: 1000 });
   tracker.recordHeartbeat({

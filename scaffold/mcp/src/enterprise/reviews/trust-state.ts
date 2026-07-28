@@ -143,7 +143,9 @@ function inferWorkflow(projectRoot: string, taskId?: string): WorkflowInference 
     if (!workflowId) {
       return { id: null, source: "unknown", task_id: normalizedTaskId };
     }
-    const resolved = resolveWorkflowDefinition(workflowId);
+    const resolved = resolveWorkflowDefinition(workflowId, {
+      cwd: projectRoot,
+    });
     return {
       id: workflowId,
       source: resolved.source,

@@ -5,6 +5,7 @@ import { DEFAULT_CAPABILITIES, type CapabilityDefinition } from "./capabilities.
 import { workflowDefinitionSchema, type WorkflowDefinition } from "./schemas.js";
 import { DEFAULT_WORKFLOWS } from "./default-workflows.js";
 import { loadSyncedCapabilities } from "./synced-capability-registry.js";
+import { configuredEnterpriseCredentialId } from "../enterprise-identity.js";
 
 /**
  * Pre-tool-use enforcement for the harness. Pure function: takes the tool
@@ -89,7 +90,13 @@ export function evaluateToolCall(options: EvaluateOptions): EnforcementResult {
   // capabilities, with synced ones taking precedence on name collisions
   // so org overrides actually override.
   const capabilities =
-    options.capabilities ?? { ...DEFAULT_CAPABILITIES, ...loadSyncedCapabilities() };
+    options.capabilities ?? {
+      ...DEFAULT_CAPABILITIES,
+      ...loadSyncedCapabilities(
+        undefined,
+        configuredEnterpriseCredentialId(options.cwd) ?? undefined,
+      ),
+    };
   const capability = capabilities[stage.capability];
   if (!capability) {
     return {

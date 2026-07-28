@@ -14,8 +14,9 @@ import { writeHostAuditEvent } from "./ungoverned-scanner.js";
  * Per privacy boundary v3 we never send payload bytes to cortex-web —
  * only SNI + destination + bytes-transferred counters. The audit lands
  * in .context/audit/host-events-YYYY-MM-DD.jsonl as event_type =
- * "egress_connection". The host-events pusher (Fas 7) then forwards
- * those to cortex-web on the periodic timer.
+ * "egress_connection" only when a caller supplies an attributable project
+ * cwd. The shared daemon proxy intentionally omits cwd and therefore emits
+ * no project audit record rather than misattributing cross-project traffic.
  *
  * Plain HTTP (non-CONNECT) is also supported but logged with the Host
  * header in place of SNI.
@@ -103,7 +104,7 @@ export function parseSni(buf: Buffer): string | null {
 }
 
 export type ProxyOptions = {
-  cwd: string;
+  cwd?: string;
   port?: number;
   hostId?: string;
 };
@@ -118,7 +119,8 @@ const HTTP_OK = "HTTP/1.1 200 Connection Established\r\nProxy-Agent: cortex-egre
 const HTTP_BAD = "HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n";
 const HTTP_BAD_GATEWAY = "HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n";
 
-function emit(cwd: string, evt: EgressEvent): void {
+function emit(cwd: string | undefined, evt: EgressEvent): void {
+  if (!cwd) return;
   void writeHostAuditEvent(cwd, evt as unknown as Record<string, unknown>).catch((err) => {
     process.stderr.write(
       `[cortex-egress] audit emit failed: ${err instanceof Error ? err.message : String(err)}\n`,
@@ -147,7 +149,7 @@ function pipeWithCounting(
   client: Socket,
   upstream: Socket,
   evt: EgressEvent,
-  cwd: string,
+  cwd: string | undefined,
   start: number,
 ): void {
   let firstClientChunk = true;
@@ -193,7 +195,7 @@ function handleConnect(
   client: Socket,
   host: string,
   port: number,
-  cwd: string,
+  cwd: string | undefined,
   hostId: string,
 ): void {
   const evt = newEvent(host, port, "https", hostId, client.remotePort ?? null);
@@ -220,7 +222,7 @@ function handleHttp(
   client: Socket,
   url: URL,
   initialChunk: Buffer,
-  cwd: string,
+  cwd: string | undefined,
   hostId: string,
 ): void {
   const port = url.port ? parseInt(url.port, 10) : 80;
@@ -245,7 +247,11 @@ function handleHttp(
   });
 }
 
-function handleConnection(client: Socket, cwd: string, hostId: string): void {
+function handleConnection(
+  client: Socket,
+  cwd: string | undefined,
+  hostId: string,
+): void {
   let buffer = Buffer.alloc(0);
 
   const onFirstChunk = (chunk: Buffer) => {

@@ -1,4 +1,5 @@
 import type { TelemetryMetrics } from "../../core/telemetry/collector.js";
+import { isAllowedEnterpriseEndpoint } from "../../core/secure-endpoint.js";
 import { buildTelemetryPushPayload } from "../privacy/boundary.js";
 
 export type PushResult = {
@@ -35,6 +36,14 @@ export async function pushMetrics(
 ): Promise<PushResult> {
   if (!endpoint || !apiKey) {
     const result: PushResult = { success: false, error: "endpoint or api_key not configured" };
+    lastPush = result;
+    return result;
+  }
+  if (!isAllowedEnterpriseEndpoint(endpoint)) {
+    const result: PushResult = {
+      success: false,
+      error: "insecure or invalid enterprise endpoint",
+    };
     lastPush = result;
     return result;
   }

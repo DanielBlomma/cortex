@@ -4,6 +4,8 @@
  * Uses the same endpoint/api_key as policy sync since
  * violations require the "policy" scope.
  */
+import { isAllowedEnterpriseEndpoint } from "../../core/secure-endpoint.js";
+
 type ViolationItem = {
   rule_id: string;
   severity: "error" | "warning" | "info";
@@ -53,6 +55,13 @@ export async function pushViolations(
 
   if (!baseUrl || !apiKey) {
     return { success: false, count: 0, error: "endpoint or api_key not configured" };
+  }
+  if (!isAllowedEnterpriseEndpoint(baseUrl)) {
+    return {
+      success: false,
+      count: 0,
+      error: "insecure or invalid enterprise endpoint",
+    };
   }
 
   const violationsUrl = `${baseUrl.replace(/\/$/, "")}/api/v1/violations/push`;

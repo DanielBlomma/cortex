@@ -6,6 +6,11 @@ import {
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { loadEnterpriseConfig } from "../core/config.js";
+import { matchesEnterpriseHostIdentity } from "../core/enterprise-host-identity.js";
+import {
+  enterpriseCredentialId,
+  isAllowedLicenseEndpoint,
+} from "../core/license.js";
 import { workflowDefinitionSchema, type WorkflowDefinition } from "../core/workflow/schemas.js";
 import { writeHostAuditEvent } from "./ungoverned-scanner.js";
 import { daemonDir } from "./paths.js";
@@ -55,6 +60,7 @@ type LocalWorkflowRecord = {
 };
 
 type LocalWorkflowsState = {
+  credential_id?: string;
   workflows: Record<string, LocalWorkflowRecord>;
   last_synced_at?: string;
 };
@@ -79,6 +85,10 @@ export function readSyncedWorkflowsState(): LocalWorkflowsState {
   try {
     const parsed = JSON.parse(readFileSync(path, "utf8")) as LocalWorkflowsState;
     return {
+      credential_id:
+        typeof parsed.credential_id === "string"
+          ? parsed.credential_id
+          : undefined,
       workflows: parsed.workflows ?? {},
       last_synced_at: parsed.last_synced_at,
     };
@@ -149,6 +159,28 @@ export async function runWorkflowSyncOnce(
     await writeAudit(cwd, outcome);
     return outcome;
   }
+  if (!isAllowedLicenseEndpoint(baseUrl)) {
+    const outcome: WorkflowSyncOutcome = {
+      kind: "failed",
+      error: "insecure or invalid enterprise endpoint",
+    };
+    await writeAudit(cwd, outcome);
+    return outcome;
+  }
+
+  const credentialId = enterpriseCredentialId(baseUrl, apiKey);
+  if (!matchesEnterpriseHostIdentity(credentialId)) {
+    const outcome: WorkflowSyncOutcome = {
+      kind: "failed",
+      error:
+        "enterprise identity conflict: this user profile is already enrolled to another endpoint or API key",
+    };
+    await writeAudit(cwd, outcome);
+    return outcome;
+  }
+  const state = readSyncedWorkflowsState();
+  const identityChanged = state.credential_id !== credentialId;
+  state.credential_id = credentialId;
 
   let manifest: ManifestEntry[];
   try {
@@ -162,7 +194,6 @@ export async function runWorkflowSyncOnce(
     return outcome;
   }
 
-  const state = readSyncedWorkflowsState();
   const remoteByName = new Map(manifest.map((e) => [e.workflow_id, e]));
 
   const added: string[] = [];
@@ -174,7 +205,11 @@ export async function runWorkflowSyncOnce(
     const isNew = !local;
     const isChanged =
       Boolean(local) &&
-      (local.updated_at !== entry.updated_at || local.version !== entry.version);
+      (
+        identityChanged ||
+        local.updated_at !== entry.updated_at ||
+        local.version !== entry.version
+      );
     if (!isNew && !isChanged) continue;
 
     let fetched: FetchedWorkflow;
@@ -224,6 +259,10 @@ export async function runWorkflowSyncOnce(
 
   const totalChanged = added.length + changed.length + removed.length;
   if (totalChanged === 0) {
+    if (identityChanged) {
+      state.last_synced_at = new Date().toISOString();
+      writeSyncedWorkflowsState(state);
+    }
     const outcome: WorkflowSyncOutcome = {
       kind: "unchanged",
       count: manifest.length,

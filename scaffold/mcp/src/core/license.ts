@@ -1,6 +1,18 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import {
+  chmodSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  renameSync,
+  unlinkSync,
+} from "node:fs";
 import { join } from "node:path";
 import { resolveTelemetryStateDir, telemetryStatePath } from "./telemetry/state-dir.js";
+import { isAllowedEnterpriseEndpoint } from "./secure-endpoint.js";
+
+export { isAllowedEnterpriseEndpoint as isAllowedLicenseEndpoint };
 
 export type LicenseVerification =
   | {
@@ -20,6 +32,9 @@ export type LicenseVerification =
     };
 
 type CacheEntry = {
+  version: 2;
+  endpoint: string;
+  api_key_sha256: string;
   result: LicenseVerification;
   // ISO timestamp for cache freshness window
   cached_at: string;
@@ -34,23 +49,83 @@ function cachePath(contextDir: string): string {
   return telemetryStatePath(contextDir, CACHE_FILE);
 }
 
+function isIsoTimestamp(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) && new Date(timestamp).toISOString() === value;
+}
+
 function readCache(contextDir: string): CacheEntry | null {
   const path = cachePath(contextDir);
   if (!existsSync(path)) return null;
   try {
     const raw = readFileSync(path, "utf8");
-    return JSON.parse(raw) as CacheEntry;
+    const parsed = JSON.parse(raw) as Partial<CacheEntry>;
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      parsed.version !== 2 ||
+      typeof parsed.endpoint !== "string" ||
+      !parsed.endpoint ||
+      typeof parsed.api_key_sha256 !== "string" ||
+      !/^[a-f0-9]{64}$/.test(parsed.api_key_sha256) ||
+      !parsed.result ||
+      typeof parsed.result !== "object" ||
+      typeof parsed.result.valid !== "boolean" ||
+      !isIsoTimestamp(parsed.cached_at)
+    ) {
+      deleteCache(contextDir);
+      return null;
+    }
+    if (parsed.result.valid) {
+      if (
+        typeof parsed.result.edition !== "string" ||
+        !Array.isArray(parsed.result.features) ||
+        !parsed.result.features.every((feature) => typeof feature === "string") ||
+        !isIsoTimestamp(parsed.result.expires_at) ||
+        typeof parsed.result.max_repos !== "number" ||
+        !Number.isFinite(parsed.result.max_repos) ||
+        parsed.result.max_repos < 0 ||
+        !isIsoTimestamp(parsed.result.verified_at) ||
+        !["remote", "cache"].includes(parsed.result.source)
+      ) {
+        deleteCache(contextDir);
+        return null;
+      }
+    } else if (
+      typeof parsed.result.reason !== "string" ||
+      !isIsoTimestamp(parsed.result.verified_at) ||
+      !["remote", "cache", "grace_expired"].includes(parsed.result.source)
+    ) {
+      deleteCache(contextDir);
+      return null;
+    }
+    return parsed as CacheEntry;
   } catch {
+    deleteCache(contextDir);
     return null;
   }
 }
 
 function writeCache(contextDir: string, entry: CacheEntry): void {
   const path = cachePath(contextDir);
+  const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
   try {
     mkdirSync(resolveTelemetryStateDir(contextDir), { recursive: true });
-    writeFileSync(path, JSON.stringify(entry, null, 2), "utf8");
+    writeFileSync(
+      temporaryPath,
+      JSON.stringify(entry, null, 2) + "\n",
+      { encoding: "utf8", mode: 0o600, flag: "wx" },
+    );
+    chmodSync(temporaryPath, 0o600);
+    renameSync(temporaryPath, path);
+    chmodSync(path, 0o600);
   } catch {
+    try {
+      unlinkSync(temporaryPath);
+    } catch {
+      // Best effort.
+    }
     // Cache failures are non-fatal — license check just won't be cached.
   }
 }
@@ -67,6 +142,48 @@ function deleteCache(contextDir: string): void {
 
 function ageMs(isoTimestamp: string): number {
   return Date.now() - new Date(isoTimestamp).getTime();
+}
+
+export function normalizeLicenseEndpoint(endpoint: string): string {
+  return endpoint.trim().replace(/\/+$/, "");
+}
+
+function apiKeyFingerprint(apiKey: string): string {
+  return createHash("sha256").update(apiKey, "utf8").digest("hex");
+}
+
+function cacheMatchesCredential(
+  cached: CacheEntry,
+  endpoint: string,
+  apiKey: string,
+): boolean {
+  return (
+    cached.version === 2 &&
+    cached.endpoint === normalizeLicenseEndpoint(endpoint) &&
+    cached.api_key_sha256 === apiKeyFingerprint(apiKey)
+  );
+}
+
+export function enterpriseCredentialId(
+  endpoint: string,
+  apiKey: string,
+): string {
+  return createHash("sha256")
+    .update(normalizeLicenseEndpoint(endpoint), "utf8")
+    .update("\0", "utf8")
+    .update(apiKey, "utf8")
+    .digest("hex");
+}
+
+function cacheResultIsUnexpired(cached: CacheEntry): boolean {
+  if (!cached.result.valid) return false;
+  const expiresAt = new Date(cached.result.expires_at).getTime();
+  return Number.isFinite(expiresAt) && expiresAt > Date.now();
+}
+
+function cacheAgeIsWithin(cached: CacheEntry, limitMs: number): boolean {
+  const age = ageMs(cached.cached_at);
+  return Number.isFinite(age) && age >= 0 && age < limitMs;
 }
 
 async function fetchLicense(
@@ -93,21 +210,41 @@ async function fetchLicense(
       signal: controller.signal,
     });
 
+    if (res.status === 401 || res.status === 403) {
+      return {
+        valid: false,
+        reason: "authentication_rejected",
+        verified_at: new Date().toISOString(),
+        source: "remote",
+      };
+    }
+
     if (!res.ok) {
-      // 401/429/5xx — treat as transient, surface null so caller can fall back.
+      // Rate limiting, server failures, and other transport-level responses
+      // may use an identity-matched positive cache during the grace period.
       return null;
     }
 
     const json = (await res.json()) as Record<string, unknown>;
     const verifiedAt = new Date().toISOString();
 
-    if (json.valid === true) {
+    if (
+      json.valid === true &&
+      typeof json.edition === "string" &&
+      Array.isArray(json.features) &&
+      json.features.every((feature) => typeof feature === "string") &&
+      isIsoTimestamp(json.expires_at) &&
+      new Date(json.expires_at).getTime() > Date.now() &&
+      typeof json.max_repos === "number" &&
+      Number.isFinite(json.max_repos) &&
+      json.max_repos >= 0
+    ) {
       return {
         valid: true,
-        edition: String(json.edition ?? "unknown"),
-        features: Array.isArray(json.features) ? json.features.map(String) : [],
-        expires_at: String(json.expires_at ?? ""),
-        max_repos: typeof json.max_repos === "number" ? json.max_repos : 0,
+        edition: json.edition,
+        features: json.features,
+        expires_at: json.expires_at,
+        max_repos: json.max_repos,
         verified_at: verifiedAt,
         source: "remote",
       };
@@ -115,7 +252,9 @@ async function fetchLicense(
 
     return {
       valid: false,
-      reason: String(json.reason ?? "unknown"),
+      reason: json.valid === true
+        ? "malformed_license_response"
+        : String(json.reason ?? "unknown"),
       verified_at: verifiedAt,
       source: "remote",
     };
@@ -129,7 +268,8 @@ async function fetchLicense(
 
 /**
  * Verify the license for the given api_key. Layered fallback:
- *   1. If a positive cache (valid:true) is fresh (<24h) → use cache
+ *   1. If a positive cache (valid:true) is fresh (<24h), unexpired, and
+ *      bound to this endpoint + API-key fingerprint → use cache
  *      Negative cache entries are never trusted; if one is encountered
  *      it's deleted on the spot so a since-fixed remote can heal.
  *   2. Otherwise try remote endpoint
@@ -138,8 +278,9 @@ async function fetchLicense(
  *        cache (so a revoked/expired key doesn't keep masquerading as
  *        valid past its remote-side fail), return result, do NOT
  *        cache the negative.
- *      - On transient failure → fall back to positive cache if within
- *        grace period (7d). If only a negative cache exists, ignore it.
+ *      - On transient failure → fall back to the same identity-bound positive
+ *        cache if within the grace period (7d). Authentication rejection is
+ *        authoritative and never uses grace.
  *   3. If no usable cache and endpoint unreachable → return invalid
  *      (grace_expired).
  *
@@ -153,6 +294,16 @@ export async function verifyLicense(
   apiKey: string,
   options: { instance_id?: string; client_version?: string } = {},
 ): Promise<LicenseVerification> {
+  if (!isAllowedEnterpriseEndpoint(endpoint)) {
+    deleteCache(contextDir);
+    return {
+      valid: false,
+      reason: "insecure_or_invalid_endpoint",
+      verified_at: new Date().toISOString(),
+      source: "remote",
+    };
+  }
+
   let cached = readCache(contextDir);
 
   // Defensive: a previous version of this code wrote negative results
@@ -163,9 +314,19 @@ export async function verifyLicense(
     cached = null;
   }
 
+  const matchingCache =
+    cached && cacheMatchesCredential(cached, endpoint, apiKey)
+      ? cached
+      : null;
+
   // Fresh positive cache: skip remote.
-  if (cached && cached.result.valid === true && ageMs(cached.cached_at) < CACHE_TTL_MS) {
-    return { ...cached.result, source: "cache" };
+  if (
+    matchingCache &&
+    matchingCache.result.valid === true &&
+    cacheResultIsUnexpired(matchingCache) &&
+    cacheAgeIsWithin(matchingCache, CACHE_TTL_MS)
+  ) {
+    return { ...matchingCache.result, source: "cache" };
   }
 
   const remote = await fetchLicense(
@@ -178,6 +339,9 @@ export async function verifyLicense(
   if (remote) {
     if (remote.valid) {
       writeCache(contextDir, {
+        version: 2,
+        endpoint: normalizeLicenseEndpoint(endpoint),
+        api_key_sha256: apiKeyFingerprint(apiKey),
         result: remote,
         cached_at: new Date().toISOString(),
       });
@@ -190,8 +354,13 @@ export async function verifyLicense(
   }
 
   // Remote unreachable. Fall back to positive cache if within grace.
-  if (cached && cached.result.valid === true && ageMs(cached.cached_at) < GRACE_PERIOD_MS) {
-    return { ...cached.result, source: "cache" };
+  if (
+    matchingCache &&
+    matchingCache.result.valid === true &&
+    cacheResultIsUnexpired(matchingCache) &&
+    cacheAgeIsWithin(matchingCache, GRACE_PERIOD_MS)
+  ) {
+    return { ...matchingCache.result, source: "cache" };
   }
 
   return {

@@ -120,6 +120,26 @@ export async function loadPlugins(server: McpServer): Promise<void> {
       );
       return;
     }
+    const [
+      { matchesEnterpriseHostIdentity },
+      { enterpriseCredentialId },
+    ] = await Promise.all([
+      import("./core/enterprise-host-identity.js"),
+      import("./core/license.js"),
+    ]);
+    if (
+      !matchesEnterpriseHostIdentity(
+        enterpriseCredentialId(
+          config.enterprise.base_url || config.enterprise.endpoint,
+          config.enterprise.api_key,
+        ),
+      )
+    ) {
+      process.stderr.write(
+        "[cortex] Enterprise inactive: this user profile is enrolled to another endpoint or API key\n",
+      );
+      return;
+    }
 
     if (typeof enterprise.register === "function") {
       await enterprise.register(server);

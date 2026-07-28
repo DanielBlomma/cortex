@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { hostname, platform, release } from "node:os";
 import { loadEnterpriseConfig } from "../core/config.js";
+import { isAllowedEnterpriseEndpoint } from "../core/secure-endpoint.js";
 
 /**
  * Govern host heartbeat — fills the host_enrollment table on cortex-web.
@@ -106,6 +107,9 @@ export async function pushHeartbeat(cwd: string): Promise<HeartbeatPushOutcome> 
   const baseUrl = (config.enterprise.base_url || config.enterprise.endpoint).trim();
   if (!apiKey || !baseUrl) {
     return { ok: false, error: "enterprise not configured" };
+  }
+  if (!isAllowedEnterpriseEndpoint(baseUrl)) {
+    return { ok: false, error: "insecure or invalid enterprise endpoint" };
   }
   const payload = buildHeartbeatPayload(cwd);
   try {

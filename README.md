@@ -96,15 +96,31 @@ To upgrade an already-scaffolded project to a new Cortex version:
 ```bash
 npm i -g @danielblomma/cortex-mcp
 cortex init --force   # re-scaffolds .context runtime + .context/scripts
-cortex bootstrap
+cortex bootstrap     # rebuilds and safely restarts a verified running daemon
 cortex update
 ```
 
 `cortex init --force` preserves per-project files: `.context/config.yaml`,
-`.context/rules.yaml`, and your notes/decisions.
+`.context/rules.yaml`, `.context/enterprise.yml`, and your notes/decisions.
+It repairs existing Enterprise config permissions to `0600` without rewriting
+the file. An npm update alone does not replace code already loaded by the
+per-user daemon; `cortex bootstrap` performs the verified restart.
 
 Version-specific notes (see [CHANGELOG.md](CHANGELOG.md) for details):
 
+- **2.4.1**: enterprise onboarding no longer accepts API keys as positional
+  arguments. Pipe the key to
+  `sudo cortex enterprise install --api-key-stdin`. Enterprise endpoints must
+  use HTTPS (loopback HTTP remains available for local development). Existing
+  Enterprise users must rerun that stdin install after `cortex bootstrap`;
+  enrollment is deliberately not inferred from repository config. Verify
+  `cortex enterprise status --json` reports
+  `enterprise.host_identity_bound: true`. One Enterprise endpoint is supported
+  per OS user because organization skills and host process detection are
+  user-global; an explicit install may rotate its API key. Before upgrading
+  legacy organization skills without Cortex ownership markers, back up and
+  move the exact reviewed directories listed by
+  `~/.cortex/skills.local.json` out of the Claude/Codex discovery roots.
 - **2.1.0**: the default embedding model changed, so the first
   `cortex update` after upgrading triggers a full re-embed automatically
   (~2 min per 1000 entities plus a one-time model download). The

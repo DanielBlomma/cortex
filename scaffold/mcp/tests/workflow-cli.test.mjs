@@ -5,6 +5,10 @@ import os from "node:os";
 import path from "node:path";
 
 import { runStageCommand } from "../dist/cli/stage.js";
+import { enterpriseCredentialId } from "../dist/core/license.js";
+
+const ENTERPRISE_ENDPOINT = "https://licenses.example.com";
+const ENTERPRISE_KEY = "ent_workflow_cli_12345678";
 
 const TINY_WORKFLOW = {
   id: "tiny",
@@ -41,7 +45,12 @@ function makeWorkspace() {
   fs.mkdirSync(path.join(dir, ".context"), { recursive: true });
   fs.writeFileSync(
     path.join(dir, ".context", "enterprise.yml"),
-    "enterprise:\n  api_key: test-key-for-cli-tests\n",
+    [
+      "enterprise:",
+      `  api_key: ${ENTERPRISE_KEY}`,
+      `  endpoint: ${ENTERPRISE_ENDPOINT}`,
+      "",
+    ].join("\n"),
     "utf8",
   );
   return dir;
@@ -53,6 +62,10 @@ function writeSyncedWorkflow(homeDir, workflowId, definition) {
   fs.writeFileSync(
     path.join(cortexDir, "workflows.local.json"),
     JSON.stringify({
+      credential_id: enterpriseCredentialId(
+        ENTERPRISE_ENDPOINT,
+        ENTERPRISE_KEY,
+      ),
       workflows: {
         [workflowId]: {
           workflow_id: workflowId,

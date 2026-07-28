@@ -14,7 +14,15 @@ import { join, dirname } from "node:path";
 import { platform, hostname } from "node:os";
 import { randomUUID } from "node:crypto";
 import { loadEnterpriseConfig, type ComplianceFramework } from "../core/config.js";
-import { installCopilotShim, uninstallCopilotShim } from "./run.js";
+import { isAllowedEnterpriseEndpoint } from "../core/secure-endpoint.js";
+import { getGovernManagedPath } from "../core/govern-paths.js";
+import { matchesEnterpriseHostIdentity } from "../core/enterprise-host-identity.js";
+import { enterpriseCredentialId } from "../core/license.js";
+import {
+  getDefaultCopilotShimPath,
+  installCopilotShim,
+  uninstallCopilotShim,
+} from "./run.js";
 import {
   readTamperLock,
   removeTamperLock,
@@ -28,20 +36,13 @@ const TIER1_CLIS: GovernCli[] = ["claude", "codex"];
 
 export type ManagedSettingsPaths = Partial<Record<GovernCli, Partial<Record<NodeJS.Platform, string>>>>;
 
-const DEFAULT_PATHS: ManagedSettingsPaths = {
-  claude: {
-    darwin: "/Library/Application Support/ClaudeCode/managed-settings.json",
-    linux: "/etc/claude-code/managed-settings.json",
-  },
-  codex: {
-    darwin: "/Library/Application Support/Codex/requirements.toml",
-    linux: "/etc/codex/requirements.toml",
-  },
-};
-
 export type GovernState = {
   installs: Partial<Record<GovernCli, GovernInstallRecord>>;
 };
+
+export type ProjectOperationRunner = <T>(
+  operation: () => T | Promise<T>,
+) => T | Promise<T>;
 
 export type GovernInstallRecord = {
   path: string;
@@ -84,11 +85,10 @@ const SUPPORTED_CODEX_HOOK_EVENTS = new Set([
 ]);
 
 export function getManagedSettingsPath(cli: GovernCli, os: NodeJS.Platform): string {
-  const path = DEFAULT_PATHS[cli]?.[os];
-  if (!path) {
+  if (cli === "copilot") {
     throw new Error(`govern install for ${cli} not yet supported on ${os}`);
   }
-  return path;
+  return getGovernManagedPath(cli, os);
 }
 
 export function requireRoot(): void {
@@ -346,8 +346,33 @@ function loadState(cwd: string): GovernState {
 
 function saveState(cwd: string, state: GovernState): void {
   const path = getStatePath(cwd);
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(state, null, 2), "utf8");
+  writeAtomic(path, JSON.stringify(state, null, 2) + "\n", 0o600);
+}
+
+async function runProjectOperation<T>(
+  runner: ProjectOperationRunner | undefined,
+  operation: () => T | Promise<T>,
+): Promise<T> {
+  return runner ? await runner(operation) : await operation();
+}
+
+function managedPathForCli(
+  cli: GovernCli,
+  options: {
+    skipRoot?: boolean;
+    pathOverride?: Partial<Record<GovernCli, string>>;
+  },
+): string {
+  const override = options.pathOverride?.[cli];
+  if (override) {
+    if (!options.skipRoot) {
+      throw new Error("Managed path overrides are allowed only in non-root tests.");
+    }
+    return override;
+  }
+  return cli === "copilot"
+    ? getDefaultCopilotShimPath(platform())
+    : getManagedSettingsPath(cli, platform());
 }
 
 async function fetchGovernConfig(
@@ -356,6 +381,9 @@ async function fetchGovernConfig(
   cli: GovernCli,
   frameworks: string[],
 ): Promise<{ config: FetchedConfig; etag: string | null }> {
+  if (!isAllowedEnterpriseEndpoint(baseUrl)) {
+    throw new Error("insecure or invalid enterprise endpoint");
+  }
   const url = new URL(`${baseUrl.replace(/\/$/, "")}/api/v1/govern/config`);
   url.searchParams.set("cli", cli);
   url.searchParams.set("frameworks", frameworks.join(","));
@@ -383,6 +411,9 @@ async function postApplied(
     instance_id?: string;
   },
 ): Promise<void> {
+  if (!isAllowedEnterpriseEndpoint(baseUrl)) {
+    throw new Error("insecure or invalid enterprise endpoint");
+  }
   const res = await fetch(`${baseUrl.replace(/\/$/, "")}/api/v1/govern/applied`, {
     method: "POST",
     headers: {
@@ -406,6 +437,7 @@ export type GovernInstallOptions = {
   skipRoot?: boolean;
   apiKey?: string;
   baseUrl?: string;
+  projectOperation?: ProjectOperationRunner;
 };
 
 export type GovernInstallResult = {
@@ -432,7 +464,10 @@ export async function runGovernInstall(
   let frameworks = options.frameworks ?? [];
 
   if (!apiKey || !baseUrl || frameworks.length === 0) {
-    const config = loadEnterpriseConfig(contextDir);
+    const config = await runProjectOperation(
+      options.projectOperation,
+      () => loadEnterpriseConfig(contextDir),
+    );
     if (!apiKey) apiKey = config.enterprise.api_key.trim();
     if (!baseUrl) baseUrl = (config.enterprise.base_url || config.enterprise.endpoint).trim();
     if (frameworks.length === 0) {
@@ -468,16 +503,17 @@ export async function runGovernInstall(
   }
 
   const mode = options.mode ?? "advisory";
-  const state = loadState(cwd);
+  const state = await runProjectOperation(
+    options.projectOperation,
+    () => loadState(cwd),
+  );
   const installed: GovernCli[] = [];
 
   for (const cli of targets) {
     if (cli === "copilot") {
       if (!options.skipRoot) requireRoot();
-      const shimPath = options.pathOverride?.copilot;
-      const shimResult = installCopilotShim(
-        shimPath ? { shimPath } : {},
-      );
+      const shimPath = managedPathForCli(cli, options);
+      const shimResult = installCopilotShim({ shimPath });
       if (!shimResult.ok) {
         console.log(`! ${cli}: ${shimResult.message}`);
         continue;
@@ -495,7 +531,7 @@ export async function runGovernInstall(
     }
     if (!options.skipRoot) requireRoot();
 
-    const path = options.pathOverride?.[cli] ?? getManagedSettingsPath(cli, platform());
+    const path = managedPathForCli(cli, options);
 
     let merged: FetchedConfig;
     let version: string;
@@ -564,7 +600,10 @@ export async function runGovernInstall(
     console.log(`✓ ${cli}: managed-settings written to ${path} (version ${shortVersion}, mode=${mode})`);
   }
 
-  saveState(cwd, state);
+  await runProjectOperation(
+    options.projectOperation,
+    () => saveState(cwd, state),
+  );
   return {
     ok: true,
     message: `Installed govern for ${installed.join(", ") || "(none)"}.`,
@@ -578,13 +617,18 @@ export type GovernUninstallOptions = {
   reason?: string;
   cwd?: string;
   skipRoot?: boolean;
+  pathOverride?: Partial<Record<GovernCli, string>>;
+  projectOperation?: ProjectOperationRunner;
 };
 
 export async function runGovernUninstall(
   options: GovernUninstallOptions,
 ): Promise<{ ok: boolean; message: string; uninstalled: GovernCli[] }> {
   const cwd = options.cwd ?? process.cwd();
-  const state = loadState(cwd);
+  const state = await runProjectOperation(
+    options.projectOperation,
+    () => loadState(cwd),
+  );
 
   // Filter out unknown CLI keys defensively — govern.local.json is a
   // user-writable file and a corrupted/forward-compatible entry must not
@@ -620,8 +664,9 @@ export async function runGovernUninstall(
     const inst = state.installs[cli];
     if (!inst) continue;
     if (!options.skipRoot) requireRoot();
+    const managedPath = managedPathForCli(cli, options);
     if (cli === "copilot") {
-      const shimResult = uninstallCopilotShim(inst.path);
+      const shimResult = uninstallCopilotShim(managedPath);
       if (!shimResult.ok) {
         console.log(`! ${cli}: ${shimResult.message}`);
         continue;
@@ -635,19 +680,22 @@ export async function runGovernUninstall(
       continue;
     }
     try {
-      unlinkSync(inst.path);
+      unlinkSync(managedPath);
     } catch {
       // file already gone — proceed
     }
     delete state.installs[cli];
     uninstalled.push(cli);
     console.log(
-      `✓ ${cli}: managed-settings removed from ${inst.path}` +
+      `✓ ${cli}: managed-settings removed from ${managedPath}` +
         (options.breakGlass ? ` (break-glass: ${options.reason})` : ""),
     );
   }
 
-  saveState(cwd, state);
+  await runProjectOperation(
+    options.projectOperation,
+    () => saveState(cwd, state),
+  );
   return {
     ok: true,
     message: `Uninstalled govern for ${uninstalled.join(", ") || "(none)"}.`,
@@ -685,6 +733,7 @@ export type GovernStatusReport = {
   generated_at: string;
   enterprise: {
     api_key_set: boolean;
+    host_identity_bound: boolean;
     base_url: string;
     frameworks_configured: ComplianceFramework[];
     govern_mode_config: GovernConfigModeFromConfig;
@@ -933,14 +982,23 @@ export function buildGovernStatus(options: { cwd?: string; now?: Date } = {}): G
   }
 
   const { counts, sample } = readRecentEvents(cwd, 24 * 60 * 60 * 1000, now);
+  const enterpriseBaseUrl =
+    config.enterprise.base_url || config.enterprise.endpoint;
+  const enterpriseApiKey = config.enterprise.api_key.trim();
 
   return {
     cwd,
     host_id: hostname(),
     generated_at: now.toISOString(),
     enterprise: {
-      api_key_set: config.enterprise.api_key.trim() !== "",
-      base_url: config.enterprise.base_url || config.enterprise.endpoint,
+      api_key_set: enterpriseApiKey !== "",
+      host_identity_bound:
+        enterpriseApiKey !== "" &&
+        enterpriseBaseUrl !== "" &&
+        matchesEnterpriseHostIdentity(
+          enterpriseCredentialId(enterpriseBaseUrl, enterpriseApiKey),
+        ),
+      base_url: enterpriseBaseUrl,
       frameworks_configured: config.compliance.frameworks,
       govern_mode_config: config.govern.mode,
     },
@@ -964,7 +1022,10 @@ function formatCompact(report: GovernStatusReport): string {
   );
   lines.push(`Endpoint:      ${report.enterprise.base_url || "(not set)"}`);
   lines.push(
-    `API key:       ${report.enterprise.api_key_set ? "configured" : "NOT SET (run 'sudo cortex enterprise <key>')"}`,
+    `API key:       ${report.enterprise.api_key_set ? "configured" : "NOT SET (run 'sudo cortex enterprise install --api-key-stdin')"}`,
+  );
+  lines.push(
+    `Host identity: ${report.enterprise.host_identity_bound ? "verified" : "NOT ENROLLED (re-run stdin install)"}`,
   );
   lines.push("");
   if (report.tamper_lock) {
@@ -986,7 +1047,7 @@ function formatCompact(report: GovernStatusReport): string {
   }
   if (report.installs.length === 0) {
     lines.push("No CLIs governed on this host.");
-    lines.push("Run: sudo cortex enterprise <api-key>");
+    lines.push("Run: sudo cortex enterprise install --api-key-stdin");
     return lines.join("\n");
   }
   lines.push("AI CLIs on this host:");
@@ -1065,6 +1126,8 @@ export type GovernRepairOptions = {
   cwd?: string;
   skipRoot?: boolean;
   reason?: string;
+  pathOverride?: Partial<Record<GovernCli, string>>;
+  projectOperation?: ProjectOperationRunner;
 };
 
 export type GovernRepairResult = {
@@ -1087,7 +1150,10 @@ export async function runGovernRepair(
   options: GovernRepairOptions = {},
 ): Promise<GovernRepairResult> {
   const cwd = options.cwd ?? process.cwd();
-  const state = loadState(cwd);
+  const state = await runProjectOperation(
+    options.projectOperation,
+    () => loadState(cwd),
+  );
   // Filter to known CLIs so a corrupt or forward-compatible install
   // record doesn't crash the repair walk.
   const installed: Array<[GovernCli, GovernInstallRecord]> = Object.entries(
@@ -1100,7 +1166,7 @@ export async function runGovernRepair(
     return {
       ok: false,
       message:
-        "No CLIs governed on this host — nothing to repair. Run 'cortex enterprise <key>' first.",
+        "No CLIs governed on this host — nothing to repair. Run 'cortex enterprise install --api-key-stdin' first.",
       reverified: [],
     };
   }
@@ -1109,21 +1175,22 @@ export async function runGovernRepair(
 
   const verified: GovernCli[] = [];
   const missing: string[] = [];
-  for (const [cli, record] of installed) {
-    if (!existsSync(record.path)) {
-      missing.push(`${cli}: ${record.path} is missing`);
+  for (const [cli] of installed) {
+    const managedPath = managedPathForCli(cli, options);
+    if (!existsSync(managedPath)) {
+      missing.push(`${cli}: ${managedPath} is missing`);
       continue;
     }
     if (cli === "copilot") {
       // Verify the file is still our shim (not replaced by a real binary).
       try {
-        const raw = readFileSync(record.path, "utf8");
+        const raw = readFileSync(managedPath, "utf8");
         if (!raw.includes("# cortex-shim-v1")) {
-          missing.push(`${cli}: ${record.path} is no longer a cortex shim`);
+          missing.push(`${cli}: ${managedPath} is no longer a cortex shim`);
           continue;
         }
       } catch {
-        missing.push(`${cli}: ${record.path} could not be read`);
+        missing.push(`${cli}: ${managedPath} could not be read`);
         continue;
       }
     }
@@ -1141,7 +1208,10 @@ export async function runGovernRepair(
     };
   }
 
-  const lock = readTamperLock(cwd);
+  const lock = await runProjectOperation(
+    options.projectOperation,
+    () => readTamperLock(cwd),
+  );
   if (!lock) {
     return {
       ok: true,
@@ -1152,14 +1222,20 @@ export async function runGovernRepair(
     };
   }
 
-  const removed = removeTamperLock(cwd);
+  const removed = await runProjectOperation(
+    options.projectOperation,
+    () => removeTamperLock(cwd),
+  );
   if (removed) {
-    await emitTamperAudit(cwd, {
-      ...lock,
-      detected_at: new Date().toISOString(),
-      hook_name: "tamper_repaired",
-      missing_seconds: 0,
-    }).catch(() => undefined);
+    await runProjectOperation(
+      options.projectOperation,
+      () => emitTamperAudit(cwd, {
+        ...lock,
+        detected_at: new Date().toISOString(),
+        hook_name: "tamper_repaired",
+        missing_seconds: 0,
+      }).catch(() => undefined),
+    );
   }
 
   return {
@@ -1172,9 +1248,17 @@ export async function runGovernRepair(
   };
 }
 
-export async function runGovernSync(options: { cwd?: string } = {}): Promise<void> {
+export async function runGovernSync(
+  options: {
+    cwd?: string;
+    projectOperation?: ProjectOperationRunner;
+  } = {},
+): Promise<void> {
   const cwd = options.cwd ?? process.cwd();
-  const state = loadState(cwd);
+  const state = await runProjectOperation(
+    options.projectOperation,
+    () => loadState(cwd),
+  );
   // Drop unknown CLI keys: runGovernInstall would throw on an unsupported
   // cli, but silently skipping is the right behaviour when sync runs in
   // the daemon — it's not a user typo to surface, just stale/forward
@@ -1192,6 +1276,7 @@ export async function runGovernSync(options: { cwd?: string } = {}): Promise<voi
       cli,
       cwd,
       mode: previous?.mode,
+      projectOperation: options.projectOperation,
     });
     if (!result.ok) {
       console.log(`! sync ${cli} failed: ${result.message}`);

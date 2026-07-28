@@ -6,6 +6,11 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawn } from "node:child_process";
 import { normalizeProjectRoot } from "./wsl.mjs";
 import {
+  callDaemon,
+  probeVerifiedDaemon,
+  stopVerifiedDaemon,
+} from "./daemon-control.mjs";
+import {
   bullet,
   printBullet,
   spinner,
@@ -88,14 +93,14 @@ function printHelp() {
   console.log(helpRow("watch [start|stop|status|run|once]", "Background sync (--interval, --debounce, --mode)"));
 
   console.log(helpSection("GOVERNANCE"));
-  console.log(helpRow("enterprise <api-key>", "Install enforcement + hooks + daemon (sudo)"));
+  console.log(helpRow("enterprise install --api-key-stdin", "Install enforcement + hooks + daemon (sudo)"));
   console.log(helpRow("  ", "[--endpoint <url>] [--frameworks <csv>] [--no-hooks] [--no-daemon]"));
   console.log(helpRow("enterprise status", "Show local enforcement state"));
   console.log(helpRow("enterprise sync", "Force re-fetch + re-apply (sudo)"));
   console.log(helpRow("enterprise uninstall", "Remove enforcement (sudo, --break-glass --reason)"));
   console.log(helpRow("enterprise repair", "Verify managed paths, clear tamper-lock (sudo)"));
   console.log(helpRow("run <claude|codex|copilot> [args...]", "Wrap an AI CLI in cortex enforcement"));
-  console.log(helpRow("daemon [start|stop|status]", "Local supervisor daemon"));
+  console.log(helpRow("daemon [start|stop|restart|status]", "Local supervisor daemon"));
   console.log(helpRow("hooks [install|uninstall|status] [--project]", "Claude Code hooks"));
   console.log(helpRow("telemetry test", "Smoke-test the push pipeline"));
 
@@ -281,6 +286,31 @@ function initializeScaffold(targetDir, force) {
   installScaffold(targetDir, force);
   if (!hasExistingConfig && generatedConfig) {
     writeTextFile(configPath, generatedConfig);
+  }
+}
+
+function hardenEnterpriseConfigPermissions(targetDir) {
+  const contextDir = path.join(targetDir, ".context");
+  for (const filename of ["enterprise.yml", "enterprise.yaml"]) {
+    const configPath = path.join(contextDir, filename);
+    let stat;
+    try {
+      stat = fs.lstatSync(configPath);
+    } catch (err) {
+      if (err && typeof err === "object" && err.code === "ENOENT") continue;
+      throw err;
+    }
+    if (stat.isSymbolicLink()) {
+      throw new Error(
+        `Refusing symlinked Enterprise configuration: ${configPath}`,
+      );
+    }
+    if (!stat.isFile()) {
+      throw new Error(
+        `Enterprise configuration is not a regular file: ${configPath}`,
+      );
+    }
+    fs.chmodSync(configPath, 0o600);
   }
 }
 
@@ -851,6 +881,7 @@ async function run() {
     printBanner("Cortex initializes repo-scoped context for AI coding agents.");
     fs.mkdirSync(target, { recursive: true });
     initializeScaffold(target, force);
+    hardenEnterpriseConfigPermissions(target);
     const helpers = installAssistantHelpers(target);
     await maybeInstallGitHooks(target);
 
@@ -891,6 +922,7 @@ async function run() {
 
     if (bootstrap) {
       await runContextCommand(target, ["bootstrap"]);
+      await restartDaemonAfterRuntimeUpgrade(target);
     }
 
     if (connect) {
@@ -981,23 +1013,34 @@ async function run() {
   }
 
   await maybeMigrateScaffold(process.cwd(), command);
+  if (command === "bootstrap") {
+    hardenEnterpriseConfigPermissions(process.cwd());
+  }
   await runContextCommand(process.cwd(), [command, ...rest]);
+  if (command === "bootstrap") {
+    await restartDaemonAfterRuntimeUpgrade(process.cwd());
+  }
 }
 
 // ---------------------------------------------------------------------------
 // v2.0.0: daemon + hooks commands
 // ---------------------------------------------------------------------------
 
-const DAEMON_DIR = path.join(process.env.HOME || "", ".cortex");
-const PID_FILE = path.join(DAEMON_DIR, "daemon.pid");
+function daemonDirPath() {
+  return path.join(process.env.HOME || os.homedir(), ".cortex");
+}
+
+function daemonPidFilePath() {
+  return path.join(daemonDirPath(), "daemon.pid");
+}
 
 function pidFileExists() {
-  return fs.existsSync(PID_FILE);
+  return fs.existsSync(daemonPidFilePath());
 }
 
 function readPid() {
   try {
-    const raw = fs.readFileSync(PID_FILE, "utf8").trim();
+    const raw = fs.readFileSync(daemonPidFilePath(), "utf8").trim();
     const pid = Number.parseInt(raw, 10);
     return Number.isFinite(pid) && pid > 0 ? pid : null;
   } catch {
@@ -1018,20 +1061,23 @@ function isPidAlive(pid) {
   }
 }
 
-function resolveProjectRuntimeDist() {
+function resolveProjectRuntimeDist(projectRoot) {
   // v2.0.5: project layout was moved from <cwd>/mcp/ to <cwd>/.context/mcp/.
   // The runtime still lives there for compatibility, but CLI commands now
   // treat it as the local context runtime rather than an MCP-only surface.
-  const target = process.env.CORTEX_PROJECT_ROOT?.trim() || process.cwd();
+  const target =
+    projectRoot ||
+    process.env.CORTEX_PROJECT_ROOT?.trim() ||
+    process.cwd();
   return path.join(target, CONTEXT_RUNTIME_REL, "dist");
 }
 
-function resolveProjectMcpDist() {
-  return resolveProjectRuntimeDist();
+function resolveProjectMcpDist(projectRoot) {
+  return resolveProjectRuntimeDist(projectRoot);
 }
 
-function resolveDaemonEntry() {
-  return path.join(resolveProjectRuntimeDist(), "daemon", "main.js");
+function resolveDaemonEntry(projectRoot) {
+  return path.join(resolveProjectRuntimeDist(projectRoot), "daemon", "main.js");
 }
 
 function resolveHookEntry(name) {
@@ -1042,54 +1088,116 @@ function resolveCliEntry(name) {
   return path.join(resolveProjectRuntimeDist(), "cli", `${name}.js`);
 }
 
-async function runDaemonCommand(args) {
+function resolveTrustedCliEntry(name) {
+  return path.join(SCAFFOLD_ROOT, "mcp", "dist", "cli", `${name}.js`);
+}
+
+async function daemonControlDeps() {
+  return {
+    readPid,
+    isPidAlive,
+    call: callDaemon,
+  };
+}
+
+async function waitForVerifiedDaemon(deps, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const probe = await probeVerifiedDaemon(deps, 250);
+    if (probe.verified) return probe;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return probeVerifiedDaemon(deps, 250);
+}
+
+async function runDaemonCommand(args, options = {}) {
   const sub = args[0] || "status";
+  const projectRoot = options.projectRoot || process.cwd();
+  const deps = await daemonControlDeps();
   if (sub === "start") {
-    if (isPidAlive(readPid())) {
+    const existing = await probeVerifiedDaemon(deps);
+    if (existing.verified) {
       console.log("Daemon already running.");
       return;
     }
-    fs.mkdirSync(DAEMON_DIR, { recursive: true });
-    const entry = resolveDaemonEntry();
+    if (existing.running) {
+      throw new Error(
+        `Refusing to replace unverified live pid ${existing.pid} (${existing.reason}).`,
+      );
+    }
+    const daemonDir = daemonDirPath();
+    fs.mkdirSync(daemonDir, { recursive: true });
+    const entry = resolveDaemonEntry(projectRoot);
     if (!fs.existsSync(entry)) {
       throw new Error(`Daemon entry not found: ${entry}. Build cortex first.`);
     }
-    const logFd = fs.openSync(path.join(DAEMON_DIR, "daemon.log"), "a");
+    const logFd = fs.openSync(path.join(daemonDir, "daemon.log"), "a");
     const child = spawn(process.execPath, [entry], {
       detached: true,
       stdio: ["ignore", logFd, logFd],
+      cwd: projectRoot,
+      env: { ...process.env, CORTEX_PROJECT_ROOT: projectRoot },
     });
     child.unref();
-    console.log(`Daemon started (pid=${child.pid}). Log: ${path.join(DAEMON_DIR, "daemon.log")}`);
+    fs.closeSync(logFd);
+    const started = await waitForVerifiedDaemon(deps);
+    if (!started.verified) {
+      throw new Error(
+        `Daemon did not complete its verified socket handshake (${started.reason}).`,
+      );
+    }
+    console.log(`Daemon started (pid=${started.pid}). Log: ${path.join(daemonDir, "daemon.log")}`);
     return;
   }
   if (sub === "stop") {
-    const pid = readPid();
-    if (!isPidAlive(pid)) {
+    const result = await stopVerifiedDaemon(deps);
+    if (!result.stopped) {
       console.log("Daemon not running.");
       return;
     }
-    try {
-      process.kill(pid, "SIGTERM");
-      console.log(`Sent SIGTERM to pid ${pid}`);
-    } catch (err) {
-      throw new Error(`Failed to stop daemon: ${err instanceof Error ? err.message : String(err)}`);
-    }
+    console.log(`Daemon stopped (verified pid=${result.pid}).`);
+    return;
+  }
+  if (sub === "restart") {
+    await stopVerifiedDaemon(deps);
+    await runDaemonCommand(["start"], { projectRoot });
     return;
   }
   if (sub === "status") {
-    const pid = readPid();
-    if (isPidAlive(pid)) {
-      console.log(`Daemon running (pid=${pid})`);
+    const probe = await probeVerifiedDaemon(deps);
+    if (probe.verified) {
+      console.log(`Daemon running (verified pid=${probe.pid})`);
+    } else if (probe.running) {
+      console.log(
+        `Daemon state unsafe: live pid=${probe.pid}, identity not verified (${probe.reason}).`,
+      );
     } else {
       console.log("Daemon not running.");
       if (pidFileExists()) {
-        console.log(`(stale pid file at ${PID_FILE})`);
+        console.log(`(stale pid file at ${daemonPidFilePath()})`);
       }
     }
     return;
   }
-  throw new Error(`Unknown daemon subcommand: ${sub}. Try start|stop|status`);
+  throw new Error(`Unknown daemon subcommand: ${sub}. Try start|stop|restart|status`);
+}
+
+async function restartDaemonAfterRuntimeUpgrade(projectRoot) {
+  const daemonEntry = resolveDaemonEntry(projectRoot);
+  if (!fs.existsSync(daemonEntry)) return;
+  const deps = await daemonControlDeps();
+  const probe = await probeVerifiedDaemon(deps);
+  if (!probe.running) return;
+  if (!probe.verified) {
+    throw new Error(
+      `Runtime upgraded, but live pid ${probe.pid} could not be verified. ` +
+        "Refusing to signal it; stop it manually after confirming ownership.",
+    );
+  }
+  console.log(
+    `[cortex] restarting verified daemon pid=${probe.pid} to activate the upgraded runtime`,
+  );
+  await runDaemonCommand(["restart"], { projectRoot });
 }
 
 async function runHookShim(args) {
@@ -1182,7 +1290,8 @@ function writeJson(file, data) {
 }
 
 // Enterprise == govern. One command, sudo-elevated, hard-fail without it.
-// `cortex enterprise <api-key>` does the full install. Subcommands status/sync/uninstall
+// `cortex enterprise install --api-key-stdin` does the full install.
+// Subcommands status/sync/uninstall
 // dispatch to scaffold/mcp/dist/cli/govern.js.
 
 function requireSudoElevation() {
@@ -1220,11 +1329,58 @@ function dropPrivileges(sudo) {
   return sudoInfo.homedir;
 }
 
+async function runAsSudoUser(sudo, operation) {
+  const required = [
+    "geteuid",
+    "getegid",
+    "seteuid",
+    "setegid",
+    "getgroups",
+    "setgroups",
+  ];
+  for (const name of required) {
+    if (typeof process[name] !== "function") {
+      throw new Error(
+        `Secure Enterprise installation requires process.${name} support.`,
+      );
+    }
+  }
+
+  const previous = {
+    euid: process.geteuid(),
+    egid: process.getegid(),
+    groups: process.getgroups(),
+    home: process.env.HOME,
+    user: process.env.USER,
+    logname: process.env.LOGNAME,
+  };
+  const sudoInfo = os.userInfo({ uid: sudo.uid });
+  try {
+    process.setgroups([sudo.gid]);
+    process.setegid(sudo.gid);
+    process.seteuid(sudo.uid);
+    process.env.HOME = sudoInfo.homedir;
+    process.env.USER = sudo.user;
+    process.env.LOGNAME = sudo.user;
+    return await operation();
+  } finally {
+    process.seteuid(previous.euid);
+    process.setegid(previous.egid);
+    process.setgroups(previous.groups);
+    if (previous.home === undefined) delete process.env.HOME;
+    else process.env.HOME = previous.home;
+    if (previous.user === undefined) delete process.env.USER;
+    else process.env.USER = previous.user;
+    if (previous.logname === undefined) delete process.env.LOGNAME;
+    else process.env.LOGNAME = previous.logname;
+  }
+}
+
 function loadGovernModule() {
-  const entry = resolveCliEntry("govern");
+  const entry = resolveTrustedCliEntry("govern");
   if (!fs.existsSync(entry)) {
     throw new Error(
-      `Build the project's context runtime first (missing ${entry}). Run 'cortex bootstrap' in the project root.`
+      `The installed Cortex package is missing its trusted Enterprise runtime (${entry}). Reinstall Cortex.`
     );
   }
   return import(pathToFileURL(entry).href);
@@ -1233,10 +1389,15 @@ function loadGovernModule() {
 const ENTERPRISE_SUBCOMMANDS = new Set(["status", "sync", "uninstall", "repair", "help", "--help", "-h"]);
 
 async function runEnterpriseCommand(args) {
+  if (args[0] === "install") {
+    return runEnterpriseInstall(args.slice(1));
+  }
   if (args.length === 0 || ENTERPRISE_SUBCOMMANDS.has(args[0])) {
     return runEnterpriseSubcommand(args);
   }
-  return runEnterpriseInstall(args);
+  throw new Error(
+    "Positional enterprise API keys are not accepted. Use 'cortex enterprise install --api-key-stdin'.",
+  );
 }
 
 async function runEnterpriseSubcommand(args) {
@@ -1244,13 +1405,14 @@ async function runEnterpriseSubcommand(args) {
 
   if (sub === "help" || sub === "--help" || sub === "-h" || !sub) {
     console.log(gradient("cortex enterprise") + muted("  ·  governance, armed."));
-    console.log(helpRow("enterprise <api-key>", "Install (sudo). Managed enforcement + hooks + daemon."));
+    console.log(helpRow("enterprise install --api-key-stdin", "Install (sudo). Managed enforcement + hooks + daemon."));
     console.log(helpRow("  ", "[--endpoint <url>] [--frameworks <csv>] [--no-hooks] [--no-daemon]"));
     console.log(helpRow("enterprise status [--verbose|--json]", "Show local enforcement state"));
     console.log(helpRow("enterprise sync", "Force re-fetch + re-apply (sudo)"));
     console.log(helpRow("enterprise uninstall", "Remove. [--break-glass --reason \"<text>\"] in enforced mode (sudo)"));
     console.log(helpRow("enterprise repair", "Verify managed paths, clear .cortex-tamper.lock (sudo)"));
     console.log("");
+    console.log(muted("Example: printf '%s\\n' \"$CORTEX_API_KEY\" | sudo cortex enterprise install --api-key-stdin"));
     console.log(muted("Default endpoint: https://cortex-web-rho.vercel.app"));
     return;
   }
@@ -1271,9 +1433,14 @@ async function runEnterpriseSubcommand(args) {
   }
 
   if (sub === "sync") {
-    requireSudoElevation();
+    const sudo = requireSudoElevation();
     const mod = await loadGovernModule();
-    await mod.runGovernSync({ cwd: process.cwd() });
+    const projectOperation = (operation) => runAsSudoUser(sudo, operation);
+    await mod.runGovernSync({
+      cwd: process.cwd(),
+      projectOperation,
+    });
+    dropPrivileges(sudo);
     return;
   }
 
@@ -1289,14 +1456,17 @@ async function runEnterpriseSubcommand(args) {
         throw new Error(`Unknown enterprise uninstall option: ${args[i]}`);
       }
     }
-    requireSudoElevation();
+    const sudo = requireSudoElevation();
     const mod = await loadGovernModule();
+    const projectOperation = (operation) => runAsSudoUser(sudo, operation);
     const result = await mod.runGovernUninstall({
       cli: "all",
       breakGlass,
       reason,
       cwd: process.cwd(),
+      projectOperation,
     });
+    dropPrivileges(sudo);
     if (!result.ok) {
       printBullet("fail", result.message, process.stderr);
       process.exit(1);
@@ -1315,9 +1485,15 @@ async function runEnterpriseSubcommand(args) {
         throw new Error(`Unknown enterprise repair option: ${args[i]}`);
       }
     }
-    requireSudoElevation();
+    const sudo = requireSudoElevation();
     const mod = await loadGovernModule();
-    const result = await mod.runGovernRepair({ cwd: process.cwd(), reason });
+    const projectOperation = (operation) => runAsSudoUser(sudo, operation);
+    const result = await mod.runGovernRepair({
+      cwd: process.cwd(),
+      reason,
+      projectOperation,
+    });
+    dropPrivileges(sudo);
     if (!result.ok) {
       printBullet("fail", result.message, process.stderr);
       process.exit(1);
@@ -1329,14 +1505,19 @@ async function runEnterpriseSubcommand(args) {
   throw new Error(`Unknown enterprise subcommand: ${sub}`);
 }
 
-async function runEnterpriseInstall(args) {
-  const apiKey = args[0];
+async function runEnterpriseInstall(args, injected = {}) {
+  if (args.includes("--help") || args.includes("-h")) {
+    return runEnterpriseSubcommand(["help"]);
+  }
+  let readKeyFromStdin = false;
   let endpoint;
   let frameworks;
   let installHooks = true;
   let startDaemon = true;
-  for (let i = 1; i < args.length; i++) {
-    if (args[i] === "--endpoint" && args[i + 1]) {
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--api-key-stdin") {
+      readKeyFromStdin = true;
+    } else if (args[i] === "--endpoint" && args[i + 1]) {
       endpoint = args[i + 1];
       i++;
     } else if (args[i] === "--frameworks" && args[i + 1]) {
@@ -1348,23 +1529,61 @@ async function runEnterpriseInstall(args) {
       startDaemon = false;
     } else if (args[i].startsWith("-")) {
       throw new Error(`Unknown enterprise install option: ${args[i]}`);
+    } else {
+      throw new Error(
+        "Positional enterprise API keys are not accepted. Use --api-key-stdin.",
+      );
     }
   }
 
-  const sudo = requireSudoElevation();
+  if (!readKeyFromStdin) {
+    throw new Error(
+      "Enterprise installation requires --api-key-stdin so the key is not exposed in process arguments.",
+    );
+  }
+  const secretInput = injected.stdin ?? process.stdin;
+  if (secretInput.isTTY) {
+    throw new Error(
+      "Read the enterprise API key from a pipe or redirected stdin; interactive echo is disabled for secrets.",
+    );
+  }
+  let apiKey = "";
+  for await (const chunk of secretInput) {
+    apiKey += chunk.toString();
+    if (apiKey.length > 4096) {
+      throw new Error("Enterprise API key input is too large.");
+    }
+  }
+  apiKey = apiKey.trim();
+  if (!apiKey || apiKey.includes("\n") || apiKey.includes("\r")) {
+    throw new Error("Expected exactly one enterprise API key on stdin.");
+  }
+
+  const sudo = (injected.requireSudoElevation ?? requireSudoElevation)();
+  const projectOperation = (operation) =>
+    (injected.runAsSudoUser ?? runAsSudoUser)(sudo, operation);
 
   process.stdout.write(headerBanner({ tagline: "  Cortex enterprise — activating governance" }));
 
-  const enterpriseEntry = resolveCliEntry("enterprise-setup");
-  if (!fs.existsSync(enterpriseEntry)) {
-    printBullet("fail", `Build the project's context runtime first (missing ${enterpriseEntry}). Run 'cortex bootstrap' in the project root.`);
-    process.exit(1);
+  let enterpriseMod = injected.enterpriseMod;
+  if (!enterpriseMod) {
+    const enterpriseEntry = resolveTrustedCliEntry("enterprise-setup");
+    if (!fs.existsSync(enterpriseEntry)) {
+      printBullet("fail", `The installed Cortex package is missing its trusted Enterprise runtime (${enterpriseEntry}). Reinstall Cortex.`);
+      process.exit(1);
+    }
+    enterpriseMod = await import(pathToFileURL(enterpriseEntry).href);
   }
-  const enterpriseMod = await import(pathToFileURL(enterpriseEntry).href);
 
   // Step 1 — Initializing Cortex core (license validation + enterprise.yml).
   const step1 = spinner("Initializing Cortex core");
-  const setupResult = await enterpriseMod.runEnterpriseSetup({ apiKey, endpoint, cwd: process.cwd() });
+  const setupResult = await projectOperation(
+    () => enterpriseMod.runEnterpriseSetup({
+      apiKey,
+      endpoint,
+      cwd: process.cwd(),
+    }),
+  );
   if (!setupResult.ok) {
     step1.stop("fail", `Initializing Cortex core — ${setupResult.message}`);
     process.exit(1);
@@ -1372,24 +1591,40 @@ async function runEnterpriseInstall(args) {
   step1.stop("ok", `Initializing Cortex core — license ${setupResult.edition}, expires ${setupResult.expiresAt}`);
   printBullet("info", muted(`config: ${setupResult.configPath}`));
 
-  // enterprise.yml was just written as root; transfer ownership before we drop privs.
-  try {
-    fs.chownSync(setupResult.configPath, sudo.uid, sudo.gid);
-  } catch (err) {
-    printBullet("warn", `Could not chown ${setupResult.configPath}: ${err instanceof Error ? err.message : String(err)}`);
+  const sudoHome =
+    injected.sudoHome ??
+    os.userInfo({ uid: sudo.uid }).homedir;
+  const bindEnterpriseIdentity =
+    injected.bindEnterpriseIdentity ??
+    enterpriseMod.bindEnterpriseIdentity;
+  if (
+    typeof bindEnterpriseIdentity !== "function" ||
+    !await projectOperation(
+      () => bindEnterpriseIdentity({
+        apiKey,
+        endpoint,
+        homeDir: sudoHome,
+      }),
+    )
+  ) {
+    throw new Error(
+      "Could not bind this user profile to the verified Enterprise identity. " +
+        "A different endpoint is already enrolled; use a separate OS user boundary.",
+    );
   }
 
   // Step 2 — Loading policy engine (govern install: managed config + frameworks).
   const baseUrl = (endpoint ?? "https://cortex-web-rho.vercel.app").replace(/\/$/, "");
   const step2 = spinner("Loading policy engine");
-  const governMod = await loadGovernModule();
+  const governMod = injected.governMod ?? await loadGovernModule();
   const governResult = await governMod.runGovernInstall({
     cli: "all",
     mode: "enforced",
     cwd: process.cwd(),
     apiKey,
     baseUrl,
-    frameworks,
+    frameworks: frameworks ?? ["iso27001", "iso42001", "soc2"],
+    projectOperation,
   });
   if (!governResult.ok) {
     step2.stop("fail", `Loading policy engine — ${governResult.message}`);
@@ -1397,31 +1632,21 @@ async function runEnterpriseInstall(args) {
   }
   step2.stop("ok", "Loading policy engine — policies armed");
 
-  // govern.local.json was written as root in cwd/.context. chown it back.
-  const governStatePath = path.join(process.cwd(), ".context", "govern.local.json");
-  if (fs.existsSync(governStatePath)) {
-    try {
-      fs.chownSync(governStatePath, sudo.uid, sudo.gid);
-    } catch (err) {
-      printBullet("warn", `Could not chown ${governStatePath}: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-
   // Step 3 — Connecting audit pipeline (telemetry endpoint already wired by govern install).
   const step3 = spinner("Connecting audit pipeline");
   step3.stop("ok", `Connecting audit pipeline — endpoint ${baseUrl}`);
 
   // Drop privileges before user-scope writes (Claude Code hooks in $HOME) and daemon spawn.
-  dropPrivileges(sudo);
+  (injected.dropPrivileges ?? dropPrivileges)(sudo);
 
   // Step 4 — Preparing MCP gateway (Claude Code hooks bind the MCP surface).
   if (installHooks) {
     const step4 = spinner("Preparing MCP gateway");
     try {
-      if (hasManagedClaudeHooks()) {
+      if ((injected.hasManagedClaudeHooks ?? hasManagedClaudeHooks)()) {
         step4.stop("ok", "Preparing MCP gateway — managed Claude hooks active");
       } else {
-        await runHooksCommand(["install"]);
+        await (injected.runHooksCommand ?? runHooksCommand)(["install"]);
         step4.stop("ok", "Preparing MCP gateway — hooks installed");
       }
     } catch (err) {
@@ -1435,10 +1660,11 @@ async function runEnterpriseInstall(args) {
   if (startDaemon) {
     const step5 = spinner("Installing guardrails");
     try {
-      await runDaemonCommand(["start"]);
+      await (injected.runDaemonCommand ?? runDaemonCommand)(["restart"]);
       step5.stop("ok", "Installing guardrails — daemon online");
     } catch (err) {
       step5.stop("fail", `Installing guardrails — ${err instanceof Error ? err.message : String(err)}`);
+      throw err;
     }
   } else {
     printBullet("warn", "Installing guardrails — skipped (--no-daemon)");
@@ -1462,7 +1688,7 @@ async function runRunCommand(args) {
     console.log("");
     console.log("Wraps the named AI CLI in cortex enforcement:");
     console.log("  claude/codex: passthrough — their own managed-config + sandbox");
-    console.log("                cover Tier 1 enforcement after 'cortex enterprise <key>'.");
+    console.log("                cover Tier 1 enforcement after 'cortex enterprise install --api-key-stdin'.");
     console.log("  copilot:      Tier 2 — OS-level sandbox (sandbox-exec on macOS,");
     console.log("                bwrap on Linux). Denies writes to ~/.copilot/,");
     console.log("                ~/.copilot.local/, /etc/copilot* so AI cannot");
@@ -1626,4 +1852,11 @@ if (invokedAsScript) {
   });
 }
 
-export { buildInitialConfig, detectInitialSourcePaths, isScaffoldOutOfDate, slugifyRepoId };
+export {
+  buildInitialConfig,
+  detectInitialSourcePaths,
+  hardenEnterpriseConfigPermissions,
+  isScaffoldOutOfDate,
+  runEnterpriseInstall,
+  slugifyRepoId,
+};

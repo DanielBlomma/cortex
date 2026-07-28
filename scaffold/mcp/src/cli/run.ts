@@ -1,7 +1,12 @@
 import { spawn } from "node:child_process";
 import {
   existsSync,
+  closeSync,
+  fchmodSync,
+  lstatSync,
+  openSync,
   readFileSync,
+  renameSync,
   writeFileSync,
   unlinkSync,
   mkdirSync,
@@ -10,6 +15,7 @@ import {
 import { join, dirname } from "node:path";
 import { platform, tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
+import { getGovernManagedPath } from "../core/govern-paths.js";
 
 export type RunCli = "claude" | "codex" | "copilot";
 export const RUN_CLIS: RunCli[] = ["claude", "codex", "copilot"];
@@ -186,17 +192,8 @@ export async function runAiCli(options: RunOptions): Promise<number> {
   return 1;
 }
 
-const DEFAULT_COPILOT_SHIM_PATHS: Partial<Record<NodeJS.Platform, string>> = {
-  darwin: "/usr/local/bin/copilot",
-  linux: "/usr/local/bin/copilot",
-};
-
 export function getDefaultCopilotShimPath(os: NodeJS.Platform): string {
-  const path = DEFAULT_COPILOT_SHIM_PATHS[os];
-  if (!path) {
-    throw new Error(`copilot shim install not yet supported on ${os}`);
-  }
-  return path;
+  return getGovernManagedPath("copilot", os);
 }
 
 export function buildCopilotShim(realBinary: string): string {
@@ -240,19 +237,56 @@ export function installCopilotShim(options: InstallShimOptions = {}): InstallShi
         "Install GitHub Copilot CLI first, then re-run cortex enterprise sync.",
     };
   }
-  if (existsSync(shimPath) && !isCortexShim(shimPath)) {
-    return {
-      ok: false,
-      message:
-        `${shimPath} exists and is not a cortex shim — refusing to overwrite. ` +
-        "Move/rename the existing file, then re-run.",
-    };
+  try {
+    const existing = lstatSync(shimPath);
+    if (
+      existing.isSymbolicLink() ||
+      !existing.isFile() ||
+      !isCortexShim(shimPath)
+    ) {
+      return {
+        ok: false,
+        message:
+          `${shimPath} exists and is not a regular cortex shim — refusing to overwrite. ` +
+          "Move/rename the existing path, then re-run.",
+      };
+    }
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      return {
+        ok: false,
+        message:
+          `Failed to inspect shim path ${shimPath}: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
   }
+  const temporaryPath = `${shimPath}.tmp.${process.pid}.${randomUUID()}`;
+  let fd: number | null = null;
   try {
     mkdirSync(dirname(shimPath), { recursive: true });
-    writeFileSync(shimPath, buildCopilotShim(real));
-    chmodSync(shimPath, 0o755);
+    fd = openSync(temporaryPath, "wx", 0o700);
+    writeFileSync(fd, buildCopilotShim(real));
+    fchmodSync(fd, 0o755);
+    closeSync(fd);
+    fd = null;
+    renameSync(temporaryPath, shimPath);
+    const installed = lstatSync(shimPath);
+    if (!installed.isFile() || installed.isSymbolicLink()) {
+      throw new Error("installed shim is not a regular file");
+    }
   } catch (err) {
+    if (fd !== null) {
+      try {
+        closeSync(fd);
+      } catch {
+        // Best effort.
+      }
+    }
+    try {
+      unlinkSync(temporaryPath);
+    } catch {
+      // Best effort.
+    }
     return {
       ok: false,
       message: `Failed to write shim at ${shimPath}: ${err instanceof Error ? err.message : String(err)}`,

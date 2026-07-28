@@ -35,7 +35,7 @@ import { isEnforcedMode, isEnterpriseProject } from "../hooks/shared.js";
 const ENTERPRISE_REQUIRED_MESSAGE =
   "cortex stage is part of the Cortex Harness — an enterprise-only feature. " +
   "This project does not have an enterprise license configured (no enterprise.api_key " +
-  "in .context/enterprise.yml). Run 'cortex enterprise <api-key>' to enable it, or " +
+  "in .context/enterprise.yml). Run 'cortex enterprise install --api-key-stdin' to enable it, or " +
   "contact your org admin.";
 
 export async function runStageCommand(args: string[]): Promise<void> {
@@ -142,6 +142,7 @@ async function runStart(args: string[]): Promise<void> {
     typeof flags.workflow === "string" ? flags.workflow : "secure-build";
 
   const resolved = resolveWorkflowDefinition(workflowId, {
+    cwd: projectRoot(),
     emitBundledFallbackWarning: true,
     bundledFallbackPolicy: isEnforcedMode(projectRoot()) ? "block" : "warn",
   });
@@ -183,7 +184,9 @@ async function runEnvelope(args: string[]): Promise<void> {
       `No run state for task ${taskId}. Start one with 'cortex stage start'.`,
     );
   }
-  const workflow = resolveWorkflowDefinition(state.workflow_id).workflow;
+  const workflow = resolveWorkflowDefinition(state.workflow_id, {
+    cwd: projectRoot(),
+  }).workflow;
   const envelope = composeStageEnvelope({
     cwd: projectRoot(),
     taskId,
@@ -243,7 +246,9 @@ async function runAdvance(args: string[]): Promise<void> {
       `No run state for task ${taskId}. Start one with 'cortex stage start'.`,
     );
   }
-  const workflow = resolveWorkflowDefinition(state.workflow_id).workflow;
+  const workflow = resolveWorkflowDefinition(state.workflow_id, {
+    cwd: projectRoot(),
+  }).workflow;
   const stage = workflow.stages.find((s) => s.name === stageName);
   if (!stage) {
     throw new Error(

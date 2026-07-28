@@ -1,5 +1,6 @@
 import { DEFAULT_WORKFLOWS } from "./default-workflows.js";
 import { loadSyncedWorkflows } from "./synced-registry.js";
+import { configuredEnterpriseCredentialId } from "../enterprise-identity.js";
 import type { WorkflowDefinition } from "./schemas.js";
 
 export type WorkflowSource = "bundled" | "synced" | "injected";
@@ -24,6 +25,7 @@ export type WorkflowResolution = {
 type ResolveWorkflowOptions = {
   registry?: Record<string, WorkflowDefinition>;
   syncedDir?: string;
+  cwd?: string;
   emitBundledFallbackWarning?: boolean;
   bundledFallbackPolicy?: "allow" | "warn" | "block";
 };
@@ -59,7 +61,13 @@ export function resolveWorkflowDefinition(
   }
 
   const bundled = DEFAULT_WORKFLOWS;
-  const synced = loadSyncedWorkflows(options.syncedDir);
+  const expectedCredentialId = options.syncedDir
+    ? undefined
+    : configuredEnterpriseCredentialId(options.cwd ?? process.cwd()) ?? undefined;
+  const synced = loadSyncedWorkflows(
+    options.syncedDir,
+    expectedCredentialId,
+  );
   const bundledIds = sortIds(Object.keys(bundled));
   const syncedIds = sortIds(Object.keys(synced));
   const merged = { ...bundled, ...synced };

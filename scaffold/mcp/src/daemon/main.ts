@@ -11,6 +11,9 @@ import type {
   AuditLogResult,
 } from "./protocol.js";
 import { loadEnterpriseConfig, resolveEnterpriseActivation } from "../core/config.js";
+import { configuredEnterpriseCredentialId } from "../core/enterprise-identity.js";
+import { matchesEnterpriseHostIdentity } from "../core/enterprise-host-identity.js";
+import { startGlobalUngovernedEventsPusher } from "./global-host-events.js";
 import { pushMetrics } from "../enterprise/telemetry/sync.js";
 import { TelemetryCollector, type TelemetryMetrics } from "../core/telemetry/collector.js";
 import { resolveTelemetryStateDir, telemetryStatePath } from "../core/telemetry/state-dir.js";
@@ -34,6 +37,10 @@ import { startCapabilitySyncTimer } from "./capability-sync-checker.js";
 import { startHostEventsPusher } from "./host-events-pusher.js";
 import { startEgressProxy } from "./egress-proxy.js";
 import { startHeartbeatPusher } from "./heartbeat-pusher.js";
+import {
+  normalizeProjectCwd,
+  ProjectServiceRegistry,
+} from "./project-service-registry.js";
 import type { HeartbeatPayload, HeartbeatResult } from "./protocol.js";
 
 /**
@@ -302,8 +309,37 @@ async function auditLog(payload: AuditLogPayload): Promise<AuditLogResult> {
 async function main(): Promise<void> {
   // Phase 6: hook heartbeat tracker (per-session activity record + tamper detect).
   const tracker = new HeartbeatTracker();
+  let projectServices: ProjectServiceRegistry | null = null;
+  function registerEnterpriseProject(cwd: string): boolean {
+    const config = loadEnterpriseConfig(join(cwd, ".context"));
+    if (!resolveEnterpriseActivation(config).active) return true;
+    if (projectServices?.has(cwd)) return true;
+    const credentialId = configuredEnterpriseCredentialId(cwd);
+    if (!credentialId || !matchesEnterpriseHostIdentity(credentialId)) {
+      process.stderr.write(
+        `[cortex-daemon] rejected Enterprise project ${cwd}: ` +
+          "this user profile is enrolled to another endpoint or API key\n",
+      );
+      return false;
+    }
+    if (!projectServices?.register(cwd)) {
+      process.stderr.write(
+        `[cortex-daemon] rejected Enterprise project ${cwd}: ` +
+          "this user daemon is already bound to another endpoint or API key\n",
+      );
+      return false;
+    }
+    return true;
+  }
   async function heartbeat(payload: HeartbeatPayload): Promise<HeartbeatResult> {
-    return tracker.recordHeartbeat(payload);
+    const cwd = normalizeProjectCwd(payload.cwd);
+    if (!cwd) {
+      return { recorded: false, tamper_lock_active: false };
+    }
+    if (!registerEnterpriseProject(cwd)) {
+      return { recorded: false, tamper_lock_active: false };
+    }
+    return tracker.recordHeartbeat({ ...payload, cwd });
   }
 
   const daemon = new CortexDaemon({
@@ -312,15 +348,11 @@ async function main(): Promise<void> {
     onAuditLog: auditLog,
     onHeartbeat: heartbeat,
   });
-  await daemon.start();
 
   // Phase 5: Tier 3 ungoverned-session detection. Periodic process scan, audit
   // emit per finding, optional SIGTERM in enforced mode (same-user only).
   const scanInterval = parseInt(process.env.CORTEX_UNGOVERNED_SCAN_MS ?? "", 10);
   const intervalMs = Number.isFinite(scanInterval) && scanInterval > 0 ? scanInterval : 60_000;
-  if (process.env.CORTEX_DISABLE_UNGOVERNED_SCAN !== "1") {
-    startUngovernedScanner({ cwd: process.cwd(), intervalMs });
-  }
 
   // Phase 6: periodic tamper-checker. For each active session that had at
   // least one tool-fired hook then went silent past missing_threshold_seconds,
@@ -343,12 +375,7 @@ async function main(): Promise<void> {
   const pushIntervalRaw = parseInt(process.env.CORTEX_HOST_EVENTS_PUSH_MS ?? "", 10);
   const pushIntervalMs =
     Number.isFinite(pushIntervalRaw) && pushIntervalRaw > 0 ? pushIntervalRaw : 5 * 60 * 1000;
-  if (process.env.CORTEX_DISABLE_SYNC_CHECK !== "1") {
-    startSyncTimer(process.cwd(), syncIntervalMs);
-  }
-  if (process.env.CORTEX_DISABLE_HOST_EVENTS_PUSH !== "1") {
-    startHostEventsPusher(process.cwd(), pushIntervalMs);
-  }
+
   // Skills v3: poll cortex-web for org-authored skills, write SKILL.md
   // files into per-CLI user-scope directories. Runs at the same cadence
   // as the govern-config sync check by default but is independently
@@ -356,9 +383,6 @@ async function main(): Promise<void> {
   const skillSyncRaw = parseInt(process.env.CORTEX_SKILL_SYNC_MS ?? "", 10);
   const skillSyncMs =
     Number.isFinite(skillSyncRaw) && skillSyncRaw > 0 ? skillSyncRaw : syncIntervalMs;
-  if (process.env.CORTEX_DISABLE_SKILL_SYNC !== "1") {
-    startSkillSyncTimer(process.cwd(), skillSyncMs);
-  }
 
   // Harness Phase 2: poll cortex-web for org-authored workflows, cache
   // their definitions locally so cortex.workflow.start can resolve
@@ -370,9 +394,6 @@ async function main(): Promise<void> {
     Number.isFinite(workflowSyncRaw) && workflowSyncRaw > 0
       ? workflowSyncRaw
       : skillSyncMs;
-  if (process.env.CORTEX_DISABLE_WORKFLOW_SYNC !== "1") {
-    startWorkflowSyncTimer(process.cwd(), workflowSyncMs);
-  }
 
   // Harness Phase 2: poll cortex-web for org-authored capabilities and
   // cache definitions locally so evaluateToolCall can merge them over
@@ -384,18 +405,68 @@ async function main(): Promise<void> {
     Number.isFinite(capabilitySyncRaw) && capabilitySyncRaw > 0
       ? capabilitySyncRaw
       : workflowSyncMs;
-  if (process.env.CORTEX_DISABLE_CAPABILITY_SYNC !== "1") {
-    startCapabilitySyncTimer(process.cwd(), capabilitySyncMs);
-  }
 
   // Govern host heartbeat — fills host_enrollment on cortex-web so the
   // dashboard at /dashboard/govern actually shows this host.
   const heartbeatRaw = parseInt(process.env.CORTEX_HEARTBEAT_PUSH_MS ?? "", 10);
   const heartbeatMs =
     Number.isFinite(heartbeatRaw) && heartbeatRaw > 0 ? heartbeatRaw : 5 * 60 * 1000;
-  if (process.env.CORTEX_DISABLE_HEARTBEAT_PUSH !== "1") {
-    startHeartbeatPusher(process.cwd(), heartbeatMs);
-  }
+
+  projectServices = new ProjectServiceRegistry((cwd) => {
+    const handles = [];
+    if (process.env.CORTEX_DISABLE_SYNC_CHECK !== "1") {
+      handles.push(startSyncTimer(cwd, syncIntervalMs));
+    }
+    if (process.env.CORTEX_DISABLE_HOST_EVENTS_PUSH !== "1") {
+      handles.push(startHostEventsPusher(cwd, pushIntervalMs));
+    }
+    return handles;
+  }, {
+    credentialIdForCwd: configuredEnterpriseCredentialId,
+    hostFactory: (cwd, credentialId) => {
+      const handles = [];
+      // These services operate on user-global process or artifact state.
+      // One explicit host governance project owns them; projects carrying
+      // another Enterprise identity are rejected by the registry.
+      if (process.env.CORTEX_DISABLE_UNGOVERNED_SCAN !== "1") {
+        // Process snapshots do not carry a trustworthy project cwd. Keep the
+        // single host-wide scanner detection-only so an enforced project can
+        // never terminate a process belonging to an advisory project.
+        handles.push(startUngovernedScanner({
+          cwd,
+          credentialId,
+          intervalMs,
+          mode: "advisory",
+        }));
+      }
+      if (process.env.CORTEX_DISABLE_HOST_EVENTS_PUSH !== "1") {
+        handles.push(
+          startGlobalUngovernedEventsPusher(
+            cwd,
+            credentialId,
+            pushIntervalMs,
+          ),
+        );
+      }
+      if (process.env.CORTEX_DISABLE_SKILL_SYNC !== "1") {
+        handles.push(startSkillSyncTimer(cwd, skillSyncMs));
+      }
+      if (process.env.CORTEX_DISABLE_WORKFLOW_SYNC !== "1") {
+        handles.push(startWorkflowSyncTimer(cwd, workflowSyncMs));
+      }
+      if (process.env.CORTEX_DISABLE_CAPABILITY_SYNC !== "1") {
+        handles.push(startCapabilitySyncTimer(cwd, capabilitySyncMs));
+      }
+      if (process.env.CORTEX_DISABLE_HEARTBEAT_PUSH !== "1") {
+        handles.push(startHeartbeatPusher(cwd, heartbeatMs));
+      }
+      return handles;
+    },
+  });
+
+  await daemon.start();
+  const startupCwd = normalizeProjectCwd(process.cwd());
+  if (startupCwd) registerEnterpriseProject(startupCwd);
 
   // Phase 4 task 19: cortex egress proxy. Logs SNI + destination per
   // outbound connection (no TLS termination). cortex run sets
@@ -404,7 +475,10 @@ async function main(): Promise<void> {
   const proxyPortRaw = parseInt(process.env.CORTEX_EGRESS_PROXY_PORT ?? "", 10);
   const proxyPort = Number.isFinite(proxyPortRaw) && proxyPortRaw > 0 ? proxyPortRaw : 18888;
   if (process.env.CORTEX_DISABLE_EGRESS_PROXY !== "1") {
-    startEgressProxy({ cwd: process.cwd(), port: proxyPort })
+    // A shared proxy connection has no trustworthy project identity. Keep
+    // transport support, but suppress project audit emission until callers
+    // use an attributable per-project channel.
+    startEgressProxy({ port: proxyPort })
       .then((handle) => {
         process.stderr.write(
           `[cortex-daemon] egress proxy listening on 127.0.0.1:${handle.port}\n`,
@@ -447,7 +521,7 @@ async function main(): Promise<void> {
   if (process.env.CORTEX_DISABLE_TAMPER_CHECK !== "1") {
     const checkTimer = setInterval(() => {
       const detected = tracker.detectTamper({
-        cwds: [process.cwd()],
+        cwds: projectServices?.projectCwds() ?? [],
         missingThresholdSeconds,
       });
       for (const entry of detected) {

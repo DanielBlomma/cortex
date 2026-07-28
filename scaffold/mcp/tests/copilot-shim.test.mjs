@@ -80,7 +80,25 @@ test("installCopilotShim: refuses to overwrite a non-shim file at shim path", ()
       searchPath: ws.searchPath,
     });
     assert.equal(result.ok, false);
-    assert.match(result.message, /not a cortex shim/);
+    assert.match(result.message, /not a regular cortex shim/);
+  } finally {
+    fs.rmSync(ws.dir, { recursive: true, force: true });
+  }
+});
+
+test("installCopilotShim: refuses a dangling symlink without touching its target", () => {
+  const ws = makeWorkspace();
+  const target = path.join(ws.dir, "must-not-be-created");
+  try {
+    fs.symlinkSync(target, ws.shimPath);
+    const result = installCopilotShim({
+      shimPath: ws.shimPath,
+      searchPath: ws.searchPath,
+    });
+    assert.equal(result.ok, false);
+    assert.match(result.message, /regular cortex shim/);
+    assert.equal(fs.existsSync(target), false);
+    assert.equal(fs.lstatSync(ws.shimPath).isSymbolicLink(), true);
   } finally {
     fs.rmSync(ws.dir, { recursive: true, force: true });
   }
