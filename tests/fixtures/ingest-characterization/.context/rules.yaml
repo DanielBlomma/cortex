@@ -1,0 +1,9 @@
+rules:
+  - id: rule.baseline
+    description: Deterministic baseline processing must preserve configuration and SQL relations.
+    priority: 90
+    enforce: true
+  - id: rule.svenska
+    description: Svenska dokument ska behålla stabil ordning och spårbarhet.
+    priority: 40
+    enforce: false

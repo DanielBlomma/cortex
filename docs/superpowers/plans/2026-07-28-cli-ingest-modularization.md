@@ -28,72 +28,72 @@ Cortex-managed files safely. Preserve all observable behavior.
 
 ### CLI contract
 
-- [ ] Inventory every command, alias, option, default, and passthrough.
-- [ ] Add a subprocess-based command matrix that records exit status and
+- [x] Inventory every command, alias, option, default, and passthrough.
+- [x] Add a subprocess-based command matrix that records exit status and
   stdout/stderr ownership.
-- [ ] Cover `help`, `version`, unknown commands, malformed flags, query shims,
+- [x] Cover `help`, `version`, unknown commands, malformed flags, query shims,
   daemon status outside a project, init/connect behavior, and missing-runtime
   diagnostics.
-- [ ] Assert JSON envelope structure semantically rather than snapshotting
+- [x] Assert JSON envelope structure semantically rather than snapshotting
   unstable timestamps or local paths.
-- [ ] Retain direct-import tests for `slugifyRepoId`,
+- [x] Retain direct-import tests for `slugifyRepoId`,
   `detectInitialSourcePaths`, `buildInitialConfig`, and
   `isScaffoldOutOfDate`.
 
 ### Enterprise contract
 
-- [ ] Keep the existing positional-secret, stdin-only, no-echo, trusted
+- [x] Keep the existing positional-secret, stdin-only, no-echo, trusted
   runtime, identity-ordering, config-permission, and verified-daemon tests.
-- [ ] Add any missing CLI-stream or exit-status assertions needed to detect
+- [x] Add any missing CLI-stream or exit-status assertions needed to detect
   extraction regressions.
 
 ### Ingest contract
 
-- [ ] Build a compact multilingual fixture covering code, Markdown, config,
+- [x] Build a compact multilingual fixture covering code, Markdown, config,
   resources, SQL, project metadata, rules, and incremental deletion.
-- [ ] Record canonical full-ingest JSONL/TSV output hashes after normalizing
+- [x] Record canonical full-ingest JSONL/TSV output hashes after normalizing
   intentionally variable timestamps.
-- [ ] Compare sequential and parallel output byte-for-byte.
-- [ ] Cover changed ingest, deleted paths, unavailable parsers, zero workers,
+- [x] Compare sequential and parallel output byte-for-byte.
+- [x] Cover changed ingest, deleted paths, unavailable parsers, zero workers,
   crashed workers, and deterministic ordering.
-- [ ] Record the existing memory-trace labels and required fields.
+- [x] Record the existing memory-trace labels and required fields.
 
 ### Baseline evidence
 
-- [ ] Run focused tests and both full suites.
-- [ ] Run three comparable Cortex/Angular memory measurements and record the
+- [x] Run focused tests and both full suites.
+- [x] Run three comparable Cortex/Angular memory measurements and record the
   median peak RSS and duration by phase.
-- [ ] Inspect a `2.4.1` package dry run and clean temporary install.
-- [ ] Update handoff/risk/acceptance state and create a focused WO-027 context
+- [x] Inspect a `2.4.1` package dry run and clean temporary install.
+- [x] Update handoff/risk/acceptance state and create a focused WO-027 context
   packet.
 
 ## WO-027 — CLI Modularization
 
 ### Pure helpers
 
-- [ ] Extract help rendering and argument parsing.
-- [ ] Extract process execution/result helpers.
-- [ ] Extract scaffold path/config helpers.
-- [ ] Re-export compatibility helpers from `bin/cortex.mjs`.
-- [ ] Run CLI characterization tests after each extraction commit.
+- [x] Extract help rendering and argument parsing.
+- [x] Extract process execution/result helpers.
+- [x] Extract scaffold path/config helpers.
+- [x] Re-export compatibility helpers from `bin/cortex.mjs`.
+- [x] Run CLI characterization tests after each extraction commit.
 
 ### Command handlers
 
-- [ ] Extract context query and passthrough handling.
-- [ ] Extract connect/init/scaffold handling.
-- [ ] Extract daemon handling without changing handshake or PID behavior.
-- [ ] Extract hooks and telemetry handling.
-- [ ] Extract Enterprise handling last, keeping trusted package resolution
+- [x] Extract context query and passthrough handling.
+- [x] Extract connect/init/scaffold handling.
+- [x] Extract daemon handling without changing handshake or PID behavior.
+- [x] Extract hooks and telemetry handling.
+- [x] Extract Enterprise handling last, keeping trusted package resolution
   physically separate from project runtime resolution.
-- [ ] Compose handlers in a small router with explicit command ownership.
+- [x] Compose handlers in a small router with explicit command ownership.
 
 ### Acceptance
 
-- [ ] `bin/cortex.mjs` is a thin executable boundary.
-- [ ] CLI and Enterprise focused tests pass.
-- [ ] Root and MCP full suites pass.
-- [ ] Package dry run includes every `bin/cli/` module.
-- [ ] Review findings are resolved and WO-028 receives a fresh packet.
+- [x] `bin/cortex.mjs` is a thin executable boundary.
+- [x] CLI and Enterprise focused tests pass.
+- [x] Root and MCP full suites pass.
+- [x] Package dry run includes every `bin/cli/` module.
+- [x] Review findings are resolved and WO-028 receives a fresh packet.
 
 ## WO-028 — Canonical Ingest Source and Pure Modules
 

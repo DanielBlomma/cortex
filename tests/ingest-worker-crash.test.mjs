@@ -1,10 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import { parseFilesInWorkers } from "../scaffold/scripts/ingest.mjs";
 
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const INGEST = path.join(REPO_ROOT, "scaffold", "scripts", "ingest.mjs");
+const INGEST_PARSERS = path.join(
+  REPO_ROOT,
+  "scaffold",
+  "scripts",
+  "ingest-parsers.mjs",
+);
+const PARSERS_DIR = path.join(REPO_ROOT, "scaffold", "scripts", "parsers");
 const CRASH_WORKER = new URL("./fixtures/ingest-crash-worker.mjs", import.meta.url);
+const FIXED_MTIME = new Date("2026-01-01T00:00:00.000Z");
 
 function withTimeout(promise, ms, label) {
   let timer;
@@ -25,6 +39,85 @@ function makeTasks(count, crashIndices = new Set()) {
     });
   }
   return tasks;
+}
+
+function writePipelineFixture(root) {
+  const contextDir = path.join(root, ".context");
+  const srcDir = path.join(root, "src");
+  fs.mkdirSync(contextDir, { recursive: true });
+  fs.mkdirSync(srcDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(contextDir, "config.yaml"),
+    "repo_id: worker-fallback\nsource_paths:\n  - src\n",
+    "utf8",
+  );
+  fs.writeFileSync(path.join(contextDir, "rules.yaml"), "rules: []\n", "utf8");
+  for (let i = 0; i < 56; i += 1) {
+    const file = path.join(srcDir, `file-${i}.js`);
+    fs.writeFileSync(
+      file,
+      `export function value${i}(input) {\n  return input + ${i};\n}\n`,
+      "utf8",
+    );
+    fs.utimesSync(file, FIXED_MTIME, FIXED_MTIME);
+  }
+}
+
+function writeFallbackIngest(scriptDir) {
+  fs.mkdirSync(scriptDir, { recursive: true });
+  fs.copyFileSync(INGEST, path.join(scriptDir, "ingest.mjs"));
+  fs.copyFileSync(INGEST_PARSERS, path.join(scriptDir, "ingest-parsers.mjs"));
+  fs.symlinkSync(PARSERS_DIR, path.join(scriptDir, "parsers"), "dir");
+  fs.writeFileSync(
+    path.join(scriptDir, "ingest-worker.mjs"),
+    [
+      "import { parentPort } from 'node:worker_threads';",
+      "if (!parentPort) throw new Error('worker only');",
+      "parentPort.on('message', (message) => {",
+      "  if (message?.type === 'shutdown') process.exit(0);",
+      "  if (message.filePath === 'src/file-5.js') process.exit(91);",
+      "  parentPort.postMessage({",
+      "    taskId: message.taskId,",
+      "    ok: false,",
+      "    reason: 'forced inline fallback',",
+      "  });",
+      "});",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  return fs.realpathSync(path.join(scriptDir, "ingest.mjs"));
+}
+
+function runPipeline(root, ingest, workers, trace = false) {
+  const env = {
+    ...process.env,
+    CORTEX_PROJECT_ROOT: root,
+    CORTEX_INGEST_WORKERS: String(workers),
+  };
+  delete env.CORTEX_INGEST_TRACE_MEMORY;
+  if (trace) env.CORTEX_INGEST_TRACE_MEMORY = "1";
+  const result = spawnSync(process.execPath, [ingest], {
+    cwd: root,
+    encoding: "utf8",
+    env,
+    timeout: 30000,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  return result;
+}
+
+function readPipelineOutputs(root) {
+  const output = new Map();
+  for (const relativeDir of [".context/cache", ".context/db/import"]) {
+    const dir = path.join(root, relativeDir);
+    for (const name of fs.readdirSync(dir).sort()) {
+      if (!name.endsWith(".jsonl") && !name.endsWith(".tsv")) continue;
+      const relativePath = path.join(relativeDir, name).split(path.sep).join("/");
+      output.set(relativePath, fs.readFileSync(path.join(dir, name), "utf8"));
+    }
+  }
+  return output;
 }
 
 test("parseFilesInWorkers resolves and isolates a worker that exits without a message", async () => {
@@ -55,6 +148,75 @@ test("parseFilesInWorkers resolves even when every worker dies", async () => {
     "all-crash run"
   );
   assert.equal(results.size, 0, "no task should have produced a worker result");
+});
+
+test("parseFilesInWorkers leaves skipped or unavailable parser results for inline fallback", async () => {
+  const tasks = makeTasks(6);
+  tasks[2].path = "SKIP-2.js";
+  tasks[4].path = "SKIP-4.js";
+
+  const results = await withTimeout(
+    parseFilesInWorkers(tasks, { workerCount: 2, workerUrl: CRASH_WORKER }),
+    10000,
+    "skipped-result run"
+  );
+
+  assert.equal(results.has("t2"), false);
+  assert.equal(results.has("t4"), false);
+  for (const id of ["t0", "t1", "t3", "t5"]) {
+    assert.ok(results.has(id), `expected a worker result for ${id}`);
+  }
+});
+
+test("worker skip and crash paths fall back inline with byte-identical pipeline output", () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-worker-fallback-pipeline-"));
+  const inlineRoot = path.join(base, "inline");
+  const fallbackRoot = path.join(base, "fallback");
+  const scriptDir = path.join(base, "scripts");
+  fs.mkdirSync(inlineRoot, { recursive: true });
+  fs.mkdirSync(fallbackRoot, { recursive: true });
+  writePipelineFixture(inlineRoot);
+  writePipelineFixture(fallbackRoot);
+  const fallbackIngest = writeFallbackIngest(scriptDir);
+
+  try {
+    runPipeline(inlineRoot, INGEST, 0);
+    const fallbackRun = runPipeline(fallbackRoot, fallbackIngest, 4, true);
+    const inlineOutput = readPipelineOutputs(inlineRoot);
+    const fallbackOutput = readPipelineOutputs(fallbackRoot);
+
+    assert.deepEqual(
+      [...fallbackOutput.keys()],
+      [...inlineOutput.keys()],
+      "worker failure lane must persist the same output files",
+    );
+    for (const [name, expected] of inlineOutput) {
+      assert.equal(
+        fallbackOutput.get(name),
+        expected,
+        `${name} differs after skipped/crashed worker fallback`,
+      );
+    }
+
+    const traceRecords = fallbackRun.stderr
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+    const workersComplete = traceRecords.find(
+      (record) => record.label === "parse:workers_complete",
+    );
+    assert.ok(workersComplete);
+    assert.ok(workersComplete.counts.worker_tasks >= 50);
+    assert.equal(workersComplete.counts.worker_count, 4);
+    assert.equal(workersComplete.counts.worker_results, 0);
+    assert.equal(
+      workersComplete.counts.worker_results_missing,
+      workersComplete.counts.worker_tasks,
+    );
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
 });
 
 test("parseFilesInWorkers returns empty for no tasks without spawning workers", async () => {

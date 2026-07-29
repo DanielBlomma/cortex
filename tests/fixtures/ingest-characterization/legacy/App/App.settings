@@ -1,0 +1,7 @@
+<SettingsFile>
+  <Settings>
+    <Setting Name="RunReportProc" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">reporting.RunReport</Value>
+    </Setting>
+  </Settings>
+</SettingsFile>

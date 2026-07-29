@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <AssemblyName>Legacy.App</AssemblyName>
+    <RootNamespace>Legacy.App</RootNamespace>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Main.vb" />
+    <EmbeddedResource Include="Resources.resx" />
+    <None Include="App.settings" />
+  </ItemGroup>
+</Project>

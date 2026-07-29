@@ -23,5 +23,9 @@ parentPort.on("message", (message) => {
     // event fires, which is exactly the case that used to hang the pool.
     process.exit(1);
   }
+  if (typeof filePath === "string" && filePath.includes("SKIP")) {
+    parentPort.postMessage({ taskId, ok: false, reason: "injected unavailable parser" });
+    return;
+  }
   parentPort.postMessage({ taskId, ok: true, result: { chunks: [], errors: [] } });
 });

@@ -7,7 +7,7 @@ Rotation rule: at each day rollover (or at ~150 lines), move the previous day's
 entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State. This
 file must stay small enough that a fresh manager session can read it whole.
 
-## Current State (2026-07-28)
+## Current State (2026-07-29)
 
 <!-- The fresh-manager test applies to this section: a brand-new manager
      session must be able to continue from here with zero chat history.
@@ -16,15 +16,25 @@ file must stay small enough that a fresh manager session can read it whole.
 
 - `v2.4.1` is the modularization baseline at
   `5ae3b00948bad26af2e5eaea60ce0b52567db352` on `origin/main`.
-- The user approved CLI/ingest modularization and requested a clean-context
-  handoff. The program is saved in context packet 016 and the detailed plan at
-  `docs/superpowers/plans/2026-07-28-cli-ingest-modularization.md`.
-- Work orders WO-026 through WO-031 and REQ-15 are planned on
-  `refactor/cli-ingest-modularization`. R14 covers behavior/security/data/memory
-  regression risk; R15 covers safe managed-scaffold ownership and cleanup.
-- Next action: start a fresh session with packet 016 and execute WO-026 only
-  (characterization tests plus memory/package baseline). Do not begin CLI
-  extraction until WO-026 is accepted and a smaller WO-027 packet exists.
+- WO-026 and WO-027 are accepted locally on
+  `refactor/cli-ingest-modularization`. The WO-026 baseline remains
+  `docs/agent-control/wo-026-characterization-baseline.md`.
+- WO-027 replaces the 1,862-line `bin/cortex.mjs` with a 34-line executable,
+  an explicit router, and 18 cohesive modules under `bin/cli/`. Project-runtime
+  imports and package-trusted Enterprise imports are physically separate.
+- Final WO-027 validation is focused 58/58, root 81/81 context regressions plus
+  293/293 Node tests, MCP 413/413, syntax and clean-diff checks, a 398-entry
+  package containing every CLI module with executable mode retained, Cortex
+  update/pattern evidence, doctor 8/8, and watcher stopped.
+- Code Quality, Contract, Security/Privacy, Integration, and Validation review
+  findings were fixed and re-reviewed; no blocker, major, or minor findings
+  remain.
+- WO-028 is the only Ready modularization work order. Start a fresh session
+  from `docs/agent-control/context-packets/018-canonical-ingest-pure-modules.md`
+  and stop after canonical ingest/pure-module extraction, its reviews, and a
+  fresh WO-029 packet.
+- R14's CLI portion is mitigated but its ingest portion stays open through
+  WO-028–WO-029. R15 remains open for managed-scaffold cleanup in WO-030.
 - PR #96 and PR #97 merged and released as `v2.1.4`. Angular/parser/benchmark
   and first-pass memory improvements are on `main`.
 - User decision on 2026-06-18: move Cortex from MCP-first to CLI-first for
@@ -493,6 +503,51 @@ file must stay small enough that a fresh manager session can read it whole.
   context packet 016, the detailed implementation plan, WO-026 through WO-031,
   REQ-15, and risks R14/R15. WO-026 is the only Ready work order; its required
   reviewers are named in the packet and handoff ledger.
+- Accepted WO-026 without runtime refactoring. The committed baseline adds a
+  subprocess CLI matrix, all query-shim JSON contracts, expanded Enterprise
+  trust/secret/config/ordering coverage, a multilingual full/changed ingest
+  fixture with normalized JSONL/TSV hashes, worker crash/skip pipeline
+  equivalence, and the existing trace schema. Packet 017 is the focused
+  fresh-session handoff for WO-027.
+- Independent Code Quality, Contract, Security/Privacy, Integration, and
+  Validation review initially found missing successful handler dispatch,
+  trusted-runtime success/fail-closed, TTY/no-flag/config-type assertions, and
+  end-to-end worker fallback. All major and minor findings were fixed in tests
+  and handoff constraints; the final re-review returned no findings from every
+  role.
+- Final evidence: focused characterization 46/46; root 81/81 context
+  regressions plus 290/290 Node tests; MCP 413/413; version metadata in sync;
+  syntax and `git diff --check` pass; 380-entry package dry-run plus clean
+  temporary install/init; Cortex doctor 8/8 and watcher stopped.
+- Memory baseline uses pinned Cortex
+  `051d4e6a87d968795482f65d900eda5dc8a94aae` and Angular
+  `71bb19d772aa77a30922fb896f775b58a0862c36`. All six samples passed. Median
+  peak RSS is 614.34 MB (Cortex) and 1,034.24 MB (Angular); median ingest is
+  115 ms and 5,565 ms. Raw ignored summaries use run IDs
+  `wo026-memory-baseline-{1,2,3}-20260728`.
+- Accepted WO-027 locally. The CLI is now composed from pure help/argument/
+  process/path helpers and explicit scaffold, project, MCP, passthrough, query,
+  run, stage, daemon, hook, telemetry, and Enterprise command modules.
+  `bin/cortex.mjs` retains only executable detection, top-level error
+  formatting, router composition, and the six compatibility re-exports.
+- Enterprise control and install imports resolve through
+  `bin/cli/trusted-runtime.mjs` from the package-owned scaffold, while project
+  command imports resolve through `bin/cli/project-runtime.mjs`. The new
+  subprocess install contract proves a hostile project runtime is not loaded.
+- Review iteration fixed two security/coverage gaps (blank-line multiline
+  secrets and direct trusted install resolution), split an initially broad
+  context-command module into explicit owners, centralized the project runtime
+  loader, and replaced source-text coupling in the scaffold compatibility
+  test. All five required reviewers returned no remaining findings.
+- Final evidence: focused 58/58; root 81/81 context regressions plus 293/293
+  Node tests; MCP 413/413; syntax and `git diff --check`; 398-entry package
+  containing all 18 `bin/cli/` modules and executable `bin/cortex.mjs`; Cortex
+  update and local pattern evidence for all changed runtime files; doctor 8/8;
+  watcher stopped.
+- Created packet 018 and marked WO-028 Ready. It establishes
+  `scaffold/scripts/lib/ingest/` as the canonical ingest implementation and
+  limits the next fresh session to source ownership and pure extraction;
+  worker/pipeline orchestration remains reserved for WO-029.
 
 ## Archive
 

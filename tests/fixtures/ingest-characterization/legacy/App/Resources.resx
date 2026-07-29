@@ -1,0 +1,5 @@
+<root>
+  <data name="ActiveUsersQuery" xml:space="preserve">
+    <value>SELECT * FROM reporting.ActiveUsers</value>
+  </data>
+</root>
