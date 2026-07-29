@@ -52,11 +52,22 @@ import {
   generateSectionHandlerRelations
 } from "../scaffold/scripts/lib/ingest/relations.mjs";
 import {
-  resolveIngestWorkerCount
-} from "../scaffold/scripts/lib/ingest/main.mjs";
-import {
   getChunkParserForExtension
-} from "../scaffold/scripts/ingest-parsers.mjs";
+} from "../scaffold/scripts/lib/ingest/parser-composition.mjs";
+import {
+  resolveIngestWorkerCount
+} from "../scaffold/scripts/lib/ingest/workers.mjs";
+import {
+  createIngestPipelineState,
+  runCacheWriteStage,
+  runDatabaseWriteStage,
+  runFileCacheStagingStage,
+  runManifestCompletionStage,
+  runMaterializationStage,
+  runParseStage,
+  runScanHydrationStage,
+  runTokenMatchingStage
+} from "../scaffold/scripts/lib/ingest/pipeline-stages.mjs";
 
 // ─── detectKind / parser dispatch ────────────────────────────────────────────
 
@@ -106,6 +117,22 @@ test("resolveIngestWorkerCount: caps large default ingests while preserving env 
     } else {
       process.env.CORTEX_INGEST_WORKERS = original;
     }
+  }
+});
+
+test("pipeline stages expose the bounded ingest sequence", () => {
+  for (const stage of [
+    createIngestPipelineState,
+    runScanHydrationStage,
+    runParseStage,
+    runMaterializationStage,
+    runFileCacheStagingStage,
+    runTokenMatchingStage,
+    runCacheWriteStage,
+    runDatabaseWriteStage,
+    runManifestCompletionStage
+  ]) {
+    assert.equal(typeof stage, "function");
   }
 });
 

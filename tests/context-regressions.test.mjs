@@ -11,6 +11,10 @@ const WATCH_PATH = path.join(REPO_ROOT, "scripts", "watch.sh");
 const INGEST_PATH = path.join(REPO_ROOT, "scaffold", "scripts", "ingest.mjs");
 const INGEST_LIB_PATH = path.join(REPO_ROOT, "scaffold", "scripts", "lib", "ingest");
 const INGEST_PARSERS_PATH = path.join(REPO_ROOT, "scaffold", "scripts", "ingest-parsers.mjs");
+const INGEST_PARSER_REGISTRY_PATH = path.join(
+  INGEST_LIB_PATH,
+  "parser-registry.mjs"
+);
 const INGEST_WORKER_PATH = path.join(REPO_ROOT, "scaffold", "scripts", "ingest-worker.mjs");
 
 function copyIngestEntry(scriptsDir) {
@@ -27,14 +31,26 @@ function writeIngestScripts(scriptsDir, { mockJsParser = false } = {}) {
   fs.mkdirSync(path.join(scriptsDir, "parsers"), { recursive: true });
   copyIngestEntry(scriptsDir);
   fs.copyFileSync(INGEST_WORKER_PATH, path.join(scriptsDir, "ingest-worker.mjs"));
-  let parsersSource = fs.readFileSync(INGEST_PARSERS_PATH, "utf8");
+  fs.copyFileSync(INGEST_PARSERS_PATH, path.join(scriptsDir, "ingest-parsers.mjs"));
   if (mockJsParser) {
-    parsersSource = parsersSource.replace(
-      'import { parseCode } from "./parsers/javascript.mjs";',
-      'import { parseCode } from "./parsers/mock-parser.mjs";'
+    const registryPath = path.join(
+      scriptsDir,
+      "lib",
+      "ingest",
+      "parser-registry.mjs"
+    );
+    const registrySource = fs
+      .readFileSync(INGEST_PARSER_REGISTRY_PATH, "utf8")
+      .replace(
+        'import { parseCode } from "../../parsers/javascript.mjs";',
+        'import { parseCode } from "../../parsers/mock-parser.mjs";'
+      );
+    fs.writeFileSync(
+      registryPath,
+      registrySource,
+      "utf8"
     );
   }
-  fs.writeFileSync(path.join(scriptsDir, "ingest-parsers.mjs"), parsersSource, "utf8");
 }
 const STATUS_PATH = path.join(REPO_ROOT, "scripts", "status.sh");
 

@@ -236,3 +236,38 @@ test("ingest rule matching keeps duplicate rule ids de-duplicated", () => {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("verbose ingest reports overlap-window settings without losing stage state", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-ingest-verbose-window-"));
+  try {
+    writeFixture(root);
+    const sourcePath = path.join(root, "src", "verbose-window.js");
+    const body = [
+      "export function verboseWindow(input) {",
+      ...Array.from({ length: 80 }, (_value, index) => `  const value${index} = input + ${index};`),
+      "  return value79;",
+      "}",
+      ""
+    ].join("\n");
+    fs.writeFileSync(sourcePath, body, "utf8");
+
+    const result = runIngest(root, {
+      CORTEX_CHUNK_WINDOW_LINES: "20",
+      CORTEX_CHUNK_OVERLAP_LINES: "2",
+      CORTEX_CHUNK_SPLIT_MIN_LINES: "21",
+      CORTEX_CHUNK_MAX_WINDOWS: "10"
+    }, ["--verbose"]);
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(
+      result.stdout,
+      /overlap windows added=\d+ \(window_lines=20, overlap_lines=2, max_windows=10\)/
+    );
+    assert.ok(
+      fs.existsSync(path.join(root, ".context", "cache", "manifest.json")),
+      "verbose pipeline should reach manifest completion"
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

@@ -6,7 +6,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { parseFilesInWorkers } from "../scaffold/scripts/lib/ingest/main.mjs";
+import { parseFilesInWorkers } from "../scaffold/scripts/lib/ingest/workers.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const INGEST = path.join(REPO_ROOT, "scaffold", "scripts", "ingest.mjs");

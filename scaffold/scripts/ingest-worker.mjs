@@ -12,7 +12,10 @@
  */
 import fs from "node:fs";
 import { parentPort } from "node:worker_threads";
-import { loadParsers, parseFileContent } from "./ingest-parsers.mjs";
+import {
+  loadParsers,
+  parseFileContent
+} from "./lib/ingest/parser-registry.mjs";
 
 if (!parentPort) {
   throw new Error("ingest-worker.mjs must be run as a worker thread");

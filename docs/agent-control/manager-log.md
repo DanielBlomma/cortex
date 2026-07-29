@@ -16,11 +16,11 @@ file must stay small enough that a fresh manager session can read it whole.
 
 - `v2.4.1` is the modularization baseline at
   `5ae3b00948bad26af2e5eaea60ce0b52567db352` on `origin/main`.
-- WO-026 through WO-028 are accepted locally on
+- WO-026 through WO-029 are accepted locally on
   `refactor/cli-ingest-modularization`. The WO-026 baseline remains
-  `docs/agent-control/wo-026-characterization-baseline.md`; WO-028's durable
+  `docs/agent-control/wo-026-characterization-baseline.md`; WO-029's durable
   acceptance record is
-  `docs/agent-control/wo-028-canonical-ingest-baseline.md`.
+  `docs/agent-control/wo-029-ingest-orchestration-baseline.md`.
 - WO-027 replaces the 1,862-line `bin/cortex.mjs` with a 34-line executable,
   an explicit router, and 18 cohesive modules under `bin/cli/`. Project-runtime
   imports and package-trusted Enterprise imports are physically separate.
@@ -29,16 +29,26 @@ file must stay small enough that a fresh manager session can read it whole.
   canonical `main()`. Final validation is syntax 13/13, focused 61/61, root
   81/81 context regressions plus 300/300 Node tests, MCP 413/413, and a
   409-entry package containing all 11 canonical modules.
-- Code Quality, Contract, Security/Privacy, Integration, and Validation review
-  findings were fixed and re-reviewed; no blocker, major, or minor findings
-  remain.
-- WO-029 is the only Ready modularization work order. Start a fresh session
-  from `docs/agent-control/context-packets/019-ingest-orchestration-workers.md`
-  and stop after parser/worker/pipeline extraction, repeated memory evidence,
-  its reviews, and a fresh WO-030 packet.
-- R14's CLI and canonical/pure-ingest portions are mitigated; its worker and
-  pipeline portion remains open through WO-029. R15 remains open for
-  managed-scaffold cleanup in WO-030. R16 records accepted pre-existing ingest
+- WO-029 extracts parser composition, worker scheduling/protocol and streaming
+  result consumption, and explicit state-passing pipeline stages. The
+  canonical library has 15 modules behind a 76-line `main.mjs`; the parser
+  compatibility entry is one line.
+- WO-029 validation is syntax 19/19, focused 63/63, context regressions 81/81,
+  root Node 302/302, MCP 413/413, and a 413-entry package. All four frozen
+  digests, sequential/parallel and worker-failure byte identity, 17 trace
+  checkpoints, and zero retained worker results remain unchanged. Six
+  benchmark samples passed; median Cortex/Angular RSS deltas are
+  +2.04%/-0.35%, inside the five-percent band.
+- Review found one major verbose overlap-window stage-state omission. It was
+  fixed with a subprocess regression before acceptance. Code Quality,
+  Contract, Security/Privacy, Integration, and Validation are closed with no
+  remaining blocker, major, or minor findings.
+- WO-030 is Ready. Start a fresh session from
+  `docs/agent-control/context-packets/020-managed-scaffold-upgrade-hygiene.md`
+  and stop after safe versioned managed-file ownership/cleanup, its validation
+  and reviews, and a fresh WO-031 packet.
+- R14 is mitigated locally through WO-029. R15 remains open for managed-
+  scaffold cleanup in WO-030. R16 records accepted pre-existing ingest
   filesystem-containment debt for a separate behavior-changing security work
   order.
 - PR #96 and PR #97 merged and released as `v2.1.4`. Angular/parser/benchmark
@@ -582,6 +592,49 @@ file must stay small enough that a fresh manager session can read it whole.
   scheduling/protocol, streaming result consumption, explicit pipeline stages,
   and repeated memory validation. Managed-scaffold cleanup remains blocked for
   WO-030.
+
+## 2026-07-29
+
+- Implemented WO-029 from packet 019. The frozen parser registry now lives in
+  `parser-registry.mjs`; `parser-composition.mjs` owns parser initialization,
+  C# batch composition, eligibility, and task selection; `workers.mjs` owns
+  worker-count resolution, message settlement/termination, sorted streaming
+  consumption, and compatibility collection.
+- Split the canonical pipeline into scan/hydration, parse, materialization,
+  staged file-cache, token/rule-match, cache-write, DB-write, and manifest
+  stages. One mutable state object preserves arrays, maps, sets, writers,
+  records, and file content by reference. `main.mjs` is a 76-line explicit
+  composition over all 15 canonical modules.
+- Preserved all four WO-026 normalized hashes, development/package wrapper
+  equivalence, sequential/four-worker byte identity, 56-file worker-failure
+  identity, all worker death/fallback/settlement cases, sorted streaming
+  consumption, zero retained results, and all 17 trace checkpoints.
+- Review found one major in the extracted materialization stage: verbose
+  overlap-window logging read settings absent from its local state binding.
+  Added the three state fields and a real subprocess regression that forces
+  overlap windows, verifies the exact verbose diagnostic, and verifies
+  manifest completion. Code Quality, Contract, Security/Privacy, Integration,
+  and Validation returned PASS with no remaining blocker, major, or minor
+  findings.
+- Final test evidence is syntax 19/19, focused ingest 63/63, context
+  regressions 81/81, root Node 302/302, MCP 413/413, and clean diff. The
+  package dry-run has 413 entries, contains all 15 canonical modules plus
+  parser/worker entries, retains wrapper mode `0755`, and is 623,302 packed /
+  2,615,869 unpacked bytes.
+- Ran the WO-026 Docker memory configuration three times. All six samples are
+  `ok`; median peak RSS is 626.87 MB for Cortex (+2.04%) and 1,030.64 MB for
+  Angular (-0.35%). Median ingest duration is 109 ms (-5.22%) and 5,687 ms
+  (+2.19%).
+- `cortex update` embedded 65 entities, reused 971, and failed zero; graph load
+  completed. Pattern evidence passed for all seven changed indexed documents.
+  The 11 changed `scaffold/` and `tests/` paths are outside configured source
+  paths and returned not-indexed, so direct relocation comparison, focused/
+  full tests, and review supply their evidence. Doctor passed 8/8 and the
+  optional watcher is stopped.
+- Created the durable WO-029 baseline and packet 020. WO-030 is Ready in a
+  fresh session and is limited to versioned managed ownership, contained
+  obsolete-file cleanup, user-file preservation, migration/security tests,
+  and package/clean-upgrade smokes.
 
 ## Archive
 
