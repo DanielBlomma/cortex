@@ -440,11 +440,61 @@ test("Enterprise permission hardening rejects symlinks and non-regular files", (
       () => hardenEnterpriseConfigPermissions(target),
       /Enterprise configuration is not a regular file/,
     );
+
+    fs.rmSync(contextDir, { recursive: true, force: true });
+    fs.symlinkSync(external, contextDir);
+    assert.throws(
+      () => hardenEnterpriseConfigPermissions(target),
+      /Refusing symlinked Cortex context directory/,
+    );
+    assert.equal(
+      fs.statSync(externalConfig).mode & 0o777,
+      externalMode,
+      "a symlinked .context directory must not redirect chmod outside the project",
+    );
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
     fs.rmSync(external, { recursive: true, force: true });
   }
 });
+
+test(
+  "Enterprise permission hardening rejects hard links without changing external modes",
+  { skip: process.platform === "win32" },
+  () => {
+    const target = fs.mkdtempSync(
+      path.join(os.tmpdir(), "cortex-config-hardlink-"),
+    );
+    const external = fs.mkdtempSync(
+      path.join(os.tmpdir(), "cortex-config-hardlink-external-"),
+    );
+    const contextDir = path.join(target, ".context");
+    const externalConfig = path.join(external, "enterprise.yml");
+    fs.mkdirSync(contextDir);
+    fs.writeFileSync(
+      externalConfig,
+      "enterprise:\n  api_key: untouched\n",
+      { encoding: "utf8", mode: 0o644 },
+    );
+    fs.chmodSync(externalConfig, 0o644);
+    fs.linkSync(externalConfig, path.join(contextDir, "enterprise.yml"));
+
+    try {
+      assert.throws(
+        () => hardenEnterpriseConfigPermissions(target),
+        /Refusing multiply linked Enterprise configuration/,
+      );
+      assert.equal(fs.statSync(externalConfig).mode & 0o777, 0o644);
+      assert.equal(
+        fs.readFileSync(externalConfig, "utf8"),
+        "enterprise:\n  api_key: untouched\n",
+      );
+    } finally {
+      fs.rmSync(target, { recursive: true, force: true });
+      fs.rmSync(external, { recursive: true, force: true });
+    }
+  },
+);
 
 test("daemon control: refuses a live PID that does not answer the Cortex handshake", async () => {
   const deps = {

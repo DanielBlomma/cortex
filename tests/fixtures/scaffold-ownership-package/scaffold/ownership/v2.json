@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "manifestVersion": 2,
+  "managedRoots": [
+    {
+      "source": "v2/scripts",
+      "target": ".context/scripts",
+      "files": [
+        "bootstrap-check.mjs",
+        "keep.mjs",
+        "lib/current-stage.mjs",
+        "renamed-new.mjs"
+      ]
+    }
+  ],
+  "protectedFiles": [
+    ".context/config.yaml",
+    ".context/enterprise.yaml",
+    ".context/enterprise.yml",
+    ".context/ontology.cypher",
+    ".context/rules.yaml",
+    "AGENTS.md",
+    "CLAUDE.md"
+  ],
+  "preservedFiles": [
+    {
+      "source": "preserved/config.yaml",
+      "target": ".context/config.yaml"
+    },
+    {
+      "source": "preserved/ontology.cypher",
+      "target": ".context/ontology.cypher"
+    },
+    {
+      "source": "preserved/rules.yaml",
+      "target": ".context/rules.yaml"
+    },
+    {
+      "source": "preserved/agent-instructions.md",
+      "target": "AGENTS.md"
+    },
+    {
+      "source": "preserved/CLAUDE.md",
+      "target": "CLAUDE.md"
+    }
+  ]
+}

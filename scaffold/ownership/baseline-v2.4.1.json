@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "baselineId": "v2.4.1",
+  "sourceCommit": "5ae3b00948bad26af2e5eaea60ce0b52567db352",
+  "files": [
+    {
+      "target": ".context/scripts/ingest-parsers.mjs",
+      "sha256": "e971886462c23cd832474729928207985d4fc8e3c60dcf5cf9a0e5f3f8ce5591",
+      "legacyTarget": "scripts/ingest-parsers.mjs"
+    },
+    {
+      "target": ".context/scripts/ingest-worker.mjs",
+      "sha256": "5240b2339b152908dba06d349c2190ecca1881b5be4808cf8021f63fb9557aba",
+      "legacyTarget": "scripts/ingest-worker.mjs"
+    },
+    {
+      "target": ".context/scripts/ingest.mjs",
+      "sha256": "359f213f868e280212c44972a9fc8af58edb6cba28bc3c767d0ec288b52ee6e6",
+      "legacyTarget": "scripts/ingest.mjs"
+    }
+  ]
+}

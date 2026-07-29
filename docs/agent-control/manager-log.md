@@ -16,11 +16,12 @@ file must stay small enough that a fresh manager session can read it whole.
 
 - `v2.4.1` is the modularization baseline at
   `5ae3b00948bad26af2e5eaea60ce0b52567db352` on `origin/main`.
-- WO-026 through WO-029 are accepted locally on
+- WO-026 through WO-030 are accepted locally on
   `refactor/cli-ingest-modularization`. The WO-026 baseline remains
   `docs/agent-control/wo-026-characterization-baseline.md`; WO-029's durable
   acceptance record is
-  `docs/agent-control/wo-029-ingest-orchestration-baseline.md`.
+  `docs/agent-control/wo-029-ingest-orchestration-baseline.md`; WO-030's is
+  `docs/agent-control/wo-030-managed-scaffold-baseline.md`.
 - WO-027 replaces the 1,862-line `bin/cortex.mjs` with a 34-line executable,
   an explicit router, and 18 cohesive modules under `bin/cli/`. Project-runtime
   imports and package-trusted Enterprise imports are physically separate.
@@ -43,14 +44,23 @@ file must stay small enough that a fresh manager session can read it whole.
   fixed with a subprocess regression before acceptance. Code Quality,
   Contract, Security/Privacy, Integration, and Validation are closed with no
   remaining blocker, major, or minor findings.
-- WO-030 is Ready. Start a fresh session from
-  `docs/agent-control/context-packets/020-managed-scaffold-upgrade-hygiene.md`
-  and stop after safe versioned managed-file ownership/cleanup, its validation
-  and reviews, and a fresh WO-031 packet.
-- R14 is mitigated locally through WO-029. R15 remains open for managed-
-  scaffold cleanup in WO-030. R16 records accepted pre-existing ingest
-  filesystem-containment debt for a separate behavior-changing security work
-  order.
+- WO-030 adds a versioned 380-file ownership inventory, installed manifest
+  state/fingerprints, a hash-pinned `2.4.1` pre-state bridge, contained
+  obsolete-file and legacy relocation cleanup, atomic hard-link-safe updates,
+  protected config/secret/instruction policy, and negative traversal/symlink/
+  collision coverage. Final focused validation is 59/59, root is 81/81 plus
+  320/320, MCP is 413/413, and the 417-file package/clean force-upgrade smoke
+  passes. All five reviewer roles closed with no findings.
+- WO-031 is Ready. Start a fresh session from
+  `docs/agent-control/context-packets/021-integrated-validation-release.md`.
+  Run integrated audits/package/bootstrap/search/memory/review acceptance and
+  prepare `2.4.2` only after every gate passes; do not publish, tag, merge, or
+  deploy.
+- R14 and R15 are mitigated locally through WO-030. R16 records accepted
+  pre-existing ingest filesystem-containment debt for a separate
+  behavior-changing security work order. WO-030 also records the accepted
+  narrow same-user concurrent ancestor-swap assumption for portable Node
+  filesystem operations.
 - PR #96 and PR #97 merged and released as `v2.1.4`. Angular/parser/benchmark
   and first-pass memory improvements are on `main`.
 - User decision on 2026-06-18: move Cortex from MCP-first to CLI-first for
@@ -635,6 +645,34 @@ file must stay small enough that a fresh manager session can read it whole.
   fresh session and is limited to versioned managed ownership, contained
   obsolete-file cleanup, user-file preservation, migration/security tests,
   and package/clean-upgrade smokes.
+- Accepted WO-030 locally. The package now carries current/versioned ownership,
+  an explicit 380-file managed inventory, installed manifest fingerprints, a
+  hash-pinned `2.4.1` pre-state bridge, protected config/secret/instruction
+  policy, and contained obsolete/legacy cleanup. Managed and text writes use
+  atomic replacement; static symlink ancestors, hard-link aliases, traversal,
+  broad roots, unknown collisions, and live/legacy target collisions fail
+  closed.
+- Review iteration fixed seven substantive areas: unknown new-target
+  overwrite, ignored clean-checkout fixture, marker-trusted legacy deletion,
+  hard-link alias mutation, pre-state `2.4.1` upgrade/legacy compatibility,
+  helper text ancestor escape, and legacy/live manifest overlap. Final Code
+  Quality, Contract, Security/Privacy, Integration, and Validation reviews
+  report no blocker, major, or minor findings. The narrow same-user
+  validation-to-syscall ancestor-swap interval is documented and accepted.
+- Final evidence is focused 59/59, context regressions 81/81, root Node
+  320/320, MCP 413/413, release/diff clean, and a 417-entry package. The clean
+  packed init/force smoke persisted 380 hashes, shipped all 15 ingest modules,
+  preserved unknown/config/ontology/agent/Enterprise content, repaired mode
+  `0600`, and excluded the unowned stale dist artifact.
+- Cortex update embedded 129 changed entities, reused 966, and failed zero;
+  graph load completed. Pattern evidence succeeded for all nine changed
+  indexed code/control files, doctor passed 8/8, and the optional watcher is
+  stopped.
+- Created the durable WO-030 baseline and packet 021. WO-031 is Ready in a
+  fresh session for integrated audits, extracted-package
+  bootstrap/doctor/update/search/force-upgrade smokes, comparable memory
+  evidence, six-role review, and `2.4.2` preparation only after every gate
+  passes. Do not publish, tag, merge, or deploy.
 
 ## Archive
 
