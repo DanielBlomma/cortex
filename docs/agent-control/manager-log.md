@@ -16,25 +16,31 @@ file must stay small enough that a fresh manager session can read it whole.
 
 - `v2.4.1` is the modularization baseline at
   `5ae3b00948bad26af2e5eaea60ce0b52567db352` on `origin/main`.
-- WO-026 and WO-027 are accepted locally on
+- WO-026 through WO-028 are accepted locally on
   `refactor/cli-ingest-modularization`. The WO-026 baseline remains
-  `docs/agent-control/wo-026-characterization-baseline.md`.
+  `docs/agent-control/wo-026-characterization-baseline.md`; WO-028's durable
+  acceptance record is
+  `docs/agent-control/wo-028-canonical-ingest-baseline.md`.
 - WO-027 replaces the 1,862-line `bin/cortex.mjs` with a 34-line executable,
   an explicit router, and 18 cohesive modules under `bin/cli/`. Project-runtime
   imports and package-trusted Enterprise imports are physically separate.
-- Final WO-027 validation is focused 58/58, root 81/81 context regressions plus
-  293/293 Node tests, MCP 413/413, syntax and clean-diff checks, a 398-entry
-  package containing every CLI module with executable mode retained, Cortex
-  update/pattern evidence, doctor 8/8, and watcher stopped.
+- WO-028 makes `scaffold/scripts/lib/ingest/` the single implementation and
+  leaves executable 14/16-line development/packaged wrappers over its
+  canonical `main()`. Final validation is syntax 13/13, focused 61/61, root
+  81/81 context regressions plus 300/300 Node tests, MCP 413/413, and a
+  409-entry package containing all 11 canonical modules.
 - Code Quality, Contract, Security/Privacy, Integration, and Validation review
   findings were fixed and re-reviewed; no blocker, major, or minor findings
   remain.
-- WO-028 is the only Ready modularization work order. Start a fresh session
-  from `docs/agent-control/context-packets/018-canonical-ingest-pure-modules.md`
-  and stop after canonical ingest/pure-module extraction, its reviews, and a
-  fresh WO-029 packet.
-- R14's CLI portion is mitigated but its ingest portion stays open through
-  WO-028–WO-029. R15 remains open for managed-scaffold cleanup in WO-030.
+- WO-029 is the only Ready modularization work order. Start a fresh session
+  from `docs/agent-control/context-packets/019-ingest-orchestration-workers.md`
+  and stop after parser/worker/pipeline extraction, repeated memory evidence,
+  its reviews, and a fresh WO-030 packet.
+- R14's CLI and canonical/pure-ingest portions are mitigated; its worker and
+  pipeline portion remains open through WO-029. R15 remains open for
+  managed-scaffold cleanup in WO-030. R16 records accepted pre-existing ingest
+  filesystem-containment debt for a separate behavior-changing security work
+  order.
 - PR #96 and PR #97 merged and released as `v2.1.4`. Angular/parser/benchmark
   and first-pass memory improvements are on `main`.
 - User decision on 2026-06-18: move Cortex from MCP-first to CLI-first for
@@ -548,6 +554,34 @@ file must stay small enough that a fresh manager session can read it whole.
   `scaffold/scripts/lib/ingest/` as the canonical ingest implementation and
   limits the next fresh session to source ownership and pure extraction;
   worker/pipeline orchestration remains reserved for WO-029.
+- Accepted WO-028 locally. `scaffold/scripts/lib/ingest/` is now the only
+  implementation: constants, arguments/environment/trace, runtime paths,
+  file/Git discovery, JSONL/TSV IO, config/rule matching, chunks/modules,
+  config/resource/SQL relations, projects, and incremental state are cohesive
+  canonical modules. The development and packaged entrypoints are executable
+  14/16-line wrappers over the same canonical `main()`.
+- The four WO-026 normalized hashes remain unchanged. Wrapper outputs,
+  sequential/parallel outputs, and the worker-failure pipeline are equivalent;
+  worker settlement/fallback and all 17 trace checkpoints remain frozen.
+  Final evidence is syntax 13/13, focused 61/61, root 81/81 + 300/300, MCP
+  413/413, and a 409-entry package containing all 11 canonical modules with an
+  executable packaged wrapper.
+- Independent Code Quality/Integration, Contract/Validation, and
+  Security/Privacy review covered all five required roles. One minor baseline
+  line-count mismatch was fixed and re-reviewed; no blocker/major remains.
+  Security documented unchanged source-root/output-symlink hardening debt as
+  R16, outside this behavior-preserving program.
+- `cortex update` completed with 29 embeddings and zero failures; doctor passed
+  8/8 and the optional watcher is stopped. Pattern-evidence was attempted for
+  all changed files. The root wrapper/control docs passed, while `scaffold/`
+  and `tests/` are outside the configured source paths and returned
+  not-indexed; reviewers compensated with direct repo-local comparison and
+  focused/full tests.
+- Created the durable WO-028 baseline and packet 019. WO-029 is Ready in a
+  fresh session and is limited to parser composition, worker
+  scheduling/protocol, streaming result consumption, explicit pipeline stages,
+  and repeated memory validation. Managed-scaffold cleanup remains blocked for
+  WO-030.
 
 ## Archive
 

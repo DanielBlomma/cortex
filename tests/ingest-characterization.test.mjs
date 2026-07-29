@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const INGEST = path.join(REPO_ROOT, "scaffold", "scripts", "ingest.mjs");
+const ROOT_INGEST = path.join(REPO_ROOT, "scripts", "ingest.mjs");
 const FIXTURE = path.join(REPO_ROOT, "tests", "fixtures", "ingest-characterization");
 const FIXED_MTIME = new Date("2026-01-01T00:00:00.000Z");
 const CHANGED_MTIME = new Date("2026-01-02T00:00:00.000Z");
@@ -117,7 +118,7 @@ function initializeGit(root) {
   runGit(["commit", "-m", "characterization fixture"]);
 }
 
-function runIngest(root, args = [], extraEnv = {}) {
+function runIngest(root, args = [], extraEnv = {}, ingestPath = INGEST) {
   const env = {
     ...process.env,
     CORTEX_PROJECT_ROOT: root,
@@ -128,7 +129,7 @@ function runIngest(root, args = [], extraEnv = {}) {
   if (!Object.prototype.hasOwnProperty.call(extraEnv, "CORTEX_INGEST_TRACE_MEMORY")) {
     delete env.CORTEX_INGEST_TRACE_MEMORY;
   }
-  return spawnSync(process.execPath, [INGEST, ...args], {
+  return spawnSync(process.execPath, [ingestPath, ...args], {
     cwd: root,
     encoding: "utf8",
     env,
@@ -170,6 +171,21 @@ function readJsonl(file) {
     .filter(Boolean)
     .map((line) => JSON.parse(line));
 }
+
+test("development and packaged wrappers use the same canonical ingest implementation", () => {
+  const packagedRoot = makeFixture();
+  const developmentRoot = makeFixture();
+  try {
+    const packaged = runIngest(packagedRoot);
+    const development = runIngest(developmentRoot, [], {}, ROOT_INGEST);
+    assert.equal(packaged.status, 0, packaged.stderr);
+    assert.equal(development.status, 0, development.stderr);
+    assert.deepEqual(outputHashes(developmentRoot), outputHashes(packagedRoot));
+  } finally {
+    fs.rmSync(packagedRoot, { recursive: true, force: true });
+    fs.rmSync(developmentRoot, { recursive: true, force: true });
+  }
+});
 
 test("multilingual full and incremental ingest match the recorded output hashes", () => {
   const root = makeFixture();

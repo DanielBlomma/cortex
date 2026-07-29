@@ -9,16 +9,23 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(__dirname, "..");
 const WATCH_PATH = path.join(REPO_ROOT, "scripts", "watch.sh");
 const INGEST_PATH = path.join(REPO_ROOT, "scaffold", "scripts", "ingest.mjs");
+const INGEST_LIB_PATH = path.join(REPO_ROOT, "scaffold", "scripts", "lib", "ingest");
 const INGEST_PARSERS_PATH = path.join(REPO_ROOT, "scaffold", "scripts", "ingest-parsers.mjs");
 const INGEST_WORKER_PATH = path.join(REPO_ROOT, "scaffold", "scripts", "ingest-worker.mjs");
 
-// The chunk parser registry was extracted into ingest-parsers.mjs, which is
-// where the JS parser import now lives, and the worker pool needs
-// ingest-worker.mjs. Fixtures that run a copied ingest.mjs must ship all three
-// siblings; mockJsParser stubs the JS parser for deterministic chunk output.
+function copyIngestEntry(scriptsDir) {
+  fs.copyFileSync(INGEST_PATH, path.join(scriptsDir, "ingest.mjs"));
+  fs.cpSync(INGEST_LIB_PATH, path.join(scriptsDir, "lib", "ingest"), {
+    recursive: true
+  });
+}
+
+// Fixtures that run a copied ingest entry must also ship the canonical library,
+// parser registry, and worker. mockJsParser stubs the JS parser for deterministic
+// chunk output.
 function writeIngestScripts(scriptsDir, { mockJsParser = false } = {}) {
   fs.mkdirSync(path.join(scriptsDir, "parsers"), { recursive: true });
-  fs.copyFileSync(INGEST_PATH, path.join(scriptsDir, "ingest.mjs"));
+  copyIngestEntry(scriptsDir);
   fs.copyFileSync(INGEST_WORKER_PATH, path.join(scriptsDir, "ingest-worker.mjs"));
   let parsersSource = fs.readFileSync(INGEST_PARSERS_PATH, "utf8");
   if (mockJsParser) {
@@ -962,7 +969,7 @@ function testIngestIncrementalPreservesStructuredTargetRelations() {
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "legacy"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "db"), { recursive: true });
-    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
+    copyIngestEntry(path.join(fixtureRoot, ".context", "scripts"));
     fs.copyFileSync(INGEST_PARSERS_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-parsers.mjs"));
     fs.copyFileSync(INGEST_WORKER_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-worker.mjs"));
     fs.cpSync(path.join(REPO_ROOT, "scaffold", "scripts", "parsers"), path.join(fixtureRoot, ".context", "scripts", "parsers"), {
@@ -1340,7 +1347,7 @@ function testIngestPersistsImportEdgesForDeclarationHeaders() {
     fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
-    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
+    copyIngestEntry(path.join(fixtureRoot, ".context", "scripts"));
     fs.copyFileSync(INGEST_PARSERS_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-parsers.mjs"));
     fs.copyFileSync(INGEST_WORKER_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-worker.mjs"));
     fs.writeFileSync(
@@ -1457,7 +1464,7 @@ function testIngestPersistsImportEdgesForTypes() {
     fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
-    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
+    copyIngestEntry(path.join(fixtureRoot, ".context", "scripts"));
     fs.copyFileSync(INGEST_PARSERS_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-parsers.mjs"));
     fs.copyFileSync(INGEST_WORKER_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-worker.mjs"));
     fs.writeFileSync(
@@ -1535,7 +1542,7 @@ function testIngestDoesNotPersistTypeImportEdgesForGenericParameters() {
     fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
-    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
+    copyIngestEntry(path.join(fixtureRoot, ".context", "scripts"));
     fs.copyFileSync(INGEST_PARSERS_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-parsers.mjs"));
     fs.copyFileSync(INGEST_WORKER_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-worker.mjs"));
     fs.writeFileSync(
@@ -1607,7 +1614,7 @@ function testIngestResolvesNodeNextJsSpecifiersToTypescriptSources() {
     fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
-    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
+    copyIngestEntry(path.join(fixtureRoot, ".context", "scripts"));
     fs.copyFileSync(INGEST_PARSERS_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-parsers.mjs"));
     fs.copyFileSync(INGEST_WORKER_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-worker.mjs"));
     fs.writeFileSync(
@@ -1686,7 +1693,7 @@ function testIngestDoesNotResolveExplicitJsSpecifiersToJsonFiles() {
     fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
-    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
+    copyIngestEntry(path.join(fixtureRoot, ".context", "scripts"));
     fs.copyFileSync(INGEST_PARSERS_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-parsers.mjs"));
     fs.copyFileSync(INGEST_WORKER_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-worker.mjs"));
     fs.writeFileSync(
@@ -1758,7 +1765,7 @@ function testIngestPersistsImportEdgesForModuleScopeRequireBindings() {
     fs.mkdirSync(path.join(fixtureRoot, ".context", "scripts", "parsers"), { recursive: true });
     fs.mkdirSync(path.join(fixtureRoot, "src"), { recursive: true });
 
-    fs.copyFileSync(INGEST_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest.mjs"));
+    copyIngestEntry(path.join(fixtureRoot, ".context", "scripts"));
     fs.copyFileSync(INGEST_PARSERS_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-parsers.mjs"));
     fs.copyFileSync(INGEST_WORKER_PATH, path.join(fixtureRoot, ".context", "scripts", "ingest-worker.mjs"));
     fs.writeFileSync(

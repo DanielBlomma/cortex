@@ -6,10 +6,11 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { parseFilesInWorkers } from "../scaffold/scripts/ingest.mjs";
+import { parseFilesInWorkers } from "../scaffold/scripts/lib/ingest/main.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const INGEST = path.join(REPO_ROOT, "scaffold", "scripts", "ingest.mjs");
+const INGEST_LIB = path.join(REPO_ROOT, "scaffold", "scripts", "lib", "ingest");
 const INGEST_PARSERS = path.join(
   REPO_ROOT,
   "scaffold",
@@ -66,6 +67,7 @@ function writePipelineFixture(root) {
 function writeFallbackIngest(scriptDir) {
   fs.mkdirSync(scriptDir, { recursive: true });
   fs.copyFileSync(INGEST, path.join(scriptDir, "ingest.mjs"));
+  fs.cpSync(INGEST_LIB, path.join(scriptDir, "lib", "ingest"), { recursive: true });
   fs.copyFileSync(INGEST_PARSERS, path.join(scriptDir, "ingest-parsers.mjs"));
   fs.symlinkSync(PARSERS_DIR, path.join(scriptDir, "parsers"), "dir");
   fs.writeFileSync(
