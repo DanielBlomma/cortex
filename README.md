@@ -108,6 +108,11 @@ per-user daemon; `cortex bootstrap` performs the verified restart.
 
 Version-specific notes (see [CHANGELOG.md](CHANGELOG.md) for details):
 
+- **2.4.2**: `cortex init --force` now uses versioned ownership metadata to
+  remove only unmodified obsolete Cortex-managed files. Unknown files and
+  protected configuration, rules, ontology, Enterprise, and agent-instruction
+  content remain user-owned; modified obsolete files and unsafe collisions
+  fail the upgrade instead of being overwritten or deleted.
 - **2.4.1**: enterprise onboarding no longer accepts API keys as positional
   arguments. Pipe the key to
   `sudo cortex enterprise install --api-key-stdin`. Enterprise endpoints must

@@ -1,5 +1,30 @@
 # Changelog
 
+## 2.4.2 — 2026-07-30
+
+### Changed
+
+- Split the Cortex CLI into cohesive command modules behind the existing
+  executable, preserving command names, arguments, streams, exit behavior,
+  JSON envelopes, Enterprise trust resolution, and `.context/mcp`
+  compatibility.
+- Established `scaffold/scripts/lib/ingest/` as the single canonical ingest
+  implementation for development and packaged entrypoints. Deterministic
+  output, worker fallback, trace checkpoints, and bounded result retention
+  remain unchanged.
+- Added versioned scaffold ownership and installed fingerprints. Forced
+  upgrades remove only unmodified obsolete Cortex-managed files, reject
+  modified or unsafe collisions, and preserve unknown files, configuration,
+  rules, ontology changes, Enterprise secrets, and agent instructions.
+- Extended release synchronization to keep the shipped MCP registry package
+  and Node runtime requirement aligned with `package.json`.
+
+### Upgrade
+
+- Upgrade the npm package, then run `cortex init --force`, `cortex bootstrap`,
+  and `cortex update`. Projects created before ownership state existed are
+  migrated only from hash-verified Cortex 2.4.1 scaffold files.
+
 ## 2.4.1 — 2026-07-28
 
 ### Security

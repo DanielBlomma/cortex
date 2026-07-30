@@ -9,7 +9,8 @@ function readJson(relative) {
   );
 }
 
-const version = readJson("package.json").version;
+const packageJson = readJson("package.json");
+const version = packageJson.version;
 
 test("claude and codex plugin manifests exist and share the release version", () => {
   const claude = readJson("plugins/cortex/.claude-plugin/plugin.json");
@@ -26,6 +27,12 @@ test("marketplace entry lists the cortex plugin at the release version", () => {
   assert.ok(plugin, "marketplace must list the cortex plugin");
   assert.equal(plugin.version, version);
   assert.equal(plugin.source, "./plugins/cortex");
+});
+
+test("MCP registry submission matches the package runtime contract", () => {
+  const submission = readJson("mcp-registry-submission.json");
+  assert.equal(submission.npmPackage, packageJson.name);
+  assert.equal(submission.requirements.node, packageJson.engines.node);
 });
 
 test("session hook is wired for startup, resume, clear, and compact", () => {

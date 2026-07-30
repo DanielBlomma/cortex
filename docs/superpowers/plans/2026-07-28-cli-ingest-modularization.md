@@ -99,81 +99,81 @@ Cortex-managed files safely. Preserve all observable behavior.
 
 ### Source ownership
 
-- [ ] Declare `scaffold/scripts/lib/ingest/` as the canonical implementation.
-- [ ] Make `scaffold/scripts/ingest.mjs` a thin packaged entry.
-- [ ] Make root `scripts/ingest.mjs` a thin development entry using the same
+- [x] Declare `scaffold/scripts/lib/ingest/` as the canonical implementation.
+- [x] Make `scaffold/scripts/ingest.mjs` a thin packaged entry.
+- [x] Make root `scripts/ingest.mjs` a thin development entry using the same
   canonical implementation.
-- [ ] Update tests so unit behavior targets canonical modules and entrypoint
+- [x] Update tests so unit behavior targets canonical modules and entrypoint
   tests cover both wrappers.
 
 ### Pure extraction order
 
-- [ ] Arguments, environment parsing, and constants.
-- [ ] File/path normalization, Git changes, candidate collection, and skip
+- [x] Arguments, environment parsing, and constants.
+- [x] File/path normalization, Git changes, candidate collection, and skip
   policy.
-- [ ] JSONL/TSV readers and streaming writers.
-- [ ] Chunk IDs, chunk descriptions, windows, and module generation.
-- [ ] Config/resource/SQL relation builders.
-- [ ] Project and solution relation builders.
-- [ ] Incremental-state hydration and removal helpers.
+- [x] JSONL/TSV readers and streaming writers.
+- [x] Chunk IDs, chunk descriptions, windows, and module generation.
+- [x] Config/resource/SQL relation builders.
+- [x] Project and solution relation builders.
+- [x] Incremental-state hydration and removal helpers.
 
 ### Acceptance
 
-- [ ] No duplicated ingest implementation remains.
-- [ ] Full and changed fixture outputs match the WO-026 baseline.
-- [ ] Sequential/parallel equivalence remains byte-identical.
-- [ ] Focused and full suites pass.
-- [ ] Package dry run contains all nested ingest modules.
-- [ ] Review findings are resolved and WO-029 receives a fresh packet.
+- [x] No duplicated ingest implementation remains.
+- [x] Full and changed fixture outputs match the WO-026 baseline.
+- [x] Sequential/parallel equivalence remains byte-identical.
+- [x] Focused and full suites pass.
+- [x] Package dry run contains all nested ingest modules.
+- [x] Review findings are resolved and WO-029 receives a fresh packet.
 
 ## WO-029 — Ingest Orchestration and Workers
 
-- [ ] Extract parser loading/dispatch composition.
-- [ ] Extract worker-count resolution and worker protocol handling.
-- [ ] Extract streaming worker result consumption.
-- [ ] Preserve sorted file-record merge order.
-- [ ] Preserve inline fallback for missing, invalid, crashed, and disabled
+- [x] Extract parser loading/dispatch composition.
+- [x] Extract worker-count resolution and worker protocol handling.
+- [x] Extract streaming worker result consumption.
+- [x] Preserve sorted file-record merge order.
+- [x] Preserve inline fallback for missing, invalid, crashed, and disabled
   workers.
-- [ ] Extract the main pipeline into explicit stages without copying whole
+- [x] Extract the main pipeline into explicit stages without copying whole
   record collections between stages.
-- [ ] Keep trace checkpoint names and count fields stable.
-- [ ] Run output-equivalence, worker-crash, timeout, memory-trace, and full
+- [x] Keep trace checkpoint names and count fields stable.
+- [x] Run output-equivalence, worker-crash, timeout, memory-trace, and full
   tests.
-- [ ] Rerun comparable memory measurements and investigate median peak-RSS
+- [x] Rerun comparable memory measurements and investigate median peak-RSS
   movement above five percent.
-- [ ] Resolve reviews and create a fresh WO-030 packet.
+- [x] Resolve reviews and create a fresh WO-030 packet.
 
 ## WO-030 — Managed Scaffold Upgrade Hygiene
 
-- [ ] Define a versioned manifest of files owned by Cortex scaffolding.
-- [ ] Persist enough prior-manifest state to identify obsolete managed files.
-- [ ] Remove only manifest-owned paths inside the expected managed root.
-- [ ] Reject traversal and symlink escapes.
-- [ ] Preserve config, rules, ontology edits where applicable, Enterprise
+- [x] Define a versioned manifest of files owned by Cortex scaffolding.
+- [x] Persist enough prior-manifest state to identify obsolete managed files.
+- [x] Remove only manifest-owned paths inside the expected managed root.
+- [x] Reject traversal and symlink escapes.
+- [x] Preserve config, rules, ontology edits where applicable, Enterprise
   secrets, and agent instructions.
-- [ ] Preserve unknown user-created files.
-- [ ] Add upgrade fixtures for removed, renamed, modified, unknown, symlinked,
+- [x] Preserve unknown user-created files.
+- [x] Add upgrade fixtures for removed, renamed, modified, unknown, symlinked,
   and secret-bearing files.
-- [ ] Prove `init --force` repairs Enterprise config mode to `0600`.
-- [ ] Prove a stale generated source cannot survive and break bootstrap.
-- [ ] Resolve reviews and create a fresh WO-031 packet.
+- [x] Prove `init --force` repairs Enterprise config mode to `0600`.
+- [x] Prove a stale generated source cannot survive and break bootstrap.
+- [x] Resolve reviews and create a fresh WO-031 packet.
 
 ## WO-031 — Integrated Validation and Release Readiness
 
-- [ ] Run syntax checks for all entrypoints and extracted modules.
-- [ ] Run focused CLI, init, migration, Enterprise, ingest, worker, memory, and
+- [x] Run syntax checks for all entrypoints and extracted modules.
+- [x] Run focused CLI, init, migration, Enterprise, ingest, worker, memory, and
   context-regression suites.
-- [ ] Run complete root and MCP suites.
-- [ ] Run dependency audits and version-sync checks.
-- [ ] Pack the npm artifact and inspect its file list.
-- [ ] Install the packed artifact into a clean temporary global prefix.
-- [ ] Run `init --bootstrap`, `doctor`, `search --json`, update, and forced
+- [x] Run complete root and MCP suites.
+- [x] Run dependency audits and version-sync checks.
+- [x] Pack the npm artifact and inspect its file list.
+- [x] Install the packed artifact into a clean temporary global prefix.
+- [x] Run `init --bootstrap`, `doctor`, `search --json`, update, and forced
   upgrade smokes in temporary repositories.
-- [ ] Confirm no local source upload or unexpected network path was added.
-- [ ] Compare final repeated memory evidence with WO-026.
-- [ ] Complete Code Quality, Contract, Security, Integration, Validation, and
+- [x] Confirm no local source upload or unexpected network path was added.
+- [x] Compare final repeated memory evidence with WO-026.
+- [x] Complete Code Quality, Contract, Security, Integration, Validation, and
   Ops/Release review.
-- [ ] Bump to `2.4.2` only after all acceptance gates pass.
+- [x] Bump to `2.4.2` only after all acceptance gates pass.
 
 ## Final Definition of Done
 
