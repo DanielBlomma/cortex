@@ -60,15 +60,21 @@ jobs:
       - name: Install parser dependencies
         run: npm ci --prefix scaffold/scripts/parsers
 
+      - name: Install context runtime dependencies
+        working-directory: scaffold/mcp
+        run: npm ci
+
+      - name: Build trusted context runtime
+        working-directory: scaffold/mcp
+        run: npm run build
+
       - name: Validate root tests
         run: |
           npm test
 
-      - name: Install MCP dependencies
-        run: npm ci --prefix scaffold/mcp
-
-      - name: Validate MCP tests
-        run: npm --prefix scaffold/mcp run test:ci
+      - name: Validate context runtime and MCP compatibility tests
+        working-directory: scaffold/mcp
+        run: npm run test:ci
 
       - name: Audit committed dependency trees
         run: npm run audit:dependencies

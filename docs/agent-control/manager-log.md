@@ -8,8 +8,10 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
 ## Current State (2026-07-30)
 
-- Release baseline `v2.4.1` is
-  `5ae3b00948bad26af2e5eaea60ce0b52567db352` on `origin/main`.
+- Released npm baseline remains `v2.4.1` at
+  `5ae3b00948bad26af2e5eaea60ce0b52567db352`. PR #109 merged the synchronized
+  `2.4.2` tree to `origin/main` at
+  `bd968d404dcde5381955341d69e27460e2b665ce`.
 - WO-026 through WO-031 are accepted locally on
   `refactor/cli-ingest-modularization`. The final integrated record is
   `docs/agent-control/wo-031-integrated-validation-baseline.md`.
@@ -19,22 +21,28 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   all six reviewer roles are green.
 - Final memory medians are 631.46 MB for Cortex (+2.79% versus WO-026) and
   1,016.16 MB for Angular (-1.75%), inside the five-percent acceptance band.
-- The final `2.4.2` tarball contains 417 entries, all 19 CLI modules, all 15
-  canonical ingest modules, and all three ownership files. A clean-prefix
-  install reports `2.4.2`.
+- The accepted worktree `2.4.2` tarball contains 417 entries, all 19 CLI
+  modules, all 15 canonical ingest modules, and all three ownership files. A
+  clean-prefix install reports `2.4.2`. The clean release checkout correctly
+  produces 416 entries because the intentionally unowned stale
+  `scaffold/mcp/dist/embeddingModel.js` is absent.
 - Release review fixed MCP registry Node-floor drift and added the registry
   submission to release-version synchronization and Release Bump staging. All
   six reviewers then closed with no blocker, major, or minor findings.
-- `2.4.2` metadata is prepared and synchronized. The branch is pushed and
-  mapped to PR #109. No merge, tag, publish, deployment, or Release Bump
-  workflow dispatch has occurred.
+- `2.4.2` metadata is synchronized and PR #109 is merged. Tag `v2.4.2` was
+  pushed, but Release Publish run `30521392683` stopped before audit, package,
+  or npm publish because the clean checkout ran root Enterprise tests before
+  building the package-owned MCP runtime. npm remains at `2.4.1`.
+- PR #110 fixes both release workflows: install/build `scaffold/mcp` before
+  root tests, reuse those dependencies for MCP `test:ci`, and lock the ordering
+  with regressions. Recovery is validated locally and awaits merge/tag recovery.
 - R14 and R15 are mitigated locally. R16 remains the accepted pre-existing
   ingest filesystem-containment risk for a separate behavior-changing security
   work order. WO-030's narrow same-user ancestor-swap assumption remains
   accepted.
 - The modularization program has no remaining implementation work order.
-  PR #109 is the integration boundary; merge after required checks, then tag,
-  publish, and deploy only under the applicable release instruction.
+  Release recovery is limited to merging PR #110, moving the failed unpublished
+  `v2.4.2` tag to the corrected `main`, and monitoring the publish workflow.
 
 ## Open Decisions
 
@@ -82,6 +90,17 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   `refactor/cli-ingest-modularization` and opened PR #109 with WO-026 through
   WO-031 and REQ-15 traceability. The local `.mcp.json` deletion appeared after
   acceptance and remains intentionally unstaged and outside the PR.
+- PR #109 merged to `main` at `bd968d4`. The first `v2.4.2` tag run
+  `30521392683` passed metadata/parser setup and stopped at root test 320/321:
+  the clean checkout lacked ignored `scaffold/mcp/dist/cli/govern.js`. Audit,
+  package, and publish steps did not run; npm remained `2.4.1`.
+- Created PR #110 to install/build the context runtime before root tests in
+  both release workflows and added ordering regressions. Clean-checkout
+  validation passes targeted
+  Enterprise 24/24, context 81/81, root 323/323, MCP 413/413, plugin/release
+  8/8, all committed dependency audits at zero, synchronized metadata, valid
+  YAML, and a 416-entry clean package that omits the unowned stale
+  `dist/embeddingModel.js`.
 
 ## Archive
 

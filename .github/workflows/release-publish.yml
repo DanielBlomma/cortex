@@ -50,15 +50,21 @@ jobs:
         working-directory: scaffold/scripts/parsers
         run: npm ci
 
+      - name: Install context runtime dependencies
+        working-directory: scaffold/mcp
+        run: npm ci
+
+      - name: Build trusted context runtime
+        working-directory: scaffold/mcp
+        run: npm run build
+
       - name: Run root tests
         run: |
           npm test
 
       - name: Run context runtime and MCP compatibility tests
         working-directory: scaffold/mcp
-        run: |
-          npm ci
-          npm run test:ci
+        run: npm run test:ci
 
       - name: Audit committed dependency trees
         run: npm run audit:dependencies
