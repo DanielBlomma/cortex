@@ -1,0 +1,6 @@
+repo_id: ingest-characterization
+source_paths:
+  - src
+  - docs
+  - legacy
+  - database

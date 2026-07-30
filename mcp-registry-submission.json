@@ -56,7 +56,7 @@
     "Multi-language support (JS/TS today, Python/Go planned)"
   ],
   "requirements": {
-    "node": ">=18",
+    "node": ">=20.9.0",
     "git": "required for change tracking",
     "disk": "~50MB per project"
   }

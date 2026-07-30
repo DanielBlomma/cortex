@@ -5,6 +5,11 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { isScaffoldOutOfDate } from "../bin/cortex.mjs";
+import {
+  CONTEXT_RUNTIME_REL,
+  MCP_PROJECT_REL,
+} from "../bin/cli/paths.mjs";
+import { resolveProjectRuntimeDist } from "../bin/cli/project-runtime.mjs";
 
 const PROJECT_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
@@ -94,15 +99,17 @@ test("returns true when only legacy root scripts/context.sh exists", () => {
 });
 
 test("runtime naming keeps .context/mcp as the compatibility path", () => {
-  const cli = fs.readFileSync(path.join(PROJECT_ROOT, "bin", "cortex.mjs"), "utf8");
   const bootstrap = fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "scripts", "bootstrap.sh"), "utf8");
   const embed = fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "scripts", "embed.sh"), "utf8");
   const graphLoad = fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "scripts", "load-ryu.sh"), "utf8");
   const doctor = fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "scripts", "doctor.sh"), "utf8");
   const rootBootstrap = fs.readFileSync(path.join(PROJECT_ROOT, "scripts", "bootstrap.sh"), "utf8");
 
-  assert.match(cli, /const CONTEXT_RUNTIME_REL = MCP_PROJECT_REL;/);
-  assert.match(cli, /function resolveProjectRuntimeDist\(\)/);
+  assert.equal(CONTEXT_RUNTIME_REL, MCP_PROJECT_REL);
+  assert.equal(
+    resolveProjectRuntimeDist(PROJECT_ROOT),
+    path.join(PROJECT_ROOT, ".context", "mcp", "dist"),
+  );
   assert.match(bootstrap, /CONTEXT_RUNTIME_DIR="\$REPO_ROOT\/\.context\/mcp"/);
   assert.match(embed, /CONTEXT_RUNTIME_DIR="\$REPO_ROOT\/\.context\/mcp"/);
   assert.match(graphLoad, /CONTEXT_RUNTIME_DIR="\$REPO_ROOT\/\.context\/mcp"/);

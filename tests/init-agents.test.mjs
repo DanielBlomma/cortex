@@ -6,8 +6,12 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { renderBootstrap } from "../plugins/cortex/hooks/session-start.mjs";
+import { installAssistantHelpers } from "../bin/cli/scaffold.mjs";
 
 const CLI_PATH = fileURLToPath(new URL("../bin/cortex.mjs", import.meta.url));
+const SCAFFOLD_SCRIPTS_PATH = fileURLToPath(
+  new URL("../scaffold/scripts/", import.meta.url),
+);
 
 function makeRepo(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -115,13 +119,15 @@ test("cortex init cleans up legacy Cortex root scripts but keeps project scripts
   try {
     fs.mkdirSync(projectScripts, { recursive: true });
     fs.writeFileSync(path.join(projectScripts, "build.sh"), "#!/usr/bin/env bash\necho project build\n", "utf8");
-    fs.writeFileSync(
+    fs.copyFileSync(
+      path.join(SCAFFOLD_SCRIPTS_PATH, "context.sh"),
       path.join(projectScripts, "context.sh"),
-      "case \"$1\" in\n  bootstrap)\n    ;;\n  graph-load)\n    ;;\n  memory-lint)\n    ;;\nesac\n",
-      "utf8",
     );
     fs.mkdirSync(path.join(projectScripts, "parsers"), { recursive: true });
-    fs.writeFileSync(path.join(projectScripts, "parsers", "package.json"), "{}\n", "utf8");
+    fs.copyFileSync(
+      path.join(SCAFFOLD_SCRIPTS_PATH, "parsers", "package.json"),
+      path.join(projectScripts, "parsers", "package.json"),
+    );
 
     runInit(repoRoot, ["--no-connect"]);
 
@@ -131,6 +137,137 @@ test("cortex init cleans up legacy Cortex root scripts but keeps project scripts
     assert.equal(fs.existsSync(path.join(projectScripts, "build.sh")), true);
   } finally {
     fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test("legacy cleanup preserves modified and lookalike same-name project scripts", () => {
+  const repoRoot = makeRepo("cortex-init-legacy-modified-");
+  const projectScripts = path.join(repoRoot, "scripts");
+  const contextContents =
+    "case \"$1\" in\n  bootstrap)\n    ;;\n  graph-load)\n    ;;\n  memory-lint)\n    ;;\nesac\n";
+  const watchContents = "#!/usr/bin/env bash\necho user watch\n";
+
+  try {
+    fs.mkdirSync(projectScripts, { recursive: true });
+    fs.writeFileSync(
+      path.join(projectScripts, "context.sh"),
+      contextContents,
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(projectScripts, "watch.sh"),
+      watchContents,
+      "utf8",
+    );
+
+    runInit(repoRoot, ["--no-connect"]);
+
+    assert.equal(
+      fs.readFileSync(path.join(projectScripts, "context.sh"), "utf8"),
+      contextContents,
+    );
+    assert.equal(
+      fs.readFileSync(path.join(projectScripts, "watch.sh"), "utf8"),
+      watchContents,
+    );
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test(
+  "init text updates replace hard links without changing external files",
+  { skip: process.platform === "win32" },
+  () => {
+    const repoRoot = makeRepo("cortex-init-text-hardlink-");
+    const externalRoot = makeRepo("cortex-init-text-hardlink-external-");
+    const externalGitignore = path.join(externalRoot, "gitignore.txt");
+    const externalAgents = path.join(externalRoot, "agents.txt");
+
+    try {
+      fs.writeFileSync(externalGitignore, "external ignore\n", "utf8");
+      fs.writeFileSync(externalAgents, "# External agents\n", "utf8");
+      fs.linkSync(externalGitignore, path.join(repoRoot, ".gitignore"));
+      fs.linkSync(externalAgents, path.join(repoRoot, "AGENTS.md"));
+
+      runInit(repoRoot, ["--no-connect"]);
+
+      assert.equal(
+        fs.readFileSync(externalGitignore, "utf8"),
+        "external ignore\n",
+      );
+      assert.equal(
+        fs.readFileSync(externalAgents, "utf8"),
+        "# External agents\n",
+      );
+      assert.match(
+        fs.readFileSync(path.join(repoRoot, ".gitignore"), "utf8"),
+        /# Cortex local storage/,
+      );
+      assert.match(
+        fs.readFileSync(path.join(repoRoot, "AGENTS.md"), "utf8"),
+        /<!-- cortex:auto:start -->/,
+      );
+    } finally {
+      fs.rmSync(repoRoot, { recursive: true, force: true });
+      fs.rmSync(externalRoot, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "assistant helpers reject symlinked text-file ancestors",
+  { skip: process.platform === "win32" },
+  () => {
+    const repoRoot = makeRepo("cortex-init-helper-symlink-");
+    const externalRoot = makeRepo("cortex-init-helper-external-");
+    try {
+      fs.symlinkSync(externalRoot, path.join(repoRoot, ".claude"));
+
+      assert.throws(
+        () => installAssistantHelpers(repoRoot),
+        /Refusing unsafe text-file ancestor/,
+      );
+      assert.equal(
+        fs.existsSync(path.join(externalRoot, "commands", "context-update.md")),
+        false,
+      );
+    } finally {
+      fs.rmSync(repoRoot, { recursive: true, force: true });
+      fs.rmSync(externalRoot, { recursive: true, force: true });
+    }
+  },
+);
+
+test("legacy cleanup never follows symlinked directories", () => {
+  const repoRoot = makeRepo("cortex-init-legacy-symlink-");
+  const externalRoot = makeRepo("cortex-init-legacy-external-");
+  const projectScripts = path.join(repoRoot, "scripts");
+  const externalManagedName = path.join(externalRoot, "enterprise-check.sh");
+
+  try {
+    fs.mkdirSync(projectScripts, { recursive: true });
+    fs.writeFileSync(
+      path.join(projectScripts, "context.sh"),
+      "case \"$1\" in\n  bootstrap)\n    ;;\n  graph-load)\n    ;;\n  memory-lint)\n    ;;\nesac\n",
+      "utf8",
+    );
+    fs.writeFileSync(externalManagedName, "external must survive\n", "utf8");
+    fs.symlinkSync(externalRoot, path.join(projectScripts, "lib"));
+
+    runInit(repoRoot, ["--no-connect"]);
+
+    assert.equal(
+      fs.readFileSync(externalManagedName, "utf8"),
+      "external must survive\n",
+    );
+    assert.equal(
+      fs.lstatSync(path.join(projectScripts, "lib")).isSymbolicLink(),
+      true,
+    );
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+    fs.rmSync(externalRoot, { recursive: true, force: true });
   }
 });
 

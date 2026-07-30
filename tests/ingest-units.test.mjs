@@ -10,24 +10,64 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
+  chunkIdFor,
+  generateChunkDescription,
+  generateModuleSummary,
+  generateModules,
+  splitChunkIntoWindows
+} from "../scaffold/scripts/lib/ingest/chunks.mjs";
+import {
+  parseNonNegativeIntegerEnv,
+  parsePositiveIntegerEnv
+} from "../scaffold/scripts/lib/ingest/arguments.mjs";
+import {
+  parseRules,
+  parseSourcePaths
+} from "../scaffold/scripts/lib/ingest/config.mjs";
+import {
+  detectKind,
+  hasSourcePrefix,
+  normalizeRelativePath,
+  resolveRelativeImportTargetId
+} from "../scaffold/scripts/lib/ingest/files.mjs";
+import {
+  readJsonlSafe,
+  writeJsonl
+} from "../scaffold/scripts/lib/ingest/io.mjs";
+import {
+  removeChunkStateForFile
+} from "../scaffold/scripts/lib/ingest/incremental-state.mjs";
+import {
+  generateProjects
+} from "../scaffold/scripts/lib/ingest/projects.mjs";
+import {
   buildChunkAliasIndexes,
   buildSqlResourceReferenceMap,
-  detectKind,
   extractSqlObjectReferencesFromContent,
-  generateChunkDescription,
   generateConfigIncludeRelations,
   generateConfigTransformKeyRelations,
   generateMachineConfigRelations,
   generateConfigTransformRelations,
-  generateModuleSummary,
-  generateModules,
   generateNamedResourceRelations,
-  generateProjects,
-  generateSectionHandlerRelations,
-  getChunkParserForExtension,
-  resolveIngestWorkerCount,
-  resolveRelativeImportTargetId
-} from "../scaffold/scripts/ingest.mjs";
+  generateSectionHandlerRelations
+} from "../scaffold/scripts/lib/ingest/relations.mjs";
+import {
+  getChunkParserForExtension
+} from "../scaffold/scripts/lib/ingest/parser-composition.mjs";
+import {
+  resolveIngestWorkerCount
+} from "../scaffold/scripts/lib/ingest/workers.mjs";
+import {
+  createIngestPipelineState,
+  runCacheWriteStage,
+  runDatabaseWriteStage,
+  runFileCacheStagingStage,
+  runManifestCompletionStage,
+  runMaterializationStage,
+  runParseStage,
+  runScanHydrationStage,
+  runTokenMatchingStage
+} from "../scaffold/scripts/lib/ingest/pipeline-stages.mjs";
 
 // ─── detectKind / parser dispatch ────────────────────────────────────────────
 
@@ -78,6 +118,116 @@ test("resolveIngestWorkerCount: caps large default ingests while preserving env 
       process.env.CORTEX_INGEST_WORKERS = original;
     }
   }
+});
+
+test("pipeline stages expose the bounded ingest sequence", () => {
+  for (const stage of [
+    createIngestPipelineState,
+    runScanHydrationStage,
+    runParseStage,
+    runMaterializationStage,
+    runFileCacheStagingStage,
+    runTokenMatchingStage,
+    runCacheWriteStage,
+    runDatabaseWriteStage,
+    runManifestCompletionStage
+  ]) {
+    assert.equal(typeof stage, "function");
+  }
+});
+
+test("integer environment parsing preserves positive and non-negative fallback behavior", () => {
+  const name = "CORTEX_TEST_INGEST_INTEGER";
+  const original = process.env[name];
+  try {
+    delete process.env[name];
+    assert.equal(parsePositiveIntegerEnv(name, 7), 7);
+    assert.equal(parseNonNegativeIntegerEnv(name, 7), 7);
+
+    process.env[name] = "3.9";
+    assert.equal(parsePositiveIntegerEnv(name, 7), 3);
+    assert.equal(parseNonNegativeIntegerEnv(name, 7), 3);
+
+    process.env[name] = "0";
+    assert.equal(parsePositiveIntegerEnv(name, 7), 7);
+    assert.equal(parseNonNegativeIntegerEnv(name, 7), 0);
+
+    process.env[name] = "invalid";
+    assert.equal(parsePositiveIntegerEnv(name, 7), 7);
+    assert.equal(parseNonNegativeIntegerEnv(name, 7), 7);
+  } finally {
+    if (original === undefined) {
+      delete process.env[name];
+    } else {
+      process.env[name] = original;
+    }
+  }
+});
+
+test("config parsing preserves source paths and rule defaults", () => {
+  assert.deepEqual(
+    parseSourcePaths("repo_id: fixture\nsource_paths:\n  - src\n  - 'docs'\nranking:\n  semantic: 0.4\n"),
+    ["src", "docs"]
+  );
+  assert.deepEqual(
+    parseRules(
+      "rules:\n  - id: rule.one\n    description: First rule\n    priority: 90\n    enforce: true\n  - id: rule.two\n"
+    ),
+    [
+      { id: "rule.one", description: "First rule", priority: 90, enforce: true },
+      { id: "rule.two", description: "", priority: 0, enforce: false }
+    ]
+  );
+});
+
+test("path normalization keeps root source scope while rejecting skipped directories", () => {
+  assert.equal(normalizeRelativePath("./src/example.ts/"), "src/example.ts");
+  assert.equal(hasSourcePrefix("src/example.ts", ["."]), true);
+  assert.equal(hasSourcePrefix(".context/cache/entities.jsonl", ["."]), false);
+  assert.equal(hasSourcePrefix("src/bin/generated.js", ["src"]), false);
+});
+
+test("JSONL helpers preserve record order and ignore malformed cached lines", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ingest-jsonl-test-"));
+  const jsonlPath = path.join(tmpDir, "records.jsonl");
+  try {
+    writeJsonl(jsonlPath, [{ id: "first" }, { id: "second" }]);
+    fs.appendFileSync(jsonlPath, "{not-json}\n", "utf8");
+    assert.deepEqual(readJsonlSafe(jsonlPath), [{ id: "first" }, { id: "second" }]);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("incremental removal deletes a file's chunks and dependent relations", () => {
+  const chunks = new Map([
+    ["chunk:a", { id: "chunk:a", file_id: "file:a" }],
+    ["chunk:b", { id: "chunk:b", file_id: "file:b" }]
+  ]);
+  const defines = new Map([
+    ["a", { from: "file:a", to: "chunk:a" }],
+    ["b", { from: "file:b", to: "chunk:b" }]
+  ]);
+  const calls = new Map([
+    ["a-b", { from: "chunk:a", to: "chunk:b" }],
+    ["b-b", { from: "chunk:b", to: "chunk:b" }]
+  ]);
+  const imports = new Map([
+    ["a", { from: "chunk:a", to: "file:b" }],
+    ["b", { from: "chunk:b", to: "file:a" }]
+  ]);
+  const callsSql = new Map([
+    ["a", { from: "file:a", to: "chunk:a" }],
+    ["b", { from: "file:b", to: "chunk:b" }]
+  ]);
+
+  removeChunkStateForFile("file:a", chunks, defines, calls, imports, callsSql);
+
+  assert.deepEqual([...chunks.keys()], ["chunk:b"]);
+  assert.deepEqual([...defines.keys()], ["b"]);
+  assert.deepEqual([...calls.keys()], ["b-b"]);
+  assert.deepEqual([...imports.keys()], ["b"]);
+  assert.deepEqual([...callsSql.keys()], ["b"]);
 });
 
 test("extractSqlObjectReferencesFromContent: finds stored procedure command usage", () => {
@@ -219,6 +369,47 @@ test("buildChunkAliasIndexes includes cached structured targets and skips window
   assert.deepEqual(indexes.configChunkIdsByAlias.get("legacydb"), ["chunk:App.config:LegacyDb:1-1"]);
   assert.deepEqual(indexes.resourceChunkIdsByAlias.get("queryname"), ["chunk:Resources.resx:QueryName:1-1"]);
   assert.deepEqual(indexes.settingChunkIdsByAlias.get("runreportproc"), ["chunk:Settings.settings:RunReportProc:1-1"]);
+});
+
+test("chunk IDs and overlap windows preserve deterministic source coordinates", () => {
+  assert.equal(
+    chunkIdFor("src/example.ts", { name: "run", startLine: 10, endLine: 15 }),
+    "chunk:src/example.ts:run:10-15"
+  );
+
+  const windows = splitChunkIntoWindows(
+    {
+      id: "chunk:src/example.ts:run:10-15",
+      file_id: "file:src/example.ts",
+      name: "run",
+      kind: "function",
+      signature: "run()",
+      body: "one\ntwo\nthree\nfour\nfive",
+      description: "Runs the example",
+      start_line: 10,
+      end_line: 14,
+      language: "typescript",
+      exported: true,
+      updated_at: "2026-01-01",
+      trust_level: 80,
+      status: "active",
+      source_of_truth: false
+    },
+    {
+      windowLines: 3,
+      overlapLines: 1,
+      splitMinLines: 4,
+      maxWindows: 4
+    }
+  );
+
+  assert.deepEqual(
+    windows.map((window) => [window.id, window.start_line, window.end_line, window.body]),
+    [
+      ["chunk:src/example.ts:run:10-15:window:1:10-12", 10, 12, "one\ntwo\nthree"],
+      ["chunk:src/example.ts:run:10-15:window:2:12-14", 12, 14, "three\nfour\nfive"]
+    ]
+  );
 });
 
 // ─── generateChunkDescription ────────────────────────────────────────────────

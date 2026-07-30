@@ -67,6 +67,18 @@ function syncMarketplace(marketplace, version) {
   return next;
 }
 
+function syncMcpRegistrySubmission(submission, nodeEngine, packageName) {
+  const next = structuredClone(submission);
+  if (!next.requirements || typeof next.requirements !== "object") {
+    throw new Error(
+      "Invalid mcp-registry-submission.json: expected requirements object",
+    );
+  }
+  next.npmPackage = packageName;
+  next.requirements.node = nodeEngine;
+  return next;
+}
+
 function syncPackageLock(packageLock, version, packageName) {
   const next = structuredClone(packageLock);
   next.version = version;
@@ -92,12 +104,16 @@ function main() {
   const packageJson = readJson("package.json");
   const version = String(packageJson.version ?? "").trim();
   const packageName = String(packageJson.name ?? "").trim();
+  const nodeEngine = String(packageJson.engines?.node ?? "").trim();
 
   if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version)) {
     throw new Error(`Invalid package.json version: ${version}`);
   }
   if (!packageName) {
     throw new Error("Missing package.json name");
+  }
+  if (!nodeEngine) {
+    throw new Error("Missing package.json engines.node");
   }
 
   const syncPlan = [
@@ -110,6 +126,12 @@ function main() {
       path: "server.json",
       required: true,
       transform: (value) => syncServerJson(value, version, packageName)
+    },
+    {
+      path: "mcp-registry-submission.json",
+      required: true,
+      transform: (value) =>
+        syncMcpRegistrySubmission(value, nodeEngine, packageName)
     },
     {
       path: "plugins/cortex/.claude-plugin/plugin.json",

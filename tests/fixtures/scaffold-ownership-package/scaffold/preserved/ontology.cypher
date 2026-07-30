@@ -1,0 +1,1 @@
+CREATE CONSTRAINT fixture_default IF NOT EXISTS FOR (n:Entity) REQUIRE n.id IS UNIQUE;
