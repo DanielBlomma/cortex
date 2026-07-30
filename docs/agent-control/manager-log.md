@@ -8,12 +8,11 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
 ## Current State (2026-07-30)
 
-- Released npm baseline remains `v2.4.1` at
-  `5ae3b00948bad26af2e5eaea60ce0b52567db352`. PR #109 merged the synchronized
-  `2.4.2` tree to `origin/main` at
-  `bd968d404dcde5381955341d69e27460e2b665ce`.
-- WO-026 through WO-031 are accepted locally on
-  `refactor/cli-ingest-modularization`. The final integrated record is
+- Released npm baseline is `v2.4.2`. The annotated tag peels to corrected
+  `origin/main` at `736becf34d929ea0bef88adbe476a584a1f081e9`,
+  and Release Publish run `30523845440` completed successfully.
+- WO-026 through WO-031 are accepted, merged, and released. The final
+  integrated record is
   `docs/agent-control/wo-031-integrated-validation-baseline.md`.
 - WO-031 preserved the frozen CLI, Enterprise, ingest, deterministic, package,
   upgrade, and memory contracts. Syntax, focused tests, context regressions,
@@ -29,20 +28,17 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - Release review fixed MCP registry Node-floor drift and added the registry
   submission to release-version synchronization and Release Bump staging. All
   six reviewers then closed with no blocker, major, or minor findings.
-- `2.4.2` metadata is synchronized and PR #109 is merged. Tag `v2.4.2` was
-  pushed, but Release Publish run `30521392683` stopped before audit, package,
-  or npm publish because the clean checkout ran root Enterprise tests before
-  building the package-owned MCP runtime. npm remains at `2.4.1`.
-- PR #110 fixes both release workflows: install/build `scaffold/mcp` before
-  root tests, reuse those dependencies for MCP `test:ci`, and lock the ordering
-  with regressions. Recovery is validated locally and awaits merge/tag recovery.
+- Initial Release Publish run `30521392683` stopped safely before npm. PR #110
+  fixed both release workflows to install/build `scaffold/mcp` before root
+  tests and added ordering regressions. After reviewer acceptance and merge,
+  the unpublished tag was deliberately moved from `bd968d4` to corrected
+  `736becf`; run `30523845440` passed every gate and published npm `2.4.2`.
 - R14 and R15 are mitigated locally. R16 remains the accepted pre-existing
   ingest filesystem-containment risk for a separate behavior-changing security
   work order. WO-030's narrow same-user ancestor-swap assumption remains
   accepted.
 - The modularization program has no remaining implementation work order.
-  Release recovery is limited to merging PR #110, moving the failed unpublished
-  `v2.4.2` tag to the corrected `main`, and monitoring the publish workflow.
+  Release recovery and publication are complete.
 
 ## Open Decisions
 
@@ -60,8 +56,9 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   through WO-031.
 - Patch release metadata may move to `2.4.2`; technical acceptance and six-role
   review completed before the bump.
-- Release automation remains a subsequent explicit action because it commits,
-  tags, pushes, and can trigger publication.
+- Under explicit user instruction, PRs #109 and #110 were merged, the failed
+  unpublished tag was replaced with corrected `main`, and npm `2.4.2` was
+  published only after the fixed release gates passed.
 
 ## 2026-07-30
 
@@ -101,6 +98,17 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   8/8, all committed dependency audits at zero, synchronized metadata, valid
   YAML, and a 416-entry clean package that omits the unowned stale
   `dist/embeddingModel.js`.
+- Validation/Ops and Security/Integration re-reviews closed with no blocker,
+  major, or minor findings. PR #110 merged at `736becf`.
+- Reconfirmed the failed run skipped audit, package, and publish; npm still
+  served `2.4.1`; and no GitHub release existed. With explicit approval,
+  deliberately replaced the unpublished `v2.4.2` tag so it peeled to
+  `736becf`.
+- Release Publish run `30523845440` passed metadata verification, both clean
+  installs, trusted runtime build, root and MCP suites, dependency audits,
+  package inspection, and npm trusted publishing. Independent registry
+  verification reports version/latest `2.4.2`; the remote annotated tag peels
+  to `736becf`.
 
 ## Archive
 
