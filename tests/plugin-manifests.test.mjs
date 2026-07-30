@@ -42,20 +42,28 @@ test("MCP registry submission matches the package runtime contract", () => {
   assert.equal(submission.requirements.node, packageJson.engines.node);
 });
 
-test("release publish builds the trusted runtime before root security tests", () => {
-  const workflow = readText(".github/workflows/release-publish.yml");
-  const installIndex = workflow.indexOf(
-    "- name: Install context runtime dependencies",
-  );
-  const buildIndex = workflow.indexOf("- name: Build trusted context runtime");
-  const rootTestIndex = workflow.indexOf("- name: Run root tests");
-  assert.ok(installIndex >= 0, "release publish must install MCP dependencies");
-  assert.ok(buildIndex > installIndex, "trusted runtime build must follow install");
-  assert.ok(
-    rootTestIndex > buildIndex,
-    "root security tests must run after the trusted runtime build",
-  );
-});
+for (const [label, relative, rootStep] of [
+  ["release bump", ".github/workflows/release-bump.yml", "Validate root tests"],
+  ["release publish", ".github/workflows/release-publish.yml", "Run root tests"],
+]) {
+  test(`${label} builds the trusted runtime before root security tests`, () => {
+    const workflow = readText(relative);
+    const installIndex = workflow.indexOf(
+      "- name: Install context runtime dependencies",
+    );
+    const buildIndex = workflow.indexOf("- name: Build trusted context runtime");
+    const rootTestIndex = workflow.indexOf(`- name: ${rootStep}`);
+    assert.ok(installIndex >= 0, `${label} must install MCP dependencies`);
+    assert.ok(
+      buildIndex > installIndex,
+      `${label} trusted runtime build must follow install`,
+    );
+    assert.ok(
+      rootTestIndex > buildIndex,
+      `${label} root security tests must run after the trusted runtime build`,
+    );
+  });
+}
 
 test("session hook is wired for startup, resume, clear, and compact", () => {
   const hooks = readJson("plugins/cortex/hooks/hooks.json");
