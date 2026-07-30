@@ -55,3 +55,4 @@ is not mapped here.
 | #96 | WO-001, WO-004, WO-007 through WO-014 | R6, R8, R10 | Angular parser/ingest coverage, bootstrapbench coverage/RSS diagnostics, graph/embed/ingest memory first pass, ingest memory trace, worker-result streaming. |
 | #97 | Follow-up optional parser tooling fix | R5 | C# and VB.NET parser bridge publish uses `/p:UseAppHost=false` to avoid macOS apphost signing failures. |
 | #106 | WO-020 | REQ-10, REQ-2, REQ-6, R12 | Embedding quality gates, opt-in compact file-level embedding text, retrieval ranking fixes, repo-root indexing defaults, and agent-control docs. |
+| #109 | WO-026 through WO-031 | REQ-15, R14, R15, R16 | Behavior-preserving CLI/ingest modularization, managed-scaffold upgrade safety, integrated acceptance, and synchronized `2.4.2` release preparation. R16 remains a separate accepted security work order. |

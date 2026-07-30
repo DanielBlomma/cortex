@@ -25,15 +25,16 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - Release review fixed MCP registry Node-floor drift and added the registry
   submission to release-version synchronization and Release Bump staging. All
   six reviewers then closed with no blocker, major, or minor findings.
-- `2.4.2` metadata is prepared and synchronized. No publish, tag, push, merge,
-  deployment, or Release Bump workflow dispatch has occurred.
+- `2.4.2` metadata is prepared and synchronized. The branch is pushed and
+  mapped to PR #109. No merge, tag, publish, deployment, or Release Bump
+  workflow dispatch has occurred.
 - R14 and R15 are mitigated locally. R16 remains the accepted pre-existing
   ingest filesystem-containment risk for a separate behavior-changing security
   work order. WO-030's narrow same-user ancestor-swap assumption remains
   accepted.
 - The modularization program has no remaining implementation work order.
-  Release actions require explicit user direction: push/open or update a PR,
-  merge, tag, publish, and deploy.
+  PR #109 is the integration boundary; merge after required checks, then tag,
+  publish, and deploy only under the applicable release instruction.
 
 ## Open Decisions
 
@@ -77,6 +78,10 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   passed for all 10 changed indexed files; 10 package/workflow/plugin/registry/
   test paths outside configured sources returned the expected not-indexed
   result. Doctor passed 8/8 and the optional watcher is stopped.
+- Under explicit user instruction, pushed
+  `refactor/cli-ingest-modularization` and opened PR #109 with WO-026 through
+  WO-031 and REQ-15 traceability. The local `.mcp.json` deletion appeared after
+  acceptance and remains intentionally unstaged and outside the PR.
 
 ## Archive
 
