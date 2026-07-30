@@ -57,3 +57,4 @@ is not mapped here.
 | #106 | WO-020 | REQ-10, REQ-2, REQ-6, R12 | Embedding quality gates, opt-in compact file-level embedding text, retrieval ranking fixes, repo-root indexing defaults, and agent-control docs. |
 | #109 | WO-026 through WO-031 | REQ-15, R14, R15, R16 | Behavior-preserving CLI/ingest modularization, managed-scaffold upgrade safety, integrated acceptance, and synchronized `2.4.2` release preparation. R16 remains a separate accepted security work order. |
 | #110 | WO-031 release recovery | REQ-4, REQ-15 | Build the package-owned trusted runtime before clean-checkout root security tests in both release workflows, then reuse installed MCP dependencies for the compatibility suite; recover the failed pre-publish `v2.4.2` tag run. |
+| #111 | WO-031 release closeout | REQ-15 | Record corrected tag provenance, successful Release Publish run, npm `2.4.2` verification, and completed recovery state. |
