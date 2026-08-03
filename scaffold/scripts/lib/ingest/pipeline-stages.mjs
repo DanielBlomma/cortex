@@ -50,7 +50,6 @@ import {
   normalizeWhitespace,
   parseDecisionDate,
   resolveRelativeImportTargetId,
-  toPosixPath,
   trustLevelForKind
 } from "./files.mjs";
 import {
@@ -88,44 +87,41 @@ import {
 } from "./relations.mjs";
 import {
   CACHE_DIR,
-  CONTEXT_DIR,
   DB_IMPORT_DIR,
-  REPO_ROOT
+  initializeRuntimePaths
 } from "./runtime-paths.mjs";
+import { isFilesystemPolicyError } from "./filesystem-boundary.mjs";
 import {
   resolveIngestWorkerCount,
   startWorkerParseStream
 } from "./workers.mjs";
 
 function createIngestPipelineState() {
+  const boundary = initializeRuntimePaths();
   const { mode, verbose } = parseArgs(process.argv);
   const memoryTrace = createIngestMemoryTrace();
-  const configPath = path.join(CONTEXT_DIR, "config.yaml");
-  const rulesPath = path.join(CONTEXT_DIR, "rules.yaml");
 
-  if (!fs.existsSync(configPath)) {
-    throw new Error(`Missing config: ${configPath}`);
-  }
-  if (!fs.existsSync(rulesPath)) {
-    throw new Error(`Missing rules: ${rulesPath}`);
-  }
-
-  ensureDirectory(CACHE_DIR);
-  ensureDirectory(DB_IMPORT_DIR);
-
-  const configText = fs.readFileSync(configPath, "utf8");
+  boundary.validateControl(".context/config.yaml");
+  boundary.validateControl(".context/rules.yaml");
+  const configText = boundary.readControl(".context/config.yaml");
   const sourcePaths = parseSourcePaths(configText);
   if (sourcePaths.length === 0) {
     throw new Error("No source_paths found in .context/config.yaml");
   }
+  const sourceRecords = boundary.validateConfiguredSources(sourcePaths);
 
-  const rules = parseRules(fs.readFileSync(rulesPath, "utf8"));
+  const rules = parseRules(boundary.readControl(".context/rules.yaml"));
   memoryTrace.checkpoint("scan:start", {
     mode,
     source_paths: sourcePaths.length,
     rules: rules.length
   });
-  const { candidates, incrementalMode, deletedRelPaths } = collectCandidateFiles(sourcePaths, mode);
+  const { candidates, incrementalMode, deletedRelPaths } = collectCandidateFiles(
+    boundary,
+    sourcePaths,
+    sourceRecords,
+    mode
+  );
   const chunkWindowLines = parsePositiveIntegerEnv(
     "CORTEX_CHUNK_WINDOW_LINES",
     DEFAULT_CHUNK_WINDOW_LINES
@@ -150,7 +146,9 @@ function createIngestPipelineState() {
     mode,
     verbose,
     memoryTrace,
+    boundary,
     sourcePaths,
+    sourceRecords,
     rules,
     candidates,
     incrementalMode,
@@ -171,6 +169,7 @@ function runScanHydrationStage(state) {
     incrementalMode,
     deletedRelPaths
   } = state;
+  const { boundary } = state;
   const fileRecordMap = new Map();
   const adrRecordMap = new Map();
   const skipped = {
@@ -183,17 +182,22 @@ function runScanHydrationStage(state) {
     const existingFiles = readJsonlSafe(path.join(CACHE_DIR, "entities.file.jsonl"));
     for (const record of existingFiles) {
       if (!record || typeof record !== "object") continue;
-      const filePath = toPosixPath(String(record.path ?? ""));
-      if (!filePath || !hasSourcePrefix(filePath, sourcePaths)) {
+      if (typeof record.path !== "string" || record.path.length === 0) continue;
+      const inspected = boundary.inspectRepositoryPath(record.path, {
+        phase: "discovery",
+        allowMissing: true,
+        expected: "file"
+      });
+      const filePath = inspected.identity;
+      if (!hasSourcePrefix(filePath, sourcePaths)) {
         continue;
       }
-      const absolutePath = path.resolve(REPO_ROOT, filePath);
-      if (!fs.existsSync(absolutePath)) {
-        continue;
-      }
-      fileRecordMap.set(String(record.id ?? `file:${filePath}`), {
+      if (!inspected.exists) continue;
+      const expectedId = `file:${filePath}`;
+      if (record.id != null && String(record.id) !== expectedId) continue;
+      fileRecordMap.set(expectedId, {
         ...record,
-        id: String(record.id ?? `file:${filePath}`),
+        id: expectedId,
         path: filePath,
         kind: String(record.kind ?? detectKind(filePath)),
         content: String(record.content ?? "")
@@ -203,13 +207,17 @@ function runScanHydrationStage(state) {
     const existingAdrs = readJsonlSafe(path.join(CACHE_DIR, "entities.adr.jsonl"));
     for (const adr of existingAdrs) {
       if (!adr || typeof adr !== "object") continue;
-      const adrPath = toPosixPath(String(adr.path ?? ""));
-      if (!adrPath || !hasSourcePrefix(adrPath, sourcePaths)) {
+      if (typeof adr.path !== "string" || adr.path.length === 0) continue;
+      const inspected = boundary.inspectRepositoryPath(adr.path, {
+        phase: "discovery",
+        allowMissing: true,
+        expected: "file"
+      });
+      const adrPath = inspected.identity;
+      if (!hasSourcePrefix(adrPath, sourcePaths)) {
         continue;
       }
-      if (!fs.existsSync(path.resolve(REPO_ROOT, adrPath))) {
-        continue;
-      }
+      if (!inspected.exists) continue;
       adrRecordMap.set(String(adr.id ?? ""), {
         ...adr,
         id: String(adr.id ?? ""),
@@ -234,22 +242,25 @@ function runScanHydrationStage(state) {
     }
   }
 
-  for (const absolutePath of [...candidates].sort()) {
-    const relPath = toPosixPath(path.relative(REPO_ROOT, absolutePath));
+  for (const candidateIdentity of [...candidates].sort()) {
+    const relPath = boundary.inspectRepositoryPath(candidateIdentity, {
+      phase: "direct_read",
+      expected: "file"
+    }).identity;
     if (!isTextFile(relPath)) {
       skipped.unsupported += 1;
       if (verbose) console.log(`[ingest] skip unsupported: ${relPath}`);
       continue;
     }
 
-    const stats = fs.statSync(absolutePath);
+    const { stats } = boundary.statRepositoryFile(relPath, "direct_read");
     if (stats.size > MAX_FILE_BYTES) {
       skipped.tooLarge += 1;
       if (verbose) console.log(`[ingest] skip large: ${relPath}`);
       continue;
     }
 
-    const buffer = fs.readFileSync(absolutePath);
+    const buffer = boundary.readRepositoryFile(relPath, "direct_read");
     if (isBinaryBuffer(buffer)) {
       skipped.binary += 1;
       if (verbose) console.log(`[ingest] skip binary: ${relPath}`);
@@ -319,7 +330,7 @@ function runScanHydrationStage(state) {
   } = inspectCSharpParser(fileRecords);
   const indexedFileIds = new Set(fileRecords.map((record) => record.id));
   const changedFileIds = new Set(
-    [...candidates].map((absolutePath) => `file:${toPosixPath(path.relative(REPO_ROOT, absolutePath))}`)
+    [...candidates].map((candidateIdentity) => `file:${candidateIdentity}`)
   );
 
   const {
@@ -455,7 +466,8 @@ async function runParseStage(state) {
   const workerTasks = createWorkerTasks(
     fileRecords,
     parseEligible,
-    csharpBatchCache
+    csharpBatchCache,
+    state.boundary.root
   );
   const workerCount = resolveIngestWorkerCount(workerTasks.length);
   memoryTrace.checkpoint("parse:workers_start", {
@@ -646,6 +658,12 @@ async function runParseStage(state) {
         }
       }
     } catch (error) {
+      if (isFilesystemPolicyError(error)) {
+        if (workerStream) {
+          await workerStream.drain().catch(() => {});
+        }
+        throw error;
+      }
       if (verbose) {
         console.log(`[ingest] failed to parse ${fileRecord.path}: ${error instanceof Error ? error.message : String(error)}`);
       }
@@ -894,7 +912,7 @@ function runMaterializationStage(state) {
   }
 
   // Generate Module entities and relations
-  const moduleResult = generateModules(fileRecords, chunkRecords);
+  const moduleResult = generateModules(fileRecords, chunkRecords, state.boundary);
   const moduleRecords = moduleResult.modules;
   const moduleContainsRelations = moduleResult.containsRelations;
   const moduleContainsModuleRelations = moduleResult.containsModuleRelations;
@@ -1036,6 +1054,11 @@ function runFileCacheStagingStage(state) {
     stagedDocumentCache,
     stagedFileEntityCache
   });
+}
+
+function ensureIngestOutputDirectories() {
+  ensureDirectory(CACHE_DIR);
+  ensureDirectory(DB_IMPORT_DIR);
 }
 
 function runTokenMatchingStage(state) {
@@ -1614,6 +1637,7 @@ function runManifestCompletionStage(state) {
 
 export {
   createIngestPipelineState,
+  ensureIngestOutputDirectories,
   runCacheWriteStage,
   runDatabaseWriteStage,
   runFileCacheStagingStage,

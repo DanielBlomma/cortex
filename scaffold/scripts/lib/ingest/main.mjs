@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import {
   createIngestPipelineState,
+  ensureIngestOutputDirectories,
   runCacheWriteStage,
   runDatabaseWriteStage,
   runFileCacheStagingStage,
@@ -41,11 +42,12 @@ import {
 } from "./workers.mjs";
 
 async function main() {
-  await initializeParserComposition();
   const state = createIngestPipelineState();
+  await initializeParserComposition();
   runScanHydrationStage(state);
   await runParseStage(state);
   runMaterializationStage(state);
+  ensureIngestOutputDirectories();
   runFileCacheStagingStage(state);
   runTokenMatchingStage(state);
   runCacheWriteStage(state);

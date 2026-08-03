@@ -314,6 +314,7 @@
         "lib/ingest/config.mjs",
         "lib/ingest/constants.mjs",
         "lib/ingest/files.mjs",
+        "lib/ingest/filesystem-boundary.mjs",
         "lib/ingest/incremental-state.mjs",
         "lib/ingest/io.mjs",
         "lib/ingest/main.mjs",

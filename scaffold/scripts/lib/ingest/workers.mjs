@@ -1,5 +1,6 @@
 import os from "node:os";
 import { Worker } from "node:worker_threads";
+import { workerPolicyErrorFromMessage } from "./filesystem-boundary.mjs";
 
 function resolveIngestWorkerCount(taskCount) {
   const raw = process.env.CORTEX_INGEST_WORKERS;
@@ -64,6 +65,7 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
   let nextTask = 0;
   let alive = poolSize;
   let finished = false;
+  let fatalError = null;
   let resolveDone;
   const done = new Promise((resolve) => {
     resolveDone = resolve;
@@ -94,8 +96,9 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
   const finish = () => {
     if (finished) return;
     finished = true;
-    for (const resolve of waiters.values()) {
-      resolve(undefined);
+    for (const waiter of waiters.values()) {
+      if (fatalError) waiter.reject(fatalError);
+      else waiter.resolve(undefined);
     }
     waiters.clear();
     resolveDone();
@@ -111,15 +114,15 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
   };
 
   const resolveWaiter = (taskId, result) => {
-    const resolve = waiters.get(taskId);
-    if (!resolve) {
+    const waiter = waiters.get(taskId);
+    if (!waiter) {
       return false;
     }
     waiters.delete(taskId);
     if (result !== undefined) {
       state.consumed += 1;
     }
-    resolve(result);
+    waiter.resolve(result);
     return true;
   };
 
@@ -151,14 +154,22 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
       taskId: task.id,
       ext: task.ext,
       content: task.content,
-      absolutePath: task.absolutePath,
       contentLimit: task.contentLimit,
-      filePath: task.path
+      filePath: task.path,
+      projectRoot: task.projectRoot
     });
   };
 
   const onMessage = (worker, message) => {
     if (finished) return;
+    const taskId = inflight.get(worker);
+    if (message?.type === "policy_error") {
+      const task = tasks.find((candidate) => candidate.id === taskId);
+      fatalError = workerPolicyErrorFromMessage(message, task?.path ?? "<worker-task>");
+      inflight.set(worker, null);
+      finish();
+      return;
+    }
     inflight.set(worker, null);
     if (message.ok) {
       settleTask(message.taskId, message.result);
@@ -217,6 +228,7 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
     },
     stats,
     async take(taskId) {
+      if (fatalError) throw fatalError;
       if (!taskIds.has(taskId)) {
         return undefined;
       }
@@ -229,13 +241,14 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
       if (missingResults.has(taskId) || finished) {
         return undefined;
       }
-      return new Promise((resolve) => {
-        waiters.set(taskId, resolve);
+      return new Promise((resolve, reject) => {
+        waiters.set(taskId, { resolve, reject });
       });
     },
     async drain() {
       await done;
       await Promise.all(workers.map((worker) => worker.terminate().catch(() => {})));
+      if (fatalError) throw fatalError;
       return stats();
     }
   };
@@ -246,14 +259,16 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
 async function parseFilesInWorkers(tasks, options = {}) {
   const stream = startWorkerParseStream(tasks, options);
   const results = new Map();
-  for (const task of tasks) {
-    const result = await stream.take(task.id);
-    if (result) {
-      results.set(task.id, result);
+  try {
+    for (const task of tasks) {
+      const result = await stream.take(task.id);
+      if (result) {
+        results.set(task.id, result);
+      }
     }
+  } finally {
+    await stream.drain();
   }
-
-  await stream.drain();
   return results;
 }
 

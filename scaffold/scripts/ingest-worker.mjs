@@ -10,12 +10,16 @@
  * Parsers initialize lazily on first use and cache per module instance, so a
  * long-lived worker pays each grammar's WASM init once.
  */
-import fs from "node:fs";
 import { parentPort } from "node:worker_threads";
 import {
   loadParsers,
   parseFileContent
 } from "./lib/ingest/parser-registry.mjs";
+import {
+  createFilesystemBoundary,
+  isFilesystemPolicyError,
+  policyErrorEnvelope
+} from "./lib/ingest/filesystem-boundary.mjs";
 
 if (!parentPort) {
   throw new Error("ingest-worker.mjs must be run as a worker thread");
@@ -34,7 +38,8 @@ parentPort.on("message", async (message) => {
     let content = typeof message.content === "string" ? message.content : null;
     if (content === null) {
       const limit = Number.isFinite(message.contentLimit) ? Math.max(0, Math.floor(message.contentLimit)) : null;
-      content = fs.readFileSync(message.absolutePath, "utf8");
+      const boundary = createFilesystemBoundary(message.projectRoot);
+      content = boundary.readRepositoryFile(filePath, "worker_read", "utf8");
       if (limit !== null) {
         content = content.slice(0, limit);
       }
@@ -46,6 +51,10 @@ parentPort.on("message", async (message) => {
     }
     parentPort.postMessage({ taskId, ok: true, result: parsed.result });
   } catch (error) {
+    if (isFilesystemPolicyError(error)) {
+      parentPort.postMessage(policyErrorEnvelope(error));
+      return;
+    }
     parentPort.postMessage({
       taskId,
       ok: false,

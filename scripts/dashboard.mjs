@@ -3,6 +3,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync, execSync } from "node:child_process";
+import {
+  createFilesystemBoundary,
+  isFilesystemPolicyError,
+  renderFilesystemPolicyError
+} from "../scaffold/scripts/lib/ingest/filesystem-boundary.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -81,23 +86,32 @@ function parseSourcePaths(configText) {
 }
 
 // ── Data: filesystem walk (same as ingest.mjs) ───────────────
-function walkDirectory(dirPath, files) {
+function walkDirectory(boundary, directoryIdentity, files) {
+  const directory = directoryIdentity === ""
+    ? { absolutePath: boundary.root }
+    : boundary.inspectRepositoryPath(directoryIdentity, {
+        phase: "discovery",
+        expected: "directory"
+      });
   let entries;
   try {
-    entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    entries = fs.readdirSync(directory.absolutePath, { withFileTypes: true });
   } catch {
     return;
   }
   for (const entry of entries) {
+    if (entry.isSymbolicLink()) continue;
     if (entry.isDirectory() && SKIP_DIRECTORIES.has(entry.name)) continue;
-    const abs = path.join(dirPath, entry.name);
+    const identity = boundary.childIdentity(directoryIdentity, entry.name);
     if (entry.isDirectory()) {
-      walkDirectory(abs, files);
+      boundary.inspectRepositoryPath(identity, { phase: "discovery", expected: "directory" });
+      walkDirectory(boundary, identity, files);
     } else if (entry.isFile()) {
+      boundary.inspectRepositoryPath(identity, { phase: "discovery", expected: "file" });
       if (typeof files.add === "function") {
-        files.add(abs);
+        files.add(identity);
       } else {
-        files.push(abs);
+        files.push(identity);
       }
     }
   }
@@ -117,21 +131,21 @@ function hasSourcePrefix(relPath, sourcePaths) {
 
 // ── Data: baseline scan ──────────────────────────────────────
 function scanBaseline(repoRoot = REPO_ROOT, configPath = CONFIG_PATH) {
-  if (!fs.existsSync(configPath)) return { files: 0, lines: 0, chars: 0, tokens: 0 };
-
-  const configText = fs.readFileSync(configPath, "utf8");
+  void configPath;
+  const boundary = createFilesystemBoundary(repoRoot);
+  boundary.validateControl(".context/config.yaml");
+  const configText = boundary.readControl(".context/config.yaml");
   const sourcePaths = [...new Set(parseSourcePaths(configText))];
   if (sourcePaths.length === 0) return { files: 0, lines: 0, chars: 0, tokens: 0 };
+  const sourceRecords = boundary.validateConfiguredSources(sourcePaths);
 
   const allFiles = new Set();
-  for (const sp of sourcePaths) {
-    const abs = path.resolve(repoRoot, sp);
-    if (!fs.existsSync(abs)) continue;
-    const stat = fs.statSync(abs);
-    if (stat.isFile()) {
-      allFiles.add(abs);
-    } else if (stat.isDirectory()) {
-      walkDirectory(abs, allFiles);
+  for (const source of sourceRecords) {
+    if (!source.exists) continue;
+    if (source.kind === "file") {
+      allFiles.add(source.identity);
+    } else if (source.kind === "directory") {
+      walkDirectory(boundary, source.identity, allFiles);
     }
   }
 
@@ -139,17 +153,18 @@ function scanBaseline(repoRoot = REPO_ROOT, configPath = CONFIG_PATH) {
   let totalLines = 0;
   let totalChars = 0;
 
-  for (const filePath of allFiles) {
-    const ext = path.extname(filePath).toLowerCase();
+  for (const fileIdentity of allFiles) {
+    const ext = path.extname(fileIdentity).toLowerCase();
     if (!SUPPORTED_TEXT_EXTENSIONS.has(ext)) continue;
     try {
-      const stat = fs.statSync(filePath);
+      const { stats: stat } = boundary.statRepositoryFile(fileIdentity, "direct_read");
       if (stat.size > MAX_FILE_BYTES) continue;
-      const content = fs.readFileSync(filePath, "utf8");
+      const content = boundary.readRepositoryFile(fileIdentity, "direct_read", "utf8");
       fileCount++;
       totalLines += content.split("\n").length;
       totalChars += content.length;
-    } catch {
+    } catch (error) {
+      if (isFilesystemPolicyError(error)) throw error;
       // skip unreadable
     }
   }
@@ -821,7 +836,16 @@ function main() {
 
 const isMainModule = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename);
 if (isMainModule) {
-  main();
+  try {
+    main();
+  } catch (error) {
+    if (isFilesystemPolicyError(error)) {
+      process.stderr.write(`${renderFilesystemPolicyError(error)}\n`);
+      process.exitCode = 1;
+    } else {
+      throw error;
+    }
+  }
 }
 
 export {

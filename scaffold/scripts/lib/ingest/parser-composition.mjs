@@ -12,7 +12,6 @@ import {
   MAX_CONTENT_CHARS,
   STRUCTURED_NON_CODE_CHUNK_EXTENSIONS
 } from "./constants.mjs";
-import { REPO_ROOT } from "./runtime-paths.mjs";
 
 async function initializeParserComposition() {
   await loadParsers();
@@ -107,7 +106,7 @@ async function collectParseEligibleFiles({
   return parseEligible;
 }
 
-function createWorkerTasks(fileRecords, parseEligible, csharpBatchCache) {
+function createWorkerTasks(fileRecords, parseEligible, csharpBatchCache, projectRoot) {
   return fileRecords
     .filter((fileRecord) => {
       const eligible = parseEligible.get(fileRecord.id);
@@ -124,8 +123,8 @@ function createWorkerTasks(fileRecords, parseEligible, csharpBatchCache) {
     .map((fileRecord) => ({
       id: fileRecord.id,
       ext: parseEligible.get(fileRecord.id).ext,
-      absolutePath: path.resolve(REPO_ROOT, fileRecord.path),
       contentLimit: MAX_CONTENT_CHARS,
+      projectRoot,
       path: fileRecord.path
     }));
 }
