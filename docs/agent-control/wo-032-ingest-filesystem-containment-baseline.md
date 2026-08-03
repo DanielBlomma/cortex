@@ -1,8 +1,8 @@
 # WO-032 Ingest Filesystem Containment Baseline
 
-## Handoff State
+## Acceptance State
 
-WO-032's characterization and contract review-fix pass is complete on
+WO-032 is accepted locally on
 `plan/r16-ingest-filesystem-containment`. Runtime code, tests, release metadata,
 and package contents are unchanged.
 
@@ -15,10 +15,10 @@ and package contents are unchanged.
 - Next implementation packet:
   `docs/agent-control/context-packets/023-source-control-file-containment.md`.
 - Acceptance gate: the first independent Contract and Security and Privacy
-  reviews both returned major findings. This pass resolves those findings in
-  the written contract; independent re-review is still required. The
-  implementer does not approve this work, and WO-033 remains blocked until
-  the manager records both approvals.
+  reviews both returned major findings. Commit `063d75b` resolved them in the
+  written contract. Both independent re-reviews then passed with no blocker or
+  major finding, and commit `0b6458c` corrected their two minor documentation
+  findings before manager acceptance. WO-033 is Ready.
 - R16 remains open through packed-artifact acceptance in WO-035.
 
 ## Characterization Safety and Provenance
@@ -482,18 +482,20 @@ Final documentation/control gates:
 - `cortex doctor`: 8/8; and
 - `cortex watch status`: stopped (optional watcher).
 
-## Review Gate
+## Review Closure
 
-Contract re-review must confirm that the separate identity grammars, explicit
+Contract re-review confirmed that the separate identity grammars, explicit
 alias correctness exception, parser-toolchain boundary, closed error/wire
 contract, denial phases, migration requirements, and WO-033/WO-034 split are
 precise enough to implement without policy inference.
 
-Security and Privacy review must confirm that every read/reopen/write path is
+Security and Privacy re-review confirmed that every read/reopen/write path is
 owned, denial precedes mutation, worker fallback cannot bypass policy,
 diagnostics do not disclose external data, dashboard data accesses are owned,
 no external-root authority or new source-data egress/network path is added,
 and the concurrent-mutator residual is stated narrowly.
 
-Until both re-reviews pass with no blocker or major finding, this document is
-a complete review-fix handoff but not an accepted authorization for WO-033.
+Both reviewers returned PASS with no blocker or major finding. Their shared
+minor parser-environment-name correction and Security's minor R16 privacy-scope
+correction were applied in `0b6458c`. The manager accepts WO-032 and authorizes
+WO-033 to start from packet 023 in a fresh session.

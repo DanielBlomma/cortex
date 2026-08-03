@@ -121,8 +121,9 @@ matching the trust-model treatment used for WO-030.
 - [x] Produce the focused WO-033 context packet.
 - [x] Resolve first-pass Contract and Security review findings in the written
   contract without runtime changes.
-- [ ] Obtain Contract plus Security and Privacy review of the policy before
-  runtime changes; independent re-review is pending.
+- [x] Obtain Contract plus Security and Privacy review of the policy before
+  runtime changes; both re-reviews passed with no blocker or major finding,
+  and their two minor precision findings were corrected before acceptance.
 
 ### WO-033 — Source and Control-File Containment
 

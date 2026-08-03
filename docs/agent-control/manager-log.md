@@ -38,14 +38,11 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   planned as WO-032 through WO-035 in context packet 022; the risk remains open
   until packed-artifact acceptance. WO-030's narrow same-user ancestor-swap
   assumption remains accepted.
-- The modularization program and release recovery are complete. WO-032's first
-  independent Contract and Security/Privacy reviews returned major findings.
-  The documentation-only review-fix now inventories parser toolchain and all
-  dashboard data paths, assigns dashboard data to WO-034, separates configured
-  sources from host repository identities, makes alias correction explicit,
-  and closes denial phases/error wire shape/negative cases. Independent
-  re-review is pending; WO-033 remains blocked until the manager records both
-  approvals.
+- The modularization program and release recovery are complete. WO-032 is
+  accepted after a documentation-only review iteration: both independent
+  Contract and Security/Privacy re-reviews passed with no blocker or major
+  finding, and their two minor precision findings were corrected in `0b6458c`.
+  WO-033 is Ready from packet 023.
 
 ## Open Decisions
 
@@ -70,6 +67,10 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   source/control containment, WO-034 output containment/cleanup, and WO-035
   integrated package acceptance. External source roots are not authorized;
   portable relative roots only, with explicit symlink denial.
+- WO-032's reviewed contract is accepted. Its safe-alias normalization is an
+  intentional changed-mode correctness fix, repository identities use a
+  separate host-valid grammar, and trusted parser toolchain/network behavior
+  remains outside R16's ingest-managed data boundary.
 
 ## 2026-08-03
 
@@ -111,8 +112,10 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   corrections: the C#/VB target-framework overrides now use their exact
   `CORTEX_CSHARP_PARSER_TFM` and `CORTEX_VBNET_PARSER_TFM` names, and packet
   022 scopes the privacy statement to R16 source-data egress plus this
-  program's no-new-telemetry or network-path requirement. WO-032 acceptance
-  remains a manager decision.
+  program's no-new-telemetry or network-path requirement.
+- Independent Contract and Security/Privacy re-reviews both returned PASS with
+  no blocker or major finding. After the two minor corrections above, the
+  manager accepted WO-032 and advanced WO-033 to Ready. R16 remains open.
 
 ## 2026-07-30
 
