@@ -86,19 +86,20 @@ matching the trust-model treatment used for WO-030.
 
 ### WO-032 — Characterization and Security Contract
 
-- [ ] Build controlled temporary-directory probes for absolute, parent,
+- [x] Build controlled temporary-directory probes for absolute, parent,
   symlinked, special-file, and redirected-output layouts.
-- [ ] Record the v2.4.2 observable behavior without touching files outside the
+- [x] Record the v2.4.2 observable behavior without touching files outside the
   temporary test sandbox.
-- [ ] Freeze valid full/changed, sequential/parallel, worker-fallback, trace,
+- [x] Freeze valid full/changed, sequential/parallel, worker-fallback, trace,
   and cache-hydration contracts that must remain unchanged.
-- [ ] Finalize error ownership: invalid configuration and unsafe filesystem
+- [x] Finalize error ownership: invalid configuration and unsafe filesystem
   layout exit non-zero on stderr before parsing or output mutation.
-- [ ] Inventory every ingest filesystem operation, including worker-thread
+- [x] Inventory every ingest filesystem operation, including worker-thread
   reads, cache hydration, staged JSONL, TSV, manifest writes, and both
   dashboard baseline scanners that consume `source_paths`.
-- [ ] Produce the focused WO-033 context packet and obtain Contract plus
-  Security and Privacy review of the policy before runtime changes.
+- [x] Produce the focused WO-033 context packet.
+- [ ] Obtain Contract plus Security and Privacy review of the policy before
+  runtime changes.
 
 ### WO-033 — Source and Control-File Containment
 

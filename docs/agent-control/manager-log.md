@@ -38,9 +38,10 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   planned as WO-032 through WO-035 in context packet 022; the risk remains open
   until packed-artifact acceptance. WO-030's narrow same-user ancestor-swap
   assumption remains accepted.
-- The modularization program and release recovery are complete. The new R16
-  program is separate; WO-032 is Ready and later work orders remain blocked on
-  their reviewed predecessors.
+- The modularization program and release recovery are complete. WO-032's
+  characterization/contract first pass and focused packet 023 are complete;
+  independent Contract and Security/Privacy review is pending. WO-033 remains
+  blocked until the manager records both approvals.
 
 ## Open Decisions
 
@@ -77,6 +78,17 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   order can run in a fresh bounded session.
 - R16 stays open. No runtime, release metadata, publish, tag, merge, or deploy
   action was taken.
+- WO-032 characterized only synthetic temporary-root layouts. It confirmed
+  current absolute/parent/explicit-symlink reads, symlinked control consumption,
+  cache-parent redirection, direct symlink/hard-link truncation, and partial
+  output replacement before a special-leaf failure.
+- Added `wo-032-ingest-filesystem-containment-baseline.md` with the complete
+  read/write inventory, frozen valid contracts, fail-closed ordering, bounded
+  error ownership, migration rules, and honest concurrent-mutator residual.
+  Added focused packet 023 for WO-033. Focused compatibility tests pass 19/19.
+- WO-032 is a first-pass handoff only. Contract and Security/Privacy review is
+  pending; runtime behavior, tests, version, package, R16 status, and release
+  state are unchanged.
 
 ## 2026-07-30
 
