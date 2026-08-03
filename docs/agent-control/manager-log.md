@@ -6,7 +6,7 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
-## Current State (2026-07-30)
+## Current State (2026-08-03)
 
 - Released npm baseline is `v2.4.2`. The annotated tag peels to corrected
   `origin/main` at `736becf34d929ea0bef88adbe476a584a1f081e9`,
@@ -34,11 +34,13 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   the unpublished tag was deliberately moved from `bd968d4` to corrected
   `736becf`; run `30523845440` passed every gate and published npm `2.4.2`.
 - R14 and R15 are mitigated locally. R16 remains the accepted pre-existing
-  ingest filesystem-containment risk for a separate behavior-changing security
-  work order. WO-030's narrow same-user ancestor-swap assumption remains
-  accepted.
-- The modularization program has no remaining implementation work order.
-  Release recovery and publication are complete.
+  ingest filesystem-containment risk. Its behavior-changing remediation is now
+  planned as WO-032 through WO-035 in context packet 022; the risk remains open
+  until packed-artifact acceptance. WO-030's narrow same-user ancestor-swap
+  assumption remains accepted.
+- The modularization program and release recovery are complete. The new R16
+  program is separate; WO-032 is Ready and later work orders remain blocked on
+  their reviewed predecessors.
 
 ## Open Decisions
 
@@ -47,8 +49,8 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - Whether `@danielblomma/cortex-mcp` is retained as the npm package name during
   the CLI-first migration or followed by a new package with a migration
   window.
-- Scope and sequencing for a separate R16 ingest filesystem-containment work
-  order.
+- Release classification/version for the R16 behavior change after WO-033 and
+  WO-034 compatibility evidence is available.
 
 ## Closed Decisions
 
@@ -59,6 +61,22 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - Under explicit user instruction, PRs #109 and #110 were merged, the failed
   unpublished tag was replaced with corrected `main`, and npm `2.4.2` was
   published only after the fixed release gates passed.
+- R16 remediation is sequenced as WO-032 characterization/contract, WO-033
+  source/control containment, WO-034 output containment/cleanup, and WO-035
+  integrated package acceptance. External source roots are not authorized;
+  portable relative roots only, with explicit symlink denial.
+
+## 2026-08-03
+
+- Created `plan/r16-ingest-filesystem-containment` from `main` at `6052686`.
+- Used Cortex rules, search, and impact plus direct inspection of canonical
+  ingest discovery, pipeline, I/O, and worker paths to scope R16.
+- Added program packet 022, the detailed containment plan, WO-032 through
+  WO-035, and REQ-16 traceability. The plan separates policy/characterization,
+  source reads, output mutation, and packed-artifact acceptance so each work
+  order can run in a fresh bounded session.
+- R16 stays open. No runtime, release metadata, publish, tag, merge, or deploy
+  action was taken.
 
 ## 2026-07-30
 
