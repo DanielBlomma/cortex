@@ -28,7 +28,10 @@ The detailed implementation sequence is stored in
   and memory behavior. WO-030 provides a reviewed repo-local example for
   symlink denial, atomic replacement, hard-link safety, and the narrow
   same-user concurrent-ancestor-swap residual.
-- Ingest adds no source upload or network path; this program must not add one.
+- The application adds no source-data egress or telemetry; this program must
+  not add either or create a new network path. Existing dashboard `npm view`
+  version lookup and optional C#/VB `dotnet publish`/restore are status and
+  trusted-toolchain behaviors that may use the network.
 
 ## Required Contract Anchors
 
@@ -72,7 +75,8 @@ contracts.
      hydration, direct reads, changed mode, and worker reads.
 3. **WO-034 — Output containment and failure cleanup**
    - Implement contained directory validation, same-directory exclusive
-     staging, atomic replacement, cache-read validation, and cleanup.
+     staging, atomic replacement, cache-read validation, cleanup, and
+     dashboard manifest/relation/npm-cache containment.
 4. **WO-035 — Integrated validation and release readiness**
    - Validate the complete source/output boundary and packed artifact, close
      reviews, and update R16 only after all evidence passes.
@@ -105,7 +109,7 @@ packet created by the preceding work order.
 
 - Authorizing arbitrary external source roots or introducing an external-path
   allowlist
-- Network upload, remote storage, telemetry, or new services
+- New source-data egress, remote storage, telemetry, network paths, or services
 - Search ranking, parser semantics, graph schema, embeddings, or chunk IDs
 - Redesigning scaffold ownership or claiming to eliminate the accepted
   same-user final ancestor-swap interval with portable Node APIs
@@ -132,16 +136,22 @@ packet created by the preceding work order.
 - Revalidate candidates before direct reads and worker reads. Apply the same
   policy to full, changed/deleted, and hydrated-cache paths.
 - Use NUL-delimited Git status path parsing and validate every changed,
-  renamed, or deleted path before use.
+  renamed, or deleted path under host-repository identity rules before use;
+  do not apply portable config grammar to legal POSIX colon/backslash names.
 - Route secondary module-summary `README.md` reads through the same boundary.
 - Make both dashboard baseline scanners use the same validated source policy;
-  display-only doctor/status parsing does not need filesystem authorization.
+  source denial precedes `gatherData()` and version lookup. WO-034 separately
+  authorizes dashboard manifests, relation data, and npm-cache access.
 - Valid sources retain existing relative IDs, ordering, output, and fallback.
 
 ### Outputs and prior cache
 
-- Read and write only contained regular files below real `.context/cache` and
-  `.context/db/import` directories with non-symlink directory ancestors.
+- Read and write only ingest-managed data in contained regular files below
+  real `.context/cache` and `.context/db/import` directories with non-symlink
+  directory ancestors. This does not describe trusted parser assets or
+  external toolchain publish artifacts.
+- Preflight dashboard cache/embeddings manifests, relations, and npm-cache in
+  WO-034 before any one of those reads/writes or `npm view` invocation.
 - Stage JSONL, TSV, and manifest files beside their targets with unpredictable
   exclusive names; revalidate and atomically replace without truncating an
   existing inode.
@@ -233,8 +243,9 @@ and Privacy approval before WO-033 changes runtime behavior.
 - Failed staging leaves no uncommitted temporary artifacts.
 - Normal repositories preserve deterministic, incremental, worker, trace,
   package, and memory contracts.
-- No source upload, telemetry, external service, or compatibility removal is
-  introduced.
+- No source-data egress, telemetry, new network path/service, or compatibility
+  removal is introduced; existing npm version and optional .NET toolchain
+  network behaviors are not expanded.
 - R16 remains open until WO-035 has packed-artifact evidence and all required
   reviewers close.
 

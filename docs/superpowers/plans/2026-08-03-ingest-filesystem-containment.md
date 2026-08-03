@@ -48,11 +48,18 @@ boundary.
   and hydrated cache paths.
 - Replace ambiguous line-oriented Git status path parsing with a NUL-delimited
   porcelain contract before validating changed, renamed, or deleted paths.
+- Keep configured-source syntax separate from host-valid Git/walk/cache record
+  identities; on POSIX, tracked drive-looking or backslash-bearing filenames
+  remain legal and indexable.
 - Route secondary reads, including module-summary `README.md` lookup, through
   the same boundary instead of reconstructing and opening a path independently.
 - Make the root and packaged dashboard baseline scanners use the same validated
   `source_paths` policy; they currently duplicate parsing and filesystem scans
   even though they do not write ingest output.
+- Intentionally normalize redundant interior `.` and repeated POSIX separators
+  for changed-mode matching, fixing the released full/changed mismatch while
+  preserving original manifest values and canonical IDs. Treat the observable
+  correction as a WO-035 release-classification input.
 - Preserve repository-relative POSIX record IDs and deterministic ordering for
   every accepted source.
 
@@ -73,6 +80,20 @@ boundary.
   cross-file atomic transaction that portable Node APIs cannot guarantee.
 - Reads of prior cache state use the same contained regular-file policy and
   fail closed on redirected or special-file cache inputs.
+- Dashboard cache/embeddings manifests, six relation inputs, and the
+  `.context/cache/npm-cache` used by `npm view` are WO-034 data paths. Preflight
+  all of them before any such access or npm invocation.
+
+### Parser toolchain boundary
+
+- Packaged query files, dependency/operator-selected tree-sitter WASM,
+  C#/VB parser projects and DLLs, external parser commands, and C#/VB publish
+  directories are trusted package/operator toolchain assets, not configured
+  sources or ingest-managed data outputs.
+- Existing optional `dotnet publish` can restore packages and use the network;
+  dashboard `npm view` is also an existing network-capable version lookup.
+  R16 adds no source-data egress, telemetry, or new network path and does not
+  expand either existing behavior.
 
 ### Explicit residual boundary
 
@@ -98,8 +119,10 @@ matching the trust-model treatment used for WO-030.
   reads, cache hydration, staged JSONL, TSV, manifest writes, and both
   dashboard baseline scanners that consume `source_paths`.
 - [x] Produce the focused WO-033 context packet.
+- [x] Resolve first-pass Contract and Security review findings in the written
+  contract without runtime changes.
 - [ ] Obtain Contract plus Security and Privacy review of the policy before
-  runtime changes.
+  runtime changes; independent re-review is pending.
 
 ### WO-033 — Source and Control-File Containment
 
@@ -107,6 +130,8 @@ matching the trust-model treatment used for WO-030.
   duplicating path checks across discovery, pipeline, and workers.
 - [ ] Anchor the project by real path and validate control-file reads.
 - [ ] Validate and normalize configured source paths before discovery.
+- [ ] Freeze then fix redundant `.`/separator alias matching across full and
+  changed modes without changing manifest values or file IDs.
 - [ ] Apply containment to full discovery, Git changed/deleted paths,
   incremental hydration, direct and secondary README reads, and worker-path
   reads.
@@ -117,8 +142,11 @@ matching the trust-model treatment used for WO-030.
 - [ ] Reject explicit symlink sources and prevent recursive discovery from
   following symlink entries.
 - [ ] Add negative subprocess tests for POSIX absolute, Windows drive/UNC,
-  parent traversal, in-root and escaping symlinks, symlinked control files,
-  and candidate replacement before read.
+  parent traversal, file project root, non-directory `.context`, in-root,
+  escaping, and intermediate symlinks, special-node candidates, symlinked
+  control files, and candidate replacement before read.
+- [ ] Add guarded POSIX full/changed/walk/hydration cases proving legal
+  drive-looking and backslash-bearing repository names remain indexable.
 - [ ] Prove accepted full/changed and worker outputs remain byte-identical to
   the v2.4.2 baseline.
 - [ ] Resolve review findings and create the focused WO-034 packet.
@@ -134,6 +162,10 @@ matching the trust-model treatment used for WO-030.
 - [ ] Reject symlink and special-file destinations and prove hard-linked
   external files are not mutated.
 - [ ] Apply contained regular-file checks to cache hydration reads.
+- [ ] Preflight every dashboard cache/embeddings manifest, relation input, and
+  npm-cache ancestor/leaf before any of those accesses or `npm view`.
+- [ ] Prove redirected dashboard cache and unsafe manifest/relation/npm-cache
+  leaves cause no external read/mutation and no fake npm invocation.
 - [ ] Add deterministic fault injection at staging and pre-rename boundaries;
   verify non-zero exit, unchanged external targets, preserved previously
   committed outputs before commit, and no temporary-file residue.
@@ -155,7 +187,9 @@ matching the trust-model treatment used for WO-030.
   assumed runtime layout are present.
 - [ ] Exercise packed `init --bootstrap`, `doctor`, `update`, and `search` in a
   normal repository, then run packed negative containment smokes.
-- [ ] Confirm no source upload, telemetry, or new network path exists.
+- [ ] Confirm no new source-data egress, telemetry, or network path exists;
+  classify but do not misreport existing npm version and optional .NET
+  restore/publish behavior.
 - [ ] Complete Code Quality, Contract, Security and Privacy, Integration,
   Validation, and Ops/Release review.
 - [ ] Update R16 only after all gates prove both source and output containment.
@@ -165,12 +199,14 @@ matching the trust-model treatment used for WO-030.
 
 | Boundary | Required cases | Required result |
 |---|---|---|
-| Project/control | symlinked `.context`, config/rules symlink, directory/FIFO control input | Fail before config parse or mutation |
+| Project/control | file project root, symlinked/non-directory `.context`, config/rules symlink, directory/FIFO control input | Fail before config parse or mutation |
 | Source syntax | `/absolute`, `../parent`, drive path, UNC path, empty/NUL | Fail with bounded stderr diagnostic |
-| Source resolution | source symlink inside root, source symlink outside root, nested symlink entry | Explicit source fails; walked symlink is never read |
+| Source resolution | source symlink inside/outside root, intermediate source symlink, nested symlink entry, special-node candidate | Explicit/intermediate source fails; walked link/special node is never read |
+| Source aliases/identities | redundant `.`/separators; POSIX `C:foo.js` and `a\\b.js` | Alias changed mode equals canonical; legal repository identities stay indexable |
 | Changed mode | hostile/quoted/newline/` -> ` Git path, deleted traversal, swapped candidate | No parse ambiguity or read outside the real root |
 | Worker | path replacement between scheduling and worker read | Worker rejects and inline fallback cannot bypass policy |
-| Dashboard | invalid source syntax and symlinked source | No external scan; same bounded diagnostic/policy as ingest |
+| Dashboard source | invalid source syntax and symlinked source | Deny before cache access or npm invocation |
+| Dashboard data | redirected cache/embeddings; unsafe manifest/relation/npm-cache leaf | No external read/mutation and fake npm is not invoked |
 | Output parents | symlinked cache, DB, import, or replaced ancestor | Fail before external mutation |
 | Output leaf | symlink, directory, FIFO/socket, hard-link alias | Reject redirects/special files; replace a hard link without mutating its external inode |
 | Failure cleanup | stage failure, pre-commit failure, rename failure | Non-zero exit and no staged residue |
@@ -198,6 +234,8 @@ matching the trust-model treatment used for WO-030.
   outside the real `.context` tree through a static hostile layout.
 - Unsafe control/cache inputs and non-regular destinations fail closed before
   they are consumed or mutated.
+- Dashboard data is preflighted before manifest/relation/npm-cache access or
+  npm invocation.
 - Failed staging leaves no temporary artifacts and never mutates an external
   symlink or hard-link target.
 - Accepted repositories retain deterministic output, incremental behavior,

@@ -38,10 +38,14 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   planned as WO-032 through WO-035 in context packet 022; the risk remains open
   until packed-artifact acceptance. WO-030's narrow same-user ancestor-swap
   assumption remains accepted.
-- The modularization program and release recovery are complete. WO-032's
-  characterization/contract first pass and focused packet 023 are complete;
-  independent Contract and Security/Privacy review is pending. WO-033 remains
-  blocked until the manager records both approvals.
+- The modularization program and release recovery are complete. WO-032's first
+  independent Contract and Security/Privacy reviews returned major findings.
+  The documentation-only review-fix now inventories parser toolchain and all
+  dashboard data paths, assigns dashboard data to WO-034, separates configured
+  sources from host repository identities, makes alias correction explicit,
+  and closes denial phases/error wire shape/negative cases. Independent
+  re-review is pending; WO-033 remains blocked until the manager records both
+  approvals.
 
 ## Open Decisions
 
@@ -86,9 +90,23 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   read/write inventory, frozen valid contracts, fail-closed ordering, bounded
   error ownership, migration rules, and honest concurrent-mutator residual.
   Added focused packet 023 for WO-033. Focused compatibility tests pass 19/19.
-- WO-032 is a first-pass handoff only. Contract and Security/Privacy review is
-  pending; runtime behavior, tests, version, package, R16 status, and release
-  state are unchanged.
+- WO-032's first review returned Contract and Security/Privacy majors. A
+  documentation-only iteration addresses every finding without changing
+  runtime behavior, tests, version, package, R16 status, or release state.
+  Re-review remains required and WO-033 is still blocked.
+- Parser query/WASM/.NET projects, DLLs, executables, optional publish/restore,
+  and environment overrides are recorded as trusted package/operator
+  toolchain artifacts, outside R16's ingest-managed data outputs. Existing
+  dashboard `npm view` and optional .NET restore may use the network; the
+  narrower requirement is no new source-data egress, telemetry, or network
+  path.
+- WO-034 now owns dashboard cache/embeddings manifests, relation JSONL, and
+  npm-cache access, including denial before external read/mutation or npm
+  invocation. WO-033 retains dashboard source scanning and must fail before
+  `gatherData()` on unsafe controls/sources.
+- Review-fix validation passed: C#/VB parser compatibility 25/25, context
+  regressions 81/81, diff check, pattern evidence for 9/9 changed docs, Cortex
+  update/graph completion with 0 failed, doctor 8/8, watcher stopped.
 
 ## 2026-07-30
 

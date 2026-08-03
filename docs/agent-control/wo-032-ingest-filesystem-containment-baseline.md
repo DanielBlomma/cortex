@@ -2,7 +2,7 @@
 
 ## Handoff State
 
-WO-032's characterization and contract first pass is complete on
+WO-032's characterization and contract review-fix pass is complete on
 `plan/r16-ingest-filesystem-containment`. Runtime code, tests, release metadata,
 and package contents are unchanged.
 
@@ -14,9 +14,11 @@ and package contents are unchanged.
   `docs/agent-control/context-packets/022-ingest-filesystem-containment.md`.
 - Next implementation packet:
   `docs/agent-control/context-packets/023-source-control-file-containment.md`.
-- Acceptance gate: independent Contract and Security and Privacy review is
-  still required. The implementer does not approve this first pass, and
-  WO-033 remains blocked until the manager records both approvals.
+- Acceptance gate: the first independent Contract and Security and Privacy
+  reviews both returned major findings. This pass resolves those findings in
+  the written contract; independent re-review is still required. The
+  implementer does not approve this work, and WO-033 remains blocked until
+  the manager records both approvals.
 - R16 remains open through packed-artifact acceptance in WO-035.
 
 ## Characterization Safety and Provenance
@@ -118,6 +120,40 @@ The accepted fallback remains required for parser absence, worker crash, or
 ordinary skipped work. A filesystem-policy rejection is different: it is a
 fatal ingest error and must never be converted into inline fallback.
 
+Parser support has a separate, trusted package/toolchain boundary. It is not
+source-path authority and it is not an ingest-managed data-output boundary:
+
+| Parser operation | Inputs/outputs and overrides | Classification |
+|---|---|---|
+| Tree-sitter queries | Packaged parser modules load package-owned `.scm` query assets at module initialization | Trusted package artifact; not selected by `source_paths` |
+| Tree-sitter WASM | `tree-sitter/base.mjs` loads dependency-owned WASM, or an operator-selected grammar directory via `CORTEX_TREE_SITTER_GRAMMAR_DIR` | Trusted dependency/operator toolchain input; the override may intentionally name a path outside the project |
+| C# parser | Reads/stats the packaged or `CORTEX_CSHARP_PARSER_PROJECT` project, `Program.cs`, and parser DLL; may write/publish below `CORTEX_CSHARP_PUBLISH_DIR`; invokes `CORTEX_DOTNET_CMD` or `dotnet` | Trusted operator/.NET toolchain boundary; `dotnet publish` may restore packages and use the network |
+| VB.NET parser | Reads/stats the packaged or `CORTEX_VBNET_PARSER_PROJECT` project, `Program.cs`, and parser DLL; may write/publish below `CORTEX_VBNET_PUBLISH_DIR`; invokes `CORTEX_DOTNET_CMD` or `dotnet` | Same trusted operator/.NET toolchain boundary |
+| C++ and Rust selection | May invoke an operator-selected compiler/parser command, including `CORTEX_CLANG_CMD`, or select a parser backend | Trusted executable/toolchain selection; it does not grant source-file authority |
+
+The path/executable-affecting settings are explicitly
+`CORTEX_TREE_SITTER_GRAMMAR_DIR`, `CORTEX_DOTNET_CMD`,
+`CORTEX_CSHARP_PARSER_PROJECT`, `CORTEX_CSHARP_TFM`,
+`CORTEX_CSHARP_PUBLISH_DIR`, `CORTEX_CSHARP_FORCE_PUBLISH`,
+`CORTEX_VBNET_PARSER_PROJECT`, `CORTEX_VBNET_TFM`,
+`CORTEX_VBNET_PUBLISH_DIR`, `CORTEX_CLANG_CMD`, `CORTEX_CPP_PARSER`, and
+`CORTEX_RUST_PARSER`. `CORTEX_TREE_SITTER_MAX_BYTES` bounds input size but
+does not select a path. These are trusted operator choices, not values read
+from project configuration.
+
+The canonical ingest registry supplies already accepted source content to
+parsers (including C#/VB batch input); parser CLI-only `parseFile` helpers are
+not ingest call paths. WO-033 still revalidates every ingest source reopen.
+R16 contains only control/source reads and Cortex-managed cache/DB/dashboard
+data accesses and ingest data outputs. It does not contain package query/WASM
+assets, parser DLL/project reads, external tool executables, or parser publish
+artifacts. Compatibility evidence must include
+`scaffold/scripts/parsers/tree-sitter/base.mjs`,
+`scaffold/scripts/parsers/csharp.mjs`,
+`scaffold/scripts/parsers/vbnet.mjs`,
+`scaffold/scripts/lib/ingest/parser-registry.mjs`,
+`tests/csharp-parser.test.mjs`, and `tests/vbnet-parser.test.mjs`.
+
 ### Cache and DB outputs
 
 The cache stage writes 26 JSONL files:
@@ -160,10 +196,19 @@ copy differs only in project-root selection and support for four additional
 TypeScript extensions. WO-033 must reuse one canonical project/source policy
 for both scanners while preserving those entrypoint-specific defaults.
 
-The dashboards' display-only manifest reads, Git freshness calculation,
-version lookup, and relation summaries do not grant filesystem authority and
-are outside WO-033 unless a minimal call-site change is required to share the
-validated baseline scanner.
+The same dashboards also read `.context/cache/manifest.json`,
+`.context/cache/graph-manifest.json`,
+`.context/embeddings/manifest.json`, and six relation JSONL files
+(`constrains`, `implements`, `supersedes`, `defines`, `calls`, and `imports`).
+Their version check invokes `npm view` with `NPM_CONFIG_CACHE` below
+`.context/cache/npm-cache`; npm can both read/write that cache and use the
+network. Git freshness remains a local subprocess read. WO-034 owns
+containment of every dashboard cache/manifest/relation/npm-cache access and
+must preflight the complete dashboard data layout (validating every existing
+component/leaf while preserving safe missing-data fallbacks) before any such
+access or npm invocation. WO-033 owns only config/source baseline scanning and
+must deny an unsafe source layout before `gatherData()` can reach dashboard
+data or the version lookup.
 
 ## Frozen Valid Compatibility Contract
 
@@ -187,11 +232,19 @@ the new boundary. Accepted projects retain these behaviors:
 | Missing source | A syntactically valid, contained, missing source remains a non-fatal skip |
 | Dashboard baseline | Overlapping accepted source paths remain de-duplicated and the packaged extension set remains intact |
 
-Safe compatibility aliases already accepted by the parser may be normalized
-internally: leading `./`, redundant `.` segments, repeated separators, and a
-trailing `/`. The original configured values remain in the manifest so a safe
-configuration does not acquire unrelated observable drift. An empty value is
-not a root alias; `.` is the explicit root value.
+Leading `./` and a trailing `/` are presentation aliases already handled in
+changed mode. Redundant interior `.` segments and repeated POSIX separators
+currently resolve correctly during a full ingest but can fail changed-mode
+source-prefix matching and leave stale output. WO-033 intentionally fixes
+that correctness defect by normalizing all four forms for authorization and
+matching in both modes. The original configured values remain in the
+manifest; file IDs remain canonical and unchanged. Tests must first freeze
+the released full/changed asymmetry, then prove that full output remains
+unchanged and changed output for `src//nested` and `src/./nested` now equals
+the canonical `src/nested` result. No config migration is required for these
+aliases, but the observable changed-mode fix must be called out in WO-035's
+release classification. An empty value is not a root alias; `.` is the
+explicit root value.
 
 ## Fail-Closed Security Contract
 
@@ -206,13 +259,21 @@ not a root alias; `.` is the explicit root value.
    `source_paths` value before resolving, statting, walking, or creating output
    directories.
 4. Validate explicit sources and collect candidates without following walked
-   symlink entries. Validate every Git and hydrated-cache path before it can
-   enter the candidate set.
+   symlink entries. Validate every Git and hydrated-cache identity under its
+   own grammar before it can enter the candidate set.
 5. Revalidate a candidate immediately before direct stat/read and reconstruct
    and revalidate it independently in the worker. Apply the same policy to a
    secondary README read.
-6. Only after all input validation succeeds may output setup or mutation
-   begin. WO-034 adds complete output preflight, staging, commit, and cleanup.
+6. Static project/control/configured-source denial happens before parser
+   initialization, candidate source reads, output setup, or mutation. A Git
+   identity denial happens after the local Git query but before candidate
+   read; a direct-read denial happens at final reopen; a worker denial happens
+   during parsing; and a secondary README denial happens during
+   materialization. Every denial is fatal and precedes output staging or
+   mutation, but only the static class precedes all parsing.
+7. WO-034 adds prior-cache/output and dashboard-data preflight, staging,
+   commit, and cleanup. Dashboard-data denial occurs after a safe source scan
+   but before any manifest/relation/npm-cache access or npm invocation.
 
 `CORTEX_PROJECT_ROOT` selects the project. It never authorizes an external
 source or output root. A symlink used to select a project may resolve to an
@@ -235,6 +296,26 @@ non-empty repository-relative POSIX path. Reject before resolution:
 Lexical containment and `realpath` containment are both required; neither is
 sufficient by itself. Use component-aware relative-path checks, never string
 prefix comparison.
+
+This grammar applies only to configured `source_paths`. Do not apply it to
+repository path identities:
+
+- Git identities are parsed from NUL-delimited porcelain and accepted when
+  they are valid repository-relative names under the host filesystem's path
+  semantics. On POSIX, a tracked filename such as `C:foo.js` or `a\\b.js` is
+  relative and its colon/backslash is literal, so it must remain indexable.
+  On Windows, drive-relative/absolute meanings remain rejected.
+- Walk identities originate from non-followed `readdir` entries below an
+  accepted directory and retain host-valid literal filename characters.
+- Hydrated cache record identities are serialized repository-relative file
+  IDs. Validate their record shape, host-relative containment, and membership
+  relationships; do not reinterpret them as config syntax.
+- Output file IDs remain repository-relative POSIX serialization. Conversion
+  between host paths and IDs must preserve literal POSIX backslashes/colons
+  and must not create authority from a record string.
+
+Guarded POSIX tests must create and ingest drive-looking and backslash-bearing
+tracked filenames through full, changed, walk, and safe hydration paths.
 
 ### Source resolution and reopen
 
@@ -285,17 +366,42 @@ also convert a boundary error to non-zero exit rather than printing an
 uncaught stack. Callers must not catch a policy error as a missing file,
 unavailable parser, skipped worker result, or automatic-summary fallback.
 
-A diagnostic must be bounded and name only:
+A policy error has the stable name `CortexFilesystemPolicyError`. Its `code`
+is one closed value: `CORTEX_FS_PROJECT`, `CORTEX_FS_CONTROL`,
+`CORTEX_FS_SOURCE`, `CORTEX_FS_CACHE`, `CORTEX_FS_DASHBOARD`, or
+`CORTEX_FS_OUTPUT`. Its `phase` is one closed value: `project`, `control`,
+`discovery`, `direct_read`, `worker_read`, `secondary_read`,
+`dashboard_data`, `output_preflight`, or `output_commit`. Its `subject_kind`
+is one of `project`, `control`, `configured_source`, `repository_path`,
+`cache_path`, `dashboard_path`, or `output_path`. Its `reason` is one of `missing`,
+`not_directory`, `not_regular_file`, `invalid_syntax`, `outside_project`,
+`symlink_component`, `path_replaced`, `special_file`, or `worker_protocol`.
+Call sites may not invent new strings without changing and reviewing this
+contract.
 
-- the rejected configuration value or repository-relative path;
-- a stable reason category such as invalid syntax, symlink component, outside
-  project, wrong file type, changed-path rejection, worker revalidation, or
-  unsafe output ancestor/leaf; and
-- the relevant project-relative control/output name when applicable.
+`subject` is fixed by kind: `project` uses the constant `<project-root>`;
+`control` uses a known `.context`-relative control name; `configured_source`
+uses the original configured value; and repository/cache/dashboard/output
+kinds use a normalized project-relative identity. It is capped at 256 Unicode
+scalar values, with a final ellipsis inside that limit when truncated.
+JSON-string rendering escapes control characters; the value is never replaced
+by a resolved external path or symlink target.
+
+The worker wire envelope is exactly
+`{ type: "policy_error", error: { code, phase, subject_kind, subject, reason } }`.
+The parent validates every field against the closed sets; a malformed policy
+envelope becomes fatal `CORTEX_FS_SOURCE`/`worker_read`/`worker_protocol` and
+never enters inline fallback. CLI entrypoints render one bounded stderr line,
+set exit status 1, and omit stack and completion output:
+
+```text
+cortex: filesystem policy denied [<code>] <phase> <subject_kind>=<JSON string> reason=<reason>
+```
 
 Do not print file content, a symlink target, an unrelated absolute path, or a
-stack trace. A denial occurs before source parsing and output mutation, so no
-normal completion summary or manifest is produced.
+stack trace. All denial phases precede output mutation and produce no normal
+completion summary or manifest; the phase table above states when parsing or
+other reads may already have occurred.
 
 ### Residual concurrent-mutator boundary
 
@@ -333,13 +439,18 @@ evidence from WO-033 and WO-034.
   before the current recursive output-directory creation.
 - WO-034 owns output-directory construction, prior-cache file containment,
   target preflight, exclusive staging, atomic replacement, manifest-last
-  commit, and failure cleanup.
+  commit, failure cleanup, and all dashboard manifest/relation/npm-cache
+  reads or writes. It must deny a redirected dashboard data layout before any
+  external read/mutation or `npm view` invocation.
 - WO-035 owns integrated suites, audits, real package inventory/install,
   normal and negative packed smokes, full review closure, release decision,
   and final R16 disposition.
 
-No work order adds source upload, telemetry, remote storage, or another
-network path. MCP compatibility and `.context/mcp` naming remain unchanged.
+No work order adds source-data egress, telemetry, remote storage, or a new
+network path. Existing dashboard `npm view` is a version lookup and existing
+optional C#/VB `dotnet publish` can restore packages; those are trusted
+toolchain/status network behaviors, not source upload, and this program does
+not expand them. MCP compatibility and `.context/mcp` naming remain unchanged.
 
 ## Validation Evidence
 
@@ -362,22 +473,27 @@ Final documentation/control gates:
 
 - context regressions: 81 passed, 0 failed;
 - `git diff --check`: passed;
-- final `cortex update`: 32 embedded, 1,156 reused, 0 failed; graph load
+- review-fix C#/VB parser compatibility: 25 passed, 0 failed, including live
+  parsing, batch resolution, unavailable-runtime fallback, and bundled-DLL
+  trust;
+- final review-fix `cortex update`: completed with 0 failed; graph load
   completed;
-- `cortex pattern-evidence`: local patterns found for all eight changed files;
+- `cortex pattern-evidence`: succeeded for all nine changed files;
 - `cortex doctor`: 8/8; and
 - `cortex watch status`: stopped (optional watcher).
 
 ## Review Gate
 
-Contract review must confirm that the portable syntax, compatibility aliases,
-error ownership, migration requirements, and WO-033/WO-034 split are precise
-enough to implement without policy inference.
+Contract re-review must confirm that the separate identity grammars, explicit
+alias correctness exception, parser-toolchain boundary, closed error/wire
+contract, denial phases, migration requirements, and WO-033/WO-034 split are
+precise enough to implement without policy inference.
 
 Security and Privacy review must confirm that every read/reopen/write path is
 owned, denial precedes mutation, worker fallback cannot bypass policy,
-diagnostics do not disclose external data, no external-root authority or
-network path is added, and the concurrent-mutator residual is stated narrowly.
+diagnostics do not disclose external data, dashboard data accesses are owned,
+no external-root authority or new source-data egress/network path is added,
+and the concurrent-mutator residual is stated narrowly.
 
-Until both reviews pass with no blocker or major finding, this document is a
-complete first-pass handoff but not an accepted authorization for WO-033.
+Until both re-reviews pass with no blocker or major finding, this document is
+a complete review-fix handoff but not an accepted authorization for WO-033.
