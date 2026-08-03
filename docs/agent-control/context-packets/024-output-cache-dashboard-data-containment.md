@@ -18,10 +18,12 @@ accepted WO-033 implementation commit.
 - Branch: continue from the manager-accepted WO-033 commit on
   `plan/r16-ingest-filesystem-containment`.
 - Released compatibility baseline: `v2.4.2`, tag commit `736becf`.
-- WO-033 establishes the sole real-project anchor, portable configured-source
-  grammar, host repository identities, control/source discovery and reopen
-  policy, worker fatal protocol, secondary README policy, and dashboard source
-  pre-scan.
+- WO-033 establishes the sole immutable `{ version, root, dev, ino }`
+  real-project anchor, its before-each-operation revalidation, portable shared
+  configured-source parser/grammar, host repository identities, control/source
+  discovery and reopen policy, no-content worker fatal protocol, secondary
+  README policy, dashboard source pre-scan, and shared dashboard policy
+  lifecycle handler.
 - The packaged library under `scaffold/scripts/lib/ingest/` remains the only
   canonical ingest implementation.
 - R16 remains open until packed-artifact acceptance in WO-035.
@@ -83,6 +85,8 @@ accepted WO-033 implementation commit.
 
 - Project/control/source syntax, discovery, worker protocol, or README-policy
   redesign accepted in WO-033
+- Replacement or duplication of the accepted dashboard policy handler; WO-034
+  routes its new `gatherData()` policy failures through that handler
 - Parser semantics, hashes, IDs, graph schema, ranking, embeddings, or memory
   redesign
 - Cross-file transactional claims that portable rename cannot provide
@@ -120,7 +124,9 @@ because a writer or dashboard caller supplied it.
 Before any cache read, stage creation, write, rename, dashboard data access, or
 npm invocation:
 
-1. Revalidate the real `.context` anchor established by WO-033.
+1. Revalidate the accepted root path, non-symlink directory type, and original
+   `dev`/`ino` identity before traversing the real `.context` anchor
+   established by WO-033.
 2. Inspect every existing component of `.context/cache`, `.context/db/import`,
    and (for dashboard data) `.context/embeddings` with non-following metadata.
 3. Reject symlink, non-directory, or special existing components.
@@ -209,7 +215,9 @@ prove every denial occurs before invocation.
 
 Keep root and packaged project-root defaults, extension sets, baseline counts,
 de-duplication, local Git freshness behavior, version-cache semantics, and
-normal non-TTY rendering unchanged.
+normal non-TTY rendering unchanged. Reuse the WO-033 shared handler so startup,
+reload, timer, resize, and future dashboard-data policy failures clear live TTY
+state and emit exactly one bounded line.
 
 ## Benign Negative Test Matrix
 
@@ -251,6 +259,8 @@ skip.
 - Commit diagnostics claim cross-file atomicity.
 - Root dashboard preflights all data but packaged dashboard does not, or the
   reverse.
+- WO-034 adds a second dashboard error path, so a timer/resize/reload policy
+  failure leaks listeners, raw mode, the hidden cursor, or duplicate lines.
 - A dashboard manifest/relation is read, or npm is invoked, before the last
   data-layout item is checked.
 - A safe missing optional dashboard file becomes fatal or gets created.

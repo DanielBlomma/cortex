@@ -4,25 +4,36 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { Worker } from "node:worker_threads";
 
 import {
   CortexFilesystemPolicyError,
   createFilesystemBoundary,
+  createFilesystemBoundaryFromAnchor,
   normalizeConfiguredSource,
   renderFilesystemPolicyError,
   workerPolicyErrorFromMessage
 } from "../scaffold/scripts/lib/ingest/filesystem-boundary.mjs";
+import { parseSourcePaths as canonicalParseSourcePaths } from "../scaffold/scripts/lib/ingest/config.mjs";
 import {
   collectCandidateFiles,
   parseGitStatusPorcelain
 } from "../scaffold/scripts/lib/ingest/files.mjs";
 import { generateModuleSummary } from "../scaffold/scripts/lib/ingest/chunks.mjs";
 import { parseFilesInWorkers } from "../scaffold/scripts/lib/ingest/workers.mjs";
-import { scanBaseline } from "../scripts/dashboard.mjs";
+import {
+  parseSourcePaths as rootDashboardParseSourcePaths,
+  scanBaseline
+} from "../scripts/dashboard.mjs";
+import {
+  parseSourcePaths as packagedDashboardParseSourcePaths,
+  scanBaseline as packagedScanBaseline
+} from "../scaffold/scripts/dashboard.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const INGEST = path.join(REPO_ROOT, "scaffold", "scripts", "ingest.mjs");
+const ROOT_DASHBOARD = path.join(REPO_ROOT, "scripts", "dashboard.mjs");
 const PACKAGED_DASHBOARD = path.join(REPO_ROOT, "scaffold", "scripts", "dashboard.mjs");
 const ISO_TIMESTAMP = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/g;
 const FIXED_MTIME = new Date("2026-01-01T00:00:00.000Z");
@@ -42,6 +53,93 @@ function writeControls(project, sourcePaths = ["src"]) {
     "utf8"
   );
   fs.writeFileSync(path.join(project, ".context", "rules.yaml"), "rules: []\n", "utf8");
+}
+
+function writeConfigText(project, configText) {
+  fs.mkdirSync(path.join(project, ".context"), { recursive: true });
+  fs.writeFileSync(path.join(project, ".context", "config.yaml"), configText, "utf8");
+  if (!fs.existsSync(path.join(project, ".context", "rules.yaml"))) {
+    fs.writeFileSync(path.join(project, ".context", "rules.yaml"), "rules: []\n", "utf8");
+  }
+}
+
+function replaceProjectRoot(project, kind = "directory") {
+  const original = `${project}-original`;
+  fs.renameSync(project, original);
+  if (kind === "symlink") {
+    const replacement = `${project}-replacement`;
+    fs.mkdirSync(replacement);
+    fs.symlinkSync(replacement, project, "dir");
+    return { original, replacement };
+  }
+  fs.mkdirSync(project);
+  return { original, replacement: project };
+}
+
+function installRootDashboard(project) {
+  const scriptsDirectory = path.join(project, "scripts");
+  const ingestLibrary = path.join(project, "scaffold", "scripts", "lib", "ingest");
+  fs.mkdirSync(scriptsDirectory, { recursive: true });
+  fs.mkdirSync(path.dirname(ingestLibrary), { recursive: true });
+  fs.copyFileSync(ROOT_DASHBOARD, path.join(scriptsDirectory, "dashboard.mjs"));
+  fs.cpSync(path.join(REPO_ROOT, "scaffold", "scripts", "lib", "ingest"), ingestLibrary, { recursive: true });
+  return path.join(scriptsDirectory, "dashboard.mjs");
+}
+
+function runPseudoTtyDashboard({ parent, project, dashboardPath, trigger }) {
+  const runner = path.join(parent, `tty-${trigger}-${path.basename(path.dirname(dashboardPath))}.mjs`);
+  const rawState = path.join(parent, `raw-${trigger}-${path.basename(path.dirname(dashboardPath))}.log`);
+  fs.writeFileSync(runner, [
+    `import fs from "node:fs";`,
+    `import { pathToFileURL } from "node:url";`,
+    `const project = ${JSON.stringify(project)};`,
+    `const trigger = ${JSON.stringify(trigger)};`,
+    `const rawState = ${JSON.stringify(rawState)};`,
+    `Object.defineProperty(process.stdout, "isTTY", { value: true, configurable: true });`,
+    `Object.defineProperty(process.stdin, "isTTY", { value: true, configurable: true });`,
+    `process.stdin.setRawMode = (enabled) => fs.appendFileSync(rawState, \`\${enabled}\\n\`);`,
+    `process.argv = [process.execPath, ${JSON.stringify(runner)}, "--interval", "0.03"];`,
+    `const { main } = await import(pathToFileURL(${JSON.stringify(dashboardPath)}).href);`,
+    `main();`,
+    `if (trigger !== "startup") {`,
+    `  setTimeout(() => {`,
+    `    if (trigger === "reload") {`,
+    `      const config = project + "/.context/config.yaml";`,
+    `      fs.renameSync(config, config + ".safe");`,
+    `      const canary = project + "-config-canary";`,
+    `      fs.writeFileSync(canary, "source_paths:\\n  - .\\n# SIBLING_CANARY\\n");`,
+    `      fs.symlinkSync(canary, config);`,
+    `      process.stdin.emit("data", "r");`,
+    `      return;`,
+    `    }`,
+    `    const parked = project + "-parked-" + trigger;`,
+    `    const replacement = project + "-replacement-" + trigger;`,
+    `    fs.renameSync(project, parked);`,
+    `    fs.mkdirSync(replacement);`,
+    `    fs.symlinkSync(replacement, project, "dir");`,
+    `    if (trigger === "resize") process.stdout.emit("resize");`,
+    `  }, 60);`,
+    `}`,
+    `setTimeout(() => { if (process.exitCode !== 1) process.exit(97); }, 500);`,
+    ``
+  ].join("\n"), "utf8");
+  const result = spawnSync(process.execPath, [runner], {
+    cwd: project,
+    encoding: "utf8",
+    timeout: 5000,
+    env: {
+      ...process.env,
+      CORTEX_PROJECT_ROOT: project,
+      CORTEX_CLI_VERSION: "",
+      PATH: "/usr/bin:/bin"
+    }
+  });
+  return {
+    ...result,
+    rawModes: fs.existsSync(rawState)
+      ? fs.readFileSync(rawState, "utf8").trim().split(/\r?\n/).filter(Boolean)
+      : []
+  };
 }
 
 function runIngest(project, args = [], extraEnv = {}) {
@@ -138,8 +236,81 @@ test("project anchoring rejects missing and non-directory selections while accep
   }
 });
 
+test("established root identity denies real-directory and symlink replacements across every source consumer", async () => {
+  const kinds = ["directory", ...(process.platform === "win32" ? [] : ["symlink"])];
+  for (const kind of kinds) {
+    const { parent, project } = makeParent(`root-replacement-${kind}`);
+    try {
+      writeControls(project, ["src"]);
+      fs.mkdirSync(path.join(project, "src"));
+      fs.writeFileSync(path.join(project, "src", "app.js"), "export const safe = true;\n", "utf8");
+      fs.writeFileSync(path.join(project, "src", "README.md"), "# Safe\n\nSafe module text long enough.\n", "utf8");
+      const boundary = createFilesystemBoundary(project);
+      assert.equal(createFilesystemBoundaryFromAnchor(boundary.anchor).root, boundary.root);
+      const { original, replacement } = replaceProjectRoot(project, kind);
+      fs.mkdirSync(path.join(replacement, "src"), { recursive: true });
+      const canary = path.join(replacement, "src", "app.js");
+      fs.writeFileSync(canary, "SIBLING_CANARY", "utf8");
+      const expectedReason = kind === "symlink" ? "symlink_component" : "path_replaced";
+
+      assert.throws(
+        () => boundary.readRepositoryFile("src/app.js"),
+        (error) => assertPolicy(error, {
+          code: "CORTEX_FS_SOURCE", phase: "direct_read", kind: "repository_path", reason: expectedReason
+        })
+      );
+      await assert.rejects(
+        parseFilesInWorkers([{
+          id: "file:src/app.js",
+          ext: ".js",
+          path: "src/app.js",
+          projectAnchor: boundary.anchor,
+          contentLimit: 1000
+        }], { workerCount: 1 }),
+        (error) => assertPolicy(error, {
+          code: "CORTEX_FS_SOURCE", phase: "worker_read", kind: "repository_path", reason: expectedReason
+        })
+      );
+      assert.throws(
+        () => generateModuleSummary(
+          "src",
+          [{ kind: "CODE", path: "src/app.js" }, { kind: "DOC", path: "src/info.md" }],
+          [],
+          project,
+          boundary
+        ),
+        (error) => assertPolicy(error, {
+          code: "CORTEX_FS_SOURCE", phase: "secondary_read", kind: "repository_path", reason: expectedReason
+        })
+      );
+      for (const dashboardScan of [scanBaseline, packagedScanBaseline]) {
+        assert.throws(
+          () => dashboardScan(project, undefined, boundary),
+          (error) => assertPolicy(error, {
+            code: "CORTEX_FS_CONTROL", phase: "control", kind: "control", reason: expectedReason
+          })
+        );
+      }
+      assert.equal(fs.readFileSync(canary, "utf8"), "SIBLING_CANARY");
+      assert.equal(fs.existsSync(path.join(replacement, ".context", "cache")), false);
+      assert.equal(fs.existsSync(path.join(original, ".context", "cache")), false);
+    } finally {
+      fs.rmSync(parent, { recursive: true, force: true });
+    }
+  }
+});
+
 test("control validation rejects symlinked, directory, and redirected .context layouts", () => {
-  for (const variant of ["context-symlink", "context-file", "config-symlink", "rules-directory"]) {
+  const variants = [
+    "context-symlink",
+    "context-file",
+    "config-symlink",
+    "config-directory",
+    "rules-symlink",
+    "rules-directory",
+    ...(process.platform === "win32" ? [] : ["config-fifo", "rules-fifo"])
+  ];
+  for (const variant of variants) {
     const { parent, project } = makeParent(`control-${variant}`);
     try {
       const sibling = path.join(parent, "sibling");
@@ -148,14 +319,19 @@ test("control validation rejects symlinked, directory, and redirected .context l
       fs.writeFileSync(path.join(sibling, "rules.yaml"), "rules: []\n", "utf8");
       if (variant === "context-symlink") fs.symlinkSync(sibling, path.join(project, ".context"), "dir");
       if (variant === "context-file") fs.writeFileSync(path.join(project, ".context"), "file", "utf8");
-      if (variant === "config-symlink" || variant === "rules-directory") {
+      if (!["context-symlink", "context-file"].includes(variant)) {
         writeControls(project);
-        if (variant === "config-symlink") {
-          fs.rmSync(path.join(project, ".context", "config.yaml"));
-          fs.symlinkSync(path.join(sibling, "config.yaml"), path.join(project, ".context", "config.yaml"));
-        } else {
-          fs.rmSync(path.join(project, ".context", "rules.yaml"));
-          fs.mkdirSync(path.join(project, ".context", "rules.yaml"));
+        const isConfig = variant.startsWith("config-");
+        const controlName = isConfig ? "config.yaml" : "rules.yaml";
+        const controlPath = path.join(project, ".context", controlName);
+        fs.rmSync(controlPath);
+        if (variant.endsWith("symlink")) {
+          fs.symlinkSync(path.join(sibling, controlName), controlPath);
+        } else if (variant.endsWith("directory")) {
+          fs.mkdirSync(controlPath);
+        } else if (variant.endsWith("fifo")) {
+          const made = spawnSync("mkfifo", [controlPath], { encoding: "utf8" });
+          assert.equal(made.status, 0, made.stderr);
         }
       }
       const result = runIngest(project);
@@ -178,7 +354,7 @@ test("portable configured-source syntax accepts aliases and rejects non-portable
   for (const value of [
     "", "   ", "\0", "/tmp/source", "../source", "src/../source",
     "C:\\source", "C:source", "\\source", "\\\\server\\share", "\\\\?\\device",
-    "src\\nested"
+    "src\\nested", "./C:source", "./C:/source", "././C:source", ".//./C:/source"
   ]) {
     assert.throws(
       () => normalizeConfiguredSource(value),
@@ -187,6 +363,40 @@ test("portable configured-source syntax accepts aliases and rejects non-portable
       }),
       JSON.stringify(value)
     );
+  }
+});
+
+test("one shared quote-aware parser preserves empty list entries for canonical rejection", () => {
+  const configText = [
+    "repo_id: parser-test",
+    "source_paths: # shared parser header comment",
+    "  -",
+    "  - # comment-only entry",
+    "  - \"\" # quoted empty",
+    "  - '' # single-quoted empty",
+    "  - src # trailing comment",
+    "  - \"quoted # directory\" # comment",
+    "  - 'single # directory' # comment",
+    "  - src#literal",
+    "rules_file: .context/rules.yaml",
+    ""
+  ].join("\n");
+  const expected = ["", "", "", "", "src", "quoted # directory", "single # directory", "src#literal"];
+  assert.deepEqual(canonicalParseSourcePaths(configText), expected);
+  assert.deepEqual(rootDashboardParseSourcePaths(configText), expected);
+  assert.deepEqual(packagedDashboardParseSourcePaths(configText), expected);
+
+  const { parent, project } = makeParent("empty-source-entry");
+  try {
+    writeConfigText(project, configText);
+    const ingest = runIngest(project);
+    assert.notEqual(ingest.status, 0);
+    assert.match(ingest.stderr, /CORTEX_FS_SOURCE.*configured_source="".*invalid_syntax/);
+    assert.equal(fs.existsSync(path.join(project, ".context", "cache")), false);
+    assert.throws(() => scanBaseline(project), CortexFilesystemPolicyError);
+    assert.throws(() => packagedScanBaseline(project), CortexFilesystemPolicyError);
+  } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
   }
 });
 
@@ -275,6 +485,7 @@ test("candidate reopen rejects symlink, directory, and special-file replacement 
       })
     );
     assert.equal(fs.readFileSync(canary, "utf8"), "SIBLING_CANARY");
+    assert.equal(fs.existsSync(path.join(project, ".context", "cache")), false);
   } finally {
     fs.rmSync(parent, { recursive: true, force: true });
   }
@@ -298,6 +509,35 @@ test("NUL-delimited Git parsing preserves quoted-looking, newline, arrow, rename
     const parsed = parseGitStatusPorcelain(output, boundary);
     assert.deepEqual(parsed.changed, ['"quoted".js', "line\nbreak.js", "new -> name.js"]);
     assert.deepEqual(parsed.deleted, ["old -> name.js", "deleted.js"]);
+  } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("invalid Git identities fail closed with the ratified repository-path projection", () => {
+  const { parent, project } = makeParent("git-invalid-identity");
+  try {
+    const canary = path.join(parent, "canary.js");
+    fs.writeFileSync(canary, "SIBLING_CANARY", "utf8");
+    const boundary = createFilesystemBoundary(project);
+    for (const output of [
+      ` M ../canary.js\0`,
+      ` M ${canary}\0`,
+      `M malformed\0`
+    ]) {
+      assert.throws(
+        () => parseGitStatusPorcelain(output, boundary),
+        (error) => {
+          assertPolicy(error, {
+            code: "CORTEX_FS_SOURCE", phase: "discovery", kind: "repository_path"
+          });
+          assert.equal(error.subject, "<repository-path>");
+          return true;
+        }
+      );
+    }
+    assert.equal(fs.readFileSync(canary, "utf8"), "SIBLING_CANARY");
+    assert.equal(fs.existsSync(path.join(project, ".context", "cache")), false);
   } finally {
     fs.rmSync(parent, { recursive: true, force: true });
   }
@@ -391,30 +631,54 @@ test("changed ingest handles spaces, quotes, newlines, literal arrows, renames, 
   }
 });
 
-test("hydrated file and ADR identities are validated before existence or reuse", () => {
-  const { parent, project } = makeParent("hydration-denial");
-  try {
-    writeControls(project, ["src"]);
-    fs.mkdirSync(path.join(project, "src"));
-    const source = path.join(project, "src", "app.js");
-    fs.writeFileSync(source, "export const value = 1;\n", "utf8");
-    initializeGit(project);
-    assert.equal(runIngest(project).status, 0);
-    const sibling = path.join(parent, "canary.js");
-    fs.writeFileSync(sibling, "SIBLING_CANARY", "utf8");
-    fs.writeFileSync(
-      path.join(project, ".context", "cache", "entities.file.jsonl"),
-      `${JSON.stringify({ id: `file:${sibling}`, path: sibling, content: "cached" })}\n`,
-      "utf8"
-    );
-    fs.appendFileSync(source, "// changed\n", "utf8");
-    const result = runIngest(project, ["--changed"]);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /CORTEX_FS_SOURCE.*discovery.*outside_project/);
-    assert.doesNotMatch(result.stderr, new RegExp(sibling.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-    assert.equal(fs.readFileSync(sibling, "utf8"), "SIBLING_CANARY");
-  } finally {
-    fs.rmSync(parent, { recursive: true, force: true });
+test("hydrated file and ADR identities reject absolute, parent, and symlink paths before reuse", { skip: process.platform === "win32" }, () => {
+  const cases = [
+    { cache: "entities.file.jsonl", kind: "absolute" },
+    { cache: "entities.file.jsonl", kind: "parent" },
+    { cache: "entities.file.jsonl", kind: "symlink" },
+    { cache: "entities.adr.jsonl", kind: "parent" },
+    { cache: "entities.adr.jsonl", kind: "symlink" }
+  ];
+  for (const testCase of cases) {
+    const { parent, project } = makeParent(`hydration-${testCase.cache}-${testCase.kind}`);
+    try {
+      writeControls(project, ["src"]);
+      fs.mkdirSync(path.join(project, "src"));
+      const source = path.join(project, "src", "app.js");
+      fs.writeFileSync(source, "export const value = 1;\n", "utf8");
+      initializeGit(project);
+      assert.equal(runIngest(project).status, 0);
+      const sibling = path.join(parent, testCase.cache.includes("adr") ? "canary.md" : "canary.js");
+      fs.writeFileSync(sibling, "SIBLING_CANARY", "utf8");
+      let hostilePath = sibling;
+      if (testCase.kind === "parent") hostilePath = `../${path.basename(sibling)}`;
+      if (testCase.kind === "symlink") {
+        hostilePath = `src/linked${path.extname(sibling)}`;
+        fs.symlinkSync(sibling, path.join(project, hostilePath));
+      }
+      const record = testCase.cache.includes("adr")
+        ? { id: "adr:hostile", path: hostilePath, body: "cached" }
+        : { id: `file:${hostilePath}`, path: hostilePath, content: "cached" };
+      fs.writeFileSync(
+        path.join(project, ".context", "cache", testCase.cache),
+        `${JSON.stringify(record)}\n`,
+        "utf8"
+      );
+      fs.appendFileSync(source, "// changed\n", "utf8");
+      const result = runIngest(project, ["--changed"]);
+      assert.notEqual(result.status, 0, `${testCase.cache}/${testCase.kind}`);
+      assert.match(
+        result.stderr,
+        testCase.kind === "symlink"
+          ? /CORTEX_FS_SOURCE.*discovery.*symlink_component/
+          : /CORTEX_FS_SOURCE.*discovery.*outside_project/
+      );
+      assert.doesNotMatch(result.stderr, new RegExp(sibling.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+      assert.doesNotMatch(result.stdout, /\[ingest\] complete/);
+      assert.equal(fs.readFileSync(sibling, "utf8"), "SIBLING_CANARY");
+    } finally {
+      fs.rmSync(parent, { recursive: true, force: true });
+    }
   }
 });
 
@@ -426,7 +690,8 @@ test("worker independently denies a pre-dispatch source swap and malformed polic
     const canary = path.join(parent, "canary.js");
     fs.writeFileSync(source, "export const safe = true;\n", "utf8");
     fs.writeFileSync(canary, "SIBLING_CANARY", "utf8");
-    createFilesystemBoundary(project).statRepositoryFile("src/app.js");
+    const boundary = createFilesystemBoundary(project);
+    boundary.statRepositoryFile("src/app.js");
     fs.rmSync(source);
     fs.symlinkSync(canary, source);
 
@@ -435,7 +700,7 @@ test("worker independently denies a pre-dispatch source swap and malformed polic
         id: "file:src/app.js",
         ext: ".js",
         path: "src/app.js",
-        projectRoot: project,
+        projectAnchor: boundary.anchor,
         contentLimit: 1000
       }], { workerCount: 1 }),
       (error) => assertPolicy(error, {
@@ -451,6 +716,65 @@ test("worker independently denies a pre-dispatch source swap and malformed polic
       code: "CORTEX_FS_SOURCE", phase: "worker_read", kind: "repository_path", reason: "worker_protocol"
     });
     assert.equal(fs.readFileSync(canary, "utf8"), "SIBLING_CANARY");
+  } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("production workers reject injected content and parent streams reject malformed result envelopes", async () => {
+  const { parent, project } = makeParent("worker-envelope-policy");
+  try {
+    fs.mkdirSync(path.join(project, "src"));
+    fs.writeFileSync(path.join(project, "src", "app.js"), "export const disk = true;\n", "utf8");
+    const boundary = createFilesystemBoundary(project);
+    const productionWorker = new Worker(new URL("../scaffold/scripts/ingest-worker.mjs", import.meta.url));
+    try {
+      const response = new Promise((resolve, reject) => {
+        productionWorker.once("message", resolve);
+        productionWorker.once("error", reject);
+      });
+      productionWorker.postMessage({
+        taskId: "file:src/app.js",
+        ext: ".js",
+        filePath: "src/app.js",
+        contentLimit: 1000,
+        projectAnchor: boundary.anchor,
+        content: "export const injected = true;"
+      });
+      const message = await response;
+      assert.equal(message.type, "policy_error");
+      assert.equal(message.error.reason, "worker_protocol");
+    } finally {
+      await productionWorker.terminate();
+    }
+
+    const payloads = [
+      `{ taskId: message.taskId, ok: true, result: { chunks: [], errors: [] }, content: "injected" }`,
+      `{ type: "policy_error", error: { code: "CORTEX_FS_SOURCE" } }`
+    ];
+    for (let index = 0; index < payloads.length; index += 1) {
+      const workerPath = path.join(parent, `malformed-${index}.mjs`);
+      fs.writeFileSync(workerPath, [
+        `import { parentPort } from "node:worker_threads";`,
+        `parentPort.on("message", (message) => {`,
+        `  if (message?.type === "shutdown") process.exit(0);`,
+        `  parentPort.postMessage(${payloads[index]});`,
+        `});`,
+        ``
+      ].join("\n"), "utf8");
+      await assert.rejects(
+        parseFilesInWorkers([{
+          id: "file:src/app.js",
+          ext: ".js",
+          path: "src/app.js",
+          projectAnchor: boundary.anchor,
+          contentLimit: 1000
+        }], { workerCount: 1, workerUrl: pathToFileURL(workerPath) }),
+        (error) => assertPolicy(error, {
+          code: "CORTEX_FS_SOURCE", phase: "worker_read", kind: "repository_path", reason: "worker_protocol"
+        })
+      );
+    }
   } finally {
     fs.rmSync(parent, { recursive: true, force: true });
   }
@@ -477,6 +801,46 @@ test("secondary README preserves safe fallback but propagates symlink denial", {
     );
   } finally {
     fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("secondary README distinguishes ordinary unreadable files from directory and special-file policy violations", { skip: process.platform === "win32" }, () => {
+  const variants = ["unreadable", "directory", "fifo"];
+  for (const variant of variants) {
+    const { parent, project } = makeParent(`readme-${variant}`);
+    const readme = path.join(project, "src", "README.md");
+    try {
+      fs.mkdirSync(path.dirname(readme));
+      const files = [{ kind: "CODE", path: "src/app.js" }, { kind: "DOC", path: "src/info.md" }];
+      if (variant === "unreadable") {
+        fs.writeFileSync(readme, "# Hidden\n\nThis text must not be used.\n", "utf8");
+        fs.chmodSync(readme, 0o000);
+        const summary = generateModuleSummary("src", files, [], project);
+        assert.match(summary, /^Module src\./);
+        fs.chmodSync(readme, 0o600);
+      } else if (variant === "directory") {
+        fs.mkdirSync(readme);
+        assert.throws(
+          () => generateModuleSummary("src", files, [], project),
+          (error) => assertPolicy(error, {
+            code: "CORTEX_FS_SOURCE", phase: "secondary_read", kind: "repository_path", reason: "not_regular_file"
+          })
+        );
+      } else {
+        const made = spawnSync("mkfifo", [readme], { encoding: "utf8" });
+        assert.equal(made.status, 0, made.stderr);
+        assert.throws(
+          () => generateModuleSummary("src", files, [], project),
+          (error) => assertPolicy(error, {
+            code: "CORTEX_FS_SOURCE", phase: "secondary_read", kind: "repository_path", reason: "special_file"
+          })
+        );
+      }
+      assert.equal(fs.existsSync(path.join(project, ".context", "cache")), false);
+    } finally {
+      try { fs.chmodSync(readme, 0o600); } catch {}
+      fs.rmSync(parent, { recursive: true, force: true });
+    }
   }
 });
 
@@ -549,6 +913,86 @@ test("dashboard rejects a symlinked config control without reading its target", 
   }
 });
 
+test("both dashboard scanners deny empty and alias-prefixed drive syntax plus every hostile config shape", { skip: process.platform === "win32" }, () => {
+  const scanners = [scanBaseline, packagedScanBaseline];
+  const syntaxValues = ["", "# empty", "././C:outside", ".//C:/outside", "../outside"];
+  for (const [scannerIndex, scanner] of scanners.entries()) {
+    for (const value of syntaxValues) {
+      const { parent, project } = makeParent(`dashboard-syntax-${scannerIndex}`);
+      try {
+        writeConfigText(project, `source_paths:\n  - ${value}\n`);
+        assert.throws(
+          () => scanner(project),
+          (error) => assertPolicy(error, {
+            code: "CORTEX_FS_SOURCE", phase: "discovery", kind: "configured_source", reason: "invalid_syntax"
+          })
+        );
+      } finally {
+        fs.rmSync(parent, { recursive: true, force: true });
+      }
+    }
+
+    for (const variant of ["symlink", "directory", "fifo"]) {
+      const { parent, project } = makeParent(`dashboard-control-${scannerIndex}-${variant}`);
+      try {
+        const context = path.join(project, ".context");
+        fs.mkdirSync(context);
+        const config = path.join(context, "config.yaml");
+        if (variant === "symlink") {
+          const canary = path.join(parent, "config.yaml");
+          fs.writeFileSync(canary, "source_paths:\n  - .\n# SIBLING_CANARY\n", "utf8");
+          fs.symlinkSync(canary, config);
+        } else if (variant === "directory") {
+          fs.mkdirSync(config);
+        } else {
+          const made = spawnSync("mkfifo", [config], { encoding: "utf8" });
+          assert.equal(made.status, 0, made.stderr);
+        }
+        assert.throws(
+          () => scanner(project),
+          (error) => assertPolicy(error, {
+            code: "CORTEX_FS_CONTROL", phase: "control", kind: "control"
+          })
+        );
+      } finally {
+        fs.rmSync(parent, { recursive: true, force: true });
+      }
+    }
+  }
+});
+
+test("both dashboard pseudo-TTY entrypoints handle startup, reload, timer, and resize policy failures once", { skip: process.platform === "win32" }, () => {
+  for (const dashboardKind of ["root", "packaged"]) {
+    for (const trigger of ["startup", "reload", "timer", "resize"]) {
+      const { parent, project } = makeParent(`dashboard-tty-${dashboardKind}-${trigger}`);
+      try {
+        writeControls(project, trigger === "startup" ? [""] : ["src"]);
+        fs.mkdirSync(path.join(project, "src"));
+        fs.writeFileSync(path.join(project, "src", "app.js"), "export const value = true;\n", "utf8");
+        const dashboardPath = dashboardKind === "root"
+          ? installRootDashboard(project)
+          : PACKAGED_DASHBOARD;
+        const result = runPseudoTtyDashboard({ parent, project, dashboardPath, trigger });
+        assert.equal(result.status, 1, `${dashboardKind}/${trigger}: ${result.stderr}`);
+        const diagnostics = result.stderr.trim().split(/\r?\n/).filter(Boolean);
+        assert.equal(diagnostics.length, 1, `${dashboardKind}/${trigger}: ${result.stderr}`);
+        assert.ok([...diagnostics[0]].length <= 256);
+        assert.match(diagnostics[0], /^cortex: filesystem policy denied \[/);
+        assert.doesNotMatch(diagnostics[0], new RegExp(parent.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+        if (trigger === "startup") {
+          assert.deepEqual(result.rawModes, []);
+        } else {
+          assert.deepEqual(result.rawModes, ["true", "false"]);
+          assert.match(result.stdout, /\x1b\[\?25l/);
+          assert.match(result.stdout, /\x1b\[\?25h/);
+        }
+      } finally {
+        fs.rmSync(parent, { recursive: true, force: true });
+      }
+    }
+  }
+});
+
 test("policy rendering is bounded, JSON-escaped, and does not disclose symlink targets", () => {
   const longSubject = `${"x".repeat(300)}\\bad\nsecret`;
   let error;
@@ -559,8 +1003,77 @@ test("policy rendering is bounded, JSON-escaped, and does not disclose symlink t
   }
   const rendered = renderFilesystemPolicyError(error);
   assert.equal([...error.subject].length, 256);
+  assert.ok([...rendered].length <= 256);
   assert.match(rendered, /configured_source="/);
+  assert.match(rendered, / reason=invalid_syntax$/);
   assert.doesNotMatch(rendered, /\nsecret/);
   assert.equal(rendered.split("\n").length, 1);
   assert.doesNotMatch(rendered, / at |Error:/);
+});
+
+test("ingest and both dashboard entrypoints sanitize hostile filesystem errors and cap the complete line", () => {
+  const { parent, project } = makeParent("entrypoint-diagnostics");
+  try {
+    const hostileSource = "a".repeat(5000);
+    writeControls(project, [hostileSource]);
+    const rootDashboard = installRootDashboard(project);
+    const commands = [
+      {
+        script: INGEST,
+        env: {
+          CORTEX_PROJECT_ROOT: project,
+          CORTEX_DOTNET_CMD: path.join(project, "missing-dotnet"),
+          CORTEX_INGEST_WORKERS: "0"
+        }
+      },
+      { script: rootDashboard, env: {} },
+      { script: PACKAGED_DASHBOARD, env: { CORTEX_PROJECT_ROOT: project } }
+    ];
+    for (const { script, env } of commands) {
+      const result = spawnSync(process.execPath, [script], {
+        cwd: project,
+        encoding: "utf8",
+        env: { ...process.env, CORTEX_CLI_VERSION: "", PATH: "/usr/bin:/bin", ...env }
+      });
+      assert.notEqual(result.status, 0, `${script}\nstdout=${result.stdout}\nstderr=${result.stderr}`);
+      const lines = result.stderr.trim().split(/\r?\n/).filter(Boolean);
+      assert.equal(lines.length, 1, result.stderr);
+      assert.ok([...lines[0]].length <= 256, `${[...lines[0]].length} scalars`);
+      assert.match(lines[0], /^cortex: filesystem policy denied \[/);
+      assert.match(lines[0], / reason=invalid_syntax$/);
+      assert.doesNotMatch(lines[0], new RegExp(parent.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+      assert.doesNotMatch(lines[0], /ENAMETOOLONG| at |Error:/);
+    }
+    assert.equal(fs.existsSync(path.join(project, ".context", "cache")), false);
+
+    const impossibleRoot = path.join(parent, "r".repeat(5000));
+    const rootResult = spawnSync(process.execPath, [INGEST], {
+      cwd: project,
+      encoding: "utf8",
+      env: { ...process.env, CORTEX_PROJECT_ROOT: impossibleRoot }
+    });
+    assert.notEqual(rootResult.status, 0);
+    const rootLine = rootResult.stderr.trim();
+    assert.ok([...rootLine].length <= 256);
+    assert.match(rootLine, /CORTEX_FS_PROJECT.*project="<project-root>".*invalid_syntax/);
+    assert.doesNotMatch(rootLine, /ENAMETOOLONG| at |Error:/);
+
+    if (process.platform !== "win32") {
+      writeControls(project, ["src"]);
+      const unreadable = path.join(project, "src");
+      fs.mkdirSync(unreadable);
+      fs.chmodSync(unreadable, 0o000);
+      const unreadableResult = runIngest(project);
+      fs.chmodSync(unreadable, 0o700);
+      assert.notEqual(unreadableResult.status, 0);
+      const unreadableLines = unreadableResult.stderr.trim().split(/\r?\n/).filter(Boolean);
+      assert.equal(unreadableLines.length, 1);
+      assert.ok([...unreadableLines[0]].length <= 256);
+      assert.match(unreadableLines[0], /CORTEX_FS_SOURCE.*reason=path_replaced/);
+      assert.doesNotMatch(unreadableLines[0], /EACCES|EPERM| at |Error:/);
+    }
+  } finally {
+    try { fs.chmodSync(path.join(project, "src"), 0o700); } catch {}
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
 });

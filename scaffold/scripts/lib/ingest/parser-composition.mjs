@@ -106,7 +106,7 @@ async function collectParseEligibleFiles({
   return parseEligible;
 }
 
-function createWorkerTasks(fileRecords, parseEligible, csharpBatchCache, projectRoot) {
+function createWorkerTasks(fileRecords, parseEligible, csharpBatchCache, projectAnchor) {
   return fileRecords
     .filter((fileRecord) => {
       const eligible = parseEligible.get(fileRecord.id);
@@ -124,7 +124,7 @@ function createWorkerTasks(fileRecords, parseEligible, csharpBatchCache, project
       id: fileRecord.id,
       ext: parseEligible.get(fileRecord.id).ext,
       contentLimit: MAX_CONTENT_CHARS,
-      projectRoot,
+      projectAnchor,
       path: fileRecord.path
     }));
 }

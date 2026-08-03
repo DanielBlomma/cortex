@@ -5,8 +5,11 @@
 WO-033 implementation is complete on `plan/r16-ingest-filesystem-containment`
 from accepted WO-032 commit `6be1fdbdd56cb9baf534725df8fec7e345f21455`.
 Independent Code Quality, Contract, Security and Privacy, Integration, and
-Validation review remains pending; this document records implementation
-evidence, not manager acceptance.
+Validation review found acceptance-blocking parser, root-identity, worker,
+dashboard-lifecycle, diagnostic, and matrix gaps in commit `3d3dd56`. The
+implementation has been iterated to resolve those findings; independent
+re-review remains pending. This document records implementation evidence, not
+manager acceptance.
 
 - Released compatibility baseline: `v2.4.2`, tag commit `736becf`.
 - Package and release metadata remain `2.4.2`.
@@ -23,24 +26,32 @@ evidence, not manager acceptance.
 ## Implemented Boundary
 
 `createFilesystemBoundary()` resolves the selected project once, requires an
-existing directory, retains its real path as the sole anchor, and reconstructs
-all later source paths from repository-relative identities. Component-aware
-`path.relative()` checks, `lstatSync()` inspection, and immediate reopen
-validation replace lexical-prefix authority. A project-root symlink spelling
-may select a project, but no symlink below the resulting real anchor grants
-authority.
+existing directory, obtains its real path, verifies the real root itself is a
+non-symlink directory, and captures its bigint `dev`/`ino` identity. The
+versioned immutable anchor `{ version, root, dev, ino }` is revalidated before
+each control/source traversal or read. Component-aware `path.relative()`
+checks, `lstatSync()` inspection, and immediate reopen validation replace
+lexical-prefix authority. A project-root symlink spelling may select a
+project, but no symlink below—or later replacement of—the resulting real
+anchor grants authority.
 
 The canonical module owns the closed `CortexFilesystemPolicyError` schema,
 bounded subject projection, single-line CLI rendering, worker wire projection,
 and worker-envelope validation. Project, control, configured-source, and
 repository-path errors expose only contract-approved values or the stable
 `<repository-path>` placeholder when an invalid host identity has no safe
-project-relative representation. They never expose a symlink target or an
-external resolved path.
+project-relative representation. WO-032 and WO-033 explicitly ratify that
+constant as the privacy-safe subject for an unrepresentable repository
+identity: it exposes no path component while retaining the closed policy
+classification. Stored subjects are bounded, and rendering shortens the
+JSON-escaped subject further so the complete line is at most 256 Unicode
+scalar values. Diagnostics never expose a symlink target, external resolved
+path, raw filesystem error, or stack.
 
-The final same-user ancestor-exchange interval remains: portable Node APIs do
-not expose directory-descriptor-relative `openat` operations. Every sensitive
-source operation revalidates immediately before its path-based syscall, but
+The final same-user validation-to-syscall interval remains: portable Node APIs
+do not expose directory-descriptor-relative `openat` operations. Stable root
+identity and every sensitive source operation are revalidated immediately
+before the path-based syscall. No broader ancestor interval is accepted, and
 the implementation does not claim complete concurrent-mutator elimination.
 
 ## Project and Control Ordering
@@ -76,6 +87,15 @@ sources remain non-fatal. Existing explicit sources must be regular files or
 directories with non-symlink ancestors; an explicit symlink is denied even
 when its target is inside the project.
 
+Ingest and both dashboards import one quote-aware `source_paths` list parser.
+It strips YAML comments only outside quoted scalars, preserves literal `#`
+inside quotes and unseparated bare values, and deliberately retains bare,
+comment-only, and quoted-empty entries as empty strings so canonical syntax
+validation rejects them. Safe `./`, repeated-separator, and interior `.`
+aliases are normalized before the drive-qualified/drive-relative checks, so
+`././C:outside` and equivalent nested aliases cannot conceal a Windows root
+form on a POSIX host.
+
 Git, walk, and hydrated-cache identities use a separate host-repository
 grammar. On POSIX, literal `C:foo.js` and `a\\b.js` names remain valid and keep
 their exact repository-relative IDs through full discovery, walking, changed
@@ -103,14 +123,18 @@ absolute paths. Direct scan revalidates before metadata inspection and again
 before read. Symlink, escape, directory replacement, and special-file
 replacements are fatal filesystem-policy errors.
 
-Worker tasks carry only the real project anchor plus the accepted repository
-identity. The worker reconstructs and revalidates the path before reading. A
-policy failure is sent only in the closed `policy_error` envelope, is checked
-against the in-flight task in the parent, terminates the stream, and cannot
-enter retained-content inline fallback. Malformed policy envelopes become
-fatal `CORTEX_FS_SOURCE` / `worker_read` / `worker_protocol`. Ordinary parser
-skip, crash, missing result, partial/all worker death, disabled workers, and
-invalid worker-count fallback remain unchanged.
+Worker tasks carry only the established immutable project anchor plus the
+accepted repository identity. The worker consumes that anchor through a
+dedicated verifier which checks the same root path, non-symlink directory
+type, and original `dev`/`ino`; it never calls project selection/`realpath` to
+authorize whatever now occupies the path. Production task messages have no
+content field: workers always reopen the accepted source. A policy failure is
+sent only in the closed `policy_error` envelope, is checked against the
+in-flight task in the parent, terminates the stream, and cannot enter inline
+fallback. Injected-content, malformed result, and malformed policy envelopes
+become fatal `CORTEX_FS_SOURCE` / `worker_read` / `worker_protocol`. Ordinary
+parser skip, crash, missing result, partial/all worker death, disabled workers,
+and invalid worker-count fallback remain unchanged.
 
 `generateModuleSummary()` now performs its independent README lookup through
 the same boundary. A missing safe README or ordinary read failure after
@@ -126,6 +150,15 @@ previously specified and otherwise unchanged. Source/config policy failure is
 rendered as one bounded stderr line and exits non-zero before `gatherData()`;
 a fake-npm marker regression proves the version lookup is not invoked.
 
+Both entrypoints also use one shared filesystem-policy lifecycle handler.
+Startup, manual reload, timer rendering, resize rendering, and current/future
+`gatherData()` policy failures all flow through it. The first denial clears
+timers and listeners, pauses input, restores raw mode and cursor state, emits
+exactly one complete-line-bounded diagnostic, and exits non-zero. Pseudo-TTY
+regressions exercise every event path in both entrypoints. Their main-module
+check compares real identities, with a lexical fallback only when an argv path
+cannot be resolved, so symlinked temporary-parent spellings do not skip main.
+
 WO-033 does not authorize dashboard data. WO-034 must preflight
 `.context/cache`, `.context/embeddings`, all three manifests, all six relation
 leaves, and `npm-cache` before the first dashboard data access or npm
@@ -133,26 +166,35 @@ invocation.
 
 ## Compatibility and Negative Evidence
 
-The focused compatibility and policy matrix passed 61/61. It includes the 17
-new temporary-root cases in
+The latest focused compatibility and policy matrix passed with 49 tests and
+20 environment-dependent C#/VB skips, with zero failures. It includes the 25
+temporary-root cases in
 `tests/ingest-filesystem-boundary.test.mjs` plus the frozen ingest, worker,
 trace, dashboard, and C#/VB parser suites.
 
 The new cases cover:
 
-- missing/file/symlink-spelled project roots;
-- symlinked or non-directory `.context` and symlinked/directory controls;
-- the complete portable-source rejection families and accepted aliases;
+- missing/file/symlink-spelled project roots and real-directory/symlink root
+  replacement across direct, worker, README, and both dashboard consumers;
+- symlinked or non-directory `.context` and symlinked/directory/FIFO config
+  and rules controls;
+- shared quote-aware parsing, retained empty entries, the complete
+  portable-source rejection families, alias-prefixed drive forms, and accepted
+  aliases;
 - safe/missing/explicit-link/intermediate-link/walked-link sources;
 - direct symlink/directory/FIFO replacement with a sibling canary;
 - NUL Git parsing for spaces, quotes, newlines, arrows, rename, and deletion;
 - full/changed alias equivalence and original manifest values;
 - POSIX colon/backslash identities through full/changed/walk/hydration;
-- invalid hydrated source identities before reuse;
-- independent worker denial and malformed-envelope fatal handling;
-- safe/missing/symlinked secondary README behavior;
-- root/packaged dashboard denial before data/npm; and
-- bounded JSON-escaped diagnostics without stack or target disclosure.
+- absolute/parent/symlinked hydrated file and ADR identities before reuse;
+- independent worker denial, no content shortcut, and injected/malformed
+  task/result/policy-envelope fatal handling;
+- safe/missing/ordinary-unreadable/directory/FIFO/symlink/replaced secondary
+  README behavior;
+- both dashboard syntax/control matrices, denial before data/npm, and
+  pseudo-TTY startup/reload/timer/resize cleanup; and
+- bounded complete JSON-escaped diagnostics for ENAMETOOLONG and other
+  filesystem failures without raw error, stack, path, or target disclosure.
 
 All fixtures create the project, links, and synthetic sibling canaries under
 one test-owned temporary parent and remove that parent. The Windows-incompatible
@@ -177,10 +219,12 @@ Frozen valid evidence remains:
 
 - Syntax checks passed for both ingest wrappers, both dashboards, the worker,
   and every changed canonical module.
-- Focused boundary/ingest/dashboard/C#/VB matrix: 61 passed, 0 failed.
+- Focused boundary/ingest/dashboard/C#/VB matrix: 49 passed, 20 expected
+  environment-dependent parser skips, 0 failed; the boundary suite itself
+  passed 25/25.
 - Context regressions: 81 passed, 0 failed.
 - Full root `npm test`, after adding the new boundary suite to the
-  authoritative test script: 340 passed, 0 failed, plus 81/81 context
+  authoritative test script: 348 passed, 0 failed, plus 81/81 context
   regressions.
 - Full `npm --prefix scaffold/mcp test`: 413 passed, 0 failed.
 - `npm pack --dry-run --json`: version `2.4.2`, 418 entries, including
@@ -190,11 +234,12 @@ Frozen valid evidence remains:
   initialized projects.
 - Final `cortex update`: completed with 0 failed entities; graph load
   completed.
-- `cortex pattern-evidence`: passed for all four changed indexed files
-  (`scripts/ingest.mjs`, `scripts/dashboard.mjs`, this baseline, and packet
-  024). Changed `scaffold/`, `tests/`, package, and ownership files are outside
-  the configured `bin, scripts, docs, README.md` source set and are covered by
-  direct tests, package inventory, and pending independent review.
+- `cortex pattern-evidence`: passed for all six changed indexed files
+  (`scripts/ingest.mjs`, `scripts/dashboard.mjs`, the WO-032 and WO-033
+  baselines, and packets 023 and 024). Changed `scaffold/`, `tests/`, package,
+  and ownership files are outside the configured `bin, scripts, docs,
+  README.md` source set and are covered by direct tests, package inventory,
+  and pending independent review.
 - `cortex doctor`: 8/8; optional watcher: stopped.
 - `git diff --check`: passed.
 

@@ -132,7 +132,10 @@ Create one canonical module instead of reproducing checks at each call site.
 It must:
 
 - resolve the selected project once, require an existing directory, obtain its
-  real path, and carry that real path as the sole containment anchor;
+  real path, require the real root itself to be a non-symlink directory, and
+  carry the immutable real path plus stable `dev`/`ino` identity as the sole
+  containment anchor; revalidate all three before every sensitive traversal
+  or read;
 - expose control/source validation and safe candidate reconstruction without
   treating caller-provided absolute paths as authority;
 - use component-aware relative checks and non-following metadata inspection;
@@ -173,6 +176,10 @@ ownership or mutation policy into ingest.
 - Reject empty/whitespace, NUL, POSIX absolute, Windows drive-qualified or
   drive-relative, rooted-backslash/device/UNC, any backslash separator, and
   any `..` segment on every platform.
+- Use one quote-aware parser for ingest and both dashboards. Preserve bare,
+  comment-only, and quoted-empty list entries so canonical validation rejects
+  them; strip comments only outside quoted scalars. Normalize safe `./` and
+  interior alias segments before checking drive-qualified/root forms.
 - Preserve a syntactically valid missing contained source as a non-fatal skip.
 - Require an existing explicit source to be a non-symlink regular file or
   directory below the real project with non-symlink ancestors.
@@ -219,6 +226,10 @@ walk, and hydration tests for those names.
 - Build worker authority from the real project anchor plus the validated
   repository-relative candidate identity. Do not grant authority because a
   parent supplied an absolute path.
+- The worker consumes and verifies the already established immutable anchor;
+  it must not call project selection/`realpath` and authorize a replacement.
+- Production task envelopes never carry source content. Injected content or a
+  malformed task/result envelope is fatal `worker_protocol`.
 - The worker independently reconstructs and revalidates the path immediately
   before read.
 - Preserve inline fallback for parser unavailable/skip, worker crash, missing
@@ -259,6 +270,10 @@ Use the same canonical source syntax and source-resolution policy in
   manifest, all six relation leaves, and `npm-cache` before any one of those
   data accesses or npm invocation. Safe absent optional data keeps its current
   fallback; every existing component/leaf is validated.
+- Use one shared policy lifecycle handler for startup, reload, timer, resize,
+  and future `gatherData()` policy failures. It clears timers/listeners,
+  restores raw mode/cursor state, writes exactly one bounded line, and exits
+  non-zero.
 
 ## Error and Migration Contract
 
@@ -324,17 +339,17 @@ external content.
 
 | Area | Required cases | Required result |
 |---|---|---|
-| Project/control | nonexistent project, project root is a file, symlinked `.context`, non-directory `.context`, config/rules symlink, directory/non-regular control | Non-zero before parse or output mutation; bounded diagnostic |
-| Syntax | absolute POSIX, drive absolute/relative, UNC/device/rooted backslash, backslash separator, empty/quoted empty, NUL, any parent segment | Denied identically on POSIX; platform-specific cases guarded where necessary |
+| Project/control | nonexistent project, project root is a file, real-directory/symlink root replacement, symlinked `.context`, non-directory `.context`, config/rules symlink, directory/non-regular control | Non-zero before parse or output mutation; bounded diagnostic; established anchors never reauthorize replacements |
+| Syntax | absolute POSIX, drive absolute/relative including nested safe-alias prefixes, UNC/device/rooted backslash, backslash separator, bare/comment-only/quoted empty, quote-aware `#`, NUL, any parent segment | Denied identically on POSIX; literal quoted `#` preserved; platform-specific cases guarded where necessary |
 | Safe aliases | `.`, `./src`, trailing slash, redundant interior `.`/separator forms | Freeze released full/changed mismatch; after fix full stays frozen, changed equals canonical source, manifest originals and IDs stay unchanged |
 | Source resolution | missing contained source, safe file/dir, explicit in-root/escaping symlink, intermediate source-component symlink, nested walked symlink | Missing skips; safe indexes; any explicit/intermediate link denies; walked link is never read |
 | Direct read | candidate replaced by symlink/directory or a FIFO/socket/device candidate | Fatal denial; synthetic sibling canary unread; special node never opened |
 | Repository identities | POSIX-guarded tracked `C:foo.js` and `a\\b.js` via full, changed, walk, hydration | Host-valid names stay indexable with stable IDs; config grammar remains strict |
 | Changed mode | spaces, quotes, newline, literal ` -> `, rename, deletion, invalid candidate | Unambiguous contained IDs; invalid path denied before read |
-| Hydration | safe cached file/ADR, parent/absolute/symlinked record path | Safe changed output frozen; invalid record cannot trigger external existence/read |
-| Worker | safe worker, swap before worker read, ordinary skip/crash/all-death | Swap is fatal with no inline bypass; ordinary fallback remains byte-identical |
-| README | safe, missing, ordinary unreadable, symlink/replacement | Safe summary/fallback preserved; policy violation fatal |
-| Dashboard source | normal overlap, invalid syntax, explicit symlink source, symlinked config | Counts unchanged; unsafe scan exits before `gatherData`, cache access, or npm invocation |
+| Hydration | safe cached file/ADR, parent/absolute/symlinked file and ADR record paths | Safe changed output frozen; invalid record cannot trigger external existence/read |
+| Worker | safe worker, source/root swap before worker read, injected content, malformed task/result/policy envelopes, ordinary skip/crash/all-death | Swap/envelope violation is fatal with no inline bypass; ordinary fallback remains byte-identical |
+| README | safe, missing, ordinary unreadable, directory, FIFO/special, symlink/file/root replacement | Safe summary/fallback preserved; policy violation fatal |
+| Dashboard source | normal overlap, empty/drive/parent syntax, explicit symlink source, config symlink/directory/special, root replacement, pseudo-TTY startup/reload/timer/resize | Counts unchanged; unsafe scan exits once before `gatherData`, cache access, or npm invocation and restores TTY state |
 | Dashboard data (WO-034) | redirected cache/embeddings ancestor; symlink/special manifest, relation, or npm-cache leaf; fake npm counter | Deny before external read/mutation and before fake npm is invoked |
 
 Do not add timing-dependent race tests or hooks that widen production
@@ -346,6 +361,8 @@ record each skip.
 
 - The project spelling is real-pathed but later code continues using the old
   lexical `REPO_ROOT` for authorization.
+- The project real path is retained without stable type/`dev`/`ino`, or a
+  worker calls project selection again and blesses a replacement root.
 - POSIX tests pass while drive-relative, device, rooted-backslash, or UNC
   spellings remain accepted on a POSIX runner.
 - A safe alias is normalized into a different manifest value or record ID.
@@ -359,11 +376,15 @@ record each skip.
   replacement without checking.
 - Worker rejection is represented as an ordinary miss and inline fallback
   parses retained content.
+- A production task still carries retained content, or a malformed worker
+  result is treated as an ordinary skip.
 - `generateModuleSummary()` catches a boundary error and silently falls back.
 - The root dashboard is fixed while the packaged scanner retains duplicate
   unsafe logic, or vice versa.
 - Dashboard source denial still reaches `gatherData()`, or WO-034 validates
   one manifest/relation after another access or `npm view` already occurred.
+- A live dashboard callback throws outside the shared handler and leaves an
+  interval/listener, raw input, hidden cursor, or duplicate diagnostic.
 - Existing `ensureDirectory()` mutates a redirected cache/DB ancestor before
   invalid source input fails.
 - A new boundary module works in the repository but is omitted from `npm pack`.

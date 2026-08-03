@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
+import { isFilesystemPolicyError } from "./filesystem-boundary.mjs";
 import {
   CODE_FILE_EXTENSIONS,
   CPP_IMPORT_RESOLUTION_EXTENSIONS,
@@ -60,13 +61,7 @@ export function uniqueSorted(values) {
 }
 
 export function walkDirectory(boundary, directoryIdentity, files) {
-  const directory = directoryIdentity === ""
-    ? { absolutePath: boundary.root }
-    : boundary.inspectRepositoryPath(directoryIdentity, {
-        phase: "discovery",
-        expected: "directory"
-      });
-  const entries = fs.readdirSync(directory.absolutePath, { withFileTypes: true });
+  const { entries } = boundary.readRepositoryDirectory(directoryIdentity, "discovery");
   for (const entry of entries) {
     const identity = boundary.childIdentity(directoryIdentity, entry.name);
     if (entry.isSymbolicLink()) {
@@ -230,12 +225,20 @@ export function parseGitStatusPorcelain(output, boundary) {
 export function getGitChanges(boundary) {
   let output;
   try {
+    boundary.assertProjectAnchor({
+      code: "CORTEX_FS_SOURCE",
+      phase: "discovery",
+      subject_kind: "repository_path",
+      subject: ".",
+      reason: "path_replaced"
+    });
     output = execSync("git status --porcelain=v1 -z --untracked-files=all", {
       cwd: boundary.root,
       stdio: ["ignore", "pipe", "ignore"],
       encoding: "utf8"
     });
-  } catch {
+  } catch (error) {
+    if (isFilesystemPolicyError(error)) throw error;
     return {
       changed: [],
       deleted: []

@@ -16,7 +16,8 @@ import {
   parseFileContent
 } from "./lib/ingest/parser-registry.mjs";
 import {
-  createFilesystemBoundary,
+  createFilesystemBoundaryFromAnchor,
+  createWorkerProtocolError,
   isFilesystemPolicyError,
   policyErrorEnvelope
 } from "./lib/ingest/filesystem-boundary.mjs";
@@ -28,22 +29,42 @@ if (!parentPort) {
 const ready = loadParsers();
 
 parentPort.on("message", async (message) => {
-  if (message && message.type === "shutdown") {
+  if (
+    message &&
+    typeof message === "object" &&
+    !Array.isArray(message) &&
+    message.type === "shutdown" &&
+    Object.keys(message).length === 1
+  ) {
     process.exit(0);
   }
 
-  const { taskId, ext, filePath } = message;
+  const filePath = typeof message?.filePath === "string" ? message.filePath : "<repository-path>";
+  const taskId = typeof message?.taskId === "string" ? message.taskId : undefined;
   try {
+    const keys = message && typeof message === "object" && !Array.isArray(message)
+      ? Object.keys(message).sort()
+      : [];
+    const validEnvelope =
+      keys.join(",") === "contentLimit,ext,filePath,projectAnchor,taskId" &&
+      typeof message.taskId === "string" &&
+      typeof message.ext === "string" &&
+      typeof message.filePath === "string" &&
+      Number.isInteger(message.contentLimit) &&
+      message.contentLimit >= 0;
+    if (!validEnvelope) throw createWorkerProtocolError(filePath);
+    const { ext, contentLimit, projectAnchor } = message;
     await ready;
-    let content = typeof message.content === "string" ? message.content : null;
-    if (content === null) {
-      const limit = Number.isFinite(message.contentLimit) ? Math.max(0, Math.floor(message.contentLimit)) : null;
-      const boundary = createFilesystemBoundary(message.projectRoot);
-      content = boundary.readRepositoryFile(filePath, "worker_read", "utf8");
-      if (limit !== null) {
-        content = content.slice(0, limit);
-      }
-    }
+    const protocolError = createWorkerProtocolError(filePath);
+    const failureDetails = {
+      code: "CORTEX_FS_SOURCE",
+      phase: "worker_read",
+      subject_kind: "repository_path",
+      subject: protocolError.subject,
+      reason: "path_replaced"
+    };
+    const boundary = createFilesystemBoundaryFromAnchor(projectAnchor, failureDetails);
+    const content = boundary.readRepositoryFile(filePath, "worker_read", "utf8").slice(0, contentLimit);
     const parsed = await parseFileContent(ext, content, filePath);
     if (!parsed) {
       parentPort.postMessage({ taskId, ok: false, reason: "no parser available" });

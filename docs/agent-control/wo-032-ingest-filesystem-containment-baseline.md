@@ -382,10 +382,21 @@ contract.
 `subject` is fixed by kind: `project` uses the constant `<project-root>`;
 `control` uses a known `.context`-relative control name; `configured_source`
 uses the original configured value; and repository/cache/dashboard/output
-kinds use a normalized project-relative identity. It is capped at 256 Unicode
-scalar values, with a final ellipsis inside that limit when truncated.
-JSON-string rendering escapes control characters; the value is never replaced
-by a resolved external path or symlink target.
+kinds use a normalized project-relative identity. When an invalid host
+repository identity is empty, absolute, parent-relative, NUL-bearing, or
+otherwise cannot be projected as a safe project-relative value, the subject
+is the constant `<repository-path>`. Contract and Security and Privacy
+explicitly ratify that constant as the privacy-safe projection: it reveals no
+path component or external location while the closed code, phase, kind, and
+reason retain actionable classification. It is never substituted for a valid
+accepted repository identity.
+
+The stored subject is capped at 256 Unicode scalar values. Rendering applies a
+second bound after JSON escaping, shortening the encoded subject with a final
+ellipsis as needed so the complete diagnostic line—not merely the unescaped
+subject—is at most 256 Unicode scalar values. JSON rendering escapes control
+characters; neither projection is ever replaced by a resolved external path
+or symlink target.
 
 The worker wire envelope is exactly
 `{ type: "policy_error", error: { code, phase, subject_kind, subject, reason } }`.

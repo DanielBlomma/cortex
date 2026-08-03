@@ -4,10 +4,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync, execSync } from "node:child_process";
 import {
+  createDashboardPolicyHandler,
   createFilesystemBoundary,
-  isFilesystemPolicyError,
-  renderFilesystemPolicyError
+  isFilesystemPolicyError
 } from "./lib/ingest/filesystem-boundary.mjs";
+import { parseSourcePaths } from "./lib/ingest/config.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -66,41 +67,9 @@ const col = (text, color) => `${color}${text}${RESET}`;
 const bold = (text) => `${BOLD}${text}${RESET}`;
 const dim = (text) => `${DIM}${text}${RESET}`;
 
-// ── Data: source_paths parsing (same as ingest.mjs) ──────────
-function parseSourcePaths(configText) {
-  const sourcePaths = [];
-  const lines = configText.split(/\r?\n/);
-  let inSourcePaths = false;
-  for (const line of lines) {
-    if (!inSourcePaths && /^source_paths:\s*$/.test(line.trim())) {
-      inSourcePaths = true;
-      continue;
-    }
-    if (!inSourcePaths) continue;
-    const m = line.match(/^\s*-\s*(.+?)\s*$/);
-    if (m) {
-      sourcePaths.push(m[1].replace(/^['"]|['"]$/g, ""));
-      continue;
-    }
-    if (line.trim() !== "" && !/^\s/.test(line)) break;
-  }
-  return sourcePaths;
-}
-
 // ── Data: filesystem walk (same as ingest.mjs) ───────────────
 function walkDirectory(boundary, directoryIdentity, files) {
-  const directory = directoryIdentity === ""
-    ? { absolutePath: boundary.root }
-    : boundary.inspectRepositoryPath(directoryIdentity, {
-        phase: "discovery",
-        expected: "directory"
-      });
-  let entries;
-  try {
-    entries = fs.readdirSync(directory.absolutePath, { withFileTypes: true });
-  } catch {
-    return;
-  }
+  const { entries } = boundary.readRepositoryDirectory(directoryIdentity, "discovery");
   for (const entry of entries) {
     if (entry.isSymbolicLink()) continue;
     if (entry.isDirectory() && SKIP_DIRECTORIES.has(entry.name)) continue;
@@ -132,9 +101,9 @@ function hasSourcePrefix(relPath, sourcePaths) {
 }
 
 // ── Data: baseline scan ──────────────────────────────────────
-function scanBaseline(repoRoot = REPO_ROOT, configPath = CONFIG_PATH) {
+function scanBaseline(repoRoot = REPO_ROOT, configPath = CONFIG_PATH, projectBoundary = null) {
   void configPath;
-  const boundary = createFilesystemBoundary(repoRoot);
+  const boundary = projectBoundary ?? createFilesystemBoundary(repoRoot);
   boundary.validateControl(".context/config.yaml");
   const configText = boundary.readControl(".context/config.yaml");
   const sourcePaths = [...new Set(parseSourcePaths(configText))];
@@ -177,6 +146,16 @@ function scanBaseline(repoRoot = REPO_ROOT, configPath = CONFIG_PATH) {
     chars: totalChars,
     tokens: Math.round(totalChars / 4),
   };
+}
+
+function assertDashboardRoot(boundary) {
+  boundary.assertProjectAnchor({
+    code: "CORTEX_FS_DASHBOARD",
+    phase: "dashboard_data",
+    subject_kind: "dashboard_path",
+    subject: ".context",
+    reason: "path_replaced"
+  });
 }
 
 // ── Data: read JSONL safely ──────────────────────────────────
@@ -778,80 +757,83 @@ function parseInterval() {
 function main() {
   const interval = parseInterval();
   const isTTY = process.stdout.isTTY;
+  const policy = createDashboardPolicyHandler({ restoreOutput: SHOW_CURSOR + RESET });
+  const boundary = policy.guard(() => createFilesystemBoundary(REPO_ROOT));
+  if (policy.failed) return;
+  const scan = () => scanBaseline(REPO_ROOT, CONFIG_PATH, boundary);
 
   // Non-TTY: one-shot plain output
   if (!isTTY) {
-    const baseline = scanBaseline();
-    const data = gatherData(baseline);
-    // Strip ANSI for pipe output
-    const output = render(data, false).replace(/\x1b\[[0-9;]*m/g, "");
-    process.stdout.write(output + "\n");
-    process.exit(0);
+    policy.guard(() => {
+      const baseline = scan();
+      assertDashboardRoot(boundary);
+      const data = gatherData(baseline);
+      // Strip ANSI for pipe output
+      const output = render(data, false).replace(/\x1b\[[0-9;]*m/g, "");
+      process.stdout.write(output + "\n");
+    });
+    return;
   }
 
   // TTY: live TUI
-  let baselineCache = scanBaseline();
-  let timer = null;
+  let baselineCache = policy.guard(scan);
+  if (policy.failed) return;
 
-  function cleanup() {
-    if (timer) clearInterval(timer);
-    process.stdout.write(SHOW_CURSOR + RESET + "\n");
-    if (process.stdin.isTTY) {
-      process.stdin.setRawMode(false);
-    }
-    process.exit(0);
-  }
-
-  process.on("SIGINT", cleanup);
-  process.on("SIGTERM", cleanup);
+  policy.addListener(process, "SIGINT", () => policy.cleanup());
+  policy.addListener(process, "SIGTERM", () => policy.cleanup());
 
   process.stdout.write(HIDE_CURSOR);
+  policy.markCursorHidden();
 
   if (process.stdin.isTTY) {
     process.stdin.setRawMode(true);
+    policy.markRawMode();
     process.stdin.resume();
     process.stdin.setEncoding("utf8");
 
-    process.stdin.on("data", (key) => {
+    const onInput = (key) => {
       if (key === "q" || key === "\x03") {
-        cleanup();
+        policy.cleanup();
       } else if (key === "r") {
-        baselineCache = scanBaseline();
+        const refreshed = policy.guard(scan);
+        if (policy.failed) return;
+        baselineCache = refreshed;
         renderFrame();
       }
-    });
+    };
+    policy.addListener(process.stdin, "data", onInput);
   }
 
   function renderFrame() {
-    const data = gatherData(baselineCache);
-    const output = render(data, true);
-    process.stdout.write(HOME + output + CLEAR_DOWN);
+    policy.guard(() => {
+      assertDashboardRoot(boundary);
+      const data = gatherData(baselineCache);
+      const output = render(data, true);
+      process.stdout.write(HOME + output + CLEAR_DOWN);
+    });
   }
 
   renderFrame();
-  timer = setInterval(renderFrame, interval * 1000);
+  if (policy.failed) return;
+  policy.addTimer(setInterval(renderFrame, interval * 1000));
 
-  process.stdout.on("resize", () => {
-    renderFrame();
-  });
+  policy.addListener(process.stdout, "resize", renderFrame);
 }
 
-const isMainModule = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename);
-if (isMainModule) {
+const isMainModule = process.argv[1] && (() => {
   try {
-    main();
-  } catch (error) {
-    if (isFilesystemPolicyError(error)) {
-      process.stderr.write(`${renderFilesystemPolicyError(error)}\n`);
-      process.exitCode = 1;
-    } else {
-      throw error;
-    }
+    return fs.realpathSync.native(process.argv[1]) === fs.realpathSync.native(__filename);
+  } catch {
+    return path.resolve(process.argv[1]) === path.resolve(__filename);
   }
+})();
+if (isMainModule) {
+  main();
 }
 
 export {
   parseSourcePaths,
+  main,
   render,
   scanBaseline,
   walkDirectory

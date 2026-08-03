@@ -1,6 +1,9 @@
 import os from "node:os";
 import { Worker } from "node:worker_threads";
-import { workerPolicyErrorFromMessage } from "./filesystem-boundary.mjs";
+import {
+  createWorkerProtocolError,
+  workerPolicyErrorFromMessage
+} from "./filesystem-boundary.mjs";
 
 function resolveIngestWorkerCount(taskCount) {
   const raw = process.env.CORTEX_INGEST_WORKERS;
@@ -57,6 +60,7 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
   }
 
   const taskIds = new Set(tasks.map((task) => task.id));
+  const taskById = new Map(tasks.map((task) => [task.id, task]));
   const results = new Map();
   const missingResults = new Set();
   const waiters = new Map();
@@ -153,10 +157,9 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
     worker.postMessage({
       taskId: task.id,
       ext: task.ext,
-      content: task.content,
       contentLimit: task.contentLimit,
       filePath: task.path,
-      projectRoot: task.projectRoot
+      projectAnchor: task.projectAnchor
     });
   };
 
@@ -164,14 +167,35 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
     if (finished) return;
     const taskId = inflight.get(worker);
     if (message?.type === "policy_error") {
-      const task = tasks.find((candidate) => candidate.id === taskId);
+      const task = taskById.get(taskId);
       fatalError = workerPolicyErrorFromMessage(message, task?.path ?? "<worker-task>");
       inflight.set(worker, null);
       finish();
       return;
     }
+    const task = taskById.get(taskId);
+    const messageKeys = message && typeof message === "object" && !Array.isArray(message)
+      ? Object.keys(message).sort()
+      : [];
+    const validSuccess =
+      message?.ok === true &&
+      message.taskId === taskId &&
+      message.result &&
+      typeof message.result === "object" &&
+      messageKeys.join(",") === "ok,result,taskId";
+    const validSkip =
+      message?.ok === false &&
+      message.taskId === taskId &&
+      typeof message.reason === "string" &&
+      messageKeys.join(",") === "ok,reason,taskId";
+    if (!validSuccess && !validSkip) {
+      fatalError = createWorkerProtocolError(task?.path ?? "<worker-task>");
+      inflight.set(worker, null);
+      finish();
+      return;
+    }
     inflight.set(worker, null);
-    if (message.ok) {
+    if (validSuccess) {
       settleTask(message.taskId, message.result);
     } else {
       if (verbose) {

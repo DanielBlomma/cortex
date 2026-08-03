@@ -41,6 +41,15 @@ const POLICY_REASONS = new Set([
   "worker_protocol"
 ]);
 
+const MAX_DIAGNOSTIC_SCALARS = 256;
+const PROJECT_DETAILS = Object.freeze({
+  code: "CORTEX_FS_PROJECT",
+  phase: "project",
+  subject_kind: "project",
+  subject: "<project-root>",
+  reason: "path_replaced"
+});
+
 function truncateScalars(value, limit = 256) {
   const scalars = [...String(value)];
   if (scalars.length <= limit) return scalars.join("");
@@ -49,7 +58,7 @@ function truncateScalars(value, limit = 256) {
 
 function normalizeSubject(subjectKind, subject) {
   if (subjectKind === "project") return "<project-root>";
-  return truncateScalars(subject);
+  return truncateScalars(subject, MAX_DIAGNOSTIC_SCALARS);
 }
 
 export class CortexFilesystemPolicyError extends Error {
@@ -70,7 +79,100 @@ export function isFilesystemPolicyError(error) {
 }
 
 export function renderFilesystemPolicyError(error) {
-  return `cortex: filesystem policy denied [${error.code}] ${error.phase} ${error.subject_kind}=${JSON.stringify(error.subject)} reason=${error.reason}`;
+  const prefix = `cortex: filesystem policy denied [${error.code}] ${error.phase} ${error.subject_kind}=`;
+  const suffix = ` reason=${error.reason}`;
+  const available = MAX_DIAGNOSTIC_SCALARS - [...prefix].length - [...suffix].length;
+  const subjectScalars = [...String(error.subject)];
+  let encodedSubject = JSON.stringify(error.subject);
+  if ([...encodedSubject].length > available) {
+    let low = 0;
+    let high = subjectScalars.length;
+    while (low < high) {
+      const midpoint = Math.ceil((low + high) / 2);
+      const candidate = JSON.stringify(`${subjectScalars.slice(0, midpoint).join("")}…`);
+      if ([...candidate].length <= available) low = midpoint;
+      else high = midpoint - 1;
+    }
+    encodedSubject = JSON.stringify(`${subjectScalars.slice(0, low).join("")}…`);
+  }
+  return `${prefix}${encodedSubject}${suffix}`;
+}
+
+export function createDashboardPolicyHandler({
+  stdin = process.stdin,
+  stdout = process.stdout,
+  stderr = process.stderr,
+  restoreOutput = ""
+} = {}) {
+  const timers = new Set();
+  const listeners = [];
+  let cursorHidden = false;
+  let rawMode = false;
+  let finished = false;
+  let fatal = false;
+
+  function teardown({ exitCode, newline }) {
+    for (const timer of timers) clearInterval(timer);
+    timers.clear();
+    for (const { emitter, event, listener } of listeners) {
+      emitter.off(event, listener);
+    }
+    listeners.length = 0;
+    if (rawMode && stdin?.isTTY && typeof stdin.setRawMode === "function") {
+      try {
+        stdin.setRawMode(false);
+      } catch {
+        // Best-effort terminal restoration only.
+      }
+    }
+    if (typeof stdin?.pause === "function") stdin.pause();
+    if (cursorHidden && restoreOutput) {
+      stdout.write(`${restoreOutput}${newline ? "\n" : ""}`);
+    }
+    process.exitCode = exitCode;
+  }
+
+  function fail(error) {
+    if (!isFilesystemPolicyError(error)) throw error;
+    if (finished) return;
+    finished = true;
+    fatal = true;
+    teardown({ exitCode: 1, newline: false });
+    stderr.write(`${renderFilesystemPolicyError(error)}\n`);
+  }
+
+  return {
+    addListener(emitter, event, listener) {
+      emitter.on(event, listener);
+      listeners.push({ emitter, event, listener });
+    },
+    addTimer(timer) {
+      timers.add(timer);
+    },
+    cleanup() {
+      if (finished) return;
+      finished = true;
+      teardown({ exitCode: 0, newline: true });
+    },
+    get failed() {
+      return fatal;
+    },
+    guard(action) {
+      if (finished) return undefined;
+      try {
+        return action();
+      } catch (error) {
+        fail(error);
+        return undefined;
+      }
+    },
+    markCursorHidden() {
+      cursorHidden = true;
+    },
+    markRawMode() {
+      rawMode = true;
+    }
+  };
 }
 
 export function policyErrorEnvelope(error) {
@@ -88,6 +190,50 @@ export function policyErrorEnvelope(error) {
 
 function policyError(details) {
   throw new CortexFilesystemPolicyError(details);
+}
+
+function filesystemErrorReason(error, {
+  missingReason = "missing",
+  notDirectoryReason = "not_directory",
+  defaultReason = "path_replaced"
+} = {}) {
+  if (error?.code === "ENOENT") return missingReason;
+  if (error?.code === "ENOTDIR") return notDirectoryReason;
+  if (error?.code === "ELOOP") return "symlink_component";
+  if (error?.code === "ENAMETOOLONG" || error?.code === "EINVAL") return "invalid_syntax";
+  if (error?.code === "EISDIR") return "not_regular_file";
+  return defaultReason;
+}
+
+function denyFilesystemError(error, details, options) {
+  if (isFilesystemPolicyError(error)) throw error;
+  policyError({
+    ...details,
+    reason: filesystemErrorReason(error, options)
+  });
+}
+
+function rootIdentity(stats) {
+  return {
+    dev: String(stats.dev),
+    ino: String(stats.ino)
+  };
+}
+
+function isSerializedProjectAnchor(anchor) {
+  return Boolean(
+    anchor &&
+    typeof anchor === "object" &&
+    !Array.isArray(anchor) &&
+    Object.keys(anchor).length === 4 &&
+    anchor.version === 1 &&
+    typeof anchor.root === "string" &&
+    path.isAbsolute(anchor.root) &&
+    typeof anchor.dev === "string" &&
+    /^\d+$/.test(anchor.dev) &&
+    typeof anchor.ino === "string" &&
+    /^\d+$/.test(anchor.ino)
+  );
 }
 
 function isInside(root, candidate) {
@@ -130,11 +276,7 @@ function parseConfiguredSourceValue(original) {
   if (typeof original !== "string" || original.trim().length === 0 || original.includes("\0")) {
     return null;
   }
-  if (
-    original.startsWith("/") ||
-    original.includes("\\") ||
-    /^[A-Za-z]:/.test(original)
-  ) {
+  if (original.startsWith("/") || original.includes("\\")) {
     return null;
   }
   const parts = original.split("/");
@@ -142,6 +284,7 @@ function parseConfiguredSourceValue(original) {
   const normalizedParts = parts.filter((part) => part !== "" && part !== ".");
   const normalized = normalizedParts.join("/");
   if (normalized === "" && !parts.every((part) => part === "" || part === ".")) return null;
+  if (/^[A-Za-z]:/.test(normalized)) return null;
   return normalized;
 }
 
@@ -191,30 +334,44 @@ export function workerPolicyErrorFromMessage(message, expectedSubject) {
   return new CortexFilesystemPolicyError(payload);
 }
 
-export function createFilesystemBoundary(selectedProjectRoot) {
-  const selected = path.resolve(String(selectedProjectRoot));
-  let selectedStats;
-  try {
-    selectedStats = fs.statSync(selected);
-  } catch (error) {
-    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") {
-      policyError(pathDetails("CORTEX_FS_PROJECT", "project", "project", "<project-root>", "missing"));
+export function createWorkerProtocolError(subject, reason = "worker_protocol") {
+  return new CortexFilesystemPolicyError(pathDetails(
+    "CORTEX_FS_SOURCE",
+    "worker_read",
+    "repository_path",
+    safeRepositorySubject(subject),
+    reason
+  ));
+}
+
+function createBoundaryFromEstablishedAnchor(projectAnchor, initialDetails = PROJECT_DETAILS) {
+  const root = projectAnchor.root;
+
+  function assertProjectAnchor(details = PROJECT_DETAILS) {
+    let stats;
+    try {
+      stats = fs.lstatSync(root, { bigint: true });
+    } catch (error) {
+      denyFilesystemError(error, details, {
+        missingReason: "path_replaced",
+        notDirectoryReason: "path_replaced",
+        defaultReason: "path_replaced"
+      });
     }
-    throw error;
-  }
-  if (!selectedStats.isDirectory()) {
-    policyError(pathDetails("CORTEX_FS_PROJECT", "project", "project", "<project-root>", "not_directory"));
+    if (stats.isSymbolicLink()) {
+      policyError({ ...details, reason: "symlink_component" });
+    }
+    if (!stats.isDirectory()) {
+      policyError({ ...details, reason: "path_replaced" });
+    }
+    const identity = rootIdentity(stats);
+    if (identity.dev !== projectAnchor.dev || identity.ino !== projectAnchor.ino) {
+      policyError({ ...details, reason: "path_replaced" });
+    }
+    return stats;
   }
 
-  let root;
-  try {
-    root = fs.realpathSync.native(selected);
-  } catch (error) {
-    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") {
-      policyError(pathDetails("CORTEX_FS_PROJECT", "project", "project", "<project-root>", "missing"));
-    }
-    throw error;
-  }
+  assertProjectAnchor(initialDetails);
 
   function normalizeRepositoryIdentity(identity, details) {
     if (typeof identity !== "string" || identity.length === 0 || identity.includes("\0")) {
@@ -253,8 +410,10 @@ export function createFilesystemBoundary(selectedProjectRoot) {
       subjectKind === "repository_path" ? safeRepositorySubject(rawSubject) : rawSubject
     );
     const details = pathDetails(code, phase, subjectKind, subject, "invalid_syntax");
+    assertProjectAnchor(details);
     const normalized = normalizeRepositoryIdentity(identity, details);
     const deniedSubject = subjectKind === "configured_source" ? subject : normalized.identity;
+    const operationDetails = { ...details, subject: deniedSubject };
     const components = normalized.hostRelative.split(path.sep).filter(Boolean);
     let current = root;
     let finalStats = null;
@@ -262,48 +421,43 @@ export function createFilesystemBoundary(selectedProjectRoot) {
     for (let index = 0; index < components.length; index += 1) {
       current = path.join(current, components[index]);
       const isFinal = index === components.length - 1;
+      assertProjectAnchor(operationDetails);
       let stats;
       try {
         stats = fs.lstatSync(current);
       } catch (error) {
-        if ((error?.code === "ENOENT" || error?.code === "ENOTDIR") && allowMissing) {
+        if (error?.code === "ENOENT" && allowMissing) {
           return { ...normalized, exists: false, stats: null, kind: "missing" };
         }
-        if (error?.code === "ENOENT" || error?.code === "ENOTDIR") {
-          policyError({ ...details, subject: deniedSubject, reason: "missing" });
-        }
-        throw error;
+        denyFilesystemError(error, operationDetails);
       }
       if (stats.isSymbolicLink()) {
         if (isFinal && allowFinalSymlink) {
           return { ...normalized, exists: true, stats, kind: "symlink" };
         }
-        policyError({ ...details, subject: deniedSubject, reason: "symlink_component" });
+        policyError({ ...operationDetails, reason: "symlink_component" });
       }
       if (!isFinal && !stats.isDirectory()) {
-        policyError({ ...details, subject: deniedSubject, reason: "not_directory" });
+        policyError({ ...operationDetails, reason: "not_directory" });
       }
       if (isFinal) finalStats = stats;
     }
 
     const reason = typeReason(finalStats, expected);
     if (reason) {
-      policyError({ ...details, subject: deniedSubject, reason });
+      policyError({ ...operationDetails, reason });
     }
+    assertProjectAnchor(operationDetails);
     try {
       const realCandidate = fs.realpathSync.native(normalized.absolutePath);
       if (!isInside(root, realCandidate)) {
-        policyError({ ...details, subject: deniedSubject, reason: "outside_project" });
+        policyError({ ...operationDetails, reason: "outside_project" });
       }
     } catch (error) {
-      if (isFilesystemPolicyError(error)) throw error;
-      if ((error?.code === "ENOENT" || error?.code === "ENOTDIR") && allowMissing) {
-        return { ...normalized, exists: false, stats: null, kind: "missing" };
-      }
-      if (error?.code === "ENOENT" || error?.code === "ENOTDIR") {
-        policyError({ ...details, subject: deniedSubject, reason: "path_replaced" });
-      }
-      throw error;
+      denyFilesystemError(error, operationDetails, {
+        missingReason: "path_replaced",
+        notDirectoryReason: "path_replaced"
+      });
     }
     return {
       ...normalized,
@@ -315,7 +469,14 @@ export function createFilesystemBoundary(selectedProjectRoot) {
 
   function inspectConfiguredSource(original, normalized) {
     if (normalized === "") {
-      return { original, normalized, identity: "", absolutePath: root, exists: true, kind: "directory", stats: selectedStats };
+      const stats = assertProjectAnchor(pathDetails(
+        "CORTEX_FS_SOURCE",
+        "discovery",
+        "configured_source",
+        original,
+        "path_replaced"
+      ));
+      return { original, normalized, identity: "", absolutePath: root, exists: true, kind: "directory", stats };
     }
     const inspected = inspectRepositoryPath(normalized, {
       phase: "discovery",
@@ -341,19 +502,18 @@ export function createFilesystemBoundary(selectedProjectRoot) {
       policyError({ ...controlDetails(controlName), reason: "invalid_syntax" });
     }
     const details = controlDetails(controlName);
+    assertProjectAnchor(details);
     const components = controlName.split("/");
     let current = root;
     for (let index = 0; index < components.length; index += 1) {
       current = path.join(current, components[index]);
       const isFinal = index === components.length - 1;
+      assertProjectAnchor(details);
       let stats;
       try {
         stats = fs.lstatSync(current);
       } catch (error) {
-        if (error?.code === "ENOENT" || error?.code === "ENOTDIR") {
-          policyError({ ...details, reason: "missing" });
-        }
-        throw error;
+        denyFilesystemError(error, details);
       }
       if (stats.isSymbolicLink()) policyError({ ...details, reason: "symlink_component" });
       if (!isFinal && !stats.isDirectory()) policyError({ ...details, reason: "not_directory" });
@@ -366,14 +526,16 @@ export function createFilesystemBoundary(selectedProjectRoot) {
   }
 
   function readControl(controlName) {
+    const details = controlDetails(controlName);
     const controlPath = validateControl(controlName);
+    assertProjectAnchor(details);
     try {
       return fs.readFileSync(controlPath, "utf8");
     } catch (error) {
-      if (error?.code === "ENOENT" || error?.code === "ENOTDIR" || error?.code === "EISDIR") {
-        policyError({ ...controlDetails(controlName), reason: "path_replaced" });
-      }
-      throw error;
+      denyFilesystemError(error, details, {
+        missingReason: "path_replaced",
+        notDirectoryReason: "path_replaced"
+      });
     }
   }
 
@@ -383,19 +545,21 @@ export function createFilesystemBoundary(selectedProjectRoot) {
 
   function readRepositoryFile(identity, phase = "direct_read", encoding = null) {
     const inspected = inspectRepositoryPath(identity, { phase, expected: "file" });
+    const details = pathDetails(
+      "CORTEX_FS_SOURCE",
+      phase,
+      "repository_path",
+      inspected.identity,
+      "path_replaced"
+    );
+    assertProjectAnchor(details);
     try {
       return fs.readFileSync(inspected.absolutePath, encoding ?? undefined);
     } catch (error) {
-      if (["ENOENT", "ENOTDIR", "EISDIR"].includes(error?.code)) {
-        policyError(pathDetails(
-          "CORTEX_FS_SOURCE",
-          phase,
-          "repository_path",
-          inspected.identity,
-          "path_replaced"
-        ));
-      }
-      throw error;
+      denyFilesystemError(error, details, {
+        missingReason: "path_replaced",
+        notDirectoryReason: "path_replaced"
+      });
     }
   }
 
@@ -406,11 +570,49 @@ export function createFilesystemBoundary(selectedProjectRoot) {
       allowMissing: true
     });
     if (!inspected.exists) return null;
+    const details = pathDetails(
+      "CORTEX_FS_SOURCE",
+      phase,
+      "repository_path",
+      inspected.identity,
+      "path_replaced"
+    );
+    assertProjectAnchor(details);
     try {
-      return readRepositoryFile(inspected.identity, phase, encoding);
+      return fs.readFileSync(inspected.absolutePath, encoding);
     } catch (error) {
-      if (isFilesystemPolicyError(error)) throw error;
+      if (["ENOENT", "ENOTDIR", "EISDIR", "ELOOP", "ENAMETOOLONG", "EINVAL"].includes(error?.code)) {
+        denyFilesystemError(error, details, {
+          missingReason: "path_replaced",
+          notDirectoryReason: "path_replaced"
+        });
+      }
       return null;
+    }
+  }
+
+  function readRepositoryDirectory(identity = "", phase = "discovery") {
+    const details = pathDetails(
+      "CORTEX_FS_SOURCE",
+      phase,
+      "repository_path",
+      identity === "" ? "." : safeRepositorySubject(identity),
+      "path_replaced"
+    );
+    const directory = identity === ""
+      ? { absolutePath: root, identity: "", stats: assertProjectAnchor(details) }
+      : inspectRepositoryPath(identity, { phase, expected: "directory" });
+    assertProjectAnchor(details);
+    try {
+      return {
+        ...directory,
+        entries: fs.readdirSync(directory.absolutePath, { withFileTypes: true })
+      };
+    } catch (error) {
+      denyFilesystemError(error, details, {
+        missingReason: "path_replaced",
+        notDirectoryReason: "path_replaced"
+      });
     }
   }
 
@@ -423,17 +625,82 @@ export function createFilesystemBoundary(selectedProjectRoot) {
     return toSerializedPath(path.relative(root, absolutePath));
   }
 
-  return {
+  return Object.freeze({
     root,
+    anchor: Object.freeze({ ...projectAnchor }),
+    assertProjectAnchor,
     childIdentity,
     inspectRepositoryPath,
     readControl,
     readOptionalRepositoryFile,
+    readRepositoryDirectory,
     readRepositoryFile,
     statRepositoryFile,
     validateConfiguredSources,
     validateControl
-  };
+  });
+}
+
+export function createFilesystemBoundary(selectedProjectRoot) {
+  let selected;
+  try {
+    selected = path.resolve(String(selectedProjectRoot));
+  } catch (error) {
+    denyFilesystemError(error, { ...PROJECT_DETAILS, reason: "invalid_syntax" }, {
+      defaultReason: "invalid_syntax"
+    });
+  }
+  let selectedStats;
+  try {
+    selectedStats = fs.statSync(selected, { bigint: true });
+  } catch (error) {
+    denyFilesystemError(error, PROJECT_DETAILS);
+  }
+  if (!selectedStats.isDirectory()) {
+    policyError(pathDetails("CORTEX_FS_PROJECT", "project", "project", "<project-root>", "not_directory"));
+  }
+
+  let root;
+  try {
+    root = fs.realpathSync.native(selected);
+  } catch (error) {
+    denyFilesystemError(error, PROJECT_DETAILS);
+  }
+  let rootStats;
+  try {
+    rootStats = fs.lstatSync(root, { bigint: true });
+  } catch (error) {
+    denyFilesystemError(error, PROJECT_DETAILS);
+  }
+  if (rootStats.isSymbolicLink() || !rootStats.isDirectory()) {
+    policyError({
+      ...PROJECT_DETAILS,
+      reason: rootStats.isSymbolicLink() ? "symlink_component" : "not_directory"
+    });
+  }
+  const selectedIdentity = rootIdentity(selectedStats);
+  const identity = rootIdentity(rootStats);
+  if (selectedIdentity.dev !== identity.dev || selectedIdentity.ino !== identity.ino) {
+    policyError({ ...PROJECT_DETAILS, reason: "path_replaced" });
+  }
+  return createBoundaryFromEstablishedAnchor(Object.freeze({
+    version: 1,
+    root,
+    dev: identity.dev,
+    ino: identity.ino
+  }));
+}
+
+export function createFilesystemBoundaryFromAnchor(projectAnchor, failureDetails = PROJECT_DETAILS) {
+  if (!isSerializedProjectAnchor(projectAnchor)) {
+    policyError({ ...failureDetails, reason: "worker_protocol" });
+  }
+  return createBoundaryFromEstablishedAnchor(Object.freeze({
+    version: 1,
+    root: projectAnchor.root,
+    dev: projectAnchor.dev,
+    ino: projectAnchor.ino
+  }), failureDetails);
 }
 
 export const FILESYSTEM_POLICY_FIELDS = Object.freeze({

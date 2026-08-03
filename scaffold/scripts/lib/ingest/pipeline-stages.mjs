@@ -467,7 +467,7 @@ async function runParseStage(state) {
     fileRecords,
     parseEligible,
     csharpBatchCache,
-    state.boundary.root
+    state.boundary.anchor
   );
   const workerCount = resolveIngestWorkerCount(workerTasks.length);
   memoryTrace.checkpoint("parse:workers_start", {
