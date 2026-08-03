@@ -133,9 +133,9 @@ source-path authority and it is not an ingest-managed data-output boundary:
 
 The path/executable-affecting settings are explicitly
 `CORTEX_TREE_SITTER_GRAMMAR_DIR`, `CORTEX_DOTNET_CMD`,
-`CORTEX_CSHARP_PARSER_PROJECT`, `CORTEX_CSHARP_TFM`,
+`CORTEX_CSHARP_PARSER_PROJECT`, `CORTEX_CSHARP_PARSER_TFM`,
 `CORTEX_CSHARP_PUBLISH_DIR`, `CORTEX_CSHARP_FORCE_PUBLISH`,
-`CORTEX_VBNET_PARSER_PROJECT`, `CORTEX_VBNET_TFM`,
+`CORTEX_VBNET_PARSER_PROJECT`, `CORTEX_VBNET_PARSER_TFM`,
 `CORTEX_VBNET_PUBLISH_DIR`, `CORTEX_CLANG_CMD`, `CORTEX_CPP_PARSER`, and
 `CORTEX_RUST_PARSER`. `CORTEX_TREE_SITTER_MAX_BYTES` bounds input size but
 does not select a path. These are trusted operator choices, not values read

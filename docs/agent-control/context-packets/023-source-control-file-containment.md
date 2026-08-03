@@ -113,9 +113,12 @@ enforced runtime behavior for the first time.
   operator/package toolchain inputs and artifacts, not ingest-managed data
   outputs and not authority to open a source path.
   File/tool selection includes `CORTEX_TREE_SITTER_GRAMMAR_DIR`,
-  `CORTEX_DOTNET_CMD`, C#/VB `*_PARSER_PROJECT`, `*_TFM`, and `*_PUBLISH_DIR`,
-  `CORTEX_CSHARP_FORCE_PUBLISH`, `CORTEX_CLANG_CMD`, `CORTEX_CPP_PARSER`, and
-  `CORTEX_RUST_PARSER`; none is sourced from project configuration.
+  `CORTEX_DOTNET_CMD`, `CORTEX_CSHARP_PARSER_PROJECT`,
+  `CORTEX_CSHARP_PARSER_TFM`, `CORTEX_CSHARP_PUBLISH_DIR`,
+  `CORTEX_CSHARP_FORCE_PUBLISH`, `CORTEX_VBNET_PARSER_PROJECT`,
+  `CORTEX_VBNET_PARSER_TFM`, `CORTEX_VBNET_PUBLISH_DIR`,
+  `CORTEX_CLANG_CMD`, `CORTEX_CPP_PARSER`, and `CORTEX_RUST_PARSER`; none is
+  sourced from project configuration.
 - MCP compatibility removal or `.context/mcp` renaming
 - Version changes, release notes, publish, tag, merge, or deploy
 - Claims that portable Node path APIs eliminate the final same-user

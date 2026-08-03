@@ -107,6 +107,12 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - Review-fix validation passed: C#/VB parser compatibility 25/25, context
   regressions 81/81, diff check, pattern evidence for 9/9 changed docs, Cortex
   update/graph completion with 0 failed, doctor 8/8, watcher stopped.
+- Applied the two manager-specified pre-acceptance minor documentation
+  corrections: the C#/VB target-framework overrides now use their exact
+  `CORTEX_CSHARP_PARSER_TFM` and `CORTEX_VBNET_PARSER_TFM` names, and packet
+  022 scopes the privacy statement to R16 source-data egress plus this
+  program's no-new-telemetry or network-path requirement. WO-032 acceptance
+  remains a manager decision.
 
 ## 2026-07-30
 

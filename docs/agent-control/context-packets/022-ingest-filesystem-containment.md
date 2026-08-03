@@ -28,10 +28,10 @@ The detailed implementation sequence is stored in
   and memory behavior. WO-030 provides a reviewed repo-local example for
   symlink denial, atomic replacement, hard-link safety, and the narrow
   same-user concurrent-ancestor-swap residual.
-- The application adds no source-data egress or telemetry; this program must
-  not add either or create a new network path. Existing dashboard `npm view`
-  version lookup and optional C#/VB `dotnet publish`/restore are status and
-  trusted-toolchain behaviors that may use the network.
+- R16 adds no source-data egress, and this program must not add telemetry or a
+  new network path. Existing dashboard `npm view` version lookup and optional
+  C#/VB `dotnet publish`/restore are status and trusted-toolchain behaviors
+  that may use the network.
 
 ## Required Contract Anchors
 
