@@ -636,6 +636,7 @@ test("hydrated file and ADR identities reject absolute, parent, and symlink path
     { cache: "entities.file.jsonl", kind: "absolute" },
     { cache: "entities.file.jsonl", kind: "parent" },
     { cache: "entities.file.jsonl", kind: "symlink" },
+    { cache: "entities.adr.jsonl", kind: "absolute" },
     { cache: "entities.adr.jsonl", kind: "parent" },
     { cache: "entities.adr.jsonl", kind: "symlink" }
   ];
@@ -750,6 +751,11 @@ test("production workers reject injected content and parent streams reject malfo
 
     const payloads = [
       `{ taskId: message.taskId, ok: true, result: { chunks: [], errors: [] }, content: "injected" }`,
+      `{ taskId: message.taskId, ok: true, result: {} }`,
+      `{ taskId: message.taskId, ok: true, result: [] }`,
+      `{ taskId: message.taskId, ok: true, result: { chunks: {}, errors: [] } }`,
+      `{ taskId: message.taskId, ok: true, result: { chunks: [], errors: "invalid" } }`,
+      `{ taskId: message.taskId, ok: true, result: { chunks: [], errors: [], extra: true } }`,
       `{ type: "policy_error", error: { code: "CORTEX_FS_SOURCE" } }`
     ];
     for (let index = 0; index < payloads.length; index += 1) {
@@ -775,6 +781,24 @@ test("production workers reject injected content and parent streams reject malfo
         })
       );
     }
+
+    const validWorkerPath = path.join(parent, "valid-result.mjs");
+    fs.writeFileSync(validWorkerPath, [
+      `import { parentPort } from "node:worker_threads";`,
+      `parentPort.on("message", (message) => {`,
+      `  if (message?.type === "shutdown") process.exit(0);`,
+      `  parentPort.postMessage({ taskId: message.taskId, ok: true, result: { chunks: [], errors: [] } });`,
+      `});`,
+      ``
+    ].join("\n"), "utf8");
+    const validResults = await parseFilesInWorkers([{
+      id: "file:src/app.js",
+      ext: ".js",
+      path: "src/app.js",
+      projectAnchor: boundary.anchor,
+      contentLimit: 1000
+    }], { workerCount: 1, workerUrl: pathToFileURL(validWorkerPath) });
+    assert.deepEqual(validResults.get("file:src/app.js"), { chunks: [], errors: [] });
   } finally {
     fs.rmSync(parent, { recursive: true, force: true });
   }

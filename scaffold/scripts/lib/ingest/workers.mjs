@@ -44,6 +44,18 @@ function createEmptyWorkerParseStream(tasks, workerCount) {
   };
 }
 
+function isValidWorkerResult(result) {
+  if (!result || typeof result !== "object" || Array.isArray(result)) {
+    return false;
+  }
+  const keys = Object.keys(result).sort();
+  return (
+    keys.join(",") === "chunks,errors" &&
+    Array.isArray(result.chunks) &&
+    Array.isArray(result.errors)
+  );
+}
+
 function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {}) {
   if (tasks.length === 0) {
     return createEmptyWorkerParseStream(tasks, workerCount);
@@ -180,8 +192,7 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
     const validSuccess =
       message?.ok === true &&
       message.taskId === taskId &&
-      message.result &&
-      typeof message.result === "object" &&
+      isValidWorkerResult(message.result) &&
       messageKeys.join(",") === "ok,result,taskId";
     const validSkip =
       message?.ok === false &&
