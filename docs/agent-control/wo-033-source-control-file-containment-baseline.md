@@ -1,15 +1,16 @@
 # WO-033 Source and Control-File Containment Baseline
 
-## Implementation State
+## Acceptance State
 
 WO-033 implementation is complete on `plan/r16-ingest-filesystem-containment`
 from accepted WO-032 commit `6be1fdbdd56cb9baf534725df8fec7e345f21455`.
 Independent Code Quality, Contract, Security and Privacy, Integration, and
 Validation review found acceptance-blocking parser, root-identity, worker,
-dashboard-lifecycle, diagnostic, and matrix gaps in commit `3d3dd56`. The
-implementation has been iterated to resolve those findings; independent
-re-review remains pending. This document records implementation evidence, not
-manager acceptance.
+dashboard-lifecycle, diagnostic, and matrix gaps in commit `3d3dd56`. Commits
+`5ff7ece` and `53a463c` resolve every finding, including the final closed
+worker-result schema and absolute ADR hydration case. Every affected reviewer
+returned PASS, so the manager accepts WO-033 locally and advances WO-034 to
+Ready from packet 024.
 
 - Released compatibility baseline: `v2.4.2`, tag commit `736becf`.
 - Package and release metadata remain `2.4.2`.
@@ -243,7 +244,7 @@ Frozen valid evidence remains:
 - `cortex doctor`: 8/8; optional watcher: stopped.
 - `git diff --check`: passed.
 
-## Remaining Risks and Review Gate
+## Remaining Risks and Acceptance Boundary
 
 - R16 remains open. Existing prior-cache reads and every output leaf still
   need WO-034 containment, exclusive staging, manifest-last commit, and
@@ -252,6 +253,6 @@ Frozen valid evidence remains:
   still need the all-before-any WO-034 data preflight.
 - The narrow portable-Node same-user concurrent ancestor-swap residual remains
   as documented above.
-- Independent five-role review is pending. This implementation must not be
-  accepted, merged, released, tagged, published, or used to close R16 until
-  review findings are resolved or explicitly deferred by the manager.
+- WO-033 is accepted locally after independent review and re-review. It is not
+  merged, released, tagged, published, or sufficient to close R16; WO-034 and
+  WO-035 remain mandatory.

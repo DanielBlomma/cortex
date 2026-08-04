@@ -127,30 +127,32 @@ matching the trust-model treatment used for WO-030.
 
 ### WO-033 — Source and Control-File Containment
 
-- [ ] Add one canonical ingest filesystem-boundary module rather than
+- [x] Add one canonical ingest filesystem-boundary module rather than
   duplicating path checks across discovery, pipeline, and workers.
-- [ ] Anchor the project by real path and validate control-file reads.
-- [ ] Validate and normalize configured source paths before discovery.
-- [ ] Freeze then fix redundant `.`/separator alias matching across full and
+- [x] Anchor the project by real path and validate control-file reads.
+- [x] Validate and normalize configured source paths before discovery.
+- [x] Freeze then fix redundant `.`/separator alias matching across full and
   changed modes without changing manifest values or file IDs.
-- [ ] Apply containment to full discovery, Git changed/deleted paths,
+- [x] Apply containment to full discovery, Git changed/deleted paths,
   incremental hydration, direct and secondary README reads, and worker-path
   reads.
-- [ ] Parse renamed/deleted Git paths through NUL-delimited porcelain so
+- [x] Parse renamed/deleted Git paths through NUL-delimited porcelain so
   quoting, newlines, and literal ` -> ` filename content cannot alter scope.
-- [ ] Apply the same validated source contract to root and packaged dashboard
+- [x] Apply the same validated source contract to root and packaged dashboard
   baseline scans so status diagnostics cannot retain an external-read path.
-- [ ] Reject explicit symlink sources and prevent recursive discovery from
+- [x] Reject explicit symlink sources and prevent recursive discovery from
   following symlink entries.
-- [ ] Add negative subprocess tests for POSIX absolute, Windows drive/UNC,
+- [x] Add negative subprocess tests for POSIX absolute, Windows drive/UNC,
   parent traversal, file project root, non-directory `.context`, in-root,
   escaping, and intermediate symlinks, special-node candidates, symlinked
   control files, and candidate replacement before read.
-- [ ] Add guarded POSIX full/changed/walk/hydration cases proving legal
+- [x] Add guarded POSIX full/changed/walk/hydration cases proving legal
   drive-looking and backslash-bearing repository names remain indexable.
-- [ ] Prove accepted full/changed and worker outputs remain byte-identical to
+- [x] Prove accepted full/changed and worker outputs remain byte-identical to
   the v2.4.2 baseline.
-- [ ] Resolve review findings and create the focused WO-034 packet.
+- [x] Resolve review findings and create the focused WO-034 packet. Independent
+  Code Quality/Integration, Contract/Validation, and Security/Privacy review
+  passed after the worker-result envelope and ADR hydration matrix corrections.
 
 ### WO-034 — Output Containment and Failure Cleanup
 

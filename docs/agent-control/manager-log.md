@@ -38,11 +38,11 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   planned as WO-032 through WO-035 in context packet 022; the risk remains open
   until packed-artifact acceptance. WO-030's narrow same-user ancestor-swap
   assumption remains accepted.
-- The modularization program and release recovery are complete. WO-032 is
-  accepted after a documentation-only review iteration: both independent
-  Contract and Security/Privacy re-reviews passed with no blocker or major
-  finding, and their two minor precision findings were corrected in `0b6458c`.
-  WO-033 is Ready from packet 023.
+- The modularization program and release recovery are complete. WO-032 and
+  WO-033 are accepted locally. WO-033 established one canonical immutable
+  real-project boundary for control/source/worker/README/dashboard-source
+  reads; all review findings were fixed through `53a463c`. WO-034 is Ready
+  from packet 024. R16 remains open through WO-035.
 
 ## Open Decisions
 
@@ -71,6 +71,9 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   intentional changed-mode correctness fix, repository identities use a
   separate host-valid grammar, and trusted parser toolchain/network behavior
   remains outside R16's ingest-managed data boundary.
+- WO-033's reviewed source/control containment is accepted. Output,
+  prior-cache, cleanup, and dashboard-data containment remain exclusively in
+  WO-034; packed-artifact acceptance and R16 disposition remain in WO-035.
 
 ## 2026-08-03
 
@@ -116,57 +119,25 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - Independent Contract and Security/Privacy re-reviews both returned PASS with
   no blocker or major finding. After the two minor corrections above, the
   manager accepted WO-032 and advanced WO-033 to Ready. R16 remains open.
-
-## 2026-07-30
-
-- Ran WO-031 from context packet 021. Syntax passed for 42 JavaScript
-  entrypoints/modules plus executable shell files; the focused matrix passed
-  139/139; context regressions passed 81/81; root passed 321/321 after the
-  release sync; MCP passed 413/413; every committed npm tree audits at zero.
-- Built and exercised the real package from an empty prefix and repository.
-  Bootstrap, doctor, update, JSON search, forced upgrade, user-content
-  preservation, stale legacy cleanup, 380 ownership fingerprints, and
-  Enterprise mode repair passed. A sandbox DNS failure was isolated and the
-  same initialized repository completed under approved network access.
-- Reproduced every frozen digest/equivalence/trace contract and six comparable
-  memory samples. Both median RSS deltas remain within five percent.
-- Independent Code Quality, Contract, Security and Privacy, Integration,
-  Validation, and Ops/Release reviews closed. Registry Node-floor drift and
-  Release Bump staging were fixed and re-reviewed.
-- Synchronized package, lockfile, server, plugin, marketplace, registry,
-  changelog, and README metadata for `2.4.2`; rebuilt a 417-entry tarball and
-  verified a fresh-prefix install reports `2.4.2`.
-- Final Cortex refresh completed with zero embedding failures. Pattern evidence
-  passed for all 10 changed indexed files; 10 package/workflow/plugin/registry/
-  test paths outside configured sources returned the expected not-indexed
-  result. Doctor passed 8/8 and the optional watcher is stopped.
-- Under explicit user instruction, pushed
-  `refactor/cli-ingest-modularization` and opened PR #109 with WO-026 through
-  WO-031 and REQ-15 traceability. The local `.mcp.json` deletion appeared after
-  acceptance and remains intentionally unstaged and outside the PR.
-- PR #109 merged to `main` at `bd968d4`. The first `v2.4.2` tag run
-  `30521392683` passed metadata/parser setup and stopped at root test 320/321:
-  the clean checkout lacked ignored `scaffold/mcp/dist/cli/govern.js`. Audit,
-  package, and publish steps did not run; npm remained `2.4.1`.
-- Created PR #110 to install/build the context runtime before root tests in
-  both release workflows and added ordering regressions. Clean-checkout
-  validation passes targeted
-  Enterprise 24/24, context 81/81, root 323/323, MCP 413/413, plugin/release
-  8/8, all committed dependency audits at zero, synchronized metadata, valid
-  YAML, and a 416-entry clean package that omits the unowned stale
-  `dist/embeddingModel.js`.
-- Validation/Ops and Security/Integration re-reviews closed with no blocker,
-  major, or minor findings. PR #110 merged at `736becf`.
-- Reconfirmed the failed run skipped audit, package, and publish; npm still
-  served `2.4.1`; and no GitHub release existed. With explicit approval,
-  deliberately replaced the unpublished `v2.4.2` tag so it peeled to
-  `736becf`.
-- Release Publish run `30523845440` passed metadata verification, both clean
-  installs, trusted runtime build, root and MCP suites, dependency audits,
-  package inspection, and npm trusted publishing. Independent registry
-  verification reports version/latest `2.4.2`; the remote annotated tag peels
-  to `736becf`.
+- WO-033 implemented the canonical `filesystem-boundary.mjs`, immutable
+  versioned real-root anchors, closed policy diagnostics and worker envelopes,
+  contained control/source/Git/hydration/README/worker reads, and root/packaged
+  dashboard source parity. The 25-case boundary matrix and frozen compatibility
+  evidence passed; full root passed 348/348, context 81/81, MCP 413/413, and the
+  `2.4.2` pack contained 418 entries.
+- Initial review found parser, root rebinding, worker authority, dashboard
+  lifecycle, diagnostic, and matrix gaps. `5ff7ece` fixed those findings. A
+  final Security re-review found that arbitrary worker result objects could be
+  downgraded to ordinary parse failures; `53a463c` now accepts only exact
+  `{ chunks, errors }` array-valued results and adds the missing absolute ADR
+  hydration case. Security and Contract re-reviews passed with no remaining
+  finding; Code Quality/Integration had already passed.
+- The manager accepted WO-033 locally and advanced WO-034 to Ready from packet
+  024. Package/release metadata remains `2.4.2`; no merge, tag, publish, deploy,
+  or R16 closure occurred.
 
 ## Archive
 
 - `archive/manager-log-2026-07-29.md` — foundation through WO-030 acceptance.
+- `archive/manager-log-2026-07-30.md` — WO-031 acceptance and v2.4.2 release
+  recovery.
