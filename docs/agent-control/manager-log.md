@@ -398,6 +398,10 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - The exact 52-path `2.5.0` candidate is authorized for staging, commit, push,
   one non-draft PR, merge, minor Release Bump, tag-gated Publish, npm
   verification, and cleanup under the user's existing authorization.
+- Commit `192295b` was pushed as `release/2.5.0-final`, and non-draft PR #113
+  was opened against `main` with WO-033 through WO-035 and WO-046/047 plus
+  REQ-4/16/17 and R3/15/16/17 traceability. Version metadata remains `2.4.2`
+  until the post-merge minor Release Bump workflow.
 
 ## Archive
 
