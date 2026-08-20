@@ -455,6 +455,50 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   workflow simulation passed both previously failing tests 2/2 and was restored
   before the push.
 
+## 2026-08-20 — WO-049 publish recovery assigned
+
+- PR #114 merged as `74c5876`. Release Bump run `32395256781` passed every gate,
+  committed `release: v2.5.0` as `4887baa`, created immutable tag `v2.5.0`, and
+  triggered Publish run `32395455646`.
+- Publish validated the tag, metadata, root 386, MCP 426, and five audits. Its
+  installed boundary passed 41/41, but the parent harness rejected Node 24's
+  successful `ℹ pass 41` summary because it only matched Node 22/TAP
+  `# pass 41`. Package verification and npm publish were skipped; npm latest
+  remains 2.4.2.
+- Packet 038 assigns a reporter-compatible harness-only fix and patch release
+  2.5.1. The immutable unpublished v2.5.0 tag will not be moved or reused.
+
+## 2026-08-20 — WO-049 first pass and review intake
+
+- The exact eight-path candidate adds one bounded summary helper accepting only
+  Node's line-start `#` or `ℹ` markers while retaining every exact pass-count
+  and zero-failure assertion. Runtime, package inventory, dependencies,
+  workflows, and frozen Angular source bindings are unchanged.
+- The full packed-artifact gate passes on local Node 22 and containerized
+  non-root Node 24.19.0 with the same 420 entries, 399/21 modes, inventory
+  digest `cebf97a…48bd`, installed 41/3/4/4 totals, ownership 385/94, and
+  upgrade 38 changed/five new. Syntax, version sync, and diff checks pass.
+- One root-container diagnostic is superseded: root legitimately bypassed two
+  unreadable-file fixtures. The non-root rerun matching GitHub Actions is green.
+  The candidate is frozen for the named three-way independent review.
+- Cortex pattern evidence, update, and watch status were attempted in the clean
+  worktree and failed closed because the installed 2.4.1 CLI requires a
+  mutating scaffold bootstrap. No init/auto-migration workaround was used.
+
+## 2026-08-20 — WO-049 accepted locally
+
+- Security/Contract, Code/Integration, and Validation/Ops/Release all return GO
+  with zero remaining blocker, major, minor, or note findings. Code review's
+  one accuracy minor was fixed by saying package inventory, not package
+  content, because the changed changelog is intentionally packaged.
+- The manager accepts the exact eight-path candidate and marks R18 mitigated
+  without waiver. Authorized execution is one exact commit/PR, merge, a new
+  patch Release Bump, immutable `v2.5.1`, tag-gated Publish, npm verification,
+  install smoke, and cleanup. The old Publish run is not rerun and `v2.5.0`
+  remains immutable and unpublished.
+- Commit `133ff10` was pushed on `release/2.5.1-recovery`, and non-draft PR
+  #115 was opened against `main` with REQ-4/R18 traceability.
+
 ## Archive
 
 - `archive/manager-log-2026-07-29.md` — foundation through WO-030 acceptance.

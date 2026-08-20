@@ -83,6 +83,11 @@ function run(command, args, { cwd = REPO_ROOT, env = process.env } = {}) {
   return result;
 }
 
+function assertNodeTestSummary(output, passed) {
+  assert.match(output, new RegExp(`^(?:#|ℹ) pass ${passed}\\b`, "mu"));
+  assert.match(output, /^(?:#|ℹ) fail 0\b/mu);
+}
+
 function sha256Buffer(buffer) {
   return crypto.createHash("sha256").update(buffer).digest("hex");
 }
@@ -414,22 +419,19 @@ try {
     "--test",
     path.join(packageRoot, "tests", "ingest-filesystem-boundary.test.mjs"),
   ]);
-  assert.match(boundary.stdout, /# pass 41\b/);
-  assert.match(boundary.stdout, /# fail 0\b/);
+  assertNodeTestSummary(boundary.stdout, 41);
 
   const characterization = run(process.execPath, [
     "--test",
     path.join(packageRoot, "tests", "ingest-characterization.test.mjs"),
   ]);
-  assert.match(characterization.stdout, /# pass 3\b/);
-  assert.match(characterization.stdout, /# fail 0\b/);
+  assertNodeTestSummary(characterization.stdout, 3);
 
   const developmentDashboard = run(process.execPath, [
     "--test",
     path.join(packageRoot, "tests", "dashboard.test.mjs"),
   ]);
-  assert.match(developmentDashboard.stdout, /# pass 4\b/);
-  assert.match(developmentDashboard.stdout, /# fail 0\b/);
+  assertNodeTestSummary(developmentDashboard.stdout, 4);
 
   const packagedDashboard = run(process.execPath, [
     "--test",
@@ -437,8 +439,7 @@ try {
   ], {
     env: { ...process.env, CORTEX_DASHBOARD_ENTRY: "packaged" },
   });
-  assert.match(packagedDashboard.stdout, /# pass 4\b/);
-  assert.match(packagedDashboard.stdout, /# fail 0\b/);
+  assertNodeTestSummary(packagedDashboard.stdout, 4);
 
   const upgrade = verifyForcedUpgrade(packageRoot, sandbox, npmCache);
   process.stdout.write(`${JSON.stringify({
