@@ -496,6 +496,8 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   patch Release Bump, immutable `v2.5.1`, tag-gated Publish, npm verification,
   install smoke, and cleanup. The old Publish run is not rerun and `v2.5.0`
   remains immutable and unpublished.
+- Commit `133ff10` was pushed on `release/2.5.1-recovery`, and non-draft PR
+  #115 was opened against `main` with REQ-4/R18 traceability.
 
 ## Archive
 
