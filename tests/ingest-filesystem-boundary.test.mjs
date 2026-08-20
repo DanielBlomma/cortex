@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
+import net from "node:net";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -9,6 +10,12 @@ import { Worker } from "node:worker_threads";
 
 import {
   CortexFilesystemPolicyError,
+  DASHBOARD_DATA_IDENTITIES,
+  INGEST_JSONL_OUTPUT_IDENTITIES,
+  INGEST_MANIFEST_OUTPUT_IDENTITY,
+  INGEST_OUTPUT_IDENTITIES,
+  INGEST_TSV_OUTPUT_IDENTITIES,
+  PRIOR_CACHE_IDENTITIES,
   createFilesystemBoundary,
   createFilesystemBoundaryFromAnchor,
   normalizeConfiguredSource,
@@ -23,10 +30,12 @@ import {
 import { generateModuleSummary } from "../scaffold/scripts/lib/ingest/chunks.mjs";
 import { parseFilesInWorkers } from "../scaffold/scripts/lib/ingest/workers.mjs";
 import {
+  gatherData as rootGatherData,
   parseSourcePaths as rootDashboardParseSourcePaths,
   scanBaseline
 } from "../scripts/dashboard.mjs";
 import {
+  gatherData as packagedGatherData,
   parseSourcePaths as packagedDashboardParseSourcePaths,
   scanBaseline as packagedScanBaseline
 } from "../scaffold/scripts/dashboard.mjs";
@@ -41,6 +50,13 @@ const FIXED_MTIME = new Date("2026-01-01T00:00:00.000Z");
 function makeParent(label) {
   const parent = fs.mkdtempSync(path.join(os.tmpdir(), `cortex-${label}-`));
   const project = path.join(parent, "project");
+  fs.mkdirSync(project);
+  return { parent, project };
+}
+
+function makeShortParent() {
+  const parent = fs.mkdtempSync(path.join("/tmp", "cx-"));
+  const project = path.join(parent, "p");
   fs.mkdirSync(project);
   return { parent, project };
 }
@@ -86,7 +102,60 @@ function installRootDashboard(project) {
   return path.join(scriptsDirectory, "dashboard.mjs");
 }
 
-function runPseudoTtyDashboard({ parent, project, dashboardPath, trigger }) {
+function installPackagedDashboard(project) {
+  const packagedDirectory = path.join(project, "scaffold", "scripts");
+  const ingestLibrary = path.join(packagedDirectory, "lib", "ingest");
+  fs.mkdirSync(packagedDirectory, { recursive: true });
+  fs.copyFileSync(PACKAGED_DASHBOARD, path.join(packagedDirectory, "dashboard.mjs"));
+  fs.cpSync(path.join(REPO_ROOT, "scaffold", "scripts", "lib", "ingest"), ingestLibrary, { recursive: true });
+  return path.join(packagedDirectory, "dashboard.mjs");
+}
+
+function injectNpmCachePolicyFailure(project) {
+  const boundaryPath = path.join(
+    project,
+    "scaffold",
+    "scripts",
+    "lib",
+    "ingest",
+    "filesystem-boundary.mjs"
+  );
+  const source = fs.readFileSync(boundaryPath, "utf8");
+  const needle = [
+    "      npmCachePath() {",
+    "        assertCompleteSnapshot();",
+    "        return path.join(root, \".context\", \"cache\", \"npm-cache\");",
+    "      },"
+  ].join("\n");
+  const replacement = [
+    "      npmCachePath() {",
+    "        assertCompleteSnapshot();",
+    "        throw new CortexFilesystemPolicyError({",
+    "          code: \"CORTEX_FS_DASHBOARD\",",
+    "          phase: \"dashboard_data\",",
+    "          subject_kind: \"dashboard_path\",",
+    "          subject: \".context/cache/npm-cache\",",
+    "          reason: \"path_replaced\"",
+    "        });",
+    "      },"
+  ].join("\n");
+  assert.ok(source.includes(needle));
+  fs.writeFileSync(boundaryPath, source.replace(needle, replacement), "utf8");
+}
+
+function installFakeNpm(parent) {
+  const marker = path.join(parent, "npm-invoked");
+  const fakeBin = path.join(parent, "bin");
+  fs.mkdirSync(fakeBin);
+  fs.writeFileSync(
+    path.join(fakeBin, "npm"),
+    `#!/bin/sh\nprintf invoked > ${JSON.stringify(marker)}\nprintf '\"2.4.2\"\\n'\n`,
+    { mode: 0o755 }
+  );
+  return { marker, path: `${fakeBin}:/usr/bin:/bin` };
+}
+
+function runPseudoTtyDashboard({ parent, project, dashboardPath, trigger, cliVersion = "", extraEnv = {} }) {
   const runner = path.join(parent, `tty-${trigger}-${path.basename(path.dirname(dashboardPath))}.mjs`);
   const rawState = path.join(parent, `raw-${trigger}-${path.basename(path.dirname(dashboardPath))}.log`);
   fs.writeFileSync(runner, [
@@ -101,7 +170,7 @@ function runPseudoTtyDashboard({ parent, project, dashboardPath, trigger }) {
     `process.argv = [process.execPath, ${JSON.stringify(runner)}, "--interval", "0.03"];`,
     `const { main } = await import(pathToFileURL(${JSON.stringify(dashboardPath)}).href);`,
     `main();`,
-    `if (trigger !== "startup") {`,
+    `if (trigger !== "startup" && trigger !== "data") {`,
     `  setTimeout(() => {`,
     `    if (trigger === "reload") {`,
     `      const config = project + "/.context/config.yaml";`,
@@ -130,8 +199,9 @@ function runPseudoTtyDashboard({ parent, project, dashboardPath, trigger }) {
     env: {
       ...process.env,
       CORTEX_PROJECT_ROOT: project,
-      CORTEX_CLI_VERSION: "",
-      PATH: "/usr/bin:/bin"
+      CORTEX_CLI_VERSION: cliVersion,
+      PATH: "/usr/bin:/bin",
+      ...extraEnv
     }
   });
   return {
@@ -209,6 +279,90 @@ function assertPolicy(error, { code, phase, kind, reason }) {
   assert.equal(error.subject_kind, kind);
   if (reason) assert.equal(error.reason, reason);
   return true;
+}
+
+function projectPath(project, identity) {
+  return path.join(project, ...identity.split("/"));
+}
+
+function seedOutputSet(project, prefix = "old") {
+  for (const identity of INGEST_OUTPUT_IDENTITIES) {
+    const target = projectPath(project, identity);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, `${prefix}:${identity}\n`, "utf8");
+  }
+}
+
+function stageCompleteOutputSet(outputSet, prefix = "new") {
+  for (const identity of INGEST_OUTPUT_IDENTITIES) {
+    outputSet.stage(identity, (descriptor) => {
+      fs.writeSync(descriptor, `${prefix}:${identity}\n`, undefined, "utf8");
+    });
+  }
+}
+
+function temporaryOutputNames(project) {
+  const names = [];
+  for (const relativeDirectory of [".context/cache", ".context/db/import"]) {
+    const directory = path.join(project, relativeDirectory);
+    if (!fs.existsSync(directory)) continue;
+    const stats = fs.lstatSync(directory);
+    if (stats.isSymbolicLink() || !stats.isDirectory()) continue;
+    for (const name of fs.readdirSync(directory)) {
+      if (name.startsWith(".") && name.endsWith(".tmp")) names.push(name);
+    }
+  }
+  return names.sort();
+}
+
+function temporaryOutputPathsBelow(project) {
+  const paths = [];
+  const pending = [path.join(project, ".context")];
+  while (pending.length > 0) {
+    const directory = pending.pop();
+    if (!fs.existsSync(directory)) continue;
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const candidate = path.join(directory, entry.name);
+      if (entry.isDirectory() && !entry.isSymbolicLink()) pending.push(candidate);
+      if (entry.isFile() && entry.name.startsWith(".") && entry.name.endsWith(".tmp")) {
+        paths.push(candidate);
+      }
+    }
+  }
+  return paths.sort();
+}
+
+async function createFilesystemKind(target, kind, parent) {
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  if (kind === "symlink") {
+    const canary = path.join(parent, `canary-${path.basename(target)}-${Date.now()}-${Math.random()}`);
+    fs.writeFileSync(canary, "canary\n", "utf8");
+    fs.symlinkSync(canary, target);
+    return async () => {};
+  }
+  if (kind === "directory") {
+    fs.mkdirSync(target);
+    return async () => {};
+  }
+  if (kind === "file") {
+    fs.writeFileSync(target, "wrong type\n", "utf8");
+    return async () => {};
+  }
+  if (kind === "fifo") {
+    const made = spawnSync("mkfifo", [target], { encoding: "utf8" });
+    if (made.status !== 0) return null;
+    return async () => {};
+  }
+  if (kind === "socket") {
+    if (Buffer.byteLength(target) > 100) return null;
+    const server = net.createServer();
+    await new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(target, resolve);
+    });
+    return async () => new Promise((resolve) => server.close(resolve));
+  }
+  throw new Error(`unsupported fixture kind: ${kind}`);
 }
 
 test("project anchoring rejects missing and non-directory selections while accepting a symlink spelling", () => {
@@ -1099,5 +1253,891 @@ test("ingest and both dashboard entrypoints sanitize hostile filesystem errors a
   } finally {
     try { fs.chmodSync(path.join(project, "src"), 0o700); } catch {}
     fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("WO-034 inventories exactly seven prior caches and 48 manifest-last outputs", () => {
+  assert.equal(PRIOR_CACHE_IDENTITIES.length, 7);
+  assert.equal(INGEST_JSONL_OUTPUT_IDENTITIES.length, 26);
+  assert.equal(INGEST_TSV_OUTPUT_IDENTITIES.length, 21);
+  assert.equal(INGEST_OUTPUT_IDENTITIES.length, 48);
+  assert.equal(INGEST_OUTPUT_IDENTITIES.at(-1), INGEST_MANIFEST_OUTPUT_IDENTITY);
+  assert.equal(new Set(INGEST_OUTPUT_IDENTITIES).size, 48);
+  assert.equal(DASHBOARD_DATA_IDENTITIES.length, 12);
+});
+
+test("prior-cache matrix covers every leaf as regular, missing, symlink, directory, and guarded special before reads", async () => {
+  for (const [identityIndex, identity] of PRIOR_CACHE_IDENTITIES.entries()) {
+    for (const safeKind of ["regular", "missing"]) {
+      const { parent, project } = makeParent(`prior-cache-${safeKind}`);
+      try {
+        writeControls(project);
+        if (safeKind === "regular") {
+          fs.mkdirSync(path.join(project, ".context", "cache"));
+          fs.writeFileSync(projectPath(project, identity), '{"id":"safe"}\n', "utf8");
+        }
+        const priorCache = createFilesystemBoundary(project).preflightPriorCache();
+        assert.deepEqual(
+          priorCache.read(identity),
+          safeKind === "regular" ? [{ id: "safe" }] : []
+        );
+      } finally {
+        fs.rmSync(parent, { recursive: true, force: true });
+      }
+    }
+
+    const unsafeKinds = [
+      "symlink",
+      "directory",
+      ...(process.platform === "win32" ? [] : ["fifo"])
+    ];
+    for (const unsafeKind of unsafeKinds) {
+      const { parent, project } = makeParent(`prior-cache-${unsafeKind}`);
+      let cleanup = async () => {};
+      try {
+        writeControls(project);
+        fs.mkdirSync(path.join(project, ".context", "cache"));
+        for (const candidate of PRIOR_CACHE_IDENTITIES) {
+          if (candidate !== identity) {
+            fs.writeFileSync(projectPath(project, candidate), '{"id":"safe"}\n', "utf8");
+          }
+        }
+        cleanup = await createFilesystemKind(projectPath(project, identity), unsafeKind, parent);
+        if (!cleanup) continue;
+        let readCount = 0;
+        const originalRead = fs.readFileSync;
+        fs.readFileSync = (...args) => {
+          readCount += 1;
+          return originalRead(...args);
+        };
+        try {
+          assert.throws(
+            () => createFilesystemBoundary(project).preflightPriorCache(),
+            (error) => {
+              assert.equal(error.subject, identity);
+              return assertPolicy(error, {
+                code: "CORTEX_FS_CACHE",
+                phase: "discovery",
+                kind: "cache_path"
+              });
+            }
+          );
+          assert.equal(readCount, 0, `${identity}/${unsafeKind}`);
+        } finally {
+          fs.readFileSync = originalRead;
+        }
+      } finally {
+        await cleanup();
+        fs.rmSync(parent, { recursive: true, force: true });
+      }
+    }
+  }
+
+  const { parent, project } = makeParent("prior-cache-compatible");
+  try {
+    writeControls(project);
+    fs.mkdirSync(path.join(project, ".context", "cache"));
+    const accepted = PRIOR_CACHE_IDENTITIES[0];
+    fs.writeFileSync(
+      projectPath(project, accepted),
+      '\n{"id":"first"}\nnot-json\n{"id":"second"}\n',
+      "utf8"
+    );
+    const priorCache = createFilesystemBoundary(project).preflightPriorCache();
+    assert.deepEqual(priorCache.read(accepted).map((record) => record.id), ["first", "second"]);
+    assert.deepEqual(priorCache.read(PRIOR_CACHE_IDENTITIES[1]), []);
+
+    fs.writeFileSync(projectPath(project, PRIOR_CACHE_IDENTITIES.at(-1)), "{}\n", "utf8");
+    assert.throws(
+      () => priorCache.read(accepted),
+      (error) => assertPolicy(error, {
+        code: "CORTEX_FS_CACHE",
+        phase: "discovery",
+        kind: "cache_path",
+        reason: "path_replaced"
+      })
+    );
+  } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("output preflight rejects a late invalid leaf before directory creation, staging, or prior output mutation", () => {
+  const { parent, project } = makeParent("output-late-preflight");
+  try {
+    writeControls(project);
+    const sentinelIdentity = INGEST_OUTPUT_IDENTITIES[0];
+    fs.mkdirSync(path.join(project, ".context", "cache"));
+    fs.writeFileSync(projectPath(project, sentinelIdentity), "sentinel\n", "utf8");
+    fs.mkdirSync(projectPath(project, INGEST_MANIFEST_OUTPUT_IDENTITY));
+
+    const boundary = createFilesystemBoundary(project);
+    assert.throws(
+      () => boundary.prepareIngestOutputSet(),
+      (error) => {
+        assert.equal(error.subject, INGEST_MANIFEST_OUTPUT_IDENTITY);
+        return assertPolicy(error, {
+          code: "CORTEX_FS_OUTPUT",
+          phase: "output_preflight",
+          kind: "output_path",
+          reason: "not_regular_file"
+        });
+      }
+    );
+    assert.equal(fs.readFileSync(projectPath(project, sentinelIdentity), "utf8"), "sentinel\n");
+    assert.equal(fs.existsSync(path.join(project, ".context", "db")), false);
+    assert.deepEqual(temporaryOutputNames(project), []);
+  } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("output preflight matrix covers every leaf as regular, missing, symlink, directory, and guarded special before staging", async () => {
+  for (const [identityIndex, identity] of INGEST_OUTPUT_IDENTITIES.entries()) {
+    for (const safeKind of ["regular", "missing"]) {
+      const { parent, project } = makeParent(`output-${safeKind}`);
+      try {
+        writeControls(project);
+        if (safeKind === "regular") {
+          const target = projectPath(project, identity);
+          fs.mkdirSync(path.dirname(target), { recursive: true });
+          fs.writeFileSync(target, "safe-final\n", "utf8");
+        }
+        let stageCount = 0;
+        const outputSet = createFilesystemBoundary(project).prepareIngestOutputSet({
+          testHooks: { beforeStageCreate() { stageCount += 1; } }
+        });
+        assert.equal(stageCount, 0);
+        outputSet.discard();
+        if (safeKind === "regular") {
+          assert.equal(fs.readFileSync(projectPath(project, identity), "utf8"), "safe-final\n");
+        }
+      } finally {
+        fs.rmSync(parent, { recursive: true, force: true });
+      }
+    }
+
+    const unsafeKinds = [
+      "symlink",
+      "directory",
+      ...(process.platform === "win32" ? [] : ["fifo"])
+    ];
+    for (const unsafeKind of unsafeKinds) {
+      const { parent, project } = makeParent(`output-${unsafeKind}`);
+      let cleanup = async () => {};
+      try {
+        writeControls(project);
+        cleanup = await createFilesystemKind(projectPath(project, identity), unsafeKind, parent);
+        if (!cleanup) continue;
+        let stageCount = 0;
+        assert.throws(
+          () => createFilesystemBoundary(project).prepareIngestOutputSet({
+            testHooks: { beforeStageCreate() { stageCount += 1; } }
+          }),
+          (error) => {
+            assert.equal(error.subject, identity);
+            return assertPolicy(error, {
+              code: "CORTEX_FS_OUTPUT",
+              phase: "output_preflight",
+              kind: "output_path"
+            });
+          },
+          `${identity}/${unsafeKind}`
+        );
+        assert.equal(stageCount, 0, `${identity}/${unsafeKind}`);
+        assert.deepEqual(temporaryOutputNames(project), []);
+      } finally {
+        await cleanup();
+        fs.rmSync(parent, { recursive: true, force: true });
+      }
+    }
+  }
+});
+
+test("complete output staging replaces hard-linked JSONL, TSV, and manifest destinations with manifest last", () => {
+  const { parent, project } = makeParent("output-hardlinks");
+  try {
+    writeControls(project);
+    seedOutputSet(project);
+    const linkedIdentities = [
+      INGEST_JSONL_OUTPUT_IDENTITIES[0],
+      INGEST_TSV_OUTPUT_IDENTITIES[0],
+      INGEST_MANIFEST_OUTPUT_IDENTITY
+    ];
+    const canaries = new Map();
+    for (const [index, identity] of linkedIdentities.entries()) {
+      const canary = path.join(parent, `canary-${index}`);
+      fs.writeFileSync(canary, `canary-${index}\n`, "utf8");
+      fs.rmSync(projectPath(project, identity));
+      fs.linkSync(canary, projectPath(project, identity));
+      canaries.set(identity, canary);
+    }
+
+    const commitOrder = [];
+    const outputSet = createFilesystemBoundary(project).prepareIngestOutputSet({
+      testHooks: {
+        beforeCommit(identity) {
+          commitOrder.push(identity);
+        }
+      }
+    });
+    stageCompleteOutputSet(outputSet);
+    outputSet.commit();
+
+    assert.deepEqual(commitOrder, INGEST_OUTPUT_IDENTITIES);
+    assert.equal(commitOrder.at(-1), INGEST_MANIFEST_OUTPUT_IDENTITY);
+    for (const [index, identity] of linkedIdentities.entries()) {
+      assert.equal(fs.readFileSync(canaries.get(identity), "utf8"), `canary-${index}\n`);
+      assert.equal(fs.readFileSync(projectPath(project, identity), "utf8"), `new:${identity}\n`);
+      assert.notEqual(
+        fs.statSync(canaries.get(identity), { bigint: true }).ino,
+        fs.statSync(projectPath(project, identity), { bigint: true }).ino
+      );
+    }
+    assert.deepEqual(temporaryOutputNames(project), []);
+  } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("staging collision and write failure clean every run-owned stage without changing final files", () => {
+  const { parent, project } = makeParent("output-stage-failures");
+  try {
+    writeControls(project);
+    seedOutputSet(project);
+    const collisionIdentity = INGEST_OUTPUT_IDENTITIES[1];
+    const collisionPath = path.join(
+      path.dirname(projectPath(project, collisionIdentity)),
+      `.${path.basename(collisionIdentity)}.collision.tmp`
+    );
+    fs.writeFileSync(collisionPath, "not-owned\n", "utf8");
+    const outputSet = createFilesystemBoundary(project).prepareIngestOutputSet({
+      testHooks: {
+        stageToken() {
+          return "collision";
+        }
+      }
+    });
+    outputSet.stage(INGEST_OUTPUT_IDENTITIES[0], (descriptor) => {
+      fs.writeSync(descriptor, "staged\n", undefined, "utf8");
+    });
+    assert.throws(
+      () => outputSet.stage(collisionIdentity, () => {}),
+      (error) => assertPolicy(error, {
+        code: "CORTEX_FS_OUTPUT",
+        phase: "output_commit",
+        kind: "output_path",
+        reason: "path_replaced"
+      })
+    );
+    assert.equal(fs.existsSync(collisionPath), true);
+    assert.equal(fs.readFileSync(projectPath(project, INGEST_OUTPUT_IDENTITIES[0]), "utf8"), `old:${INGEST_OUTPUT_IDENTITIES[0]}\n`);
+    assert.deepEqual(temporaryOutputNames(project), [path.basename(collisionPath)]);
+    fs.rmSync(collisionPath);
+
+    const replacementSet = createFilesystemBoundary(project).prepareIngestOutputSet();
+    replacementSet.stage(INGEST_OUTPUT_IDENTITIES[0], () => {});
+    const replacementPath = path.join(parent, "replacement-output");
+    fs.writeFileSync(replacementPath, "replacement\n", "utf8");
+    fs.renameSync(replacementPath, projectPath(project, INGEST_OUTPUT_IDENTITIES[1]));
+    assert.throws(
+      () => replacementSet.stage(INGEST_OUTPUT_IDENTITIES[1], () => {}),
+      (error) => assertPolicy(error, {
+        code: "CORTEX_FS_OUTPUT",
+        phase: "output_commit",
+        kind: "output_path",
+        reason: "path_replaced"
+      })
+    );
+    assert.deepEqual(temporaryOutputNames(project), []);
+
+    const writeFailureSet = createFilesystemBoundary(project).prepareIngestOutputSet({
+      testHooks: {
+        beforeStageWrite(identity) {
+          if (identity === INGEST_OUTPUT_IDENTITIES[1]) throw new Error("injected write failure");
+        }
+      }
+    });
+    writeFailureSet.stage(INGEST_OUTPUT_IDENTITIES[0], () => {});
+    assert.throws(() => writeFailureSet.stage(INGEST_OUTPUT_IDENTITIES[1], () => {}));
+    assert.deepEqual(temporaryOutputNames(project), []);
+    assert.equal(fs.readFileSync(projectPath(project, INGEST_OUTPUT_IDENTITIES[0]), "utf8"), `old:${INGEST_OUTPUT_IDENTITIES[0]}\n`);
+  } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("pre-commit failure preserves the whole prior set while commit failure records an honest replaced prefix", () => {
+  const { parent, project } = makeParent("output-commit-failures");
+  try {
+    writeControls(project);
+    seedOutputSet(project);
+    const preCommitSet = createFilesystemBoundary(project).prepareIngestOutputSet({
+      testHooks: {
+        beforePreCommit() {
+          throw new Error("injected pre-commit failure");
+        }
+      }
+    });
+    stageCompleteOutputSet(preCommitSet, "precommit");
+    assert.throws(
+      () => preCommitSet.commit(),
+      (error) => assertPolicy(error, {
+        code: "CORTEX_FS_OUTPUT",
+        phase: "output_commit",
+        kind: "output_path",
+        reason: "path_replaced"
+      })
+    );
+    for (const identity of INGEST_OUTPUT_IDENTITIES) {
+      assert.equal(fs.readFileSync(projectPath(project, identity), "utf8"), `old:${identity}\n`);
+    }
+    assert.deepEqual(temporaryOutputNames(project), []);
+
+    const commitFailureSet = createFilesystemBoundary(project).prepareIngestOutputSet({
+      testHooks: {
+        beforeCommit(_identity, index) {
+          if (index === 2) throw new Error("injected commit failure");
+        }
+      }
+    });
+    stageCompleteOutputSet(commitFailureSet, "commit");
+    assert.throws(() => commitFailureSet.commit());
+    assert.equal(fs.readFileSync(projectPath(project, INGEST_OUTPUT_IDENTITIES[0]), "utf8"), `commit:${INGEST_OUTPUT_IDENTITIES[0]}\n`);
+    assert.equal(fs.readFileSync(projectPath(project, INGEST_OUTPUT_IDENTITIES[1]), "utf8"), `commit:${INGEST_OUTPUT_IDENTITIES[1]}\n`);
+    assert.equal(fs.readFileSync(projectPath(project, INGEST_OUTPUT_IDENTITIES[2]), "utf8"), `old:${INGEST_OUTPUT_IDENTITIES[2]}\n`);
+    assert.equal(fs.readFileSync(projectPath(project, INGEST_MANIFEST_OUTPUT_IDENTITY), "utf8"), `old:${INGEST_MANIFEST_OUTPUT_IDENTITY}\n`);
+    assert.deepEqual(temporaryOutputNames(project), []);
+  } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("whole-set precommit rejects late final, manifest, parent, and stage replacement before the first rename", () => {
+  const cases = [
+    {
+      label: "late-final",
+      mutate(project) {
+        const identity = INGEST_OUTPUT_IDENTITIES.at(-2);
+        const replacement = `${projectPath(project, identity)}.replacement`;
+        fs.writeFileSync(replacement, "late-final-replacement\n", "utf8");
+        fs.renameSync(replacement, projectPath(project, identity));
+      }
+    },
+    {
+      label: "manifest",
+      mutate(project) {
+        const replacement = `${projectPath(project, INGEST_MANIFEST_OUTPUT_IDENTITY)}.replacement`;
+        fs.writeFileSync(replacement, "manifest-replacement\n", "utf8");
+        fs.renameSync(replacement, projectPath(project, INGEST_MANIFEST_OUTPUT_IDENTITY));
+      }
+    },
+    {
+      label: "parent",
+      mutate(project) {
+        const outputParent = path.join(project, ".context", "db", "import");
+        fs.renameSync(outputParent, `${outputParent}-parked`);
+        fs.mkdirSync(outputParent);
+      }
+    },
+    {
+      label: "stage",
+      mutate(_project, stagePaths) {
+        const stagePath = stagePaths.get(INGEST_MANIFEST_OUTPUT_IDENTITY);
+        fs.rmSync(stagePath);
+        fs.writeFileSync(stagePath, "unowned-stage-replacement\n", "utf8");
+      },
+      keepsUnownedStage: true
+    }
+  ];
+
+  for (const fixture of cases) {
+    const { parent, project } = makeParent(`whole-precommit-${fixture.label}`);
+    try {
+      writeControls(project);
+      seedOutputSet(project);
+      const stagePaths = new Map();
+      const outputSet = createFilesystemBoundary(project).prepareIngestOutputSet({
+        testHooks: {
+          beforeStageCreate(identity, _attempt, stagePath) {
+            stagePaths.set(identity, stagePath);
+          },
+          beforePreCommit() {
+            fixture.mutate(project, stagePaths);
+          }
+        }
+      });
+      stageCompleteOutputSet(outputSet, fixture.label);
+
+      assert.throws(
+        () => outputSet.commit(),
+        (error) => assertPolicy(error, {
+          code: "CORTEX_FS_OUTPUT",
+          phase: "output_commit",
+          kind: "output_path",
+          reason: "path_replaced"
+        })
+      );
+
+      if (fixture.label === "parent") {
+        const outputParent = path.join(project, ".context", "db", "import");
+        fs.rmSync(outputParent, { recursive: true });
+        fs.renameSync(`${outputParent}-parked`, outputParent);
+      }
+
+      for (const identity of INGEST_OUTPUT_IDENTITIES) {
+        const content = fs.readFileSync(projectPath(project, identity), "utf8");
+        if (fixture.label === "late-final" && identity === INGEST_OUTPUT_IDENTITIES.at(-2)) {
+          assert.equal(content, "late-final-replacement\n");
+        } else if (fixture.label === "manifest" && identity === INGEST_MANIFEST_OUTPUT_IDENTITY) {
+          assert.equal(content, "manifest-replacement\n");
+        } else {
+          assert.equal(content, `old:${identity}\n`, `${fixture.label}: ${identity}`);
+        }
+      }
+
+      const remainingStages = temporaryOutputPathsBelow(project);
+      if (fixture.keepsUnownedStage) {
+        assert.deepEqual(
+          remainingStages.map((candidate) => fs.realpathSync.native(candidate)),
+          [fs.realpathSync.native(stagePaths.get(INGEST_MANIFEST_OUTPUT_IDENTITY))]
+        );
+        assert.equal(fs.readFileSync(remainingStages[0], "utf8"), "unowned-stage-replacement\n");
+      } else {
+        assert.deepEqual(remainingStages, [], fixture.label);
+      }
+    } finally {
+      fs.rmSync(parent, { recursive: true, force: true });
+    }
+  }
+});
+
+test("dashboard data matrix covers every leaf and ancestor as regular, missing, symlink, wrong type, and guarded special before reads", async () => {
+  const directoryIdentities = new Set([
+    ".context/cache",
+    ".context/embeddings",
+    ".context/cache/npm-cache"
+  ]);
+  for (const [identityIndex, identity] of DASHBOARD_DATA_IDENTITIES.entries()) {
+    const expectsDirectory = directoryIdentities.has(identity);
+    for (const safeKind of ["regular", "missing"]) {
+      const { parent, project } = makeParent(`dashboard-data-${safeKind}`);
+      try {
+        writeControls(project);
+        if (safeKind === "regular") {
+          const target = projectPath(project, identity);
+          fs.mkdirSync(path.dirname(target), { recursive: true });
+          if (expectsDirectory) fs.mkdirSync(target);
+          else fs.writeFileSync(target, identity.endsWith(".jsonl") ? '{"from":"a","to":"b"}\n' : '{}\n', "utf8");
+        }
+        const dashboardData = createFilesystemBoundary(project).preflightDashboardData();
+        if (expectsDirectory) {
+          assert.equal(dashboardData.npmCachePath().endsWith("/.context/cache/npm-cache"), true);
+        } else if (identity.endsWith(".jsonl")) {
+          assert.deepEqual(dashboardData.readJsonl(identity), safeKind === "regular" ? [{ from: "a", to: "b" }] : []);
+        } else {
+          assert.deepEqual(dashboardData.readJson(identity), safeKind === "regular" ? {} : null);
+        }
+      } finally {
+        fs.rmSync(parent, { recursive: true, force: true });
+      }
+    }
+
+    const unsafeKinds = [
+      "symlink",
+      expectsDirectory ? "file" : "directory",
+      ...(process.platform === "win32" ? [] : ["fifo"])
+    ];
+    for (const unsafeKind of unsafeKinds) {
+      const { parent, project } = makeParent(`dashboard-data-${unsafeKind}`);
+      let cleanup = async () => {};
+      try {
+        writeControls(project);
+        cleanup = await createFilesystemKind(projectPath(project, identity), unsafeKind, parent);
+        if (!cleanup) continue;
+        let readCount = 0;
+        const originalRead = fs.readFileSync;
+        fs.readFileSync = (...args) => {
+          readCount += 1;
+          return originalRead(...args);
+        };
+        try {
+          assert.throws(
+            () => createFilesystemBoundary(project).preflightDashboardData(),
+            (error) => {
+              assert.equal(error.subject, identity);
+              return assertPolicy(error, {
+                code: "CORTEX_FS_DASHBOARD",
+                phase: "dashboard_data",
+                kind: "dashboard_path"
+              });
+            },
+            `${identity}/${unsafeKind}`
+          );
+          assert.equal(readCount, 0, `${identity}/${unsafeKind}`);
+        } finally {
+          fs.readFileSync = originalRead;
+        }
+      } finally {
+        await cleanup();
+        fs.rmSync(parent, { recursive: true, force: true });
+      }
+    }
+  }
+});
+
+test("dashboard data handle preserves safe missing fallbacks and revalidates the complete layout before each access", () => {
+  const { parent, project } = makeParent("dashboard-data-snapshots");
+  try {
+    writeControls(project);
+    const boundary = createFilesystemBoundary(project);
+    const dashboardData = boundary.preflightDashboardData();
+    assert.equal(dashboardData.readJson(".context/cache/manifest.json"), null);
+    assert.deepEqual(dashboardData.readJsonl(".context/cache/relations.calls.jsonl"), []);
+    assert.equal(dashboardData.npmCachePath(), path.join(boundary.root, ".context", "cache", "npm-cache"));
+    assert.equal(fs.existsSync(path.join(project, ".context", "cache")), false);
+
+    fs.mkdirSync(path.join(project, ".context", "embeddings"));
+    assert.throws(
+      () => dashboardData.readJson(".context/cache/manifest.json"),
+      (error) => assertPolicy(error, {
+        code: "CORTEX_FS_DASHBOARD",
+        phase: "dashboard_data",
+        kind: "dashboard_path",
+        reason: "path_replaced"
+      })
+    );
+  } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("both dashboard gatherers rethrow npm-cache filesystem policy errors before ordinary version fallback", () => {
+  const baseline = { files: 0, lines: 0, chars: 0, tokens: 0 };
+  for (const gatherData of [rootGatherData, packagedGatherData]) {
+    let npmCacheCalls = 0;
+    const dashboardData = {
+      readJson() { return null; },
+      readJsonl() { return []; },
+      npmCachePath() {
+        npmCacheCalls += 1;
+        throw new CortexFilesystemPolicyError({
+          code: "CORTEX_FS_DASHBOARD",
+          phase: "dashboard_data",
+          subject_kind: "dashboard_path",
+          subject: ".context/cache/npm-cache",
+          reason: "path_replaced"
+        });
+      }
+    };
+    assert.throws(
+      () => gatherData(baseline, dashboardData),
+      (error) => assertPolicy(error, {
+        code: "CORTEX_FS_DASHBOARD",
+        phase: "dashboard_data",
+        kind: "dashboard_path",
+        reason: "path_replaced"
+      })
+    );
+    assert.equal(npmCacheCalls, 1);
+  }
+});
+
+test("root and packaged dashboards fail non-TTY and live npm-cache policy lifecycle before npm or a normal frame", { skip: process.platform === "win32" }, () => {
+  for (const dashboardKind of ["root", "packaged"]) {
+    for (const mode of ["non-tty", "live"]) {
+      const { parent, project } = makeParent(`dashboard-npm-policy-${dashboardKind}-${mode}`);
+      try {
+        writeControls(project);
+        fs.mkdirSync(path.join(project, "src"));
+        fs.writeFileSync(path.join(project, "src", "app.js"), "export const value = true;\n", "utf8");
+        const dashboardPath = dashboardKind === "root"
+          ? installRootDashboard(project)
+          : installPackagedDashboard(project);
+        injectNpmCachePolicyFailure(project);
+        const fakeNpm = installFakeNpm(parent);
+        const result = mode === "non-tty"
+          ? spawnSync(process.execPath, [dashboardPath], {
+              cwd: project,
+              encoding: "utf8",
+              env: {
+                ...process.env,
+                CORTEX_PROJECT_ROOT: project,
+                CORTEX_CLI_VERSION: "2.4.2",
+                PATH: fakeNpm.path
+              }
+            })
+          : runPseudoTtyDashboard({
+              parent,
+              project,
+              dashboardPath,
+              trigger: "data",
+              cliVersion: "2.4.2",
+              extraEnv: { PATH: fakeNpm.path }
+            });
+
+        assert.equal(result.status, 1, `${dashboardKind}/${mode}: ${result.stderr}`);
+        const diagnostics = result.stderr.trim().split(/\r?\n/).filter(Boolean);
+        assert.equal(diagnostics.length, 1, `${dashboardKind}/${mode}: ${result.stderr}`);
+        assert.ok([...diagnostics[0]].length <= 256);
+        assert.match(diagnostics[0], /CORTEX_FS_DASHBOARD.*dashboard_data.*npm-cache.*path_replaced/);
+        assert.equal(fs.existsSync(fakeNpm.marker), false, `${dashboardKind}/${mode}`);
+        if (mode === "non-tty") {
+          assert.equal(result.stdout, "");
+        } else {
+          assert.match(result.stdout, /\x1b\[\?25l/);
+          assert.match(result.stdout, /\x1b\[\?25h/);
+          assert.doesNotMatch(result.stdout, /\x1b\[H/);
+          assert.deepEqual(result.rawModes, ["true", "false"]);
+        }
+      } finally {
+        fs.rmSync(parent, { recursive: true, force: true });
+      }
+    }
+  }
+});
+
+test("cache, DB, and dashboard ancestors reject redirected or special layouts before mutation", { skip: process.platform === "win32" }, () => {
+  const cases = [
+    {
+      label: "output-cache-link",
+      setup(project, parent) {
+        const outside = path.join(parent, "outside-cache");
+        fs.mkdirSync(outside);
+        fs.symlinkSync(outside, path.join(project, ".context", "cache"), "dir");
+      },
+      operation(boundary) {
+        boundary.prepareIngestOutputSet();
+      },
+      code: "CORTEX_FS_OUTPUT"
+    },
+    {
+      label: "output-db-file",
+      setup(project) {
+        fs.writeFileSync(path.join(project, ".context", "db"), "not a directory\n", "utf8");
+      },
+      operation(boundary) {
+        boundary.prepareIngestOutputSet();
+      },
+      code: "CORTEX_FS_OUTPUT"
+    },
+    {
+      label: "prior-cache-link",
+      setup(project, parent) {
+        const outside = path.join(parent, "outside-prior-cache");
+        fs.mkdirSync(outside);
+        fs.symlinkSync(outside, path.join(project, ".context", "cache"), "dir");
+      },
+      operation(boundary) {
+        boundary.preflightPriorCache();
+      },
+      code: "CORTEX_FS_CACHE"
+    },
+    {
+      label: "dashboard-embeddings-link",
+      setup(project, parent) {
+        const outside = path.join(parent, "outside-embeddings");
+        fs.mkdirSync(outside);
+        fs.symlinkSync(outside, path.join(project, ".context", "embeddings"), "dir");
+      },
+      operation(boundary) {
+        boundary.preflightDashboardData();
+      },
+      code: "CORTEX_FS_DASHBOARD"
+    }
+  ];
+
+  for (const fixture of cases) {
+    const { parent, project } = makeParent(fixture.label);
+    try {
+      writeControls(project);
+      fixture.setup(project, parent);
+      const boundary = createFilesystemBoundary(project);
+      assert.throws(
+        () => fixture.operation(boundary),
+        (error) => {
+          assert.equal(error.code, fixture.code);
+          assert.ok(["symlink_component", "not_directory"].includes(error.reason));
+          return true;
+        }
+      );
+      assert.equal(fs.existsSync(path.join(project, ".context", "db", "import")), false);
+      assert.deepEqual(temporaryOutputNames(project), []);
+    } finally {
+      fs.rmSync(parent, { recursive: true, force: true });
+    }
+  }
+
+  const { parent, project } = makeParent("output-cache-fifo");
+  try {
+    writeControls(project);
+    const fifo = path.join(project, ".context", "cache");
+    const mkfifo = spawnSync("mkfifo", [fifo], { encoding: "utf8" });
+    if (mkfifo.status !== 0) return;
+    assert.throws(
+      () => createFilesystemBoundary(project).prepareIngestOutputSet(),
+      (error) => assertPolicy(error, {
+        code: "CORTEX_FS_OUTPUT",
+        phase: "output_preflight",
+        kind: "output_path",
+        reason: "special_file"
+      })
+    );
+  } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("factorized cache, DB/import, and embeddings ancestors preserve missing behavior and deny links, files, and FIFOs before I/O", { skip: process.platform === "win32" }, async () => {
+  const fixtures = [
+    { label: "output-cache", identity: ".context/cache", area: "output" },
+    { label: "output-db", identity: ".context/db", area: "output" },
+    { label: "output-import", identity: ".context/db/import", area: "output" },
+    { label: "prior-cache", identity: ".context/cache", area: "prior" },
+    { label: "dashboard-cache", identity: ".context/cache", area: "dashboard" },
+    { label: "dashboard-embeddings", identity: ".context/embeddings", area: "dashboard" }
+  ];
+
+  function invoke(boundary, area, counters) {
+    if (area === "output") {
+      const outputSet = boundary.prepareIngestOutputSet({
+        testHooks: { beforeStageCreate() { counters.stage += 1; } }
+      });
+      outputSet.discard();
+    } else if (area === "prior") {
+      boundary.preflightPriorCache();
+    } else {
+      boundary.preflightDashboardData();
+    }
+  }
+
+  for (const fixture of fixtures) {
+    const missing = makeParent(`ancestor-${fixture.label}-missing`);
+    try {
+      writeControls(missing.project);
+      const counters = { stage: 0 };
+      invoke(createFilesystemBoundary(missing.project), fixture.area, counters);
+      assert.equal(counters.stage, 0);
+      if (fixture.area === "output") {
+        assert.equal(fs.statSync(path.join(missing.project, ".context", "cache")).isDirectory(), true);
+        assert.equal(fs.statSync(path.join(missing.project, ".context", "db", "import")).isDirectory(), true);
+      } else {
+        assert.equal(fs.existsSync(projectPath(missing.project, fixture.identity)), false);
+      }
+    } finally {
+      fs.rmSync(missing.parent, { recursive: true, force: true });
+    }
+
+    for (const unsafeKind of ["symlink", "file", "fifo"]) {
+      const { parent, project } = makeParent(`ancestor-${fixture.label}-${unsafeKind}`);
+      let cleanup = async () => {};
+      try {
+        writeControls(project);
+        cleanup = await createFilesystemKind(projectPath(project, fixture.identity), unsafeKind, parent);
+        if (!cleanup) continue;
+        const counters = { stage: 0, read: 0 };
+        const originalRead = fs.readFileSync;
+        fs.readFileSync = (...args) => {
+          counters.read += 1;
+          return originalRead(...args);
+        };
+        try {
+          assert.throws(
+            () => invoke(createFilesystemBoundary(project), fixture.area, counters),
+            CortexFilesystemPolicyError,
+            `${fixture.label}/${unsafeKind}`
+          );
+        } finally {
+          fs.readFileSync = originalRead;
+        }
+        assert.deepEqual(counters, { stage: 0, read: 0 });
+        assert.deepEqual(temporaryOutputNames(project), []);
+      } finally {
+        await cleanup();
+        fs.rmSync(parent, { recursive: true, force: true });
+      }
+    }
+  }
+});
+
+test("guarded Unix-socket ancestors deny output, prior-cache, and dashboard access before I/O", { skip: process.platform === "win32" }, async () => {
+  const fixtures = [
+    { identity: ".context/db", area: "output" },
+    { identity: ".context/cache", area: "prior" },
+    { identity: ".context/embeddings", area: "dashboard" }
+  ];
+  for (const fixture of fixtures) {
+    const { parent, project } = makeShortParent();
+    let cleanup = async () => {};
+    try {
+      writeControls(project);
+      cleanup = await createFilesystemKind(projectPath(project, fixture.identity), "socket", parent);
+      if (!cleanup) continue;
+      let stageCount = 0;
+      assert.throws(() => {
+        const boundary = createFilesystemBoundary(project);
+        if (fixture.area === "output") {
+          boundary.prepareIngestOutputSet({
+            testHooks: { beforeStageCreate() { stageCount += 1; } }
+          });
+        } else if (fixture.area === "prior") {
+          boundary.preflightPriorCache();
+        } else {
+          boundary.preflightDashboardData();
+        }
+      }, CortexFilesystemPolicyError);
+      assert.equal(stageCount, 0);
+      assert.deepEqual(temporaryOutputNames(project), []);
+    } finally {
+      await cleanup();
+      fs.rmSync(parent, { recursive: true, force: true });
+    }
+  }
+});
+
+test("both dashboard entrypoints deny every unsafe data identity before reads, npm, or normal output", { skip: process.platform === "win32" }, () => {
+  const directoryIdentities = new Set([
+    ".context/cache",
+    ".context/embeddings",
+    ".context/cache/npm-cache"
+  ]);
+  for (const dashboardKind of ["root", "packaged"]) {
+    for (const unsafeIdentity of DASHBOARD_DATA_IDENTITIES) {
+      const { parent, project } = makeParent(`dashboard-data-entry-${dashboardKind}`);
+      try {
+        writeControls(project);
+        fs.mkdirSync(path.join(project, "src"));
+        fs.writeFileSync(path.join(project, "src", "app.js"), "export const app = true;\n", "utf8");
+        const target = projectPath(project, unsafeIdentity);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        if (directoryIdentities.has(unsafeIdentity)) fs.writeFileSync(target, "wrong type\n", "utf8");
+        else fs.mkdirSync(target);
+
+        const dashboardPath = dashboardKind === "root"
+          ? installRootDashboard(project)
+          : PACKAGED_DASHBOARD;
+        const fakeNpm = installFakeNpm(parent);
+        const result = spawnSync(process.execPath, [dashboardPath], {
+          cwd: project,
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            CORTEX_PROJECT_ROOT: project,
+            CORTEX_CLI_VERSION: "2.4.2",
+            PATH: fakeNpm.path
+          }
+        });
+        assert.equal(result.status, 1, `${dashboardKind}/${unsafeIdentity}: ${result.stderr}`);
+        assert.equal(fs.existsSync(fakeNpm.marker), false, `${dashboardKind}/${unsafeIdentity}`);
+        const diagnostics = result.stderr.trim().split(/\r?\n/).filter(Boolean);
+        assert.equal(diagnostics.length, 1, `${dashboardKind}/${unsafeIdentity}`);
+        assert.ok([...diagnostics[0]].length <= 256);
+        assert.match(diagnostics[0], /CORTEX_FS_DASHBOARD.*dashboard_data/);
+        assert.match(diagnostics[0], new RegExp(unsafeIdentity.split("/").at(-1).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+        assert.equal(result.stdout, "");
+      } finally {
+        fs.rmSync(parent, { recursive: true, force: true });
+      }
+    }
   }
 });

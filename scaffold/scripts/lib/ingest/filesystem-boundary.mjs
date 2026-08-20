@@ -1,5 +1,100 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
+
+export const PRIOR_CACHE_IDENTITIES = Object.freeze([
+  ".context/cache/entities.file.jsonl",
+  ".context/cache/entities.adr.jsonl",
+  ".context/cache/entities.chunk.jsonl",
+  ".context/cache/relations.defines.jsonl",
+  ".context/cache/relations.calls.jsonl",
+  ".context/cache/relations.imports.jsonl",
+  ".context/cache/relations.calls_sql.jsonl"
+]);
+
+export const INGEST_JSONL_OUTPUT_IDENTITIES = Object.freeze([
+  ".context/cache/documents.jsonl",
+  ".context/cache/entities.file.jsonl",
+  ".context/cache/entities.adr.jsonl",
+  ".context/cache/entities.rule.jsonl",
+  ".context/cache/entities.chunk.jsonl",
+  ".context/cache/entities.module.jsonl",
+  ".context/cache/entities.project.jsonl",
+  ".context/cache/relations.supersedes.jsonl",
+  ".context/cache/relations.constrains.jsonl",
+  ".context/cache/relations.implements.jsonl",
+  ".context/cache/relations.defines.jsonl",
+  ".context/cache/relations.calls.jsonl",
+  ".context/cache/relations.imports.jsonl",
+  ".context/cache/relations.calls_sql.jsonl",
+  ".context/cache/relations.uses_config_key.jsonl",
+  ".context/cache/relations.uses_resource_key.jsonl",
+  ".context/cache/relations.uses_setting_key.jsonl",
+  ".context/cache/relations.contains.jsonl",
+  ".context/cache/relations.contains_module.jsonl",
+  ".context/cache/relations.exports.jsonl",
+  ".context/cache/relations.includes_file.jsonl",
+  ".context/cache/relations.uses_resource.jsonl",
+  ".context/cache/relations.uses_setting.jsonl",
+  ".context/cache/relations.uses_config.jsonl",
+  ".context/cache/relations.transforms_config.jsonl",
+  ".context/cache/relations.references_project.jsonl"
+]);
+
+export const INGEST_TSV_OUTPUT_IDENTITIES = Object.freeze([
+  ".context/db/import/file_nodes.tsv",
+  ".context/db/import/rule_nodes.tsv",
+  ".context/db/import/adr_nodes.tsv",
+  ".context/db/import/chunk_nodes.tsv",
+  ".context/db/import/project_nodes.tsv",
+  ".context/db/import/constrains_rel.tsv",
+  ".context/db/import/implements_rel.tsv",
+  ".context/db/import/supersedes_rel.tsv",
+  ".context/db/import/defines_rel.tsv",
+  ".context/db/import/calls_rel.tsv",
+  ".context/db/import/imports_rel.tsv",
+  ".context/db/import/calls_sql_rel.tsv",
+  ".context/db/import/uses_config_key_rel.tsv",
+  ".context/db/import/uses_resource_key_rel.tsv",
+  ".context/db/import/uses_setting_key_rel.tsv",
+  ".context/db/import/includes_file_rel.tsv",
+  ".context/db/import/references_project_rel.tsv",
+  ".context/db/import/uses_resource_rel.tsv",
+  ".context/db/import/uses_setting_rel.tsv",
+  ".context/db/import/uses_config_rel.tsv",
+  ".context/db/import/transforms_config_rel.tsv"
+]);
+
+export const INGEST_MANIFEST_OUTPUT_IDENTITY = ".context/cache/manifest.json";
+export const INGEST_OUTPUT_IDENTITIES = Object.freeze([
+  ...INGEST_JSONL_OUTPUT_IDENTITIES,
+  ...INGEST_TSV_OUTPUT_IDENTITIES,
+  INGEST_MANIFEST_OUTPUT_IDENTITY
+]);
+
+export const DASHBOARD_DATA_IDENTITIES = Object.freeze([
+  ".context/cache",
+  ".context/embeddings",
+  ".context/cache/manifest.json",
+  ".context/cache/graph-manifest.json",
+  ".context/embeddings/manifest.json",
+  ".context/cache/relations.constrains.jsonl",
+  ".context/cache/relations.implements.jsonl",
+  ".context/cache/relations.supersedes.jsonl",
+  ".context/cache/relations.defines.jsonl",
+  ".context/cache/relations.calls.jsonl",
+  ".context/cache/relations.imports.jsonl",
+  ".context/cache/npm-cache"
+]);
+
+const INGEST_OUTPUT_IDENTITY_SET = new Set(INGEST_OUTPUT_IDENTITIES);
+const PRIOR_CACHE_IDENTITY_SET = new Set(PRIOR_CACHE_IDENTITIES);
+const DASHBOARD_FILE_IDENTITY_SET = new Set(DASHBOARD_DATA_IDENTITIES.slice(2, -1));
+const DASHBOARD_DIRECTORY_IDENTITY_SET = new Set([
+  ".context/cache",
+  ".context/embeddings",
+  ".context/cache/npm-cache"
+]);
 
 const POLICY_CODES = new Set([
   "CORTEX_FS_PROJECT",
@@ -625,12 +720,554 @@ function createBoundaryFromEstablishedAnchor(projectAnchor, initialDetails = PRO
     return toSerializedPath(path.relative(root, absolutePath));
   }
 
+  function inspectKnownPath(identity, {
+    code,
+    phase,
+    subjectKind,
+    expected,
+    allowMissing = true
+  }) {
+    const details = pathDetails(code, phase, subjectKind, identity, "path_replaced");
+    assertProjectAnchor(details);
+    const components = identity.split("/");
+    let current = root;
+    for (let index = 0; index < components.length; index += 1) {
+      current = path.join(current, components[index]);
+      const isFinal = index === components.length - 1;
+      assertProjectAnchor(details);
+      let stats;
+      try {
+        stats = fs.lstatSync(current, { bigint: true });
+      } catch (error) {
+        if (error?.code === "ENOENT" && allowMissing) {
+          return { absolutePath: path.join(root, ...components), exists: false, stats: null };
+        }
+        denyFilesystemError(error, details);
+      }
+      if (stats.isSymbolicLink()) {
+        policyError({ ...details, reason: "symlink_component" });
+      }
+      if (!isFinal && !stats.isDirectory()) {
+        policyError({
+          ...details,
+          reason: stats.isFile() ? "not_directory" : "special_file"
+        });
+      }
+      if (isFinal) {
+        const reason = typeReason(stats, expected);
+        if (reason) policyError({ ...details, reason });
+        return { absolutePath: current, exists: true, stats };
+      }
+    }
+    policyError({ ...details, reason: "invalid_syntax" });
+  }
+
+  function snapshotOf(inspected) {
+    if (!inspected.exists) return Object.freeze({ exists: false });
+    return Object.freeze({
+      exists: true,
+      dev: String(inspected.stats.dev),
+      ino: String(inspected.stats.ino),
+      kind: inspected.stats.isDirectory() ? "directory" : "file"
+    });
+  }
+
+  function snapshotsEqual(left, right) {
+    return left.exists === right.exists && (
+      !left.exists || (
+        left.dev === right.dev &&
+        left.ino === right.ino &&
+        left.kind === right.kind
+      )
+    );
+  }
+
+  function assertSnapshot(identity, expectedSnapshot, options) {
+    const current = snapshotOf(inspectKnownPath(identity, options));
+    if (!snapshotsEqual(current, expectedSnapshot)) {
+      policyError(pathDetails(
+        options.code,
+        options.phase,
+        options.subjectKind,
+        identity,
+        "path_replaced"
+      ));
+    }
+  }
+
+  function parseJsonlText(text) {
+    if (text === null) return [];
+    return text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return null;
+        }
+      })
+      .filter((record) => record !== null);
+  }
+
+  function preflightPriorCache() {
+    const options = {
+      code: "CORTEX_FS_CACHE",
+      phase: "discovery",
+      subjectKind: "cache_path",
+      expected: "file",
+      allowMissing: true
+    };
+    const cacheOptions = { ...options, expected: "directory" };
+    const snapshots = new Map();
+    snapshots.set(
+      ".context/cache",
+      snapshotOf(inspectKnownPath(".context/cache", cacheOptions))
+    );
+    for (const identity of PRIOR_CACHE_IDENTITIES) {
+      snapshots.set(identity, snapshotOf(inspectKnownPath(identity, options)));
+    }
+
+    function assertCompleteSnapshot() {
+      assertSnapshot(".context/cache", snapshots.get(".context/cache"), cacheOptions);
+      for (const identity of PRIOR_CACHE_IDENTITIES) {
+        assertSnapshot(identity, snapshots.get(identity), options);
+      }
+    }
+
+    return Object.freeze({
+      read(identity) {
+        if (!PRIOR_CACHE_IDENTITY_SET.has(identity)) {
+          policyError(pathDetails(
+            "CORTEX_FS_CACHE",
+            "discovery",
+            "cache_path",
+            typeof identity === "string" ? identity : String(identity ?? ""),
+            "invalid_syntax"
+          ));
+        }
+        assertCompleteSnapshot();
+        const inspected = inspectKnownPath(identity, options);
+        if (!inspected.exists) return [];
+        const details = pathDetails(
+          "CORTEX_FS_CACHE",
+          "discovery",
+          "cache_path",
+          identity,
+          "path_replaced"
+        );
+        assertProjectAnchor(details);
+        try {
+          return parseJsonlText(fs.readFileSync(inspected.absolutePath, "utf8"));
+        } catch (error) {
+          denyFilesystemError(error, details, {
+            missingReason: "path_replaced",
+            notDirectoryReason: "path_replaced"
+          });
+        }
+      }
+    });
+  }
+
+  function createKnownDirectory(identity, details) {
+    const components = identity.split("/");
+    let current = root;
+    for (const component of components) {
+      current = path.join(current, component);
+      assertProjectAnchor(details);
+      let stats;
+      try {
+        stats = fs.lstatSync(current, { bigint: true });
+      } catch (error) {
+        if (error?.code !== "ENOENT") denyFilesystemError(error, details);
+        try {
+          fs.mkdirSync(current);
+        } catch (mkdirError) {
+          denyFilesystemError(mkdirError, details);
+        }
+        assertProjectAnchor(details);
+        try {
+          stats = fs.lstatSync(current, { bigint: true });
+        } catch (lstatError) {
+          denyFilesystemError(lstatError, details, {
+            missingReason: "path_replaced",
+            notDirectoryReason: "path_replaced"
+          });
+        }
+      }
+      if (stats.isSymbolicLink()) policyError({ ...details, reason: "symlink_component" });
+      if (!stats.isDirectory()) {
+        policyError({
+          ...details,
+          reason: stats.isFile() ? "not_directory" : "special_file"
+        });
+      }
+    }
+  }
+
+  function prepareIngestOutputSet({ testHooks = {} } = {}) {
+    const preflightOptions = {
+      code: "CORTEX_FS_OUTPUT",
+      phase: "output_preflight",
+      subjectKind: "output_path",
+      expected: "file",
+      allowMissing: true
+    };
+
+    // Complete static preflight must finish before even missing output
+    // directories are created.
+    for (const identity of INGEST_OUTPUT_IDENTITIES) {
+      inspectKnownPath(identity, preflightOptions);
+    }
+
+    const directoryDetails = pathDetails(
+      "CORTEX_FS_OUTPUT",
+      "output_preflight",
+      "output_path",
+      ".context",
+      "path_replaced"
+    );
+    createKnownDirectory(".context/cache", directoryDetails);
+    createKnownDirectory(".context/db/import", directoryDetails);
+
+    const finalSnapshots = new Map();
+    for (const identity of INGEST_OUTPUT_IDENTITIES) {
+      finalSnapshots.set(identity, snapshotOf(inspectKnownPath(identity, preflightOptions)));
+    }
+    const parentOptions = { ...preflightOptions, expected: "directory", allowMissing: false };
+    const parentSnapshots = new Map();
+    for (const identity of [".context/cache", ".context/db/import"]) {
+      parentSnapshots.set(identity, snapshotOf(inspectKnownPath(identity, parentOptions)));
+    }
+
+    const stages = new Map();
+    let finished = false;
+    let commitStarted = false;
+
+    function outputDetails(identity) {
+      return pathDetails(
+        "CORTEX_FS_OUTPUT",
+        "output_commit",
+        "output_path",
+        identity,
+        "path_replaced"
+      );
+    }
+
+    function parentIdentityFor(identity) {
+      return identity.startsWith(".context/cache/")
+        ? ".context/cache"
+        : ".context/db/import";
+    }
+
+    function assertParent(identity) {
+      const parentIdentity = parentIdentityFor(identity);
+      assertSnapshot(parentIdentity, parentSnapshots.get(parentIdentity), {
+        code: "CORTEX_FS_OUTPUT",
+        phase: "output_commit",
+        subjectKind: "output_path",
+        expected: "directory",
+        allowMissing: false
+      });
+    }
+
+    function assertFinal(identity) {
+      assertSnapshot(identity, finalSnapshots.get(identity), {
+        code: "CORTEX_FS_OUTPUT",
+        phase: "output_commit",
+        subjectKind: "output_path",
+        expected: "file",
+        allowMissing: true
+      });
+    }
+
+    function assertStage(identity) {
+      const stageRecord = stages.get(identity);
+      const stageStats = fs.lstatSync(stageRecord.path, { bigint: true });
+      if (
+        stageStats.isSymbolicLink() ||
+        !stageStats.isFile() ||
+        String(stageStats.dev) !== stageRecord.dev ||
+        String(stageStats.ino) !== stageRecord.ino
+      ) {
+        policyError({ ...outputDetails(identity), reason: "path_replaced" });
+      }
+    }
+
+    function removeOwnedStageAt(candidatePath, stageRecord) {
+      try {
+        const stats = fs.lstatSync(candidatePath, { bigint: true });
+        if (
+          stats.isSymbolicLink() ||
+          !stats.isFile() ||
+          String(stats.dev) !== stageRecord.dev ||
+          String(stats.ino) !== stageRecord.ino
+        ) {
+          return false;
+        }
+        fs.rmSync(candidatePath);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    function findRelocatedParent(expectedSnapshot) {
+      const pending = [{ directory: path.join(root, ".context"), depth: 0 }];
+      while (pending.length > 0) {
+        const { directory, depth } = pending.shift();
+        let entries;
+        try {
+          entries = fs.readdirSync(directory, { withFileTypes: true });
+        } catch {
+          continue;
+        }
+        for (const entry of entries) {
+          if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+          const candidate = path.join(directory, entry.name);
+          let stats;
+          try {
+            stats = fs.lstatSync(candidate, { bigint: true });
+          } catch {
+            continue;
+          }
+          if (
+            String(stats.dev) === expectedSnapshot.dev &&
+            String(stats.ino) === expectedSnapshot.ino
+          ) {
+            return candidate;
+          }
+          if (depth < 2) pending.push({ directory: candidate, depth: depth + 1 });
+        }
+      }
+      return null;
+    }
+
+    function discardUncommitted() {
+      for (const stageRecord of stages.values()) {
+        if (stageRecord.committed) continue;
+        if (removeOwnedStageAt(stageRecord.path, stageRecord)) continue;
+        const relocatedParent = findRelocatedParent(
+          parentSnapshots.get(stageRecord.parentIdentity)
+        );
+        if (relocatedParent) {
+          removeOwnedStageAt(path.join(relocatedParent, stageRecord.basename), stageRecord);
+        }
+      }
+    }
+
+    function fail(error, identity) {
+      finished = true;
+      discardUncommitted();
+      if (isFilesystemPolicyError(error)) throw error;
+      policyError({
+        ...outputDetails(identity),
+        reason: filesystemErrorReason(error, {
+          missingReason: "path_replaced",
+          notDirectoryReason: "path_replaced",
+          defaultReason: "path_replaced"
+        })
+      });
+    }
+
+    function stage(identity, write) {
+      if (finished || commitStarted || !INGEST_OUTPUT_IDENTITY_SET.has(identity) || stages.has(identity)) {
+        fail(new CortexFilesystemPolicyError({
+          ...outputDetails(typeof identity === "string" ? identity : String(identity ?? "")),
+          reason: "invalid_syntax"
+        }), typeof identity === "string" ? identity : String(identity ?? ""));
+      }
+      const finalPath = path.join(root, ...identity.split("/"));
+      const parentPath = path.dirname(finalPath);
+      const basename = path.basename(finalPath);
+      let stagePath = null;
+      let descriptor = null;
+      let ownsStage = false;
+      try {
+        assertParent(identity);
+        assertFinal(identity);
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          const token = typeof testHooks.stageToken === "function"
+            ? String(testHooks.stageToken(identity, attempt))
+            : crypto.randomBytes(16).toString("hex");
+          stagePath = path.join(parentPath, `.${basename}.${token}.tmp`);
+          testHooks.beforeStageCreate?.(identity, attempt, stagePath);
+          try {
+            descriptor = fs.openSync(stagePath, "wx", 0o600);
+            ownsStage = true;
+            break;
+          } catch (error) {
+            if (error?.code !== "EEXIST" || attempt === 7) throw error;
+          }
+        }
+        testHooks.beforeStageWrite?.(identity, descriptor);
+        write(descriptor);
+        const stats = fs.fstatSync(descriptor, { bigint: true });
+        if (!stats.isFile()) policyError({ ...outputDetails(identity), reason: "special_file" });
+        fs.closeSync(descriptor);
+        descriptor = null;
+        stages.set(identity, {
+          path: stagePath,
+          basename: path.basename(stagePath),
+          parentIdentity: parentIdentityFor(identity),
+          dev: String(stats.dev),
+          ino: String(stats.ino),
+          committed: false
+        });
+      } catch (error) {
+        if (descriptor !== null) {
+          try { fs.closeSync(descriptor); } catch {}
+        }
+        if (ownsStage && stagePath) {
+          try { fs.rmSync(stagePath, { force: true }); } catch {}
+        }
+        fail(error, identity);
+      }
+    }
+
+    function commit() {
+      if (finished || commitStarted) {
+        fail(new CortexFilesystemPolicyError({
+          ...outputDetails(INGEST_MANIFEST_OUTPUT_IDENTITY),
+          reason: "invalid_syntax"
+        }), INGEST_MANIFEST_OUTPUT_IDENTITY);
+      }
+      commitStarted = true;
+      const missingIdentity = INGEST_OUTPUT_IDENTITIES.find((identity) => !stages.has(identity));
+      if (missingIdentity) {
+        fail(new Error("incomplete output set"), missingIdentity);
+      }
+      try {
+        testHooks.beforePreCommit?.();
+        for (const parentIdentity of parentSnapshots.keys()) {
+          assertSnapshot(parentIdentity, parentSnapshots.get(parentIdentity), {
+            code: "CORTEX_FS_OUTPUT",
+            phase: "output_commit",
+            subjectKind: "output_path",
+            expected: "directory",
+            allowMissing: false
+          });
+        }
+        for (const identity of INGEST_OUTPUT_IDENTITIES) assertFinal(identity);
+        for (const identity of INGEST_OUTPUT_IDENTITIES) assertStage(identity);
+        for (let index = 0; index < INGEST_OUTPUT_IDENTITIES.length; index += 1) {
+          const identity = INGEST_OUTPUT_IDENTITIES[index];
+          const stageRecord = stages.get(identity);
+          testHooks.beforeCommit?.(identity, index);
+          assertParent(identity);
+          assertFinal(identity);
+          assertStage(identity);
+          fs.renameSync(stageRecord.path, path.join(root, ...identity.split("/")));
+          stageRecord.committed = true;
+        }
+        finished = true;
+      } catch (error) {
+        fail(
+          error,
+          INGEST_OUTPUT_IDENTITIES.find((identity) => !stages.get(identity)?.committed) ??
+            INGEST_MANIFEST_OUTPUT_IDENTITY
+        );
+      }
+    }
+
+    return Object.freeze({
+      commit,
+      discard() {
+        if (finished) return;
+        discardUncommitted();
+        finished = true;
+      },
+      stage
+    });
+  }
+
+  function preflightDashboardData() {
+    const baseOptions = {
+      code: "CORTEX_FS_DASHBOARD",
+      phase: "dashboard_data",
+      subjectKind: "dashboard_path",
+      allowMissing: true
+    };
+    const snapshots = new Map();
+    for (const identity of DASHBOARD_DATA_IDENTITIES) {
+      const expected = DASHBOARD_DIRECTORY_IDENTITY_SET.has(identity) ? "directory" : "file";
+      snapshots.set(
+        identity,
+        snapshotOf(inspectKnownPath(identity, { ...baseOptions, expected }))
+      );
+    }
+
+    function assertCompleteSnapshot() {
+      for (const identity of DASHBOARD_DATA_IDENTITIES) {
+        const expected = DASHBOARD_DIRECTORY_IDENTITY_SET.has(identity) ? "directory" : "file";
+        assertSnapshot(identity, snapshots.get(identity), { ...baseOptions, expected });
+      }
+    }
+
+    function readText(identity) {
+      if (!DASHBOARD_FILE_IDENTITY_SET.has(identity)) {
+        policyError(pathDetails(
+          "CORTEX_FS_DASHBOARD",
+          "dashboard_data",
+          "dashboard_path",
+          typeof identity === "string" ? identity : String(identity ?? ""),
+          "invalid_syntax"
+        ));
+      }
+      assertCompleteSnapshot();
+      const inspected = inspectKnownPath(identity, { ...baseOptions, expected: "file" });
+      if (!inspected.exists) return null;
+      const details = pathDetails(
+        "CORTEX_FS_DASHBOARD",
+        "dashboard_data",
+        "dashboard_path",
+        identity,
+        "path_replaced"
+      );
+      assertProjectAnchor(details);
+      try {
+        return fs.readFileSync(inspected.absolutePath, "utf8");
+      } catch (error) {
+        if (["ENOENT", "ENOTDIR", "EISDIR", "ELOOP", "ENAMETOOLONG", "EINVAL"].includes(error?.code)) {
+          denyFilesystemError(error, details, {
+            missingReason: "path_replaced",
+            notDirectoryReason: "path_replaced"
+          });
+        }
+        return null;
+      }
+    }
+
+    return Object.freeze({
+      npmCachePath() {
+        assertCompleteSnapshot();
+        return path.join(root, ".context", "cache", "npm-cache");
+      },
+      readJson(identity) {
+        const text = readText(identity);
+        if (text === null) return null;
+        try {
+          return JSON.parse(text);
+        } catch {
+          return null;
+        }
+      },
+      readJsonl(identity) {
+        return parseJsonlText(readText(identity));
+      }
+    });
+  }
+
   return Object.freeze({
     root,
     anchor: Object.freeze({ ...projectAnchor }),
     assertProjectAnchor,
     childIdentity,
     inspectRepositoryPath,
+    preflightDashboardData,
+    preflightPriorCache,
+    prepareIngestOutputSet,
     readControl,
     readOptionalRepositoryFile,
     readRepositoryDirectory,

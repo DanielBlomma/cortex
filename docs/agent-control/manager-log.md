@@ -41,8 +41,9 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - The modularization program and release recovery are complete. WO-032 and
   WO-033 are accepted locally. WO-033 established one canonical immutable
   real-project boundary for control/source/worker/README/dashboard-source
-  reads; all review findings were fixed through `53a463c`. WO-034 is Ready
-  from packet 024. R16 remains open through WO-035.
+  reads; all review findings were fixed through `53a463c`. WO-034 is now
+  implemented from packet 024 and is awaiting independent review. R16 remains
+  open through WO-035.
 
 ## Open Decisions
 
@@ -135,6 +136,74 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - The manager accepted WO-033 locally and advanced WO-034 to Ready from packet
   024. Package/release metadata remains `2.4.2`; no merge, tag, publish, deploy,
   or R16 closure occurred.
+
+## 2026-08-20 — 2.5.0 release recovery assigned
+
+- The user authorized staging, commit, push, a non-draft PR, merge, the minor
+  Release Bump workflow, npm publication, verification, cleanup, and a release
+  summary.
+- The release scope is accepted WO-033, completed/reviewed WO-034 and WO-035,
+  and accepted WO-046 progressive background indexing. WO-036 through WO-045
+  retrieval/benchmark experiments and local `.context` changes are excluded.
+- Work continues in a clean `release/2.5.0` worktree from accepted WO-033.
+  The mixed original checkout is reference-only. WO-034 is assigned from
+  packet 024 before WO-035 packed validation and WO-046 integration.
+- Required reviewers are Code Quality/Integration, Contract/Security,
+  Validation, and Ops/Release. No GitHub or registry mutation occurs until the
+  combined release gates are green.
+- WO-034 implementation extends the accepted canonical boundary to all seven
+  prior-cache files, segment-by-segment output directory construction, all 48
+  exclusive stages and deterministic manifest-last commits, failure cleanup,
+  and the complete dashboard manifest/relation/embedding/npm-cache layout.
+  The recovered mixed implementation was used only as reference; WO-046
+  `generation_id`/schema changes, Git-ignore discovery, and WO-036 through
+  WO-045 retrieval/benchmark code were not ported.
+- Review findings were triaged fix-now except the dependency update, which is
+  deliberately assigned as a hard WO-035 release blocker. The codefix adds a
+  separate 2-parent/48-final/48-stage precommit pass, cleanup after contained
+  parent relocation, npm-cache policy propagation in both dashboards, the
+  factorized leaf/ancestor matrix, and removal of the unused predictable
+  `stageJsonl()` helper.
+- Benign temporary-root evidence passes: boundary 41/41, frozen
+  ingest/dashboard compatibility 19/19, context regressions 81/81, full root
+  364/364, and full MCP 413/413. Syntax and diff checks pass. The initial
+  pre-build inventory was 416 entries; the authoritative post-build dry-run
+  and real `2.4.2` tarball contain 417. A clean-prefix installed-artifact full
+  ingest reproduced 26/21 outputs, both frozen full hashes, all 17 traces, and
+  manifest-before-completion ordering.
+- Added the WO-034 implementation baseline and focused packet 025 for WO-035.
+  WO-034 remains unaccepted pending independent re-review; WO-035 execution,
+  version changes, commits, and all GitHub/release actions have not started.
+- Target-local ignored `.context` bootstrap completed. Its forced legacy
+  migration also attempted out-of-scope tracked `.gitignore`, root `scripts/`,
+  and generated architecture-doc changes; these were isolated and exactly
+  patch-restored, including executable modes, until status matched the saved
+  pre-init 15-file WO-034 scope. No further forced init is allowed here.
+  A review-fix target update completed with 48 embedded/792 reused/0 failed, indexed
+  pattern evidence passed 8/8, doctor passed 8/8, and watcher is stopped.
+- The package-owned MCP audit fails with 1 moderate and 4 high vulnerable
+  packages: `hono`, `brace-expansion`, `fast-uri`, `ip-address`, and
+  `js-yaml`. No dependency or lockfile is changed in WO-034. R3 is reopened
+  and WO-035/release readiness is hard-blocked until a separate dependency
+  iteration updates, fully retests, and returns every committed audit to zero.
+
+## 2026-08-20 — WO-034 accepted; WO-035 dependency gate starts
+
+- The first review returned whole-set precommit and dashboard policy majors,
+  incomplete negative coverage, a dead unsafe staging helper, missing packed
+  and target-Cortex evidence, and a non-zero dependency gate. Every WO-034
+  code/validation finding was fixed and independently reproduced.
+- Final evidence is boundary 41/41, frozen compatibility 19/19, context 81/81,
+  root 364/364, MCP 413/413, authoritative 417-entry tarball plus clean-prefix
+  ingest/hash/trace smoke, target update with 48 embedded/792 reused/0 failed,
+  indexed pattern evidence 8/8, doctor 8/8, and watcher stopped.
+- Code Quality/Integration, Contract/Security, and Validation/Ops re-reviews
+  all returned GO with no remaining blocker, major, or minor finding. The
+  manager accepts WO-034 locally and advances WO-035.
+- Release remains NO-GO. WO-035 must first remediate MCP 1 moderate/4 high
+  (`hono`, `brace-expansion`, `fast-uri`, `ip-address`, `js-yaml`) and frontend
+  1 high (`nanoid`) to zero without a waiver, then repeat the full packed
+  negative acceptance before deciding R16 or integrating WO-046.
 
 ## Archive
 

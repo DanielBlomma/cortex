@@ -40,7 +40,6 @@ import {
   checksum,
   collectCandidateFiles,
   detectKind,
-  ensureDirectory,
   extractTitle,
   findSupersedesReferences,
   hasSourcePrefix,
@@ -55,10 +54,8 @@ import {
 import {
   countFileContentRecords,
   mapRows,
-  readJsonlSafe,
-  stageJsonl,
-  writeJsonl,
-  writeTsv
+  writeJsonlToDescriptor,
+  writeTsvToDescriptor
 } from "./io.mjs";
 import {
   hydrateIncrementalChunkState,
@@ -85,12 +82,11 @@ import {
   sqlChunkAliases,
   uniqueRelations
 } from "./relations.mjs";
+import { initializeRuntimePaths } from "./runtime-paths.mjs";
 import {
-  CACHE_DIR,
-  DB_IMPORT_DIR,
-  initializeRuntimePaths
-} from "./runtime-paths.mjs";
-import { isFilesystemPolicyError } from "./filesystem-boundary.mjs";
+  INGEST_MANIFEST_OUTPUT_IDENTITY,
+  isFilesystemPolicyError
+} from "./filesystem-boundary.mjs";
 import {
   resolveIngestWorkerCount,
   startWorkerParseStream
@@ -179,7 +175,9 @@ function runScanHydrationStage(state) {
   };
 
   if (incrementalMode) {
-    const existingFiles = readJsonlSafe(path.join(CACHE_DIR, "entities.file.jsonl"));
+    const priorCache = boundary.preflightPriorCache();
+    state.priorCache = priorCache;
+    const existingFiles = priorCache.read(".context/cache/entities.file.jsonl");
     for (const record of existingFiles) {
       if (!record || typeof record !== "object") continue;
       if (typeof record.path !== "string" || record.path.length === 0) continue;
@@ -204,7 +202,7 @@ function runScanHydrationStage(state) {
       });
     }
 
-    const existingAdrs = readJsonlSafe(path.join(CACHE_DIR, "entities.adr.jsonl"));
+    const existingAdrs = priorCache.read(".context/cache/entities.adr.jsonl");
     for (const adr of existingAdrs) {
       if (!adr || typeof adr !== "object") continue;
       if (typeof adr.path !== "string" || adr.path.length === 0) continue;
@@ -340,7 +338,7 @@ function runScanHydrationStage(state) {
     importsRelationMap,
     callsSqlRelationMap
   } = incrementalMode
-    ? hydrateIncrementalChunkState(fileRecords)
+    ? hydrateIncrementalChunkState(fileRecords, state.priorCache)
     : {
         chunkRecordMap: new Map(),
         definesRelationMap: new Map(),
@@ -1034,6 +1032,18 @@ function runMaterializationStage(state) {
   });
 }
 
+function stageJsonlOutput(state, identity, records) {
+  state.outputSet.stage(identity, (descriptor) => {
+    writeJsonlToDescriptor(descriptor, records);
+  });
+}
+
+function stageTsvOutput(state, identity, headers, rows) {
+  state.outputSet.stage(identity, (descriptor) => {
+    writeTsvToDescriptor(descriptor, headers, rows);
+  });
+}
+
 function runFileCacheStagingStage(state) {
   const {
     memoryTrace,
@@ -1041,8 +1051,8 @@ function runFileCacheStagingStage(state) {
   } = state;
   const constrainsRelations = [];
   const implementsRelations = [];
-  const stagedDocumentCache = stageJsonl(path.join(CACHE_DIR, "documents.jsonl"), fileRecords);
-  const stagedFileEntityCache = stageJsonl(path.join(CACHE_DIR, "entities.file.jsonl"), fileRecords);
+  stageJsonlOutput(state, ".context/cache/documents.jsonl", fileRecords);
+  stageJsonlOutput(state, ".context/cache/entities.file.jsonl", fileRecords);
   memoryTrace.checkpoint("writes:file_cache_staged", {
     files: fileRecords.length,
     file_content_records: countFileContentRecords(fileRecords)
@@ -1050,15 +1060,12 @@ function runFileCacheStagingStage(state) {
 
   Object.assign(state, {
     constrainsRelations,
-    implementsRelations,
-    stagedDocumentCache,
-    stagedFileEntityCache
+    implementsRelations
   });
 }
 
-function ensureIngestOutputDirectories() {
-  ensureDirectory(CACHE_DIR);
-  ensureDirectory(DB_IMPORT_DIR);
+function ensureIngestOutputDirectories(state, options) {
+  state.outputSet = state.boundary.prepareIngestOutputSet(options);
 }
 
 function runTokenMatchingStage(state) {
@@ -1190,9 +1197,7 @@ function runCacheWriteStage(state) {
     usesResourceRelations,
     usesSettingRelations,
     usesConfigRelations,
-    configTransformRelations,
-    stagedDocumentCache,
-    stagedFileEntityCache
+    configTransformRelations
   } = state;
   memoryTrace.checkpoint("writes:cache_start", {
     files: fileRecords.length,
@@ -1200,35 +1205,30 @@ function runCacheWriteStage(state) {
     rules: ruleRecords.length,
     chunks: chunkRecords.length
   });
-  stagedDocumentCache.commit();
-  stagedFileEntityCache.commit();
-  writeJsonl(path.join(CACHE_DIR, "entities.adr.jsonl"), adrRecords);
-  writeJsonl(path.join(CACHE_DIR, "entities.rule.jsonl"), ruleRecords);
-  writeJsonl(path.join(CACHE_DIR, "entities.chunk.jsonl"), chunkRecords);
-  writeJsonl(path.join(CACHE_DIR, "relations.supersedes.jsonl"), supersedesRelations);
-  writeJsonl(path.join(CACHE_DIR, "relations.constrains.jsonl"), constrainsRelations);
-  writeJsonl(path.join(CACHE_DIR, "relations.implements.jsonl"), implementsRelations);
-  writeJsonl(path.join(CACHE_DIR, "relations.defines.jsonl"), validDefinesRelations);
-  writeJsonl(path.join(CACHE_DIR, "relations.calls.jsonl"), validCallsRelations);
-  writeJsonl(path.join(CACHE_DIR, "relations.imports.jsonl"), validImportsRelations);
-  writeJsonl(path.join(CACHE_DIR, "relations.calls_sql.jsonl"), validCallsSqlRelations);
-  writeJsonl(path.join(CACHE_DIR, "relations.uses_config_key.jsonl"), validUsesConfigKeyRelations);
-  writeJsonl(path.join(CACHE_DIR, "relations.uses_resource_key.jsonl"), validUsesResourceKeyRelations);
-  writeJsonl(path.join(CACHE_DIR, "relations.uses_setting_key.jsonl"), validUsesSettingKeyRelations);
-  writeJsonl(path.join(CACHE_DIR, "entities.module.jsonl"), moduleRecords);
-  writeJsonl(path.join(CACHE_DIR, "relations.contains.jsonl"), moduleContainsRelations);
-  writeJsonl(path.join(CACHE_DIR, "relations.contains_module.jsonl"), moduleContainsModuleRelations);
-  writeJsonl(path.join(CACHE_DIR, "relations.exports.jsonl"), moduleExportsRelations);
-  writeJsonl(path.join(CACHE_DIR, "entities.project.jsonl"), projectRecords);
-  writeJsonl(path.join(CACHE_DIR, "relations.includes_file.jsonl"), projectIncludesFileRelations);
-  writeJsonl(path.join(CACHE_DIR, "relations.uses_resource.jsonl"), usesResourceRelations);
-  writeJsonl(path.join(CACHE_DIR, "relations.uses_setting.jsonl"), usesSettingRelations);
-  writeJsonl(path.join(CACHE_DIR, "relations.uses_config.jsonl"), usesConfigRelations);
-  writeJsonl(path.join(CACHE_DIR, "relations.transforms_config.jsonl"), configTransformRelations);
-  writeJsonl(
-    path.join(CACHE_DIR, "relations.references_project.jsonl"),
-    projectReferencesProjectRelations
-  );
+  stageJsonlOutput(state, ".context/cache/entities.adr.jsonl", adrRecords);
+  stageJsonlOutput(state, ".context/cache/entities.rule.jsonl", ruleRecords);
+  stageJsonlOutput(state, ".context/cache/entities.chunk.jsonl", chunkRecords);
+  stageJsonlOutput(state, ".context/cache/entities.module.jsonl", moduleRecords);
+  stageJsonlOutput(state, ".context/cache/entities.project.jsonl", projectRecords);
+  stageJsonlOutput(state, ".context/cache/relations.supersedes.jsonl", supersedesRelations);
+  stageJsonlOutput(state, ".context/cache/relations.constrains.jsonl", constrainsRelations);
+  stageJsonlOutput(state, ".context/cache/relations.implements.jsonl", implementsRelations);
+  stageJsonlOutput(state, ".context/cache/relations.defines.jsonl", validDefinesRelations);
+  stageJsonlOutput(state, ".context/cache/relations.calls.jsonl", validCallsRelations);
+  stageJsonlOutput(state, ".context/cache/relations.imports.jsonl", validImportsRelations);
+  stageJsonlOutput(state, ".context/cache/relations.calls_sql.jsonl", validCallsSqlRelations);
+  stageJsonlOutput(state, ".context/cache/relations.uses_config_key.jsonl", validUsesConfigKeyRelations);
+  stageJsonlOutput(state, ".context/cache/relations.uses_resource_key.jsonl", validUsesResourceKeyRelations);
+  stageJsonlOutput(state, ".context/cache/relations.uses_setting_key.jsonl", validUsesSettingKeyRelations);
+  stageJsonlOutput(state, ".context/cache/relations.contains.jsonl", moduleContainsRelations);
+  stageJsonlOutput(state, ".context/cache/relations.contains_module.jsonl", moduleContainsModuleRelations);
+  stageJsonlOutput(state, ".context/cache/relations.exports.jsonl", moduleExportsRelations);
+  stageJsonlOutput(state, ".context/cache/relations.includes_file.jsonl", projectIncludesFileRelations);
+  stageJsonlOutput(state, ".context/cache/relations.uses_resource.jsonl", usesResourceRelations);
+  stageJsonlOutput(state, ".context/cache/relations.uses_setting.jsonl", usesSettingRelations);
+  stageJsonlOutput(state, ".context/cache/relations.uses_config.jsonl", usesConfigRelations);
+  stageJsonlOutput(state, ".context/cache/relations.transforms_config.jsonl", configTransformRelations);
+  stageJsonlOutput(state, ".context/cache/relations.references_project.jsonl", projectReferencesProjectRelations);
   memoryTrace.checkpoint("writes:cache_complete", {
     jsonl_files: 26,
     files: fileRecords.length,
@@ -1268,8 +1268,9 @@ function runDatabaseWriteStage(state) {
   memoryTrace.checkpoint("writes:db_start", {
     tsv_files: 21
   });
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "file_nodes.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/file_nodes.tsv",
     [
       "id",
       "path",
@@ -1294,8 +1295,9 @@ function runDatabaseWriteStage(state) {
     ])
   );
 
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "rule_nodes.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/rule_nodes.tsv",
     [
       "id",
       "title",
@@ -1320,8 +1322,9 @@ function runDatabaseWriteStage(state) {
     ])
   );
 
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "adr_nodes.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/adr_nodes.tsv",
     [
       "id",
       "path",
@@ -1346,26 +1349,30 @@ function runDatabaseWriteStage(state) {
     ])
   );
 
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "constrains_rel.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/constrains_rel.tsv",
     ["from", "to", "note"],
     mapRows(constrainsRelations, (record) => [record.from, record.to, record.note])
   );
 
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "implements_rel.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/implements_rel.tsv",
     ["from", "to", "note"],
     mapRows(implementsRelations, (record) => [record.from, record.to, record.note])
   );
 
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "supersedes_rel.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/supersedes_rel.tsv",
     ["from", "to", "reason"],
     mapRows(supersedesRelations, (record) => [record.from, record.to, record.reason])
   );
 
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "chunk_nodes.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/chunk_nodes.tsv",
     [
       "id",
       "file_id",
@@ -1396,50 +1403,58 @@ function runDatabaseWriteStage(state) {
     ])
   );
 
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "defines_rel.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/defines_rel.tsv",
     ["from", "to"],
     mapRows(validDefinesRelations, (record) => [record.from, record.to])
   );
 
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "calls_rel.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/calls_rel.tsv",
     ["from", "to", "call_type"],
     mapRows(validCallsRelations, (record) => [record.from, record.to, record.call_type])
   );
 
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "imports_rel.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/imports_rel.tsv",
     ["from", "to", "import_name"],
     mapRows(validImportsRelations, (record) => [record.from, record.to, record.import_name])
   );
 
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "calls_sql_rel.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/calls_sql_rel.tsv",
     ["from", "to", "note"],
     mapRows(validCallsSqlRelations, (record) => [record.from, record.to, record.note])
   );
 
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "uses_config_key_rel.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/uses_config_key_rel.tsv",
     ["from", "to", "note"],
     mapRows(validUsesConfigKeyRelations, (record) => [record.from, record.to, record.note])
   );
 
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "uses_resource_key_rel.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/uses_resource_key_rel.tsv",
     ["from", "to", "note"],
     mapRows(validUsesResourceKeyRelations, (record) => [record.from, record.to, record.note])
   );
 
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "uses_setting_key_rel.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/uses_setting_key_rel.tsv",
     ["from", "to", "note"],
     mapRows(validUsesSettingKeyRelations, (record) => [record.from, record.to, record.note])
   );
 
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "project_nodes.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/project_nodes.tsv",
     [
       "id",
       "path",
@@ -1470,38 +1485,44 @@ function runDatabaseWriteStage(state) {
     ])
   );
 
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "includes_file_rel.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/includes_file_rel.tsv",
     ["from", "to"],
     mapRows(projectIncludesFileRelations, (record) => [record.from, record.to])
   );
 
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "references_project_rel.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/references_project_rel.tsv",
     ["from", "to", "note"],
     mapRows(projectReferencesProjectRelations, (record) => [record.from, record.to, record.note])
   );
 
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "uses_resource_rel.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/uses_resource_rel.tsv",
     ["from", "to", "note"],
     mapRows(usesResourceRelations, (record) => [record.from, record.to, record.note])
   );
 
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "uses_setting_rel.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/uses_setting_rel.tsv",
     ["from", "to", "note"],
     mapRows(usesSettingRelations, (record) => [record.from, record.to, record.note])
   );
 
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "uses_config_rel.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/uses_config_rel.tsv",
     ["from", "to", "note"],
     mapRows(usesConfigRelations, (record) => [record.from, record.to, record.note])
   );
 
-  writeTsv(
-    path.join(DB_IMPORT_DIR, "transforms_config_rel.tsv"),
+  stageTsvOutput(
+    state,
+    ".context/db/import/transforms_config_rel.tsv",
     ["from", "to", "note"],
     mapRows(configTransformRelations, (record) => [record.from, record.to, record.note])
   );
@@ -1584,7 +1605,10 @@ function runManifestCompletionStage(state) {
     deleted_paths: deletedRelPaths.length
   };
 
-  fs.writeFileSync(path.join(CACHE_DIR, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+  state.outputSet.stage(INGEST_MANIFEST_OUTPUT_IDENTITY, (descriptor) => {
+    fs.writeSync(descriptor, `${JSON.stringify(manifest, null, 2)}\n`, undefined, "utf8");
+  });
+  state.outputSet.commit();
   memoryTrace.checkpoint("writes:manifest_complete", {
     files: manifest.counts.files,
     chunks: manifest.counts.chunks,

@@ -14,7 +14,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, "..");
 const CONTEXT_DIR = path.join(REPO_ROOT, ".context");
-const CACHE_DIR = path.join(CONTEXT_DIR, "cache");
 const CONFIG_PATH = path.join(CONTEXT_DIR, "config.yaml");
 
 // Same extensions as ingest.mjs
@@ -146,44 +145,12 @@ function scanBaseline(repoRoot = REPO_ROOT, configPath = CONFIG_PATH, projectBou
   };
 }
 
-function assertDashboardRoot(boundary) {
-  boundary.assertProjectAnchor({
-    code: "CORTEX_FS_DASHBOARD",
-    phase: "dashboard_data",
-    subject_kind: "dashboard_path",
-    subject: ".context",
-    reason: "path_replaced"
-  });
-}
-
-// ── Data: read JSONL safely ──────────────────────────────────
-function readJsonlSafe(filePath) {
-  try {
-    const text = fs.readFileSync(filePath, "utf8").trim();
-    if (!text) return [];
-    return text.split("\n").map((line) => {
-      try { return JSON.parse(line); } catch { return null; }
-    }).filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-// ── Data: read JSON safely ───────────────────────────────────
-function readJsonSafe(filePath) {
-  try {
-    return JSON.parse(fs.readFileSync(filePath, "utf8"));
-  } catch {
-    return null;
-  }
-}
-
 // ── Data: read manifests ─────────────────────────────────────
-function readManifests() {
+function readManifests(dashboardData) {
   return {
-    ingest: readJsonSafe(path.join(CACHE_DIR, "manifest.json")),
-    graph: readJsonSafe(path.join(CACHE_DIR, "graph-manifest.json")),
-    embed: readJsonSafe(path.join(CONTEXT_DIR, "embeddings", "manifest.json")),
+    ingest: dashboardData.readJson(".context/cache/manifest.json"),
+    graph: dashboardData.readJson(".context/cache/graph-manifest.json"),
+    embed: dashboardData.readJson(".context/embeddings/manifest.json"),
   };
 }
 
@@ -294,7 +261,7 @@ function getLocalCliVersion() {
   return "";
 }
 
-function getVersionStatus() {
+function getVersionStatus(dashboardData) {
   const now = Date.now();
   if (versionStatusCache.value && versionStatusCache.expiresAt > now) {
     return versionStatusCache.value;
@@ -321,7 +288,7 @@ function getVersionStatus() {
       };
     } else {
       try {
-        const npmCache = path.join(CACHE_DIR, "npm-cache");
+        const npmCache = dashboardData.npmCachePath();
         const latestRaw = execFileSync("npm", ["view", "github:DanielBlomma/cortex", "version", "--json"], {
           cwd: REPO_ROOT,
           stdio: ["ignore", "pipe", "pipe"],
@@ -368,6 +335,7 @@ function getVersionStatus() {
           }
         }
       } catch (error) {
+        if (isFilesystemPolicyError(error)) throw error;
         value = {
           state: "unavailable",
           local,
@@ -387,7 +355,7 @@ function getVersionStatus() {
 }
 
 // ── Data: degree analysis ────────────────────────────────────
-function computeTopConnected() {
+function computeTopConnected(dashboardData) {
   const degree = new Map();
 
   const relationFiles = [
@@ -397,7 +365,7 @@ function computeTopConnected() {
   ];
 
   for (const file of relationFiles) {
-    const records = readJsonlSafe(path.join(CACHE_DIR, file));
+    const records = dashboardData.readJsonl(`.context/cache/${file}`);
     for (const r of records) {
       if (r.from) degree.set(r.from, (degree.get(r.from) || 0) + 1);
       if (r.to) degree.set(r.to, (degree.get(r.to) || 0) + 1);
@@ -452,9 +420,9 @@ function estimatePerTaskTokens(baseline) {
 }
 
 // ── Data: gather all ─────────────────────────────────────────
-function gatherData(baselineCache) {
+function gatherData(baselineCache, dashboardData) {
   const baseline = baselineCache || scanBaseline();
-  const manifests = readManifests();
+  const manifests = readManifests(dashboardData);
   const gc = manifests.graph?.counts || {};
   const ic = manifests.ingest?.counts || {};
   const ec = manifests.embed?.counts || {};
@@ -475,8 +443,8 @@ function gatherData(baselineCache) {
   const embedDim = manifests.embed?.dimensions || 0;
 
   const freshness = computeFreshness(manifests.ingest);
-  const version = getVersionStatus();
-  const topConnected = computeTopConnected();
+  const topConnected = computeTopConnected(dashboardData);
+  const version = getVersionStatus(dashboardData);
 
   const timeAgo = (isoStr) => {
     if (!isoStr) return "never";
@@ -764,8 +732,8 @@ function main() {
   if (!isTTY) {
     policy.guard(() => {
       const baseline = scan();
-      assertDashboardRoot(boundary);
-      const data = gatherData(baseline);
+      const dashboardData = boundary.preflightDashboardData();
+      const data = gatherData(baseline, dashboardData);
       // Strip ANSI for pipe output
       const output = render(data, false).replace(/\x1b\[[0-9;]*m/g, "");
       process.stdout.write(output + "\n");
@@ -804,8 +772,8 @@ function main() {
 
   function renderFrame() {
     policy.guard(() => {
-      assertDashboardRoot(boundary);
-      const data = gatherData(baselineCache);
+      const dashboardData = boundary.preflightDashboardData();
+      const data = gatherData(baselineCache, dashboardData);
       const output = render(data, true);
       process.stdout.write(HOME + output + CLEAR_DOWN);
     });
@@ -830,6 +798,7 @@ if (isMainModule) {
 }
 
 export {
+  gatherData,
   parseSourcePaths,
   main,
   render,

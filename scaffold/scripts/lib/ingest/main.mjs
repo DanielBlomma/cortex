@@ -47,12 +47,16 @@ async function main() {
   runScanHydrationStage(state);
   await runParseStage(state);
   runMaterializationStage(state);
-  ensureIngestOutputDirectories();
-  runFileCacheStagingStage(state);
-  runTokenMatchingStage(state);
-  runCacheWriteStage(state);
-  runDatabaseWriteStage(state);
-  runManifestCompletionStage(state);
+  try {
+    ensureIngestOutputDirectories(state);
+    runFileCacheStagingStage(state);
+    runTokenMatchingStage(state);
+    runCacheWriteStage(state);
+    runDatabaseWriteStage(state);
+    runManifestCompletionStage(state);
+  } finally {
+    state.outputSet?.discard();
+  }
 }
 
 export {
