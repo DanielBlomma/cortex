@@ -4,13 +4,20 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { render, scanBaseline } from "../scripts/dashboard.mjs";
+const dashboardKind = process.env.CORTEX_DASHBOARD_ENTRY === "packaged"
+  ? "packaged"
+  : "development";
+const { render, scanBaseline } = await import(
+  dashboardKind === "packaged"
+    ? "../scaffold/scripts/dashboard.mjs"
+    : "../scripts/dashboard.mjs"
+);
 
 function stripAnsi(text) {
   return text.replace(/\x1b\[[0-9;]*m/g, "");
 }
 
-test("scanBaseline dedupes overlapping source_paths", () => {
+test(`${dashboardKind} dashboard scanBaseline dedupes overlapping source_paths`, () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-dashboard-"));
   const contextDir = path.join(tempRoot, ".context");
   const configPath = path.join(contextDir, "config.yaml");
@@ -38,7 +45,7 @@ test("scanBaseline dedupes overlapping source_paths", () => {
   }
 });
 
-test("render surfaces C# parser problems without making C# a primary health metric", () => {
+test(`${dashboardKind} dashboard render surfaces C# parser problems without making C# a primary health metric`, () => {
   const output = stripAnsi(render({
     baseline: { files: 2, lines: 10, chars: 100, tokens: 25 },
     cortex: {
@@ -81,7 +88,7 @@ test("render surfaces C# parser problems without making C# a primary health metr
   assert.match(output, /install \.NET SDK/i);
 });
 
-test("render hides healthy C# parser state", () => {
+test(`${dashboardKind} dashboard render hides healthy C# parser state`, () => {
   const output = stripAnsi(render({
     baseline: { files: 2, lines: 10, chars: 100, tokens: 25 },
     cortex: {
@@ -123,7 +130,7 @@ test("render hides healthy C# parser state", () => {
   assert.doesNotMatch(output, /Parser warning \(C#\):/i);
 });
 
-test("render distinguishes local-newer version state from current", () => {
+test(`${dashboardKind} dashboard render distinguishes local-newer version state from current`, () => {
   const output = stripAnsi(render({
     baseline: { files: 1, lines: 10, chars: 100, tokens: 25 },
     cortex: {

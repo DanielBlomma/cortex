@@ -1,7 +1,4 @@
-import path from "node:path";
-import { readJsonlSafe } from "./io.mjs";
 import { relationKey } from "./relations.mjs";
-import { CACHE_DIR } from "./runtime-paths.mjs";
 
 export function removeChunkStateForFile(fileId, chunkRecordMap, definesRelationMap, callsRelationMap, importsRelationMap, callsSqlRelationMap) {
   const removedChunkIds = new Set();
@@ -42,7 +39,7 @@ export function removeChunkStateForFile(fileId, chunkRecordMap, definesRelationM
   }
 }
 
-export function hydrateIncrementalChunkState(fileRecords) {
+export function hydrateIncrementalChunkState(fileRecords, priorCache) {
   const fileIdSet = new Set(fileRecords.map((record) => record.id));
   const chunkRecordMap = new Map();
   const definesRelationMap = new Map();
@@ -50,7 +47,7 @@ export function hydrateIncrementalChunkState(fileRecords) {
   const importsRelationMap = new Map();
   const callsSqlRelationMap = new Map();
 
-  for (const record of readJsonlSafe(path.join(CACHE_DIR, "entities.chunk.jsonl"))) {
+  for (const record of priorCache.read(".context/cache/entities.chunk.jsonl")) {
     if (!record || typeof record !== "object") continue;
     const chunkId = String(record.id ?? "");
     const fileId = String(record.file_id ?? "");
@@ -66,7 +63,7 @@ export function hydrateIncrementalChunkState(fileRecords) {
 
   const chunkIdSet = new Set(chunkRecordMap.keys());
 
-  for (const record of readJsonlSafe(path.join(CACHE_DIR, "relations.defines.jsonl"))) {
+  for (const record of priorCache.read(".context/cache/relations.defines.jsonl")) {
     if (!record || typeof record !== "object") continue;
     const from = String(record.from ?? "");
     const to = String(record.to ?? "");
@@ -76,7 +73,7 @@ export function hydrateIncrementalChunkState(fileRecords) {
     definesRelationMap.set(relationKey(from, to), { from, to });
   }
 
-  for (const record of readJsonlSafe(path.join(CACHE_DIR, "relations.calls.jsonl"))) {
+  for (const record of priorCache.read(".context/cache/relations.calls.jsonl")) {
     if (!record || typeof record !== "object") continue;
     const from = String(record.from ?? "");
     const to = String(record.to ?? "");
@@ -91,7 +88,7 @@ export function hydrateIncrementalChunkState(fileRecords) {
     });
   }
 
-  for (const record of readJsonlSafe(path.join(CACHE_DIR, "relations.imports.jsonl"))) {
+  for (const record of priorCache.read(".context/cache/relations.imports.jsonl")) {
     if (!record || typeof record !== "object") continue;
     const from = String(record.from ?? "");
     const to = String(record.to ?? "");
@@ -106,7 +103,7 @@ export function hydrateIncrementalChunkState(fileRecords) {
     });
   }
 
-  for (const record of readJsonlSafe(path.join(CACHE_DIR, "relations.calls_sql.jsonl"))) {
+  for (const record of priorCache.read(".context/cache/relations.calls_sql.jsonl")) {
     if (!record || typeof record !== "object") continue;
     const from = String(record.from ?? "");
     const to = String(record.to ?? "");

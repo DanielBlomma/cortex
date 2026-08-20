@@ -6,8 +6,53 @@ export function parseSourcePaths(configText) {
   const lines = configText.split(/\r?\n/);
   let inSourcePaths = false;
 
+  function stripComment(value) {
+    let quote = null;
+    for (let index = 0; index < value.length; index += 1) {
+      const character = value[index];
+      if (quote === "\"") {
+        if (character === "\\") {
+          index += 1;
+        } else if (character === "\"") {
+          quote = null;
+        }
+        continue;
+      }
+      if (quote === "'") {
+        if (character === "'" && value[index + 1] === "'") {
+          index += 1;
+        } else if (character === "'") {
+          quote = null;
+        }
+        continue;
+      }
+      if (character === "\"" || character === "'") {
+        quote = character;
+        continue;
+      }
+      if (character === "#" && (index === 0 || /\s/.test(value[index - 1]))) {
+        return value.slice(0, index);
+      }
+    }
+    return value;
+  }
+
+  function parseScalar(value) {
+    const scalar = stripComment(value).trim();
+    if (scalar.length < 2 || scalar[0] !== scalar.at(-1)) return scalar;
+    if (scalar[0] === "'") return scalar.slice(1, -1).replace(/''/g, "'");
+    if (scalar[0] === "\"") {
+      try {
+        return JSON.parse(scalar);
+      } catch {
+        return scalar;
+      }
+    }
+    return scalar;
+  }
+
   for (const line of lines) {
-    if (!inSourcePaths && /^source_paths:\s*$/.test(line.trim())) {
+    if (!inSourcePaths && stripComment(line.trim()).trim() === "source_paths:") {
       inSourcePaths = true;
       continue;
     }
@@ -16,13 +61,13 @@ export function parseSourcePaths(configText) {
       continue;
     }
 
-    const entryMatch = line.match(/^\s*-\s*(.+?)\s*$/);
+    const entryMatch = line.match(/^\s*-\s*(.*?)\s*$/);
     if (entryMatch) {
-      const unquoted = entryMatch[1].replace(/^['"]|['"]$/g, "");
-      sourcePaths.push(unquoted);
+      sourcePaths.push(parseScalar(entryMatch[1]));
       continue;
     }
 
+    if (/^\s*#/.test(line)) continue;
     if (line.trim() !== "" && !/^\s/.test(line)) {
       break;
     }

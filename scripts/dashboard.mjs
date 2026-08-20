@@ -3,12 +3,17 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync, execSync } from "node:child_process";
+import {
+  createDashboardPolicyHandler,
+  createFilesystemBoundary,
+  isFilesystemPolicyError
+} from "../scaffold/scripts/lib/ingest/filesystem-boundary.mjs";
+import { parseSourcePaths } from "../scaffold/scripts/lib/ingest/config.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, "..");
 const CONTEXT_DIR = path.join(REPO_ROOT, ".context");
-const CACHE_DIR = path.join(CONTEXT_DIR, "cache");
 const CONFIG_PATH = path.join(CONTEXT_DIR, "config.yaml");
 
 // Same extensions as ingest.mjs
@@ -59,45 +64,22 @@ const col = (text, color) => `${color}${text}${RESET}`;
 const bold = (text) => `${BOLD}${text}${RESET}`;
 const dim = (text) => `${DIM}${text}${RESET}`;
 
-// ── Data: source_paths parsing (same as ingest.mjs) ──────────
-function parseSourcePaths(configText) {
-  const sourcePaths = [];
-  const lines = configText.split(/\r?\n/);
-  let inSourcePaths = false;
-  for (const line of lines) {
-    if (!inSourcePaths && /^source_paths:\s*$/.test(line.trim())) {
-      inSourcePaths = true;
-      continue;
-    }
-    if (!inSourcePaths) continue;
-    const m = line.match(/^\s*-\s*(.+?)\s*$/);
-    if (m) {
-      sourcePaths.push(m[1].replace(/^['"]|['"]$/g, ""));
-      continue;
-    }
-    if (line.trim() !== "" && !/^\s/.test(line)) break;
-  }
-  return sourcePaths;
-}
-
 // ── Data: filesystem walk (same as ingest.mjs) ───────────────
-function walkDirectory(dirPath, files) {
-  let entries;
-  try {
-    entries = fs.readdirSync(dirPath, { withFileTypes: true });
-  } catch {
-    return;
-  }
+function walkDirectory(boundary, directoryIdentity, files) {
+  const { entries } = boundary.readRepositoryDirectory(directoryIdentity, "discovery");
   for (const entry of entries) {
+    if (entry.isSymbolicLink()) continue;
     if (entry.isDirectory() && SKIP_DIRECTORIES.has(entry.name)) continue;
-    const abs = path.join(dirPath, entry.name);
+    const identity = boundary.childIdentity(directoryIdentity, entry.name);
     if (entry.isDirectory()) {
-      walkDirectory(abs, files);
+      boundary.inspectRepositoryPath(identity, { phase: "discovery", expected: "directory" });
+      walkDirectory(boundary, identity, files);
     } else if (entry.isFile()) {
+      boundary.inspectRepositoryPath(identity, { phase: "discovery", expected: "file" });
       if (typeof files.add === "function") {
-        files.add(abs);
+        files.add(identity);
       } else {
-        files.push(abs);
+        files.push(identity);
       }
     }
   }
@@ -116,22 +98,22 @@ function hasSourcePrefix(relPath, sourcePaths) {
 }
 
 // ── Data: baseline scan ──────────────────────────────────────
-function scanBaseline(repoRoot = REPO_ROOT, configPath = CONFIG_PATH) {
-  if (!fs.existsSync(configPath)) return { files: 0, lines: 0, chars: 0, tokens: 0 };
-
-  const configText = fs.readFileSync(configPath, "utf8");
+function scanBaseline(repoRoot = REPO_ROOT, configPath = CONFIG_PATH, projectBoundary = null) {
+  void configPath;
+  const boundary = projectBoundary ?? createFilesystemBoundary(repoRoot);
+  boundary.validateControl(".context/config.yaml");
+  const configText = boundary.readControl(".context/config.yaml");
   const sourcePaths = [...new Set(parseSourcePaths(configText))];
   if (sourcePaths.length === 0) return { files: 0, lines: 0, chars: 0, tokens: 0 };
+  const sourceRecords = boundary.validateConfiguredSources(sourcePaths);
 
   const allFiles = new Set();
-  for (const sp of sourcePaths) {
-    const abs = path.resolve(repoRoot, sp);
-    if (!fs.existsSync(abs)) continue;
-    const stat = fs.statSync(abs);
-    if (stat.isFile()) {
-      allFiles.add(abs);
-    } else if (stat.isDirectory()) {
-      walkDirectory(abs, allFiles);
+  for (const source of sourceRecords) {
+    if (!source.exists) continue;
+    if (source.kind === "file") {
+      allFiles.add(source.identity);
+    } else if (source.kind === "directory") {
+      walkDirectory(boundary, source.identity, allFiles);
     }
   }
 
@@ -139,17 +121,18 @@ function scanBaseline(repoRoot = REPO_ROOT, configPath = CONFIG_PATH) {
   let totalLines = 0;
   let totalChars = 0;
 
-  for (const filePath of allFiles) {
-    const ext = path.extname(filePath).toLowerCase();
+  for (const fileIdentity of allFiles) {
+    const ext = path.extname(fileIdentity).toLowerCase();
     if (!SUPPORTED_TEXT_EXTENSIONS.has(ext)) continue;
     try {
-      const stat = fs.statSync(filePath);
+      const { stats: stat } = boundary.statRepositoryFile(fileIdentity, "direct_read");
       if (stat.size > MAX_FILE_BYTES) continue;
-      const content = fs.readFileSync(filePath, "utf8");
+      const content = boundary.readRepositoryFile(fileIdentity, "direct_read", "utf8");
       fileCount++;
       totalLines += content.split("\n").length;
       totalChars += content.length;
-    } catch {
+    } catch (error) {
+      if (isFilesystemPolicyError(error)) throw error;
       // skip unreadable
     }
   }
@@ -162,34 +145,12 @@ function scanBaseline(repoRoot = REPO_ROOT, configPath = CONFIG_PATH) {
   };
 }
 
-// ── Data: read JSONL safely ──────────────────────────────────
-function readJsonlSafe(filePath) {
-  try {
-    const text = fs.readFileSync(filePath, "utf8").trim();
-    if (!text) return [];
-    return text.split("\n").map((line) => {
-      try { return JSON.parse(line); } catch { return null; }
-    }).filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-// ── Data: read JSON safely ───────────────────────────────────
-function readJsonSafe(filePath) {
-  try {
-    return JSON.parse(fs.readFileSync(filePath, "utf8"));
-  } catch {
-    return null;
-  }
-}
-
 // ── Data: read manifests ─────────────────────────────────────
-function readManifests() {
+function readManifests(dashboardData) {
   return {
-    ingest: readJsonSafe(path.join(CACHE_DIR, "manifest.json")),
-    graph: readJsonSafe(path.join(CACHE_DIR, "graph-manifest.json")),
-    embed: readJsonSafe(path.join(CONTEXT_DIR, "embeddings", "manifest.json")),
+    ingest: dashboardData.readJson(".context/cache/manifest.json"),
+    graph: dashboardData.readJson(".context/cache/graph-manifest.json"),
+    embed: dashboardData.readJson(".context/embeddings/manifest.json"),
   };
 }
 
@@ -300,7 +261,7 @@ function getLocalCliVersion() {
   return "";
 }
 
-function getVersionStatus() {
+function getVersionStatus(dashboardData) {
   const now = Date.now();
   if (versionStatusCache.value && versionStatusCache.expiresAt > now) {
     return versionStatusCache.value;
@@ -327,7 +288,7 @@ function getVersionStatus() {
       };
     } else {
       try {
-        const npmCache = path.join(CACHE_DIR, "npm-cache");
+        const npmCache = dashboardData.npmCachePath();
         const latestRaw = execFileSync("npm", ["view", "github:DanielBlomma/cortex", "version", "--json"], {
           cwd: REPO_ROOT,
           stdio: ["ignore", "pipe", "pipe"],
@@ -374,6 +335,7 @@ function getVersionStatus() {
           }
         }
       } catch (error) {
+        if (isFilesystemPolicyError(error)) throw error;
         value = {
           state: "unavailable",
           local,
@@ -393,7 +355,7 @@ function getVersionStatus() {
 }
 
 // ── Data: degree analysis ────────────────────────────────────
-function computeTopConnected() {
+function computeTopConnected(dashboardData) {
   const degree = new Map();
 
   const relationFiles = [
@@ -403,7 +365,7 @@ function computeTopConnected() {
   ];
 
   for (const file of relationFiles) {
-    const records = readJsonlSafe(path.join(CACHE_DIR, file));
+    const records = dashboardData.readJsonl(`.context/cache/${file}`);
     for (const r of records) {
       if (r.from) degree.set(r.from, (degree.get(r.from) || 0) + 1);
       if (r.to) degree.set(r.to, (degree.get(r.to) || 0) + 1);
@@ -458,9 +420,9 @@ function estimatePerTaskTokens(baseline) {
 }
 
 // ── Data: gather all ─────────────────────────────────────────
-function gatherData(baselineCache) {
+function gatherData(baselineCache, dashboardData) {
   const baseline = baselineCache || scanBaseline();
-  const manifests = readManifests();
+  const manifests = readManifests(dashboardData);
   const gc = manifests.graph?.counts || {};
   const ic = manifests.ingest?.counts || {};
   const ec = manifests.embed?.counts || {};
@@ -481,8 +443,8 @@ function gatherData(baselineCache) {
   const embedDim = manifests.embed?.dimensions || 0;
 
   const freshness = computeFreshness(manifests.ingest);
-  const version = getVersionStatus();
-  const topConnected = computeTopConnected();
+  const topConnected = computeTopConnected(dashboardData);
+  const version = getVersionStatus(dashboardData);
 
   const timeAgo = (isoStr) => {
     if (!isoStr) return "never";
@@ -761,71 +723,84 @@ function parseInterval() {
 function main() {
   const interval = parseInterval();
   const isTTY = process.stdout.isTTY;
+  const policy = createDashboardPolicyHandler({ restoreOutput: SHOW_CURSOR + RESET });
+  const boundary = policy.guard(() => createFilesystemBoundary(REPO_ROOT));
+  if (policy.failed) return;
+  const scan = () => scanBaseline(REPO_ROOT, CONFIG_PATH, boundary);
 
   // Non-TTY: one-shot plain output
   if (!isTTY) {
-    const baseline = scanBaseline();
-    const data = gatherData(baseline);
-    // Strip ANSI for pipe output
-    const output = render(data, false).replace(/\x1b\[[0-9;]*m/g, "");
-    process.stdout.write(output + "\n");
-    process.exit(0);
+    policy.guard(() => {
+      const baseline = scan();
+      const dashboardData = boundary.preflightDashboardData();
+      const data = gatherData(baseline, dashboardData);
+      // Strip ANSI for pipe output
+      const output = render(data, false).replace(/\x1b\[[0-9;]*m/g, "");
+      process.stdout.write(output + "\n");
+    });
+    return;
   }
 
   // TTY: live TUI
-  let baselineCache = scanBaseline();
-  let timer = null;
+  let baselineCache = policy.guard(scan);
+  if (policy.failed) return;
 
-  function cleanup() {
-    if (timer) clearInterval(timer);
-    process.stdout.write(SHOW_CURSOR + RESET + "\n");
-    if (process.stdin.isTTY) {
-      process.stdin.setRawMode(false);
-    }
-    process.exit(0);
-  }
-
-  process.on("SIGINT", cleanup);
-  process.on("SIGTERM", cleanup);
+  policy.addListener(process, "SIGINT", () => policy.cleanup());
+  policy.addListener(process, "SIGTERM", () => policy.cleanup());
 
   process.stdout.write(HIDE_CURSOR);
+  policy.markCursorHidden();
 
   if (process.stdin.isTTY) {
     process.stdin.setRawMode(true);
+    policy.markRawMode();
     process.stdin.resume();
     process.stdin.setEncoding("utf8");
 
-    process.stdin.on("data", (key) => {
+    const onInput = (key) => {
       if (key === "q" || key === "\x03") {
-        cleanup();
+        policy.cleanup();
       } else if (key === "r") {
-        baselineCache = scanBaseline();
+        const refreshed = policy.guard(scan);
+        if (policy.failed) return;
+        baselineCache = refreshed;
         renderFrame();
       }
-    });
+    };
+    policy.addListener(process.stdin, "data", onInput);
   }
 
   function renderFrame() {
-    const data = gatherData(baselineCache);
-    const output = render(data, true);
-    process.stdout.write(HOME + output + CLEAR_DOWN);
+    policy.guard(() => {
+      const dashboardData = boundary.preflightDashboardData();
+      const data = gatherData(baselineCache, dashboardData);
+      const output = render(data, true);
+      process.stdout.write(HOME + output + CLEAR_DOWN);
+    });
   }
 
   renderFrame();
-  timer = setInterval(renderFrame, interval * 1000);
+  if (policy.failed) return;
+  policy.addTimer(setInterval(renderFrame, interval * 1000));
 
-  process.stdout.on("resize", () => {
-    renderFrame();
-  });
+  policy.addListener(process.stdout, "resize", renderFrame);
 }
 
-const isMainModule = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename);
+const isMainModule = process.argv[1] && (() => {
+  try {
+    return fs.realpathSync.native(process.argv[1]) === fs.realpathSync.native(__filename);
+  } catch {
+    return path.resolve(process.argv[1]) === path.resolve(__filename);
+  }
+})();
 if (isMainModule) {
   main();
 }
 
 export {
+  gatherData,
   parseSourcePaths,
+  main,
   render,
   scanBaseline,
   walkDirectory

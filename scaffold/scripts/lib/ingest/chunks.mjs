@@ -1,8 +1,8 @@
-import fs from "node:fs";
 import path from "node:path";
 import { MAX_BODY_CHARS } from "./constants.mjs";
 import { checksum, normalizeWhitespace } from "./files.mjs";
 import { REPO_ROOT } from "./runtime-paths.mjs";
+import { createFilesystemBoundary } from "./filesystem-boundary.mjs";
 
 export function chunkIdFor(filePath, chunk) {
   const startLine = Number.isFinite(chunk.startLine) ? chunk.startLine : 0;
@@ -34,12 +34,12 @@ export function generateChunkDescription(chunk) {
   return parts.join(". ") + ".";
 }
 
-export function generateModuleSummary(dir, files, exportNames, repoRoot = REPO_ROOT) {
+export function generateModuleSummary(dir, files, exportNames, repoRoot = REPO_ROOT, projectBoundary = null) {
   // Check for README.md in directory
-  const readmePath = path.join(repoRoot, dir, "README.md");
-  if (fs.existsSync(readmePath)) {
-    try {
-      const content = fs.readFileSync(readmePath, "utf8");
+  const boundary = projectBoundary ?? createFilesystemBoundary(repoRoot);
+  const readmeIdentity = path.posix.join(dir.split(path.sep).join("/"), "README.md");
+  const content = boundary.readOptionalRepositoryFile(readmeIdentity, "secondary_read", "utf8");
+  if (content !== null) {
       // Skip first heading line, take first 300 chars
       const lines = content.split(/\r?\n/);
       const startIdx = lines.findIndex(l => !l.startsWith("#") && l.trim().length > 0);
@@ -47,9 +47,6 @@ export function generateModuleSummary(dir, files, exportNames, repoRoot = REPO_R
         const excerpt = lines.slice(startIdx).join(" ").trim().slice(0, 300);
         if (excerpt.length > 20) return excerpt;
       }
-    } catch {
-      // fall through to auto-generated summary
-    }
   }
 
   const name = path.basename(dir);
@@ -83,7 +80,7 @@ export function generateModuleSummary(dir, files, exportNames, repoRoot = REPO_R
   return parts.join(". ") + ".";
 }
 
-export function generateModules(fileRecords, chunkRecords) {
+export function generateModules(fileRecords, chunkRecords, projectBoundary = null) {
   const dirFiles = new Map();
   const dirChunks = new Map();
   const fileById = new Map(fileRecords.map(f => [f.id, f]));
@@ -121,7 +118,7 @@ export function generateModules(fileRecords, chunkRecords) {
       id: moduleId,
       path: dir,
       name: path.basename(dir),
-      summary: generateModuleSummary(dir, files, exportNames),
+      summary: generateModuleSummary(dir, files, exportNames, REPO_ROOT, projectBoundary),
       file_count: files.length,
       exported_symbols: exportNames.join(", "),
       updated_at: files.reduce((latest, f) => f.updated_at > latest ? f.updated_at : latest, ""),

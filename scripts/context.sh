@@ -8,7 +8,10 @@ print_help() {
 Usage: ./scripts/context.sh <command> [options]
 
 Commands:
-  bootstrap                        Install deps + full ingest + graph load
+  bootstrap [--background --profile interactive]
+                                   Install deps + full ingest + graph load
+  indexing [status --json|pause|resume]
+                                   Manage progressive semantic indexing
   ingest [--changed] [--verbose]   Index docs/code/design context into .context
   embed [--changed]                Generate semantic embeddings for indexed entities
   update                           Ingest changed files + rebuild graph
@@ -35,6 +38,9 @@ case "$COMMAND" in
   bootstrap)
     "$SCRIPT_DIR/bootstrap.sh" "$@"
     ;;
+  indexing)
+    node "$SCRIPT_DIR/indexing.mjs" "$@"
+    ;;
   ingest)
     "$SCRIPT_DIR/ingest.sh" "$@"
     ;;
@@ -42,7 +48,7 @@ case "$COMMAND" in
     "$SCRIPT_DIR/embed.sh" "$@"
     ;;
   update)
-    "$SCRIPT_DIR/update-context.sh" "$@"
+    node "$SCRIPT_DIR/indexing.mjs" run-locked update -- bash "$SCRIPT_DIR/update-context.sh" "$@"
     ;;
   watch)
     "$SCRIPT_DIR/watch.sh" "$@"

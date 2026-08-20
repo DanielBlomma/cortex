@@ -125,6 +125,14 @@ test("package ownership manifest explicitly covers canonical scaffold sources", 
     );
   }
   for (const target of [
+    ".context/mcp/src/progressiveIndexing.ts",
+    ".context/mcp/dist/progressiveIndexing.js",
+    ".context/mcp/tests/progressive-indexing.test.mjs",
+    ".context/scripts/indexing.mjs",
+  ]) {
+    assert.equal(targets.has(target), true, `${target} must remain package-owned`);
+  }
+  for (const target of [
     ".context/config.yaml",
     ".context/rules.yaml",
     ".context/ontology.cypher",

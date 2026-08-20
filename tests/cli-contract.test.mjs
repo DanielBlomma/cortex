@@ -77,6 +77,7 @@ test("CLI help inventories the public top-level command surface", () => {
     "init",
     "connect",
     "bootstrap",
+    "indexing",
     "update",
     "status",
     "doctor",
@@ -376,6 +377,7 @@ test("context passthrough commands preserve arguments and child streams", () => 
     [
       "#!/usr/bin/env bash",
       "# doctor)",
+      "# indexing)",
       "printf 'runtime-stdout:%s\\n' \"$*\"",
       "printf 'runtime-stderr:%s\\n' \"$*\" >&2",
       "",
@@ -383,11 +385,13 @@ test("context passthrough commands preserve arguments and child streams", () => 
     "utf8",
   );
   fs.writeFileSync(path.join(scriptsDir, "doctor.sh"), "#!/usr/bin/env bash\n", "utf8");
+  fs.writeFileSync(path.join(scriptsDir, "indexing.mjs"), "// indexing lifecycle\n", "utf8");
   fs.writeFileSync(path.join(runtimeDir, "package.json"), "{}\n", "utf8");
 
   try {
     for (const command of [
       "bootstrap",
+      "indexing",
       "update",
       "status",
       "ingest",

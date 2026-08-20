@@ -1,5 +1,9 @@
 import os from "node:os";
 import { Worker } from "node:worker_threads";
+import {
+  createWorkerProtocolError,
+  workerPolicyErrorFromMessage
+} from "./filesystem-boundary.mjs";
 
 function resolveIngestWorkerCount(taskCount) {
   const raw = process.env.CORTEX_INGEST_WORKERS;
@@ -40,6 +44,18 @@ function createEmptyWorkerParseStream(tasks, workerCount) {
   };
 }
 
+function isValidWorkerResult(result) {
+  if (!result || typeof result !== "object" || Array.isArray(result)) {
+    return false;
+  }
+  const keys = Object.keys(result).sort();
+  return (
+    keys.join(",") === "chunks,errors" &&
+    Array.isArray(result.chunks) &&
+    Array.isArray(result.errors)
+  );
+}
+
 function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {}) {
   if (tasks.length === 0) {
     return createEmptyWorkerParseStream(tasks, workerCount);
@@ -56,6 +72,7 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
   }
 
   const taskIds = new Set(tasks.map((task) => task.id));
+  const taskById = new Map(tasks.map((task) => [task.id, task]));
   const results = new Map();
   const missingResults = new Set();
   const waiters = new Map();
@@ -64,6 +81,7 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
   let nextTask = 0;
   let alive = poolSize;
   let finished = false;
+  let fatalError = null;
   let resolveDone;
   const done = new Promise((resolve) => {
     resolveDone = resolve;
@@ -94,8 +112,9 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
   const finish = () => {
     if (finished) return;
     finished = true;
-    for (const resolve of waiters.values()) {
-      resolve(undefined);
+    for (const waiter of waiters.values()) {
+      if (fatalError) waiter.reject(fatalError);
+      else waiter.resolve(undefined);
     }
     waiters.clear();
     resolveDone();
@@ -111,15 +130,15 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
   };
 
   const resolveWaiter = (taskId, result) => {
-    const resolve = waiters.get(taskId);
-    if (!resolve) {
+    const waiter = waiters.get(taskId);
+    if (!waiter) {
       return false;
     }
     waiters.delete(taskId);
     if (result !== undefined) {
       state.consumed += 1;
     }
-    resolve(result);
+    waiter.resolve(result);
     return true;
   };
 
@@ -150,17 +169,44 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
     worker.postMessage({
       taskId: task.id,
       ext: task.ext,
-      content: task.content,
-      absolutePath: task.absolutePath,
       contentLimit: task.contentLimit,
-      filePath: task.path
+      filePath: task.path,
+      projectAnchor: task.projectAnchor
     });
   };
 
   const onMessage = (worker, message) => {
     if (finished) return;
+    const taskId = inflight.get(worker);
+    if (message?.type === "policy_error") {
+      const task = taskById.get(taskId);
+      fatalError = workerPolicyErrorFromMessage(message, task?.path ?? "<worker-task>");
+      inflight.set(worker, null);
+      finish();
+      return;
+    }
+    const task = taskById.get(taskId);
+    const messageKeys = message && typeof message === "object" && !Array.isArray(message)
+      ? Object.keys(message).sort()
+      : [];
+    const validSuccess =
+      message?.ok === true &&
+      message.taskId === taskId &&
+      isValidWorkerResult(message.result) &&
+      messageKeys.join(",") === "ok,result,taskId";
+    const validSkip =
+      message?.ok === false &&
+      message.taskId === taskId &&
+      typeof message.reason === "string" &&
+      messageKeys.join(",") === "ok,reason,taskId";
+    if (!validSuccess && !validSkip) {
+      fatalError = createWorkerProtocolError(task?.path ?? "<worker-task>");
+      inflight.set(worker, null);
+      finish();
+      return;
+    }
     inflight.set(worker, null);
-    if (message.ok) {
+    if (validSuccess) {
       settleTask(message.taskId, message.result);
     } else {
       if (verbose) {
@@ -217,6 +263,7 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
     },
     stats,
     async take(taskId) {
+      if (fatalError) throw fatalError;
       if (!taskIds.has(taskId)) {
         return undefined;
       }
@@ -229,13 +276,14 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
       if (missingResults.has(taskId) || finished) {
         return undefined;
       }
-      return new Promise((resolve) => {
-        waiters.set(taskId, resolve);
+      return new Promise((resolve, reject) => {
+        waiters.set(taskId, { resolve, reject });
       });
     },
     async drain() {
       await done;
       await Promise.all(workers.map((worker) => worker.terminate().catch(() => {})));
+      if (fatalError) throw fatalError;
       return stats();
     }
   };
@@ -246,14 +294,16 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
 async function parseFilesInWorkers(tasks, options = {}) {
   const stream = startWorkerParseStream(tasks, options);
   const results = new Map();
-  for (const task of tasks) {
-    const result = await stream.take(task.id);
-    if (result) {
-      results.set(task.id, result);
+  try {
+    for (const task of tasks) {
+      const result = await stream.take(task.id);
+      if (result) {
+        results.set(task.id, result);
+      }
     }
+  } finally {
+    await stream.drain();
   }
-
-  await stream.drain();
   return results;
 }
 

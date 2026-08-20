@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
+import { isFilesystemPolicyError } from "./filesystem-boundary.mjs";
 import {
   CODE_FILE_EXTENSIONS,
   CPP_IMPORT_RESOLUTION_EXTENSIONS,
@@ -13,7 +14,6 @@ import {
   STOP_WORDS,
   SUPPORTED_TEXT_EXTENSIONS
 } from "./constants.mjs";
-import { REPO_ROOT } from "./runtime-paths.mjs";
 
 export function ensureDirectory(directoryPath) {
   fs.mkdirSync(directoryPath, { recursive: true });
@@ -60,39 +60,50 @@ export function uniqueSorted(values) {
   return [...new Set(values)].sort();
 }
 
-export function walkDirectory(directoryPath, files) {
-  const entries = fs.readdirSync(directoryPath, { withFileTypes: true });
+export function walkDirectory(boundary, directoryIdentity, files) {
+  const { entries } = boundary.readRepositoryDirectory(directoryIdentity, "discovery");
   for (const entry of entries) {
-    const absolutePath = path.join(directoryPath, entry.name);
-    if (entry.isDirectory() && shouldSkipDirectory(absolutePath, entry.name)) {
+    const identity = boundary.childIdentity(directoryIdentity, entry.name);
+    if (entry.isSymbolicLink()) {
+      continue;
+    }
+    if (entry.isDirectory() && shouldSkipDirectory(identity, entry.name)) {
       continue;
     }
 
     if (entry.isDirectory()) {
-      walkDirectory(absolutePath, files);
+      boundary.inspectRepositoryPath(identity, { phase: "discovery", expected: "directory" });
+      walkDirectory(boundary, identity, files);
       continue;
     }
 
     if (entry.isFile()) {
-      files.add(absolutePath);
+      boundary.inspectRepositoryPath(identity, { phase: "discovery", expected: "file" });
+      files.add(identity);
     }
   }
 }
 
-export function shouldSkipDirectory(absolutePath, entryName) {
-  if (entryName === "bin" && path.resolve(path.dirname(absolutePath)) === REPO_ROOT) {
+export function shouldSkipDirectory(identity, entryName) {
+  if (entryName === "bin" && !normalizeRelativePath(identity).includes("/")) {
     return false;
   }
   return SKIP_DIRECTORIES.has(entryName);
 }
 
 export function normalizeSourcePrefix(sourcePath) {
-  const source = toPosixPath(sourcePath).replace(/^\.\/+/, "").replace(/\/+$/, "");
-  return source === "." ? "" : source;
+  const source = toPosixPath(sourcePath)
+    .split("/")
+    .filter((part) => part !== "" && part !== ".")
+    .join("/");
+  return source;
 }
 
 export function normalizeRelativePath(relPath) {
-  return toPosixPath(relPath).replace(/^\.\/+/, "").replace(/\/+$/, "");
+  return toPosixPath(relPath)
+    .split("/")
+    .filter((part) => part !== "" && part !== ".")
+    .join("/");
 }
 
 export function hasSkippedDirectorySegment(relPath) {
@@ -170,87 +181,112 @@ export function resolveRelativeImportTargetId(filePath, importPath, indexedFileI
   return null;
 }
 
-export function getGitChanges() {
+export function parseGitStatusPorcelain(output, boundary) {
+  const changed = new Set();
+  const deleted = new Set();
+  const records = output.split("\0");
+
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index];
+    if (!record) continue;
+    if (record.length < 4 || record[2] !== " ") {
+      boundary.inspectRepositoryPath("", { phase: "discovery" });
+    }
+    const status = record.slice(0, 2);
+    const firstPath = record.slice(3);
+    const first = boundary.inspectRepositoryPath(firstPath, {
+      phase: "discovery",
+      allowMissing: true,
+      expected: "any"
+    }).identity;
+    const isRename = status.includes("R") || status.includes("C");
+    if (isRename) {
+      const secondPath = records[index + 1];
+      if (typeof secondPath !== "string" || secondPath.length === 0) {
+        boundary.inspectRepositoryPath("", { phase: "discovery" });
+      }
+      index += 1;
+      const second = boundary.inspectRepositoryPath(secondPath, {
+        phase: "discovery",
+        allowMissing: true,
+        expected: "any"
+      }).identity;
+      changed.add(first);
+      if (status.includes("R")) deleted.add(second);
+      continue;
+    }
+
+    if (status.includes("D")) deleted.add(first);
+    else changed.add(first);
+  }
+  return { changed: [...changed], deleted: [...deleted] };
+}
+
+export function getGitChanges(boundary) {
+  let output;
   try {
-    const output = execSync("git status --porcelain", {
-      cwd: REPO_ROOT,
+    boundary.assertProjectAnchor({
+      code: "CORTEX_FS_SOURCE",
+      phase: "discovery",
+      subject_kind: "repository_path",
+      subject: ".",
+      reason: "path_replaced"
+    });
+    output = execSync("git status --porcelain=v1 -z --untracked-files=all", {
+      cwd: boundary.root,
       stdio: ["ignore", "pipe", "ignore"],
       encoding: "utf8"
     });
-
-    const changed = new Set();
-    const deleted = new Set();
-
-    for (const line of output.split(/\r?\n/)) {
-      if (!line) continue;
-      const status = line.slice(0, 2);
-      const payload = line.slice(3).trim();
-      if (!payload) continue;
-
-      if (payload.includes(" -> ")) {
-        const [fromPath, toPath] = payload.split(" -> ");
-        deleted.add(path.resolve(REPO_ROOT, fromPath));
-        changed.add(path.resolve(REPO_ROOT, toPath));
-        continue;
-      }
-
-      const absolutePath = path.resolve(REPO_ROOT, payload);
-      if (status.includes("D")) {
-        deleted.add(absolutePath);
-      } else {
-        changed.add(absolutePath);
-      }
-    }
-
-    return {
-      changed: [...changed],
-      deleted: [...deleted]
-    };
-  } catch {
+  } catch (error) {
+    if (isFilesystemPolicyError(error)) throw error;
     return {
       changed: [],
       deleted: []
     };
   }
+  return parseGitStatusPorcelain(output, boundary);
 }
 
-export function collectCandidateFiles(sourcePaths, mode) {
+export function collectCandidateFiles(boundary, sourcePaths, sourceRecords, mode) {
   const candidates = new Set();
   const deletedRelPaths = new Set();
 
   if (mode === "changed") {
-    const gitChanges = getGitChanges();
+    const gitChanges = getGitChanges(boundary);
     if (gitChanges.changed.length > 0 || gitChanges.deleted.length > 0) {
-      for (const absolutePath of gitChanges.changed) {
-        if (!fs.existsSync(absolutePath)) {
-          continue;
-        }
-
-        const stats = fs.statSync(absolutePath);
-        if (stats.isFile()) {
-          const relPath = toPosixPath(path.relative(REPO_ROOT, absolutePath));
-          if (hasSourcePrefix(relPath, sourcePaths)) {
-            candidates.add(absolutePath);
+      for (const identity of gitChanges.changed) {
+        const inspected = boundary.inspectRepositoryPath(identity, {
+          phase: "discovery",
+          allowMissing: true,
+          expected: "any"
+        });
+        if (!inspected.exists) continue;
+        if (inspected.kind === "file") {
+          if (hasSourcePrefix(inspected.identity, sourcePaths)) {
+            candidates.add(inspected.identity);
           }
           continue;
         }
 
-        if (stats.isDirectory()) {
+        if (inspected.kind === "directory") {
           const nestedFiles = new Set();
-          walkDirectory(absolutePath, nestedFiles);
-          for (const nestedPath of nestedFiles) {
-            const nestedRelPath = toPosixPath(path.relative(REPO_ROOT, nestedPath));
-            if (hasSourcePrefix(nestedRelPath, sourcePaths)) {
-              candidates.add(nestedPath);
+          walkDirectory(boundary, inspected.identity, nestedFiles);
+          for (const nestedIdentity of nestedFiles) {
+            if (hasSourcePrefix(nestedIdentity, sourcePaths)) {
+              candidates.add(nestedIdentity);
             }
           }
         }
       }
 
-      for (const deletedPath of gitChanges.deleted) {
-        const relPath = toPosixPath(path.relative(REPO_ROOT, deletedPath));
-        if (hasSourcePrefix(relPath, sourcePaths)) {
-          deletedRelPaths.add(relPath);
+      for (const identity of gitChanges.deleted) {
+        const inspected = boundary.inspectRepositoryPath(identity, {
+          phase: "discovery",
+          allowMissing: true,
+          expected: "any"
+        });
+        if (hasSourcePrefix(inspected.identity, sourcePaths)) {
+          deletedRelPaths.add(inspected.identity);
         }
       }
 
@@ -262,23 +298,18 @@ export function collectCandidateFiles(sourcePaths, mode) {
     }
   }
 
-  for (const sourcePath of sourcePaths) {
-    if (hasSkippedDirectorySegment(sourcePath)) {
+  for (const source of sourceRecords) {
+    if (hasSkippedDirectorySegment(source.normalized)) {
       continue;
     }
-    const absoluteSourcePath = path.resolve(REPO_ROOT, sourcePath);
-    if (!fs.existsSync(absoluteSourcePath)) {
-      continue;
-    }
-
-    const stats = fs.statSync(absoluteSourcePath);
-    if (stats.isFile()) {
-      candidates.add(absoluteSourcePath);
+    if (!source.exists) continue;
+    if (source.kind === "file") {
+      candidates.add(source.identity);
       continue;
     }
 
-    if (stats.isDirectory()) {
-      walkDirectory(absoluteSourcePath, candidates);
+    if (source.kind === "directory") {
+      walkDirectory(boundary, source.identity, candidates);
     }
   }
 

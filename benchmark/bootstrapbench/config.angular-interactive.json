@@ -1,0 +1,33 @@
+{
+  "run_name": "angular-interactive",
+  "repos": [
+    "angular/angular"
+  ],
+  "embed_models": [
+    "Xenova/all-MiniLM-L6-v2"
+  ],
+  "cortex": {
+    "source": "local"
+  },
+  "parallelism": 1,
+  "timeout_minutes": 60,
+  "env": {
+    "CORTEX_INGEST_WORKERS": 2,
+    "CORTEX_EMBED_POOL": 1
+  },
+  "docker": {
+    "image": "cortex-bootstrapbench:angular-interactive",
+    "build": true,
+    "cpus": 4,
+    "memory": "4g"
+  },
+  "gates": {
+    "by_repo": {
+      "angular/angular": {
+        "max_rss_mb": 4096,
+        "max_duration_minutes": 60
+      }
+    }
+  },
+  "results_dir": "benchmark/bootstrapbench/results"
+}

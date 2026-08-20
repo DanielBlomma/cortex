@@ -1,27 +1,18 @@
 import fs from "node:fs";
 
-export function writeJsonl(filePath, records) {
-  const fd = fs.openSync(filePath, "w");
-  try {
-    for (const record of records) {
-      fs.writeSync(fd, `${JSON.stringify(record)}\n`, undefined, "utf8");
-    }
-  } finally {
-    fs.closeSync(fd);
+export function writeJsonlToDescriptor(fd, records) {
+  for (const record of records) {
+    fs.writeSync(fd, `${JSON.stringify(record)}\n`, undefined, "utf8");
   }
 }
 
-export function stageJsonl(filePath, records) {
-  const stagedPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
-  writeJsonl(stagedPath, records);
-  return {
-    commit() {
-      fs.renameSync(stagedPath, filePath);
-    },
-    discard() {
-      fs.rmSync(stagedPath, { force: true });
-    }
-  };
+export function writeJsonl(filePath, records) {
+  const fd = fs.openSync(filePath, "w");
+  try {
+    writeJsonlToDescriptor(fd, records);
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 export function countFileContentRecords(fileRecords) {
@@ -39,13 +30,17 @@ export function sanitizeTsvCell(value) {
   return String(value).replace(/\t/g, " ").replace(/\r?\n/g, " ");
 }
 
+export function writeTsvToDescriptor(fd, headers, rows) {
+  fs.writeSync(fd, `${headers.join("\t")}\n`, undefined, "utf8");
+  for (const row of rows) {
+    fs.writeSync(fd, `${row.map((value) => sanitizeTsvCell(value)).join("\t")}\n`, undefined, "utf8");
+  }
+}
+
 export function writeTsv(filePath, headers, rows) {
   const fd = fs.openSync(filePath, "w");
   try {
-    fs.writeSync(fd, `${headers.join("\t")}\n`, undefined, "utf8");
-    for (const row of rows) {
-      fs.writeSync(fd, `${row.map((value) => sanitizeTsvCell(value)).join("\t")}\n`, undefined, "utf8");
-    }
+    writeTsvToDescriptor(fd, headers, rows);
   } finally {
     fs.closeSync(fd);
   }

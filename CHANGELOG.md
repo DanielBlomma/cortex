@@ -1,5 +1,84 @@
 # Changelog
 
+## 2.5.0 — 2026-08-20
+
+### Added
+
+- Added opt-in progressive background indexing for large first-time indexes:
+  `cortex bootstrap --background --profile interactive`, followed by
+  `cortex indexing status --json`, `cortex indexing pause`, and
+  `cortex indexing resume`.
+- Added generation-linked ingest, graph, and embedding state. Cortex publishes
+  lexical+graph search readiness before semantic completion, writes resumable
+  semantic checkpoints atomically, and reports partial semantic coverage
+  explicitly.
+- Added versioned atomic graph publication with bounded retention. Crash points
+  preserve the previous published graph, and a successor generation cannot be
+  overwritten by a stale worker.
+
+### Changed
+
+- Foreground `cortex bootstrap` remains the default. The explicit interactive
+  profile uses two ingest workers, one embedding session, and four embedding
+  threads. It supports macOS, Linux, and WSL; native Windows background mode
+  rejects explicitly and retains foreground bootstrap.
+- Bound ingest controls, configured and discovered sources, worker and README
+  reads, prior caches, all 48 outputs, and dashboard data/npm-cache access to
+  regular project-owned paths.
+- Stage the complete 48-file output set exclusively, validate the whole set
+  before the first rename, replace hard-linked destinations without mutating
+  sibling links, clean uncommitted stages, and publish the manifest last.
+- Fixed changed-mode matching for safe paths containing repeated separators or
+  redundant interior `.` components without changing configured manifest
+  spellings or canonical file IDs.
+- The frozen Angular run became lexical+graph searchable in 26.751 seconds,
+  returned the background CLI in 28.349 seconds, completed semantics in
+  290.588 seconds, and resumed after a real SIGTERM from the exact 4,129-record
+  checkpoint. Its final 16,314 records are byte- and query-identical to an
+  independent foreground control.
+
+### Security
+
+- Reject absolute, parent-relative, backslash-bearing configured source roots,
+  drive, UNC, symlinked, redirected, directory, FIFO, socket, and other
+  special-node layouts at the source, cache, output, and dashboard boundaries
+  with bounded diagnostics. Literal backslashes in discovered POSIX filenames
+  remain valid.
+- Updated six vulnerable resolutions to fixed same-major versions:
+  `hono 4.12.34`, `brace-expansion 5.0.9`, `fast-uri 3.1.5`,
+  `ip-address 10.4.0`, `js-yaml 4.3.1`, and `nanoid 3.3.18`.
+  Release Bump and Release Publish require zero findings across every
+  committed dependency audit and validate the installed packed artifact before
+  tagging or publication.
+
+### Upgrade
+
+- Before upgrading, move any external, parent-relative, backslash-bearing
+  configured source root, drive/UNC, symlinked, redirected, or special-node
+  source/cache/output/dashboard layout to regular project-owned portable
+  relative paths. Those formerly unsafe layouts now fail closed. Safe portable
+  relative paths and literal backslashes in discovered POSIX filenames need no
+  migration.
+- Upgrade and refresh an existing project with:
+
+  ```bash
+  npm install --global @danielblomma/cortex-mcp@2.5.0
+  cortex init --force
+  cortex bootstrap
+  cortex update
+  ```
+
+  If you choose the opt-in background bootstrap instead, wait until
+  `cortex indexing status --json` reports `complete` before running
+  `cortex update`.
+
+- To opt into progressive first-time indexing, replace the foreground
+  `cortex bootstrap` command above with
+  `cortex bootstrap --background --profile interactive` and monitor it with
+  `cortex indexing status --json`. Wait until status reports `complete` before
+  running the final `cortex update`; do not start a competing foreground update
+  while background indexing is active.
+
 ## 2.4.2 — 2026-07-30
 
 ### Changed

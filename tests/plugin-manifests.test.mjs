@@ -77,6 +77,20 @@ test("session hook is wired for startup, resume, clear, and compact", () => {
   assert.match(entries[0].hooks[0].command, /session-start\.mjs/);
 });
 
+test("release publish rejects branch dispatches and non-semver tags before checkout", () => {
+  const workflow = readText(".github/workflows/release-publish.yml");
+  const guardIndex = workflow.indexOf("- name: Verify immutable release tag ref");
+  const checkoutIndex = workflow.indexOf("- name: Checkout");
+  assert.ok(guardIndex >= 0 && guardIndex < checkoutIndex, "release ref guard must run before checkout");
+  assert.match(workflow, /GITHUB_REF_TYPE: \$\{\{ github\.ref_type \}\}/);
+  assert.match(workflow, /GITHUB_REF_TYPE\}" != "tag"/);
+  assert.match(workflow, /\^v\(0\|\[1-9\]\[0-9\]\*\)\\\.\(0\|\[1-9\]\[0-9\]\*\)\\\.\(0\|\[1-9\]\[0-9\]\*\)\$/);
+  assert.ok(
+    workflow.indexOf('if [ "${TAG_VERSION}" != "${PACKAGE_VERSION}" ]') < workflow.indexOf("- name: Install parser dependencies"),
+    "tag/package equality must be checked before install and publish steps"
+  );
+});
+
 test("mcp config runs the workspace-following npx command", () => {
   const mcp = readJson("plugins/cortex/.mcp.json");
   assert.ok(mcp.mcpServers.cortex, "cortex MCP server must be defined");

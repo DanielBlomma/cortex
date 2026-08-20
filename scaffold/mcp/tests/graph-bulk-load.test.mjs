@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
+import net from "node:net";
+import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import ryugraph from "ryugraph";
@@ -126,6 +127,15 @@ function writeFixture(root) {
   w("relations.transforms_config.jsonl", [
     { from: "file:b.ts", to: "file:a.ts", note: "transforms\nconfig" }
   ]);
+  fs.writeFileSync(
+    path.join(cache, "manifest.json"),
+    `${JSON.stringify({
+      schema_version: 2,
+      generation_id: "graph-bulk-load-fixture",
+      generated_at: "2026-01-01T00:00:00Z"
+    })}\n`,
+    "utf8"
+  );
 }
 
 const NODE_LABELS = ["File", "Rule", "ADR", "Chunk", "Module", "Project"];
@@ -179,12 +189,13 @@ async function dumpGraph(dbPath) {
   return dump;
 }
 
-function runLoader(root, { bulk }) {
+function runLoader(root, { bulk, extraEnv = {} }) {
   return execFileSync("node", [LOADER], {
     cwd: MCP_DIR,
     env: {
       ...process.env,
       CORTEX_PROJECT_ROOT: root,
+      ...extraEnv,
       ...(bulk ? {} : { CORTEX_GRAPH_BULK_LOAD: "never" })
     },
     encoding: "utf8"
@@ -218,8 +229,10 @@ test("graph bulk COPY load produces a byte-identical graph to row-by-row inserts
     assert.doesNotMatch(rowOut, /loaded via COPY bulk import/, "row run should not use bulk");
     assert.match(bulkOut, /loaded via COPY bulk import/, "bulk run should use COPY");
 
-    const rowDump = await dumpGraph(path.join(rowRoot, ".context", "db", "graph.ryu"));
-    const bulkDump = await dumpGraph(path.join(bulkRoot, ".context", "db", "graph.ryu"));
+    const rowManifest = JSON.parse(fs.readFileSync(path.join(rowRoot, ".context", "cache", "graph-manifest.json"), "utf8"));
+    const bulkManifest = JSON.parse(fs.readFileSync(path.join(bulkRoot, ".context", "cache", "graph-manifest.json"), "utf8"));
+    const rowDump = await dumpGraph(rowManifest.db_path);
+    const bulkDump = await dumpGraph(bulkManifest.db_path);
 
     for (const label of NODE_LABELS) {
       assert.equal(
@@ -254,5 +267,129 @@ test("graph bulk COPY load produces a byte-identical graph to row-by-row inserts
     assert.equal(chunkB.body, "", "empty chunk body must stay an empty string, not null");
   } finally {
     fs.rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test("graph publication keeps the previous generation across crash points", () => {
+  if (!fs.existsSync(ONTOLOGY_SRC)) return;
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-graph-publish-"));
+  try {
+    writeFixture(root);
+    runLoader(root, { bulk: true });
+    const manifestPath = path.join(root, ".context", "cache", "graph-manifest.json");
+    const previousRaw = fs.readFileSync(manifestPath, "utf8");
+    const previous = JSON.parse(previousRaw);
+    assert.equal(fs.existsSync(previous.db_path), true);
+
+    for (const crashAt of ["before-db-publish", "after-db-publish"]) {
+      assert.throws(() => runLoader(root, {
+        bulk: true,
+        extraEnv: { CORTEX_GRAPH_TEST_CRASH_AT: crashAt }
+      }));
+      assert.equal(fs.readFileSync(manifestPath, "utf8"), previousRaw);
+      assert.equal(fs.existsSync(previous.db_path), true);
+    }
+
+    runLoader(root, { bulk: true });
+    const current = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    const dbDir = path.join(root, ".context", "db");
+    const cacheDir = path.join(root, ".context", "cache");
+    const published = fs.readdirSync(dbDir).filter((name) => /^graph-[A-Za-z0-9-]+\.ryu$/.test(name));
+    assert.ok(published.length <= 2, `expected at most two retained graph generations, found ${published.length}`);
+    assert.equal(fs.existsSync(current.db_path), true);
+    assert.deepEqual(
+      fs.readdirSync(dbDir).filter((name) => /^\.graph-.*\.staging\.ryu$/.test(name)),
+      []
+    );
+    assert.deepEqual(
+      fs.readdirSync(cacheDir).filter((name) => /^\.graph-manifest-.*\.staging\.json$/.test(name)),
+      []
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("graph cleanup rejects redirected cache and DB ancestors without external mutation", () => {
+  if (!fs.existsSync(ONTOLOGY_SRC) || process.platform === "win32") return;
+  for (const redirected of ["cache", "db"]) {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), `cortex-graph-redirect-${redirected}-`));
+    const root = path.join(base, "project");
+    const outside = path.join(base, "outside");
+    try {
+      fs.mkdirSync(root);
+      fs.mkdirSync(outside);
+      writeFixture(root);
+      const target = path.join(root, ".context", redirected);
+      fs.rmSync(target, { recursive: true, force: true });
+      fs.writeFileSync(path.join(outside, "canary"), "unchanged", "utf8");
+      fs.symlinkSync(outside, target, "dir");
+      assert.throws(() => runLoader(root, { bulk: true }), /Command failed/);
+      assert.deepEqual(fs.readdirSync(outside), ["canary"]);
+      assert.equal(fs.readFileSync(path.join(outside, "canary"), "utf8"), "unchanged");
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true });
+    }
+  }
+});
+
+test("graph cleanup rejects a redirected staging leaf without touching its target", () => {
+  if (!fs.existsSync(ONTOLOGY_SRC) || process.platform === "win32") return;
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-graph-staging-leaf-"));
+  const root = path.join(base, "project");
+  const outside = path.join(base, "outside-canary");
+  try {
+    fs.mkdirSync(root);
+    writeFixture(root);
+    const db = path.join(root, ".context", "db");
+    fs.mkdirSync(db);
+    fs.writeFileSync(outside, "unchanged", "utf8");
+    const staging = path.join(db, ".graph-redirect.staging.ryu");
+    fs.symlinkSync(outside, staging);
+    assert.throws(() => runLoader(root, { bulk: true }), /Command failed/);
+    assert.equal(fs.readFileSync(outside, "utf8"), "unchanged");
+    assert.equal(fs.lstatSync(staging).isSymbolicLink(), true);
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test("graph publication rejects file and FIFO managed ancestors before cleanup", () => {
+  if (!fs.existsSync(ONTOLOGY_SRC) || process.platform === "win32") return;
+  for (const kind of ["file", "fifo"]) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), `cortex-graph-special-${kind}-`));
+    try {
+      writeFixture(root);
+      const db = path.join(root, ".context", "db");
+      if (kind === "file") fs.writeFileSync(db, "canary", "utf8");
+      else assert.equal(spawnSync("mkfifo", [db]).status, 0);
+      const cacheBefore = fs.readdirSync(path.join(root, ".context", "cache")).sort();
+      assert.throws(() => runLoader(root, { bulk: true }), /Command failed/);
+      assert.deepEqual(fs.readdirSync(path.join(root, ".context", "cache")).sort(), cacheBefore);
+      assert.equal(fs.lstatSync(db)[kind === "file" ? "isFile" : "isFIFO"](), true);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("graph publication rejects a socket managed ancestor before cleanup", async () => {
+  if (!fs.existsSync(ONTOLOGY_SRC) || process.platform === "win32") return;
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-graph-special-socket-"));
+  const socketPath = path.join(root, ".context", "db");
+  const server = net.createServer();
+  try {
+    writeFixture(root);
+    await new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(socketPath, resolve);
+    });
+    const cacheBefore = fs.readdirSync(path.join(root, ".context", "cache")).sort();
+    assert.throws(() => runLoader(root, { bulk: true }), /Command failed/);
+    assert.deepEqual(fs.readdirSync(path.join(root, ".context", "cache")).sort(), cacheBefore);
+    assert.equal(fs.lstatSync(socketPath).isSocket(), true);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });

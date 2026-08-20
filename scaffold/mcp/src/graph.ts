@@ -1,8 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import ryugraph, { type Connection, type Database, type QueryResult } from "ryugraph";
-import { readJsonl, asString, asNumber, asBoolean } from "./jsonl.js";
-import { DB_PATH, DEFAULT_RANKING, PATHS } from "./paths.js";
+import { readJsonl as readJsonlUnchecked, asString, asNumber, asBoolean } from "./jsonl.js";
+import { CACHE_DIR, CONTEXT_DIR, DB_PATH, DEFAULT_RANKING, PATHS, REPO_ROOT } from "./paths.js";
+import { assertSecureManagedDirectory, assertSecureManagedFile } from "./progressiveIndexing.js";
 import type {
   AdrRecord,
   ChunkRecord,
@@ -63,10 +64,23 @@ const REQUIRED_GRAPH_MANIFEST_COUNT_KEYS = [
 ] as const;
 
 function readFileIfExists(filePath: string): string | null {
-  if (!fs.existsSync(filePath)) {
-    return null;
+  try {
+    assertSecureManagedFile(REPO_ROOT, filePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
   }
   return fs.readFileSync(filePath, "utf8");
+}
+
+function readJsonl(filePath: string): JsonObject[] {
+  try {
+    assertSecureManagedFile(REPO_ROOT, filePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+  return readJsonlUnchecked(filePath);
 }
 
 function asStringUnknown(value: unknown, fallback = ""): string {
@@ -396,25 +410,54 @@ async function queryRows(
   return (resolved as QueryResult).getAll();
 }
 
-function readGraphSignature(): string | null {
-  if (!fs.existsSync(DB_PATH)) {
-    return null;
-  }
-
+function readGraphPublication(): { dbPath: string; signature: string } | null {
   try {
-    const dbStats = fs.statSync(DB_PATH);
-    const dbPart = `${Math.round(dbStats.mtimeMs)}:${dbStats.size}`;
-
-    let manifestPart = "none";
-    if (fs.existsSync(PATHS.graphManifest)) {
-      const manifestStats = fs.statSync(PATHS.graphManifest);
-      manifestPart = `${Math.round(manifestStats.mtimeMs)}:${manifestStats.size}`;
-    }
-
-    return `${dbPart}:${manifestPart}`;
+    assertSecureManagedDirectory(REPO_ROOT, CACHE_DIR);
+    assertSecureManagedFile(REPO_ROOT, PATHS.ingestManifest);
+    assertSecureManagedFile(REPO_ROOT, PATHS.graphManifest);
+    const ingest = JSON.parse(fs.readFileSync(PATHS.ingestManifest, "utf8")) as {
+      schema_version?: unknown;
+      generation_id?: unknown;
+      counts?: Record<string, unknown>;
+    };
+    const rawManifest = fs.readFileSync(PATHS.graphManifest, "utf8");
+    const manifest = JSON.parse(rawManifest) as {
+      schema_version?: unknown;
+      generation_id?: unknown;
+      ingest_generation?: unknown;
+      db_path?: unknown;
+      counts?: Record<string, unknown>;
+    };
+    const counts = manifest.counts ?? {};
+    if (
+      ingest.schema_version !== 2 ||
+      typeof ingest.generation_id !== "string" || !ingest.generation_id ||
+      manifest.schema_version !== 2 ||
+      typeof manifest.generation_id !== "string" || !manifest.generation_id ||
+      manifest.ingest_generation !== ingest.generation_id ||
+      typeof manifest.db_path !== "string" ||
+      REQUIRED_GRAPH_MANIFEST_COUNT_KEYS.some((key) => !(key in counts)) ||
+      counts.files !== ingest.counts?.files || counts.chunks !== ingest.counts?.chunks
+    ) return null;
+    const dbPath = path.resolve(manifest.db_path);
+    const dbDir = path.resolve(path.dirname(DB_PATH));
+    if (
+      !/^graph-[A-Za-z0-9-]+\.ryu$/.test(path.basename(dbPath)) ||
+      path.dirname(dbPath) !== dbDir
+    ) return null;
+    assertSecureManagedFile(REPO_ROOT, dbPath);
+    const dbStats = fs.lstatSync(dbPath);
+    return {
+      dbPath,
+      signature: `${manifest.generation_id}:${Math.round(dbStats.mtimeMs)}:${dbStats.size}:${rawManifest.length}`
+    };
   } catch {
     return null;
   }
+}
+
+function readGraphSignature(): string | null {
+  return readGraphPublication()?.signature ?? null;
 }
 
 function buildMissingDbMessage(): string {
@@ -426,7 +469,7 @@ function buildMissingDbMessage(): string {
     return `RyuGraph directory missing at ${dbDir}. Run ${bootstrapCommand}.`;
   }
 
-  return `RyuGraph DB not found at ${DB_PATH}. Run ${loadCommand} (or ${bootstrapCommand} on cold start).`;
+  return `No valid generation-linked RyuGraph publication was found. Run ${loadCommand} (or ${bootstrapCommand} on cold start).`;
 }
 
 function buildIncompatibleGraphMessage(missingKeys: string[]): string {
@@ -436,19 +479,7 @@ function buildIncompatibleGraphMessage(missingKeys: string[]): string {
 }
 
 function readGraphManifestMissingKeys(): string[] {
-  if (!fs.existsSync(PATHS.graphManifest)) {
-    return [...REQUIRED_GRAPH_MANIFEST_COUNT_KEYS];
-  }
-
-  try {
-    const raw = JSON.parse(fs.readFileSync(PATHS.graphManifest, "utf8")) as {
-      counts?: Record<string, unknown>;
-    };
-    const counts = raw.counts ?? {};
-    return REQUIRED_GRAPH_MANIFEST_COUNT_KEYS.filter((key) => !(key in counts));
-  } catch {
-    return [...REQUIRED_GRAPH_MANIFEST_COUNT_KEYS];
-  }
+  return readGraphPublication() ? [] : ["schema_version", "generation_id", "ingest_generation", "db_path", ...REQUIRED_GRAPH_MANIFEST_COUNT_KEYS];
 }
 
 async function closeRyuGraphResources(): Promise<void> {
@@ -482,7 +513,8 @@ async function resetRyuGraphState(errorMessage: string): Promise<void> {
 }
 
 async function getRyuGraphConnection(forceReload = false): Promise<Connection | null> {
-  const diskSignature = readGraphSignature();
+  const publication = readGraphPublication();
+  const diskSignature = publication?.signature ?? null;
 
   if (ryuConnection) {
     if (forceReload) {
@@ -502,7 +534,7 @@ async function getRyuGraphConnection(forceReload = false): Promise<Connection | 
   }
   ryuLastInitAttemptAt = now;
 
-  if (!diskSignature) {
+  if (!diskSignature || !publication) {
     await resetRyuGraphState(buildMissingDbMessage());
     return null;
   }
@@ -514,7 +546,7 @@ async function getRyuGraphConnection(forceReload = false): Promise<Connection | 
   }
 
   try {
-    const nextDb = new ryugraph.Database(DB_PATH, undefined, undefined, true);
+    const nextDb = new ryugraph.Database(publication.dbPath, undefined, undefined, true);
     const nextConnection = new ryugraph.Connection(nextDb);
     await nextDb.init();
     await nextConnection.init();
@@ -704,6 +736,8 @@ function parseRyuGraphRelations(
 }
 
 export async function loadContextData(): Promise<ContextData> {
+  assertSecureManagedDirectory(REPO_ROOT, CONTEXT_DIR);
+  assertSecureManagedDirectory(REPO_ROOT, CACHE_DIR);
   const ranking = parseRankingFromConfig(readFileIfExists(PATHS.config));
   const cachedDocuments = parseDocuments(readJsonl(PATHS.documents));
   const cachedAdrs = parseAdrs(readJsonl(PATHS.adrEntities));

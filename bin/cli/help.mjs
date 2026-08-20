@@ -34,7 +34,8 @@ export function printHelp() {
   console.log(helpSection("CONTEXT"));
   console.log(helpRow("init [path]", "Scaffold a project with --force/--bootstrap/--connect/--watch"));
   console.log(helpRow("connect [path]", "Register MCP clients (Codex + Claude Code)"));
-  console.log(helpRow("bootstrap", "Install deps, ingest, embed, load graph"));
+  console.log(helpRow("bootstrap [--background --profile interactive]", "Install deps, ingest, load graph, optionally embed in background"));
+  console.log(helpRow("indexing [status --json|pause|resume]", "Manage progressive semantic indexing"));
   console.log(helpRow("update", "Refresh context for changed files"));
   console.log(helpRow("status", "Project context status"));
   console.log(helpRow("doctor", "Diagnose setup health"));

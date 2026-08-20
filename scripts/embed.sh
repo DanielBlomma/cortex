@@ -13,4 +13,5 @@ fi
 mkdir -p "$MCP_DIR/.npm-cache"
 
 echo "[embed] generating embeddings via context runtime"
-CORTEX_PROJECT_ROOT="$REPO_ROOT" NPM_CONFIG_CACHE="$MCP_DIR/.npm-cache" npm --prefix "$MCP_DIR" run embed --silent -- "$@"
+CORTEX_PROJECT_ROOT="$REPO_ROOT" NPM_CONFIG_CACHE="$MCP_DIR/.npm-cache" \
+  node "$REPO_ROOT/scripts/indexing.mjs" run-locked embed -- npm --prefix "$MCP_DIR" run embed --silent -- "$@"
