@@ -61,3 +61,4 @@ is not mapped here.
 | #110 | WO-031 release recovery | REQ-4, REQ-15 | Build the package-owned trusted runtime before clean-checkout root security tests in both release workflows, then reuse installed MCP dependencies for the compatibility suite; recover the failed pre-publish `v2.4.2` tag run. |
 | #111 | WO-031 release closeout | REQ-15 | Record corrected tag provenance, successful Release Publish run, npm `2.4.2` verification, and completed recovery state. |
 | #113 | WO-033 through WO-035, WO-046, WO-047 | REQ-4, REQ-16, REQ-17, R3, R15, R16, R17 | Filesystem containment, dependency/packed release gates, opt-in progressive indexing, atomic generation ownership/publication, and the reviewed `2.5.0` release candidate. |
+| #114 | WO-048 | REQ-4, REQ-16, R16 | Linux release-CI recovery: same-inode staging identity, warm dashboard-cache path revalidation, and the reviewed rerun gate before `v2.5.0` tag/publication. |

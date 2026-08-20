@@ -450,6 +450,10 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   scaffold; no mutating bootstrap/init workaround was used. Pattern evidence
   succeeded for both dashboard mirrors and the regression test; the canonical
   boundary target hit the pre-existing `aliases is not iterable` diagnostic.
+- Commit `0ca5229` was pushed and non-draft recovery PR #114 was opened against
+  `main`. The branch remains at version `2.4.2`; a local transient 2.5.0
+  workflow simulation passed both previously failing tests 2/2 and was restored
+  before the push.
 
 ## Archive
 
