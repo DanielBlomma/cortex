@@ -67,6 +67,7 @@ export const DB_PATH = path.join(CONTEXT_DIR, "db", "graph.ryu");
 export const PATHS = {
   config: path.join(CONTEXT_DIR, "config.yaml"),
   rulesYaml: path.join(CONTEXT_DIR, "rules.yaml"),
+  ingestManifest: path.join(CACHE_DIR, "manifest.json"),
   graphManifest: path.join(CACHE_DIR, "graph-manifest.json"),
   embeddingsManifest: path.join(CONTEXT_DIR, "embeddings", "manifest.json"),
   embeddingsEntities: path.join(CONTEXT_DIR, "embeddings", "entities.jsonl"),

@@ -160,14 +160,14 @@ status_digest() {
 run_update() {
   local start_ts
   start_ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-  echo "[watch] update start at $start_ts"
+  echo "[watch] update start at $start_ts" >&2
 
   if bash "$REPO_ROOT/scripts/context.sh" update; then
-    echo "[watch] update success"
+    echo "[watch] update success" >&2
     return 0
   fi
 
-  echo "[watch] update failed"
+  echo "[watch] update failed" >&2
   return 1
 }
 
@@ -184,14 +184,13 @@ maybe_run_update() {
   fi
 
   if run_update; then
-    :
+    echo "$settled_digest" > "$STAMP_FILE"
+    echo "$settled_digest"
   else
-    # Move forward anyway to avoid tight retry loops on persistent failures.
-    :
+    # Keep the previous digest so a generation-lock rejection is retried after
+    # progressive indexing releases the exclusive mutation lock.
+    echo "$previous_digest"
   fi
-
-  echo "$settled_digest" > "$STAMP_FILE"
-  echo "$settled_digest"
 }
 
 wait_for_change_event() {

@@ -215,12 +215,13 @@ test("cortex update invalidates the session status cache", () => {
     fs.mkdirSync(path.dirname(cachePath), { recursive: true });
     fs.writeFileSync(
       path.join(scriptsDir, "context.sh"),
-      '#!/usr/bin/env bash\ncase "$1" in\n  doctor)\n    ;;\nesac\nexit 0\n',
+      '#!/usr/bin/env bash\ncase "$1" in\n  doctor)\n    ;;\n  indexing)\n    ;;\nesac\nexit 0\n',
       { mode: 0o755 },
     );
     fs.writeFileSync(path.join(scriptsDir, "doctor.sh"), "#!/usr/bin/env bash\nexit 0\n", {
       mode: 0o755,
     });
+    fs.writeFileSync(path.join(scriptsDir, "indexing.mjs"), "// indexing lifecycle\n", "utf8");
     fs.writeFileSync(path.join(contextDir, "mcp", "package.json"), "{}\n", "utf8");
     fs.writeFileSync(
       cachePath,

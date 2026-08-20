@@ -60,13 +60,15 @@ const entities = Number(c.entities ?? 0);
 const output = Number(c.output ?? 0);
 const embedded = Number(c.embedded ?? 0);
 const failed = Number(c.failed ?? 0);
+const readiness = data.readiness || (c.output === c.entities && failed === 0 ? "full" : "partial");
 console.log(`[status] embeddings generated_at=${data.generated_at}`);
 console.log(`[status] embeddings model=${data.model} dim=${data.dimensions ?? 0}`);
 console.log(`[status] embeddings entities=${entities} output=${output} embedded=${embedded} reused=${c.reused ?? 0} failed=${failed}`);
-if (embedded > 0 && output > 0 && failed === 0) {
+console.log(`[status] semantic_coverage=${output}/${entities} (${data.semantic_coverage_percent ?? (entities > 0 ? ((output / entities) * 100).toFixed(1) : 100)}%) readiness=${readiness}`);
+if (readiness === "full" && output > 0 && failed === 0) {
   console.log("[status] semantic_search=embedding+lexical (ready)");
-} else if (embedded > 0 && output > 0) {
-  console.log(`[status] semantic_search=embedding+lexical-partial (failed=${failed})`);
+} else if (output > 0) {
+  console.log(`[status] semantic_search=embedding+lexical-partial (coverage=${output}/${entities} failed=${failed})`);
 } else if (entities > 0) {
   console.log("[status] semantic_search=lexical-only (run: ./scripts/context.sh embed)");
 } else {

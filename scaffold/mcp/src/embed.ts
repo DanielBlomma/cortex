@@ -4,8 +4,30 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { env, pipeline } from "@huggingface/transformers";
-import { readJsonl, readJsonlRecords, writeJsonlRecords, asString, asNumber, asBoolean } from "./jsonl.js";
-import { CACHE_DIR, PATHS } from "./paths.js";
+import {
+  readJsonl as readJsonlUnchecked,
+  readJsonlRecords as readJsonlRecordsUnchecked,
+  asString,
+  asNumber,
+  asBoolean
+} from "./jsonl.js";
+import { CACHE_DIR, CONTEXT_DIR, PATHS, REPO_ROOT } from "./paths.js";
+import {
+  acquireIndexingLock,
+  atomicWriteJson,
+  atomicWriteJsonl,
+  assertSecureManagedFile,
+  coveragePercent,
+  ensureSecureManagedDirectory,
+  releaseIndexingLock,
+  readIndexingLock,
+  readIndexingState,
+  removeOldProgressSnapshots,
+  resolvePublishedEmbeddingsPath,
+  writeProgressiveFailureIfOwned,
+  writeIndexingState,
+  type IndexingState
+} from "./progressiveIndexing.js";
 import {
   createTokenCounter,
   DEFAULT_SCHEDULER_OPTIONS,
@@ -29,6 +51,11 @@ const EMBEDDINGS_PATH = PATHS.embeddingsEntities;
 const EMBEDDINGS_MANIFEST_PATH = PATHS.embeddingsManifest;
 const MODEL_CACHE_DIR = PATHS.embeddingsModelCache;
 const EMBEDDINGS_DIR = path.dirname(EMBEDDINGS_PATH);
+const INDEXING_STATE_PATH = path.join(EMBEDDINGS_DIR, "indexing-state.json");
+const INDEXING_CONTROL_PATH = path.join(EMBEDDINGS_DIR, "indexing-control.json");
+const INDEXING_LOCK_DIR = path.join(CONTEXT_DIR, "indexing.lock");
+const INGEST_MANIFEST_PATH = path.join(CACHE_DIR, "manifest.json");
+const GRAPH_MANIFEST_PATH = path.join(CACHE_DIR, "graph-manifest.json");
 
 export const DEFAULT_MODEL_ID = "jinaai/jina-embeddings-v2-base-code";
 export const COMPACT_FILE_TEXT_STRATEGY = "compact_files_v1";
@@ -170,11 +197,71 @@ type EmbeddingRecord = {
   vector: number[];
 };
 
-function parseArgs(argv: string[]): { mode: "full" | "changed" } {
-  const args = new Set(argv.slice(2));
+type EmbedArgs = {
+  mode: "full" | "changed";
+  progressive: boolean;
+  profile: string;
+  runId: string;
+};
+
+function parseArgs(argv: string[]): EmbedArgs {
+  const values = argv.slice(2);
+  const args = new Set(values);
+  const profileIndex = values.indexOf("--profile");
+  const runIdIndex = values.indexOf("--run-id");
+  const profile = profileIndex >= 0 ? values[profileIndex + 1] : process.env.CORTEX_INDEXING_PROFILE;
+  const runId = runIdIndex >= 0 ? values[runIdIndex + 1] : process.env.CORTEX_INDEXING_RUN_ID;
+  const progressive = args.has("--progressive") || process.env.CORTEX_INDEXING_PROGRESSIVE === "1";
+  if (progressive && profile !== "interactive") {
+    throw new Error(`Progressive indexing requires --profile interactive (received ${JSON.stringify(profile ?? "")})`);
+  }
   return {
-    mode: args.has("--changed") ? "changed" : "full"
+    mode: args.has("--changed") ? "changed" : "full",
+    progressive,
+    profile: profile || "foreground",
+    runId: runId || crypto.randomUUID()
   };
+}
+
+function readJsonObject(filePath: string): Record<string, unknown> | null {
+  try {
+    assertSecureManagedFile(REPO_ROOT, filePath);
+    const value = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function readJsonl(filePath: string): JsonObject[] {
+  try {
+    assertSecureManagedFile(REPO_ROOT, filePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+  return readJsonlUnchecked(filePath);
+}
+
+function readJsonlRecords(filePath: string): Iterable<JsonObject> {
+  try {
+    assertSecureManagedFile(REPO_ROOT, filePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+  return readJsonlRecordsUnchecked(filePath);
+}
+
+function requiredGeneration(value: Record<string, unknown> | null, field: string, label: string): string {
+  const generation = value?.[field];
+  if (typeof generation === "string" && generation) return generation;
+  if (field === "generation_id" && typeof value?.generated_at === "string" && value.generated_at) {
+    return `legacy:${value.generated_at}`;
+  }
+  throw new Error(`${label} is missing ${field}; run cortex ingest and cortex graph-load with the current CLI`);
 }
 
 function hashText(value: string): string {
@@ -316,7 +403,10 @@ function ensureRequiredFiles(): void {
   ];
 
   for (const filePath of required) {
-    if (!fs.existsSync(filePath)) {
+    try {
+      assertSecureManagedFile(REPO_ROOT, filePath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       throw new Error(`Missing required cache file: ${filePath}`);
     }
   }
@@ -601,12 +691,65 @@ function* presentEmbeddingRecords(
   }
 }
 
-async function main(): Promise<void> {
-  const { mode } = parseArgs(process.argv);
+async function runEmbedding(args: EmbedArgs, lockToken: string): Promise<void> {
+  const { mode, progressive, profile, runId } = args;
+  ensureSecureManagedDirectory(REPO_ROOT, CACHE_DIR);
   ensureRequiredFiles();
 
-  fs.mkdirSync(EMBEDDINGS_DIR, { recursive: true });
-  fs.mkdirSync(MODEL_CACHE_DIR, { recursive: true });
+  ensureSecureManagedDirectory(REPO_ROOT, EMBEDDINGS_DIR);
+  ensureSecureManagedDirectory(REPO_ROOT, MODEL_CACHE_DIR);
+
+  const ingestManifest = readJsonObject(INGEST_MANIFEST_PATH);
+  const ingestGeneration = requiredGeneration(ingestManifest, "generation_id", "Ingest manifest");
+  const graphManifest = readJsonObject(GRAPH_MANIFEST_PATH);
+  const graphGeneration = progressive
+    ? requiredGeneration(graphManifest, "generation_id", "Graph manifest")
+    : typeof graphManifest?.generation_id === "string" ? graphManifest.generation_id : "";
+  if (progressive && graphManifest?.ingest_generation !== ingestGeneration) {
+    throw new Error("Graph manifest does not match the current ingest generation");
+  }
+  const resources = {
+    ingest_workers: progressive ? 2 : 0,
+    embedding_sessions: progressive ? 1 : 0,
+    embedding_threads: progressive ? 4 : 0,
+    logical_cpus: os.cpus().length,
+    total_memory_bytes: os.totalmem(),
+    platform: os.platform(),
+    arch: os.arch()
+  };
+
+  const assertMutationOwnership = (): void => {
+    const owner = readIndexingLock(INDEXING_LOCK_DIR, REPO_ROOT);
+    if (
+      owner?.run_id !== runId ||
+      owner.lock_token !== lockToken ||
+      (progressive && (owner.pid !== process.pid || owner.mode !== "progressive"))
+    ) {
+      throw new Error("Embedding worker lost lock ownership; refusing index mutation");
+    }
+  };
+
+  const assertInputGeneration = (): void => {
+    const currentIngest = readJsonObject(INGEST_MANIFEST_PATH);
+    let currentIngestGeneration = "";
+    try {
+      currentIngestGeneration = requiredGeneration(currentIngest, "generation_id", "Ingest manifest");
+    } catch {
+      // The error below deliberately avoids publishing against unreadable inputs.
+    }
+    if (currentIngestGeneration !== ingestGeneration) {
+      throw new Error("Ingest generation changed while embeddings were running; refusing stale publication");
+    }
+    if (progressive) {
+      const currentGraph = readJsonObject(GRAPH_MANIFEST_PATH);
+      if (
+        requiredGeneration(currentGraph, "generation_id", "Graph manifest") !== graphGeneration ||
+        currentGraph?.ingest_generation !== ingestGeneration
+      ) {
+        throw new Error("Graph generation changed while embeddings were running; refusing stale publication");
+      }
+    }
+  };
 
   const modelId = resolveModelId();
   const textProfile = resolveEmbedTextProfile();
@@ -642,6 +785,63 @@ async function main(): Promise<void> {
   const uniqueTextCount = uniqueSignatures.size;
   uniqueSignatures.clear();
 
+  const previousIndexingState = readIndexingState(INDEXING_STATE_PATH, REPO_ROOT);
+  const startedAt =
+    progressive && previousIndexingState && previousIndexingState.state !== "complete"
+      ? previousIndexingState.started_at
+      : new Date().toISOString();
+  let checkpointSequence = progressive ? previousIndexingState?.checkpoint_sequence ?? 0 : 0;
+  let lastCheckpointCount = progressive ? previousIndexingState?.completed_entities ?? 0 : 0;
+  let lastSnapshotFile = progressive ? previousIndexingState?.snapshot_file ?? null : null;
+
+  const writeProgressState = (
+    values: Partial<IndexingState> & Pick<IndexingState, "state">
+  ): void => {
+    if (!progressive) return;
+    const current = readIndexingState(INDEXING_STATE_PATH, REPO_ROOT);
+    const owner = readIndexingLock(INDEXING_LOCK_DIR, REPO_ROOT);
+    if (
+      current?.run_id !== runId ||
+      owner?.run_id !== runId ||
+      owner.lock_token !== lockToken ||
+      owner.pid !== process.pid ||
+      owner.mode !== "progressive"
+    ) {
+      throw new Error("Progressive worker lost run ownership; refusing state publication");
+    }
+    const control = readJsonObject(INDEXING_CONTROL_PATH);
+    const completed = values.completed_entities ?? current?.completed_entities ?? 0;
+    const now = new Date().toISOString();
+    writeIndexingState(INDEXING_STATE_PATH, {
+      schema_version: 1,
+      state: values.state,
+      desired_state:
+        values.desired_state ??
+        (control?.run_id === runId && control.desired_state === "paused" ? "paused" : "running"),
+      active_profile: profile,
+      pid: process.pid,
+      model: modelId,
+      search_ready: "lexical+graph",
+      total_entities: entities.length,
+      completed_entities: completed,
+      semantic_coverage_percent: coveragePercent(completed, entities.length),
+      embedded: values.embedded ?? current?.embedded ?? 0,
+      reused: values.reused ?? current?.reused ?? 0,
+      failed: values.failed ?? current?.failed ?? 0,
+      started_at: startedAt,
+      updated_at: now,
+      last_checkpoint_at: values.last_checkpoint_at ?? current?.last_checkpoint_at ?? null,
+      checkpoint_sequence: values.checkpoint_sequence ?? current?.checkpoint_sequence ?? checkpointSequence,
+      snapshot_file: values.snapshot_file ?? current?.snapshot_file ?? lastSnapshotFile,
+      run_id: runId,
+      ingest_generation: ingestGeneration,
+      graph_generation: graphGeneration,
+      heartbeat_at: now,
+      resources,
+      ...(values.error ? { error: values.error } : {})
+    }, REPO_ROOT);
+  };
+
   env.cacheDir = MODEL_CACHE_DIR;
   // Total thread budget for embedding. CORTEX_EMBED_THREADS caps it so
   // co-located embedders (parallel CI jobs, eval containers) do not
@@ -674,7 +874,12 @@ async function main(): Promise<void> {
   const signatureProfileForEntity = (entity: SearchEntity) =>
     entity.type === "File" ? fileSignatureProfile : defaultSignatureProfile;
 
-  const existing = parseExistingEmbeddings(readJsonlRecords(EMBEDDINGS_PATH), modelId);
+  const publishedEmbeddingsPath = resolvePublishedEmbeddingsPath(
+    EMBEDDINGS_DIR,
+    EMBEDDINGS_PATH,
+    readJsonObject(EMBEDDINGS_MANIFEST_PATH)
+  );
+  const existing = parseExistingEmbeddings(readJsonlRecords(publishedEmbeddingsPath), modelId);
 
   let reused = 0;
   // Slot per entity keeps output in entity order; failed slots stay null.
@@ -748,6 +953,166 @@ async function main(): Promise<void> {
     vectors: new Map(),
     failures: []
   };
+
+  const checkpointEveryRaw = Number(process.env.CORTEX_EMBED_CHECKPOINT_EVERY);
+  const checkpointEvery =
+    Number.isFinite(checkpointEveryRaw) && checkpointEveryRaw >= 1
+      ? Math.floor(checkpointEveryRaw)
+      : Math.max(250, Math.ceil(entities.length * 0.05));
+  const milestoneCounts = new Set(
+    [0.1, 0.25, 0.5, 0.75].map((ratio) => Math.ceil(entities.length * ratio))
+  );
+  const pauseWait = new Int32Array(new SharedArrayBuffer(4));
+
+  const buildManifest = ({
+    generatedAt,
+    outputCount,
+    failedCount,
+    failures,
+    snapshotFile,
+    snapshotBytes,
+    snapshotSha256,
+    final
+  }: {
+    generatedAt: string;
+    outputCount: number;
+    failedCount: number;
+    failures: string[];
+    snapshotFile: string;
+    snapshotBytes: number;
+    snapshotSha256: string;
+    final: boolean;
+  }) => ({
+    schema_version: 2,
+    generated_at: generatedAt,
+    mode,
+    model: modelId,
+    dimensions,
+    text_profile: textProfile,
+    signature_profile: fileSignatureProfile === defaultSignatureProfile ? defaultSignatureProfile : "per_entity",
+    signature_profiles: {
+      default: defaultSignatureProfile,
+      file: fileSignatureProfile
+    },
+    text_profile_stats: textProfileStats,
+    progressive,
+    run_id: runId,
+    ingest_generation: ingestGeneration,
+    graph_generation: graphGeneration || null,
+    readiness: final && failedCount === 0 && outputCount === entities.length ? "full" : "partial",
+    active_profile: profile,
+    semantic_coverage_percent: coveragePercent(outputCount, entities.length),
+    snapshot_file: snapshotFile,
+    snapshot_bytes: snapshotBytes,
+    snapshot_sha256: snapshotSha256,
+    checkpoint_sequence: checkpointSequence,
+    counts: {
+      entities: entities.length,
+      output: outputCount,
+      embedded,
+      reused,
+      failed: failedCount
+    },
+    failures: failures.slice(0, 50)
+  });
+
+  const publishSnapshot = (
+    reason: string,
+    { final = false, failedCount = 0, failures = [] as string[] } = {}
+  ): number => {
+    assertMutationOwnership();
+    assertInputGeneration();
+    checkpointSequence += 1;
+    const generatedAt = new Date().toISOString();
+    const snapshotFile = final
+      ? path.basename(EMBEDDINGS_PATH)
+      : `entities.progress-${Date.now()}-${checkpointSequence}.jsonl`;
+    const snapshotPath = path.join(EMBEDDINGS_DIR, snapshotFile);
+    const snapshot = atomicWriteJsonl(snapshotPath, presentEmbeddingRecords(slots), REPO_ROOT);
+    const manifest = buildManifest({
+      generatedAt,
+      outputCount: snapshot.count,
+      failedCount,
+      failures,
+      snapshotFile,
+      snapshotBytes: snapshot.bytes,
+      snapshotSha256: snapshot.sha256,
+      final
+    });
+    atomicWriteJson(EMBEDDINGS_MANIFEST_PATH, manifest, REPO_ROOT);
+
+    const previousSnapshot = lastSnapshotFile;
+    lastSnapshotFile = snapshotFile;
+    lastCheckpointCount = snapshot.count;
+    if (progressive) {
+      writeProgressState({
+        state: final
+          ? failedCount > 0 || snapshot.count !== entities.length
+            ? "complete_with_failures"
+            : "complete"
+          : "running",
+        completed_entities: snapshot.count,
+        embedded,
+        reused,
+        failed: failedCount,
+        last_checkpoint_at: generatedAt,
+        checkpoint_sequence: checkpointSequence,
+        snapshot_file: snapshotFile
+      });
+      removeOldProgressSnapshots(
+        EMBEDDINGS_DIR,
+        final ? [previousSnapshot ?? ""] : [snapshotFile, previousSnapshot ?? ""],
+        REPO_ROOT
+      );
+      console.log(
+        `[embed] checkpoint=${checkpointSequence} reason=${reason} completed=${snapshot.count}/${entities.length} coverage=${coveragePercent(snapshot.count, entities.length)}%`
+      );
+    }
+    return snapshot.count;
+  };
+
+  const shouldCheckpoint = (completed: number): boolean =>
+    progressive &&
+    completed < entities.length &&
+    (
+      completed - lastCheckpointCount >= checkpointEvery ||
+      Array.from(milestoneCounts).some(
+        (milestone) => milestone > lastCheckpointCount && completed >= milestone
+      ));
+
+  const waitWhilePaused = (): void => {
+    if (!progressive) return;
+    let control = readJsonObject(INDEXING_CONTROL_PATH);
+    if (control?.run_id !== runId || control.desired_state !== "paused") return;
+
+    if (reused + embedded > lastCheckpointCount) {
+      publishSnapshot("pause");
+    }
+    writeProgressState({
+      state: "paused",
+      completed_entities: lastCheckpointCount,
+      embedded,
+      reused,
+      failed: 0
+    });
+    while (true) {
+      control = readJsonObject(INDEXING_CONTROL_PATH);
+      if (control?.run_id !== runId || control.desired_state !== "paused") break;
+      Atomics.wait(pauseWait, 0, 0, 250);
+    }
+    writeProgressState({
+      state: "running",
+      completed_entities: lastCheckpointCount,
+      embedded,
+      reused,
+      failed: 0
+    });
+  };
+
+  if (progressive) {
+    publishSnapshot(previousIndexingState?.snapshot_file ? "resume" : "initial");
+    waitWhilePaused();
+  }
 
   if (unique.length > 0) {
     const makeExtractor = async (threads: number) =>
@@ -837,6 +1202,11 @@ async function main(): Promise<void> {
           dimensions: vector.length,
           vector
         };
+        waitWhilePaused();
+        const completed = reused + embedded;
+        if (shouldCheckpoint(completed)) {
+          publishSnapshot("progress");
+        }
       }
     });
   }
@@ -846,31 +1216,7 @@ async function main(): Promise<void> {
   );
   const failed = result.failures.length;
 
-  const outputCount = writeJsonlRecords(EMBEDDINGS_PATH, presentEmbeddingRecords(slots));
-
-  const manifest = {
-    generated_at: new Date().toISOString(),
-    mode,
-    model: modelId,
-    dimensions,
-    text_profile: textProfile,
-    signature_profile: fileSignatureProfile === defaultSignatureProfile ? defaultSignatureProfile : "per_entity",
-    signature_profiles: {
-      default: defaultSignatureProfile,
-      file: fileSignatureProfile
-    },
-    text_profile_stats: textProfileStats,
-    counts: {
-      entities: entities.length,
-      output: outputCount,
-      embedded,
-      reused,
-      failed
-    },
-    failures: failures.slice(0, 50)
-  };
-
-  fs.writeFileSync(EMBEDDINGS_MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  const outputCount = publishSnapshot("complete", { final: true, failedCount: failed, failures });
 
   console.log(
     `[embed] mode=${mode} model=${modelId} dim=${dimensions} pool=${poolConfig.sessions}x${poolConfig.threadsPerSession} batch<=${schedulerOptions.batchMaxItems} max_tokens<=${modelMaxTokensUsed || tokenBudget.cap || "model"} token_budget=${tokenBudget.mode} reason=${tokenBudget.reason} text_profile=${textProfile}`
@@ -885,10 +1231,82 @@ async function main(): Promise<void> {
   console.log(`[embed] manifest ${EMBEDDINGS_MANIFEST_PATH}`);
 }
 
+export async function main(): Promise<void> {
+  const args = parseArgs(process.argv);
+  if (args.progressive && process.env.CORTEX_INDEXING_HANDSHAKE_FD) {
+    const fd = Number(process.env.CORTEX_INDEXING_HANDSHAKE_FD);
+    if (!Number.isInteger(fd) || fd < 3) throw new Error("Invalid progressive launcher handshake descriptor");
+    const handshake = fs.readFileSync(fd, "utf8").trim();
+    if (handshake !== args.runId) throw new Error("Progressive launcher handshake did not match run identity");
+  }
+  ensureSecureManagedDirectory(REPO_ROOT, CONTEXT_DIR);
+  const existingLock = readIndexingLock(INDEXING_LOCK_DIR, REPO_ROOT);
+  const inheritedLockToken = process.env.CORTEX_INDEXING_LOCK_TOKEN || "";
+  const nestedForeground =
+    !args.progressive &&
+    existingLock?.run_id === args.runId &&
+    existingLock.lock_token === inheritedLockToken &&
+    existingLock.mode === "foreground";
+  const ownedLock = nestedForeground
+    ? existingLock!
+    : acquireIndexingLock(INDEXING_LOCK_DIR, {
+      schema_version: 1,
+      run_id: args.runId,
+      pid: process.pid,
+      mode: args.progressive ? "progressive" : "foreground",
+      action: args.progressive ? "progressive-embed" : "embed",
+      created_at: new Date().toISOString(),
+      ...(inheritedLockToken ? { lock_token: inheritedLockToken } : {})
+    });
+  if (args.progressive) {
+    const ackPath = path.join(EMBEDDINGS_DIR, `.indexing-start-${args.runId}.ack.json`);
+    atomicWriteJson(ackPath, {
+      schema_version: 1,
+      run_id: args.runId,
+      pid: process.pid,
+      acknowledged_at: new Date().toISOString()
+    }, REPO_ROOT);
+  }
+  try {
+    await runEmbedding(args, ownedLock.lock_token);
+    if (!args.progressive) {
+      for (const managedPath of [INDEXING_STATE_PATH, INDEXING_CONTROL_PATH]) {
+        try {
+          const stat = fs.lstatSync(managedPath);
+          if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink > 1) {
+            throw new Error(`Refusing to remove unsafe progressive state: ${managedPath}`);
+          }
+          fs.rmSync(managedPath);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
+      }
+    }
+  } catch (error) {
+    if (args.progressive) {
+      writeProgressiveFailureIfOwned(
+        INDEXING_STATE_PATH,
+        INDEXING_LOCK_DIR,
+        args.runId,
+        process.pid,
+        ownedLock.lock_token,
+        error instanceof Error ? error.message : "Embedding error",
+        REPO_ROOT
+      );
+    }
+    throw error;
+  } finally {
+    if (!nestedForeground) {
+      releaseIndexingLock(INDEXING_LOCK_DIR, args.runId, ownedLock.lock_token);
+    }
+  }
+}
+
 const isMain = process.argv[1] ? pathToFileURL(process.argv[1]).href === import.meta.url : false;
 if (isMain) {
   main().catch((error) => {
-    process.stderr.write(`${error instanceof Error ? error.message : "Embedding error"}\n`);
+    const message = error instanceof Error ? error.message : "Embedding error";
+    process.stderr.write(`${message}\n`);
     process.exit(1);
   });
 }

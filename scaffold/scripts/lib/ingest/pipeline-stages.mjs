@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import {
   collectParseEligibleFiles,
   createCSharpBatchCache,
@@ -1568,6 +1569,8 @@ function runManifestCompletionStage(state) {
     parserHealth
   } = state;
   const manifest = {
+    schema_version: 2,
+    generation_id: crypto.randomUUID(),
     generated_at: new Date().toISOString(),
     mode,
     source_paths: sourcePaths,

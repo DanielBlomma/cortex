@@ -164,6 +164,26 @@ Check context status:
 cortex status
 ```
 
+For large first-time indexes, opt into the conservative interactive background
+profile. Cortex publishes the lexical+graph index first, then resumes semantic
+work from atomic checkpoints with two ingest workers, one embedding session,
+and four embedding threads:
+
+```bash
+cortex bootstrap --background --profile interactive
+cortex indexing status --json
+cortex indexing pause
+cortex indexing resume
+```
+
+Foreground `cortex bootstrap` remains the default. Status reports the effective
+resource limits and makes incomplete semantic coverage explicit. While a
+background generation is active, other ingest, graph, embed, update, and watch
+mutations fail clearly instead of racing it; the watcher retries after the
+exclusive generation finishes. Progressive background indexing requires macOS,
+Linux, or WSL; native Windows fails explicitly and should use foreground
+bootstrap instead.
+
 ## Agent plugin (Claude Code + Codex)
 
 The `plugins/cortex` directory is a dual-manifest agent plugin: five behavior

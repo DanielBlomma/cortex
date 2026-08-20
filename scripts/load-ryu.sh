@@ -16,4 +16,5 @@ if [[ ! -d "$MCP_DIR/node_modules" ]]; then
   exit 1
 fi
 
-CORTEX_PROJECT_ROOT="$REPO_ROOT" NPM_CONFIG_CACHE="$MCP_DIR/.npm-cache" npm --prefix "$MCP_DIR" run graph:load -- "$@"
+CORTEX_PROJECT_ROOT="$REPO_ROOT" NPM_CONFIG_CACHE="$MCP_DIR/.npm-cache" \
+  node "$REPO_ROOT/scripts/indexing.mjs" run-locked graph-load -- npm --prefix "$MCP_DIR" run graph:load -- "$@"

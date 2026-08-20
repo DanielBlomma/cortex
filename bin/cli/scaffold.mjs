@@ -674,12 +674,18 @@ export function isScaffoldOutOfDate(targetDir) {
     "doctor.sh",
   );
   if (!fs.existsSync(doctorScript)) return true;
+  const indexingScript = path.join(
+    targetDir,
+    CONTEXT_SCRIPTS_REL,
+    "indexing.mjs",
+  );
+  if (!fs.existsSync(indexingScript)) return true;
   if (fs.existsSync(path.join(targetDir, "mcp", "package.json"))) return true;
   const mcpPackage = path.join(targetDir, MCP_PROJECT_REL, "package.json");
   if (!fs.existsSync(mcpPackage)) return true;
   try {
     const contents = fs.readFileSync(contextScript, "utf8");
-    if (!/\bdoctor\)\s*\n/.test(contents)) return true;
+    if (!/\bdoctor\)\s*\n/.test(contents) || !/\bindexing\)\s*\n/.test(contents)) return true;
   } catch {
     return true;
   }

@@ -9,12 +9,18 @@ import { fileURLToPath } from "node:url";
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PACKAGE_NAME = "@danielblomma/cortex-mcp";
 const PREVIOUS_RELEASE_TAG = "v2.4.2";
+const PREVIOUS_RELEASE_VERSION = "2.4.2";
 const PREVIOUS_RELEASE_COMMIT = "736becf34d929ea0bef88adbe476a584a1f081e9";
-const EXPECTED_ENTRY_COUNT = 416;
-const EXPECTED_MODE_COUNTS = new Map([[0o644, 395], [0o755, 21]]);
-const EXPECTED_INVENTORY_SHA256 = "c278da28d82a55abb60706b8fb2ad2bf0f77dc35709f4c9fa94056a4226ed5d2";
-const EXPECTED_RUNTIME_OWNERSHIP_COUNT = 93;
-const EXPECTED_MANAGED_OWNERSHIP_COUNT = 381;
+const PREVIOUS_RELEASE_SHA1 = "995ddb990eedf26f833be5f511a2cf45b9671d6a";
+const PREVIOUS_RELEASE_INTEGRITY =
+  "sha512-lRt7yCLMp+yGNOnya60rlZog6qEDjScbz6TTk4k6l6JoWQzm+gV6umTfHaYs5SjoBqYia9EERHcxVLUeYANdlQ==";
+const EXPECTED_ENTRY_COUNT = 420;
+const EXPECTED_MODE_COUNTS = new Map([[0o644, 399], [0o755, 21]]);
+const EXPECTED_INVENTORY_SHA256 = "cebf97a2b13ef48733d79b97b0c7785d3152915e0b5ab6706190a836e38b48bd";
+const EXPECTED_RUNTIME_OWNERSHIP_COUNT = 94;
+const EXPECTED_MANAGED_OWNERSHIP_COUNT = 385;
+const EXPECTED_CHANGED_MANAGED_COUNT = 38;
+const EXPECTED_NEW_MANAGED_COUNT = 5;
 const BUILD_MARKER = path.join(REPO_ROOT, "scaffold", "mcp", "dist", ".cortex-build-hash");
 const REQUIRED_CONTAINMENT_UPGRADE_PATHS = [
   "scaffold/scripts/dashboard.mjs",
@@ -31,6 +37,31 @@ const REQUIRED_CONTAINMENT_UPGRADE_PATHS = [
   "scaffold/scripts/lib/ingest/pipeline-stages.mjs",
   "scaffold/scripts/lib/ingest/runtime-paths.mjs",
   "scaffold/scripts/lib/ingest/workers.mjs",
+];
+const REQUIRED_PROGRESSIVE_UPGRADE_TARGETS = [
+  ".context/mcp/src/embed.ts",
+  ".context/mcp/src/embeddings.ts",
+  ".context/mcp/src/graph.ts",
+  ".context/mcp/src/loadGraph.ts",
+  ".context/mcp/src/paths.ts",
+  ".context/mcp/src/progressiveIndexing.ts",
+  ".context/mcp/dist/embed.js",
+  ".context/mcp/dist/embeddings.js",
+  ".context/mcp/dist/graph.js",
+  ".context/mcp/dist/loadGraph.js",
+  ".context/mcp/dist/paths.js",
+  ".context/mcp/dist/progressiveIndexing.js",
+  ".context/mcp/tests/graph-bulk-load.test.mjs",
+  ".context/mcp/tests/progressive-indexing.test.mjs",
+  ".context/scripts/bootstrap.sh",
+  ".context/scripts/context.sh",
+  ".context/scripts/embed.sh",
+  ".context/scripts/ingest.sh",
+  ".context/scripts/indexing.mjs",
+  ".context/scripts/lib/ingest/pipeline-stages.mjs",
+  ".context/scripts/load-ryu.sh",
+  ".context/scripts/status.sh",
+  ".context/scripts/watch.sh",
 ];
 
 const candidateMetadata = JSON.parse(
@@ -77,6 +108,22 @@ function installedOwnership(packageRoot) {
     ))
   ).sort();
   return { manifest, paths };
+}
+
+function installedOwnershipEntries(packageRoot) {
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(packageRoot, "scaffold", "ownership", "v1.json"), "utf8"),
+  );
+  return manifest.managedRoots.flatMap((root) =>
+    root.files.map((file) => {
+      const source = typeof file === "string" ? file : file.source;
+      const target = typeof file === "string" ? file : file.target;
+      return {
+        sourcePath: path.posix.join("scaffold", root.source, source),
+        targetIdentity: path.posix.join(root.target, target),
+      };
+    })
+  ).sort((left, right) => left.targetIdentity.localeCompare(right.targetIdentity));
 }
 
 function verifyPackedRuntimeOwnership(pack, packageRoot) {
@@ -157,40 +204,57 @@ function packCandidate(destination, npmCache) {
   return parsed[0];
 }
 
-function changedManagedScripts() {
-  const result = run("git", [
-    "diff",
-    "--name-status",
-    "--find-renames",
-    `${PREVIOUS_RELEASE_TAG}..HEAD`,
-    "--",
-    "scaffold/scripts",
+function extractPublishedPreviousRelease(sandbox, npmCache) {
+  const destination = path.join(sandbox, "previous-release-pack");
+  fs.mkdirSync(destination);
+  const packed = run("npm", [
+    "pack",
+    `${PACKAGE_NAME}@${PREVIOUS_RELEASE_VERSION}`,
+    "--json",
+    "--pack-destination",
+    destination,
+    "--cache",
+    npmCache,
   ]);
-  return result.stdout.trim().split("\n").filter(Boolean).map((line) => {
-    const fields = line.split("\t");
-    const status = fields[0];
-    assert.match(status, /^[AM]$/, `unsupported managed upgrade status: ${line}`);
-    return { status, path: fields[1] };
+  const parsed = JSON.parse(packed.stdout);
+  assert.equal(parsed.length, 1);
+  const release = parsed[0];
+  assert.equal(release.name, PACKAGE_NAME);
+  assert.equal(release.version, PREVIOUS_RELEASE_VERSION);
+  assert.equal(release.shasum, PREVIOUS_RELEASE_SHA1);
+  assert.equal(release.integrity, PREVIOUS_RELEASE_INTEGRITY);
+
+  const extracted = path.join(sandbox, "previous-release-extracted");
+  fs.mkdirSync(extracted);
+  run("tar", ["-xzf", path.join(destination, release.filename), "-C", extracted]);
+  const packageRoot = path.join(extracted, "package");
+  assert.equal(
+    JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "utf8")).version,
+    PREVIOUS_RELEASE_VERSION,
+  );
+  return { packageRoot, release };
+}
+
+function changedManagedFiles(packageRoot, previousSource) {
+  return installedOwnershipEntries(packageRoot).flatMap((entry) => {
+    const candidatePath = path.join(packageRoot, ...entry.sourcePath.split("/"));
+    if (!fs.existsSync(candidatePath)) return [];
+    const previousPath = path.join(previousSource, ...entry.sourcePath.split("/"));
+    if (!fs.existsSync(previousPath)) return [{ ...entry, status: "A" }];
+    if (sha256File(previousPath) === sha256File(candidatePath)) return [];
+    return [{ ...entry, status: "M" }];
   });
 }
 
-function verifyForcedUpgrade(packageRoot, sandbox) {
+function verifyForcedUpgrade(packageRoot, sandbox, npmCache) {
   const resolvedPreviousCommit = run(
     "git",
     ["rev-parse", `${PREVIOUS_RELEASE_TAG}^{commit}`],
   ).stdout.trim();
   assert.equal(resolvedPreviousCommit, PREVIOUS_RELEASE_COMMIT);
 
-  const previousSource = path.join(sandbox, "previous-release-source");
-  const previousArchive = path.join(sandbox, "previous-release.tar");
-  fs.mkdirSync(previousSource);
-  run("git", [
-    "archive",
-    "--format=tar",
-    `--output=${previousArchive}`,
-    PREVIOUS_RELEASE_TAG,
-  ]);
-  run("tar", ["-xf", previousArchive, "-C", previousSource]);
+  const { packageRoot: previousSource, release: previousRelease } =
+    extractPublishedPreviousRelease(sandbox, npmCache);
 
   const project = path.join(sandbox, "force-project");
   const home = path.join(sandbox, "home");
@@ -207,26 +271,33 @@ function verifyForcedUpgrade(packageRoot, sandbox) {
     env,
   });
 
-  const changedScripts = changedManagedScripts();
-  const changedPaths = new Set(changedScripts.map((entry) => entry.path));
-  assert.equal(changedScripts.length >= REQUIRED_CONTAINMENT_UPGRADE_PATHS.length, true);
+  const changedFiles = changedManagedFiles(packageRoot, previousSource);
+  const changedTargets = new Set(changedFiles.map((entry) => entry.targetIdentity));
+  assert.equal(changedFiles.length, EXPECTED_CHANGED_MANAGED_COUNT);
+  assert.equal(
+    changedFiles.filter((entry) => entry.status === "A").length,
+    EXPECTED_NEW_MANAGED_COUNT,
+  );
   for (const requiredPath of REQUIRED_CONTAINMENT_UPGRADE_PATHS) {
-    assert.equal(changedPaths.has(requiredPath), true, `missing containment upgrade path: ${requiredPath}`);
+    const targetIdentity = `.context/${requiredPath.slice("scaffold/".length)}`;
+    assert.equal(changedTargets.has(targetIdentity), true, `missing containment upgrade path: ${requiredPath}`);
+  }
+  for (const targetIdentity of REQUIRED_PROGRESSIVE_UPGRADE_TARGETS) {
+    assert.equal(changedTargets.has(targetIdentity), true, `missing progressive upgrade path: ${targetIdentity}`);
   }
 
   const { paths: ownedPaths } = installedOwnership(packageRoot);
   const owned = new Set(ownedPaths);
-  for (const entry of changedScripts) {
-    const targetIdentity = `.context/${entry.path.slice("scaffold/".length)}`;
-    const targetPath = path.join(project, ...targetIdentity.split("/"));
-    const candidatePath = path.join(packageRoot, ...entry.path.split("/"));
-    assert.equal(owned.has(targetIdentity), true, `changed script is not owned: ${targetIdentity}`);
-    assert.equal(fs.existsSync(candidatePath), true, `candidate script is missing: ${entry.path}`);
+  for (const entry of changedFiles) {
+    const targetPath = path.join(project, ...entry.targetIdentity.split("/"));
+    const candidatePath = path.join(packageRoot, ...entry.sourcePath.split("/"));
+    assert.equal(owned.has(entry.targetIdentity), true, `changed file is not owned: ${entry.targetIdentity}`);
+    assert.equal(fs.existsSync(candidatePath), true, `candidate file is missing: ${entry.sourcePath}`);
     if (entry.status === "A") {
       assert.equal(fs.existsSync(targetPath), false, `new script already existed in ${PREVIOUS_RELEASE_TAG}`);
     } else {
-      assert.equal(fs.existsSync(targetPath), true, `released script is missing: ${entry.path}`);
-      assert.notEqual(sha256File(targetPath), sha256File(candidatePath), `changed script bytes did not change: ${entry.path}`);
+      assert.equal(fs.existsSync(targetPath), true, `released file is missing: ${entry.sourcePath}`);
+      assert.notEqual(sha256File(targetPath), sha256File(candidatePath), `changed file bytes did not change: ${entry.sourcePath}`);
     }
   }
 
@@ -253,19 +324,22 @@ function verifyForcedUpgrade(packageRoot, sandbox) {
   );
   assert.equal(state.schemaVersion, 1);
   assert.equal(state.manifestVersion, 1);
-  for (const entry of changedScripts) {
-    const targetIdentity = `.context/${entry.path.slice("scaffold/".length)}`;
-    const targetPath = path.join(project, ...targetIdentity.split("/"));
-    const candidatePath = path.join(packageRoot, ...entry.path.split("/"));
+  for (const entry of changedFiles) {
+    const targetPath = path.join(project, ...entry.targetIdentity.split("/"));
+    const candidatePath = path.join(packageRoot, ...entry.sourcePath.split("/"));
     assert.deepEqual(fs.readFileSync(targetPath), fs.readFileSync(candidatePath));
-    assert.equal(state.fileHashes[targetIdentity], sha256File(candidatePath));
+    assert.equal(state.fileHashes[entry.targetIdentity], sha256File(candidatePath));
   }
   return {
+    previous_source: "published-npm-artifact",
     previous_tag: PREVIOUS_RELEASE_TAG,
     previous_commit: resolvedPreviousCommit,
-    changed_managed_scripts: changedScripts.length,
-    new_managed_scripts: changedScripts.filter((entry) => entry.status === "A").length,
-    state_hashes_verified: changedScripts.length,
+    previous_package: `${PACKAGE_NAME}@${PREVIOUS_RELEASE_VERSION}`,
+    previous_tarball_sha1: previousRelease.shasum,
+    previous_tarball_integrity: previousRelease.integrity,
+    changed_managed_files: changedFiles.length,
+    new_managed_files: changedFiles.filter((entry) => entry.status === "A").length,
+    state_hashes_verified: changedFiles.length,
     preserved: ["config", "ontology", "unknown"],
   };
 }
@@ -366,13 +440,13 @@ try {
   assert.match(packagedDashboard.stdout, /# pass 4\b/);
   assert.match(packagedDashboard.stdout, /# fail 0\b/);
 
-  const upgrade = verifyForcedUpgrade(packageRoot, sandbox);
+  const upgrade = verifyForcedUpgrade(packageRoot, sandbox, npmCache);
   process.stdout.write(`${JSON.stringify({
     ok: true,
     package: PACKAGE_NAME,
     version: cleanPack.version,
     entries: cleanPack.files.length,
-    mode_counts: { "0644": 395, "0755": 21 },
+    mode_counts: { "0644": 399, "0755": 21 },
     inventory_sha256: EXPECTED_INVENTORY_SHA256,
     tarball_sha1: cleanPack.shasum,
     tarball_sha256: sha256File(tarball),

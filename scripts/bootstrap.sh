@@ -4,6 +4,33 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONTEXT_RUNTIME_DIR="$REPO_ROOT/.context/mcp"
 MCP_DIR="$CONTEXT_RUNTIME_DIR"
+BACKGROUND=0
+PROFILE=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --background)
+      BACKGROUND=1
+      shift
+      ;;
+    --profile)
+      PROFILE="${2:-}"
+      shift 2
+      ;;
+    *)
+      echo "[cortex] unknown bootstrap option: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+if [[ "$BACKGROUND" -eq 1 && "$PROFILE" != "interactive" ]]; then
+  echo "[cortex] --background requires --profile interactive" >&2
+  exit 1
+fi
+if [[ "$BACKGROUND" -eq 0 && -n "$PROFILE" ]]; then
+  echo "[cortex] --profile is only valid with --background" >&2
+  exit 1
+fi
+
 TOTAL_STEPS=6
 STEP_INDEX=0
 
@@ -19,7 +46,11 @@ info() {
 
 info "bootstrap start"
 info "repo: $REPO_ROOT"
-info "pipeline: deps -> ingest -> embeddings -> graph -> status"
+if [[ "$BACKGROUND" -eq 1 ]]; then
+  info "pipeline: deps -> ingest -> graph -> background embeddings -> status"
+else
+  info "pipeline: deps -> ingest -> embeddings -> graph -> status"
+fi
 
 mkdir -p "$MCP_DIR/.npm-cache"
 
@@ -47,19 +78,40 @@ ln -sfn "$PARSERS_INSTALL_DIR/node_modules" "$REPO_ROOT/scripts/parsers/node_mod
 source "$REPO_ROOT/scripts/lib/enterprise-check.sh"
 
 step "Indexing repository context"
-"$REPO_ROOT/scripts/ingest.sh"
-
-step "Generating semantic embeddings"
-if ! "$REPO_ROOT/scripts/embed.sh"; then
-  info "warning: embedding generation failed; continuing with lexical search fallback"
+if [[ "$BACKGROUND" -eq 1 ]]; then
+  CORTEX_INGEST_WORKERS=2 "$REPO_ROOT/scripts/ingest.sh"
+else
+  "$REPO_ROOT/scripts/ingest.sh"
 fi
 
-step "Loading RyuGraph"
-"$REPO_ROOT/scripts/load-ryu.sh"
+if [[ "$BACKGROUND" -eq 1 ]]; then
+  step "Loading RyuGraph for early search readiness"
+  "$REPO_ROOT/scripts/load-ryu.sh"
+  info "search_ready=lexical+graph semantic_coverage=incomplete"
 
-step "Reading context status"
-"$REPO_ROOT/scripts/status.sh"
+  step "Starting resource-limited semantic indexing"
+  node "$REPO_ROOT/scripts/indexing.mjs" start --profile "$PROFILE"
+
+  step "Reading progressive indexing status"
+  node "$REPO_ROOT/scripts/indexing.mjs" status
+else
+  step "Generating semantic embeddings"
+  if ! "$REPO_ROOT/scripts/embed.sh"; then
+    info "warning: embedding generation failed; continuing with lexical search fallback"
+  fi
+
+  step "Loading RyuGraph"
+  "$REPO_ROOT/scripts/load-ryu.sh"
+
+  step "Reading context status"
+  "$REPO_ROOT/scripts/status.sh"
+fi
 
 echo ""
-info "bootstrap complete"
-info "next: run ./scripts/context.sh update while coding"
+if [[ "$BACKGROUND" -eq 1 ]]; then
+  info "bootstrap complete; semantic indexing continues in background"
+  info "next: ./scripts/context.sh indexing status --json (index mutations wait for this run to finish)"
+else
+  info "bootstrap complete"
+  info "next: run ./scripts/context.sh update while coding"
+fi

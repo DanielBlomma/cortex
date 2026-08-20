@@ -1,14 +1,128 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
+import { spawnSync } from "node:child_process";
 import ryugraph, { type Connection, type PreparedStatement, type QueryResult, type RyuValue } from "ryugraph";
 import { readJsonl, readJsonlRecords, asString, asNumber, asBoolean } from "./jsonl.js";
-import { CACHE_DIR, CONTEXT_DIR, DB_PATH } from "./paths.js";
+import { CACHE_DIR, CONTEXT_DIR, DB_PATH, REPO_ROOT } from "./paths.js";
 import { CSV_COPY_OPTIONS, writeCsv, toCopyPathLiteral, type CsvValue } from "./graphCsv.js";
+import {
+  assertSecureManagedDirectory,
+  assertSecureManagedFile,
+  atomicWriteJson,
+  ensureSecureManagedDirectory,
+  fsyncDirectory
+} from "./progressiveIndexing.js";
 import type { JsonObject } from "./types.js";
 
 const ONTOLOGY_PATH = path.join(CONTEXT_DIR, "ontology.cypher");
 const GRAPH_IMPORT_DIR = path.join(CACHE_DIR, "graph-import");
 const BATCH_SIZE = 50;
+const GRAPH_GENERATIONS_TO_RETAIN = 2;
+
+function currentPublishedGraphPath(dbDir: string): string | null {
+  assertSecureManagedDirectory(REPO_ROOT, CACHE_DIR);
+  assertSecureManagedDirectory(REPO_ROOT, dbDir);
+  const manifestPath = path.join(CACHE_DIR, "graph-manifest.json");
+  try {
+    assertSecureManagedFile(REPO_ROOT, manifestPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+  let manifest: { schema_version?: unknown; db_path?: unknown };
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as {
+      schema_version?: unknown;
+      db_path?: unknown;
+    };
+  } catch {
+    return null;
+  }
+  if (manifest.schema_version !== 2 || typeof manifest.db_path !== "string") return null;
+  const dbPath = path.resolve(manifest.db_path);
+  if (
+    !/^graph-[A-Za-z0-9-]+\.ryu$/.test(path.basename(dbPath)) ||
+    path.dirname(dbPath) !== path.resolve(dbDir)
+  ) return null;
+  try {
+    assertSecureManagedFile(REPO_ROOT, dbPath);
+    return dbPath;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+function removePrivateRegularFile(filePath: string): boolean {
+  try {
+    assertSecureManagedFile(REPO_ROOT, filePath);
+    fs.rmSync(filePath);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    // An older generation may still be open on platforms that deny unlinking
+    // open files. Retain it and retry on the next successful graph load.
+    if (["EBUSY", "EPERM", "EACCES"].includes((error as NodeJS.ErrnoException).code ?? "")) return false;
+    throw error;
+  }
+}
+
+function cleanupGraphPublications(dbDir: string): void {
+  ensureSecureManagedDirectory(REPO_ROOT, CACHE_DIR);
+  ensureSecureManagedDirectory(REPO_ROOT, dbDir);
+  const activePath = currentPublishedGraphPath(dbDir);
+  const published = fs.readdirSync(dbDir, { withFileTypes: true })
+    .filter((entry) => /^graph-[A-Za-z0-9-]+\.ryu$/.test(entry.name))
+    .map((entry) => {
+      const filePath = path.join(dbDir, entry.name);
+      assertSecureManagedFile(REPO_ROOT, filePath);
+      const stat = fs.lstatSync(filePath);
+      return { filePath, mtimeMs: stat.mtimeMs, safe: true };
+    })
+    .filter((entry) => entry.safe)
+    .sort((left, right) => right.mtimeMs - left.mtimeMs || left.filePath.localeCompare(right.filePath));
+  const keep = new Set<string>();
+  if (activePath) keep.add(activePath);
+  for (const entry of published) {
+    if (keep.size >= GRAPH_GENERATIONS_TO_RETAIN) break;
+    keep.add(entry.filePath);
+  }
+
+  let dbChanged = false;
+  for (const entry of published) {
+    if (!keep.has(entry.filePath)) dbChanged = removePrivateRegularFile(entry.filePath) || dbChanged;
+  }
+  for (const entry of fs.readdirSync(dbDir, { withFileTypes: true })) {
+    if (/^\.graph-[A-Za-z0-9-]+\.staging\.ryu$/.test(entry.name)) {
+      dbChanged = removePrivateRegularFile(path.join(dbDir, entry.name)) || dbChanged;
+    }
+  }
+
+  let cacheChanged = false;
+  for (const entry of fs.readdirSync(CACHE_DIR, { withFileTypes: true })) {
+    if (/^\.graph-manifest-[A-Za-z0-9-]+\.staging\.json$/.test(entry.name)) {
+      cacheChanged = removePrivateRegularFile(path.join(CACHE_DIR, entry.name)) || cacheChanged;
+    }
+  }
+  if (dbChanged) fsyncDirectory(dbDir);
+  if (cacheChanged) fsyncDirectory(CACHE_DIR);
+}
+
+function clearGraphImportDirectory(): void {
+  ensureSecureManagedDirectory(REPO_ROOT, GRAPH_IMPORT_DIR);
+  const entries = fs.readdirSync(GRAPH_IMPORT_DIR);
+  for (const entry of entries) {
+    if (!/^[A-Za-z][A-Za-z0-9_]*\.csv$/.test(entry)) {
+      throw new Error(`Graph import directory contains an unexpected entry: ${entry}`);
+    }
+    assertSecureManagedFile(REPO_ROOT, path.join(GRAPH_IMPORT_DIR, entry));
+  }
+  for (const entry of entries) {
+    fs.rmSync(path.join(GRAPH_IMPORT_DIR, entry));
+  }
+  if (entries.length > 0) fsyncDirectory(GRAPH_IMPORT_DIR);
+}
 
 async function executeBatch(
   conn: Connection,
@@ -403,7 +517,10 @@ async function ensureRequiredFiles(): Promise<void> {
   ];
 
   for (const filePath of required) {
-    if (!fs.existsSync(filePath)) {
+    try {
+      assertSecureManagedFile(REPO_ROOT, filePath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       throw new Error(`Missing required file: ${filePath}`);
     }
   }
@@ -432,7 +549,19 @@ function warnIfOptionalFilesMissing(): void {
     "relations.transforms_config.jsonl"
   ];
 
-  const missing = optionalFiles.filter((fileName) => !fs.existsSync(path.join(CACHE_DIR, fileName)));
+  const missing: string[] = [];
+  for (const fileName of optionalFiles) {
+    const filePath = path.join(CACHE_DIR, fileName);
+    try {
+      assertSecureManagedFile(REPO_ROOT, filePath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        missing.push(fileName);
+        continue;
+      }
+      throw error;
+    }
+  }
   if (missing.length === 0) {
     return;
   }
@@ -555,8 +684,7 @@ async function copyTable(
 // node and relation JSONL streams directly into CSVs so the hot path retains
 // only endpoint id sets rather than a full parsed GraphData object.
 async function bulkLoad(conn: Connection): Promise<void> {
-  fs.rmSync(GRAPH_IMPORT_DIR, { recursive: true, force: true });
-  fs.mkdirSync(GRAPH_IMPORT_DIR, { recursive: true });
+  clearGraphImportDirectory();
 
   try {
     const fileIds = new Set<string>();
@@ -666,7 +794,7 @@ async function bulkLoad(conn: Connection): Promise<void> {
   await copyTable(conn, "TRANSFORMS_CONFIG", ["from", "to", "note"],
     csvRows(filterEdges(relationRecords("relations.transforms_config.jsonl", "note"), fileIds, fileIds), (e) => [e.from, e.to, e.note]));
   } finally {
-    fs.rmSync(GRAPH_IMPORT_DIR, { recursive: true, force: true });
+    clearGraphImportDirectory();
   }
 }
 
@@ -936,20 +1064,100 @@ async function rowByRowLoad(conn: Connection, data: GraphData): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const args = new Set(process.argv.slice(2));
+  const rawArgs = process.argv.slice(2);
+  const args = new Set(rawArgs);
   const reset = !args.has("--no-reset");
+  const dbDir = path.dirname(DB_PATH);
+  const valueAfter = (name: string): string => {
+    const index = rawArgs.indexOf(name);
+    return index >= 0 ? rawArgs[index + 1] || "" : "";
+  };
+
+  ensureSecureManagedDirectory(REPO_ROOT, CONTEXT_DIR);
+  ensureSecureManagedDirectory(REPO_ROOT, CACHE_DIR);
+  ensureSecureManagedDirectory(REPO_ROOT, dbDir);
+
+  if (!args.has("--internal-build")) {
+    cleanupGraphPublications(dbDir);
+    const generationId = crypto.randomUUID();
+    const stagingDbPath = path.join(dbDir, `.graph-${generationId}.staging.ryu`);
+    const publishedDbPath = path.join(dbDir, `graph-${generationId}.ryu`);
+    const stagingManifestPath = path.join(CACHE_DIR, `.graph-manifest-${generationId}.staging.json`);
+    const child = spawnSync(process.execPath, [
+      process.argv[1],
+      "--internal-build",
+      "--generation-id", generationId,
+      "--db-path", stagingDbPath,
+      "--published-db-path", publishedDbPath,
+      "--manifest-path", stagingManifestPath,
+      ...(reset ? [] : ["--no-reset"])
+    ], { cwd: process.cwd(), env: process.env, stdio: "inherit" });
+    if (child.error) throw child.error;
+    if (child.signal) throw new Error(`Graph builder terminated by signal ${child.signal}`);
+    if (child.status !== 0) throw new Error(`Graph builder failed with exit ${child.status ?? "unknown"}`);
+    assertSecureManagedFile(REPO_ROOT, stagingDbPath);
+    assertSecureManagedFile(REPO_ROOT, stagingManifestPath);
+    assertSecureManagedFile(REPO_ROOT, publishedDbPath, { allowMissing: true });
+    const fd = fs.openSync(stagingDbPath, "r");
+    try {
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+    if (process.env.CORTEX_GRAPH_TEST_CRASH_AT === "before-db-publish") {
+      throw new Error("Forced graph publication crash before DB publish");
+    }
+    fs.renameSync(stagingDbPath, publishedDbPath);
+    fsyncDirectory(dbDir);
+    if (process.env.CORTEX_GRAPH_TEST_CRASH_AT === "after-db-publish") {
+      throw new Error("Forced graph publication crash after DB publish");
+    }
+    const summary = JSON.parse(fs.readFileSync(stagingManifestPath, "utf8")) as JsonObject;
+    atomicWriteJson(path.join(CACHE_DIR, "graph-manifest.json"), summary, REPO_ROOT);
+    fs.rmSync(stagingManifestPath, { force: true });
+    fsyncDirectory(CACHE_DIR);
+    cleanupGraphPublications(dbDir);
+    console.log(`[graph-load] manifest=${path.join(CACHE_DIR, "graph-manifest.json")}`);
+    return;
+  }
+
+  const generationId = valueAfter("--generation-id");
+  const stagingDbPath = valueAfter("--db-path");
+  const publishedDbPath = valueAfter("--published-db-path");
+  const summaryPath = valueAfter("--manifest-path");
+  if (!generationId || !stagingDbPath || !publishedDbPath || !summaryPath) {
+    throw new Error("Internal graph build arguments are incomplete");
+  }
+  if (
+    !/^[A-Za-z0-9-]+$/.test(generationId) ||
+    path.resolve(stagingDbPath) !== path.join(dbDir, `.graph-${generationId}.staging.ryu`) ||
+    path.resolve(publishedDbPath) !== path.join(dbDir, `graph-${generationId}.ryu`) ||
+    path.resolve(summaryPath) !== path.join(CACHE_DIR, `.graph-manifest-${generationId}.staging.json`)
+  ) {
+    throw new Error("Internal graph build paths are outside the managed generation layout");
+  }
+  assertSecureManagedFile(REPO_ROOT, stagingDbPath, { allowMissing: true });
+  assertSecureManagedFile(REPO_ROOT, publishedDbPath, { allowMissing: true });
+  assertSecureManagedFile(REPO_ROOT, summaryPath, { allowMissing: true });
 
   await ensureRequiredFiles();
   warnIfOptionalFilesMissing();
 
-  if (reset) {
-    fs.rmSync(DB_PATH, { recursive: true, force: true });
-    fs.rmSync(`${DB_PATH}.wal`, { force: true });
-    fs.rmSync(`${DB_PATH}.shm`, { force: true });
+  if (!reset) {
+    assertSecureManagedFile(REPO_ROOT, path.join(CACHE_DIR, "graph-manifest.json"));
+    const previousManifest = JSON.parse(fs.readFileSync(path.join(CACHE_DIR, "graph-manifest.json"), "utf8")) as {
+      db_path?: unknown;
+    };
+    const previousDbPath = typeof previousManifest.db_path === "string" ? previousManifest.db_path : DB_PATH;
+    if (
+      path.dirname(path.resolve(previousDbPath)) !== path.resolve(dbDir) ||
+      !/^graph-[A-Za-z0-9-]+\.ryu$/.test(path.basename(previousDbPath))
+    ) throw new Error("Previous graph manifest points outside the managed graph directory");
+    assertSecureManagedFile(REPO_ROOT, previousDbPath);
+    fs.copyFileSync(previousDbPath, stagingDbPath, fs.constants.COPYFILE_EXCL);
   }
-  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
-  const db = new ryugraph.Database(DB_PATH);
+  const db = new ryugraph.Database(stagingDbPath);
   const conn = new ryugraph.Connection(db);
 
   const ontologyStatements = parseOntologyStatements(fs.readFileSync(ONTOLOGY_PATH, "utf8"));
@@ -1041,8 +1249,19 @@ async function main(): Promise<void> {
   );
 
   const summary = {
+    schema_version: 2,
+    generation_id: generationId,
+    ingest_generation: (() => {
+      const manifest = JSON.parse(fs.readFileSync(path.join(CACHE_DIR, "manifest.json"), "utf8")) as {
+        generation_id?: unknown;
+        generated_at?: unknown;
+      };
+      if (typeof manifest.generation_id === "string" && manifest.generation_id) return manifest.generation_id;
+      if (typeof manifest.generated_at === "string" && manifest.generated_at) return `legacy:${manifest.generated_at}`;
+      throw new Error("Ingest manifest has no generation identity; run cortex ingest first");
+    })(),
     generated_at: new Date().toISOString(),
-    db_path: DB_PATH,
+    db_path: publishedDbPath,
     counts: {
       files: Number(fileCount[0]?.count ?? 0),
       rules: Number(ruleCount[0]?.count ?? 0),
@@ -1072,10 +1291,9 @@ async function main(): Promise<void> {
     }
   };
 
-  const summaryPath = path.join(CACHE_DIR, "graph-manifest.json");
-  fs.writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
+  atomicWriteJson(summaryPath, summary, REPO_ROOT);
 
-  console.log(`[graph-load] db_path=${DB_PATH}`);
+  console.log(`[graph-load] db_path=${publishedDbPath}`);
   console.log(
     `[graph-load] files=${summary.counts.files} rules=${summary.counts.rules} adrs=${summary.counts.adrs} chunks=${summary.counts.chunks} modules=${summary.counts.modules} projects=${summary.counts.projects}`
   );
@@ -1088,7 +1306,7 @@ async function main(): Promise<void> {
   console.log(
     `[graph-load] rels contains=${summary.counts.contains} contains_module=${summary.counts.contains_module} exports=${summary.counts.exports} includes_file=${summary.counts.includes_file} references_project=${summary.counts.references_project} uses_resource=${summary.counts.uses_resource} uses_setting=${summary.counts.uses_setting} uses_config=${summary.counts.uses_config} transforms_config=${summary.counts.transforms_config}`
   );
-  console.log(`[graph-load] manifest=${summaryPath}`);
+  console.log(`[graph-load] staged_manifest=${summaryPath}`);
 
   // RyuGraph Node addon can crash on explicit close in some environments.
   // Let process teardown handle resource cleanup.

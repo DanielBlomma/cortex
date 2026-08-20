@@ -10,6 +10,7 @@ import {
   MCP_PROJECT_REL,
 } from "../bin/cli/paths.mjs";
 import { resolveProjectRuntimeDist } from "../bin/cli/project-runtime.mjs";
+import { scaffoldMigrationRequiresBootstrap } from "../bin/cli/context-passthrough.mjs";
 
 const PROJECT_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
@@ -23,6 +24,9 @@ case "$COMMAND" in
     ;;
   doctor)
     "$SCRIPT_DIR/doctor.sh"
+    ;;
+  indexing)
+    node "$SCRIPT_DIR/indexing.mjs" "$@"
     ;;
   *)
     echo "Unknown command"
@@ -56,6 +60,7 @@ function makeTempProject() {
 function writeUpToDate(root) {
   fs.writeFileSync(path.join(root, ".context", "scripts", "context.sh"), NEW_CONTEXT_SH);
   fs.writeFileSync(path.join(root, ".context", "scripts", "doctor.sh"), "#!/usr/bin/env bash\necho ok\n");
+  fs.writeFileSync(path.join(root, ".context", "scripts", "indexing.mjs"), "// indexing lifecycle\n");
   fs.writeFileSync(path.join(root, ".context", "mcp", "package.json"), "{}");
 }
 
@@ -64,10 +69,22 @@ test("returns false when context.sh does not exist (not initialized)", () => {
   assert.equal(isScaffoldOutOfDate(root), false);
 });
 
+test("bootstrap scaffold migration defers work to the requested bootstrap profile", () => {
+  assert.equal(scaffoldMigrationRequiresBootstrap("bootstrap"), false);
+  assert.equal(scaffoldMigrationRequiresBootstrap("status"), true);
+});
+
 test("returns true when .context/scripts/doctor.sh is missing", () => {
   const root = makeTempProject();
   writeUpToDate(root);
   fs.rmSync(path.join(root, ".context", "scripts", "doctor.sh"));
+  assert.equal(isScaffoldOutOfDate(root), true);
+});
+
+test("returns true when .context/scripts/indexing.mjs is missing", () => {
+  const root = makeTempProject();
+  writeUpToDate(root);
+  fs.rmSync(path.join(root, ".context", "scripts", "indexing.mjs"));
   assert.equal(isScaffoldOutOfDate(root), true);
 });
 

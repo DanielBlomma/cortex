@@ -15,6 +15,7 @@ import {
 
 export const PASSTHROUGH_COMMANDS = new Set([
   "bootstrap",
+  "indexing",
   "update",
   "status",
   "ingest",
@@ -30,6 +31,7 @@ export const PASSTHROUGH_COMMANDS = new Set([
 
 const INDEX_MUTATING_COMMANDS = new Set([
   "bootstrap",
+  "indexing",
   "update",
   "refresh",
   "ingest",
@@ -84,7 +86,7 @@ export async function maybeMigrateScaffold(targetDir, command) {
 
   console.error(
     `[cortex] scaffold in ${targetDir} is out of date ` +
-      `(missing .context/scripts/doctor.sh, context runtime package.json, doctor subcommand in context.sh, ` +
+      `(missing .context/scripts/doctor.sh or indexing.mjs, context runtime package.json, required context.sh routing, ` +
       `or carries a legacy mcp/ directory at the project root).`,
   );
 
@@ -112,8 +114,14 @@ export async function maybeMigrateScaffold(targetDir, command) {
   initializeScaffold(targetDir, true);
   installAssistantHelpers(targetDir);
   await maybeInstallGitHooks(targetDir);
-  await runContextCommand(targetDir, ["bootstrap"]);
+  if (scaffoldMigrationRequiresBootstrap(command)) {
+    await runContextCommand(targetDir, ["bootstrap"]);
+  }
   console.error(`[cortex] scaffold upgraded; continuing with '${command}'`);
+}
+
+export function scaffoldMigrationRequiresBootstrap(command) {
+  return command !== "bootstrap";
 }
 
 export async function runPassthroughCommand(command, rest) {

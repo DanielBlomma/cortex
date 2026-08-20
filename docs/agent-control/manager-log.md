@@ -41,6 +41,10 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   WO-035 are accepted locally. WO-035's dependency blocker and first-review
   packed-dashboard, inventory, released-upgrade, Work Profile, and release-gate
   findings are fixed; all three independent re-reviews are GO.
+- WO-046 is accepted locally as a progressive-indexing prototype. WO-047
+  integrates it into the 2.5.0 candidate; all round-1 and round-2 NO-GO
+  findings are fixed, all three final re-reviews are GO, and the manager has
+  accepted the candidate for the authorized PR/release sequence.
 
 ## Open Decisions
 
@@ -49,8 +53,8 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - Whether `@danielblomma/cortex-mcp` is retained as the npm package name during
   the CLI-first migration or followed by a new package with a migration
   window.
-- Final integration/review evidence after accepted WO-046 is applied on top of
-  WO-035 and the locked package inventory is refreshed for `2.5.0`.
+- Whether the merged `2.5.0` Release Bump and tag-gated Publish workflows pass
+  on GitHub and npm `latest` resolves to the verified final artifact.
 
 ## Closed Decisions
 
@@ -273,6 +277,127 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - Semver minor `2.5.0` is accepted. This decision authorizes the already
   requested next integration/release work but does not itself bump metadata,
   integrate WO-046, push, merge, tag, or publish.
+
+## 2026-08-20 — WO-047 release integration first pass
+
+- Started fresh packet 036 with the single
+  `Infra/deploy/security-sensitive` profile on branch
+  `release/2.5.0-final` from accepted WO-035 commit `e86ce65`.
+- Integrated accepted WO-046 progressive background indexing without
+  `search.ts`, `searchResults.ts`, `searchAspects.ts`, WO-036 through
+  WO-045 retrieval/ranking files, semantic-quality docs, or local
+  `.context/config.yaml` changes. Foreground remains default.
+- Combined WO-046 ingest schema/generation fields manually with the accepted
+  WO-034 whole-set staging and manifest-last implementation. The 14 frozen
+  Angular source hashes and harness hash all match the final combined source,
+  so the accepted frozen run remains valid and no regeneration is required.
+- Refreshed the packed contract to 420 entries at 399/21 modes, inventory
+  digest `cebf97a…48bd`, 385 managed paths, and 94 packaged runtime paths.
+  The upgrade gate now compares the actual candidate artifact to the published
+  `@danielblomma/cortex-mcp@2.4.2` artifact bound by SHA-1 and SRI, and validates
+  all 38 changed managed files/state hashes, including five new files, while
+  preserving protected and unknown content.
+- Added the 2.5.0 changelog with progressive lifecycle/support/defaults,
+  generation/snapshot/graph semantics, filesystem migration, six dependency
+  remediations, zero-audit gates, and upgrade commands. Version metadata
+  remains 2.4.2 for the post-merge minor-bump workflow.
+- Focused CLI, Angular helper, MCP graph/progressive, migration/ownership, and
+  packed installed-artifact gates are green. Root context 81/81 plus Node
+  380/380, MCP 420/420, frontend production build, five zero audits,
+  version-sync at unchanged 2.4.2, syntax, and diff checks also pass. Final
+  Cortex changed update embedded 42/reused 125/failed 0 and rebuilt the graph;
+  pattern evidence ran for all 21 indexed candidate paths. Doctor passes all
+  runtime/index checks and fails only its expected dirty-worktree freshness
+  calculation (7/8); watcher is stopped. Independent Security/Ops/Validation
+  review remains before acceptance.
+
+## 2026-08-20 — WO-047 review round 1 fixes
+
+- Round 1 returned NO-GO for redirected graph/semantic storage, missing
+  progressive graph-generation validation, an owner-initialization lock race,
+  branch-capable manual Release Publish, and release-note/audit evidence gaps.
+- Project-root-anchored managed-directory/file validation now precedes graph
+  cache/DB/import/staging/manifest/publication and semantic/status/search I/O.
+  Negative symlink, file, FIFO, socket, and staging-leaf cases prove zero
+  external mutation while crash/retention behavior remains green.
+- Progressive embedding readiness now requires a present graph generation that
+  exactly matches the published graph manifest; foreground manifests remain
+  compatible. The indexing lock gives fresh ownerless/malformed claims a
+  bounded initialization grace and a deterministic two-contender test proves
+  exactly one mutation proceeds.
+- Release Publish now requires a strict `vX.Y.Z` tag before checkout and exact
+  package equality before install/publish. The canonical audit command now
+  runs all five committed dependency trees. Upgrade notes wait for progressive
+  completion before `cortex update` and scope configured-root backslash denial
+  without rejecting literal POSIX discovered filenames.
+- Six changed source bindings superseded the WO-046 report. Fresh evidence
+  comes from `https://github.com/angular/angular.git` at detached commit
+  `71bb19d772aa77a30922fb896f775b58a0862c36`, using the accepted six-path
+  scope bound by context-config SHA `39aa161…06e5`. Report SHA is
+  `210b0d5…6cbd`; harness SHA is `ad3a607…ad30`; all 14 source bindings match.
+  It reached search readiness in 10.824 seconds, returned the CLI in 12.833
+  seconds, completed in 294.251 seconds, resumed a real SIGTERM at 4,131, and
+  produced 16,314-record byte/query parity with 8/8 final queries.
+- Final focused tests are CLI 15/15, harness 2/2, workflow 9/9, and MCP
+  graph/progressive 14/14. Full root is 81/81 plus 384/384, MCP is 426/426,
+  frontend builds 2,267 modules, and all five audits are zero. The final pack
+  remains 420 entries at 399/21 modes with digest `cebf97a…48bd`, ownership
+  385/94, installed 41/41 + 3/3 + dashboards 4/4, and 38 upgrade hashes/five
+  new files from the published v2.4.2 artifact. The candidate is frozen for
+  independent re-review without stage, commit, version, or release mutation.
+- Final Cortex refresh embedded 63/reused 106/failed 0, all 21 indexed changed
+  paths produced pattern evidence, and the watcher is stopped. Doctor passes
+  7/8 with only the expected dirty-candidate freshness check failing.
+
+## 2026-08-20 — WO-047 review round 2 fixes
+
+- Round 2 rejected the one-second owner-initialization grace and required
+  atomic publication of a completely initialized claim. The launcher now
+  creates a private same-parent stage, writes and fsyncs `owner.json`, fsyncs
+  the stage, and atomically renames it to `indexing.lock`. Exact run/token
+  ownership is rechecked before mutation and release. Malformed/ownerless
+  canonical claims fail closed; only fully valid dead owners and safe-name
+  private dead artifacts are reclaimed.
+- Deterministic regressions cover a live contender delayed beyond 1.1 seconds,
+  eight simultaneous contenders with exactly one mutation, and
+  crash-before-publication recovery. All fake workers validate the inherited
+  handshake descriptor before acknowledging or writing state; four parallel
+  repeated fixture loops pass 16/16.
+- Because three bound runtime files changed, the first WO-047 Angular report
+  is superseded. The new six-scope report SHA is `222fd88…e24c`; harness SHA
+  remains `ad3a607…ad30`, config SHA remains `39aa161…06e5`, and all 14 source
+  bindings match. Search readiness is 26.751 seconds, CLI return is 28.349
+  seconds, completion is 290.588 seconds, and a real SIGTERM resumes from
+  4,129 records to 16,314-record byte/query parity with 8/8 final queries.
+- Final focused tests are CLI/lock 17/17, harness 2/2, workflow 9/9, repeated
+  handshakes 16/16, and MCP graph/progressive 14/14. Full root is 81/81 plus
+  386/386, MCP is 426/426, frontend builds 2,267 modules, and all five audits
+  are zero. The installed pack remains 420 entries at 399/21 modes with digest
+  `cebf97a…48bd`, ownership 385/94, installed 41/41 + 3/3 + dashboards 4/4,
+  and 38 upgrade hashes/five new files from the published v2.4.2 artifact.
+- Per-run candidate tarball hashes are intentionally not durable acceptance
+  claims; the authoritative deterministic candidate contract is the sorted
+  path/mode inventory digest. The published v2.4.2 SHA-1/SRI binding remains.
+  The candidate is frozen for a third independent review without stage,
+  commit, version, or release mutation.
+- Final Cortex changed refresh embedded 54 entities, reused 116, and failed
+  zero across 21 candidate paths. Pattern evidence is 21/21 (20 local plus the
+  README repository fallback), the watcher is stopped, and doctor is 7/8 with
+  only the expected dirty-candidate freshness calculation failing.
+
+## 2026-08-20 — WO-047 accepted after final re-review
+
+- Security/Contract reproduced the atomic delayed/eight-contender,
+  crash-before-publication, malformed-lock, stale-reclaim, containment,
+  generation, pack, audit, and Angular gates. Code/Integration repeated the
+  handshake and full root/MCP suites. Validation/Ops verified the tag-only
+  publish guard, release notes, full artifact, and final evidence chain.
+- All three final reviewers returned GO without a blocker, major, minor, or
+  note finding. The manager accepts WO-047 and marks R17 mitigated without a
+  waiver.
+- The exact 52-path `2.5.0` candidate is authorized for staging, commit, push,
+  one non-draft PR, merge, minor Release Bump, tag-gated Publish, npm
+  verification, and cleanup under the user's existing authorization.
 
 ## Archive
 
