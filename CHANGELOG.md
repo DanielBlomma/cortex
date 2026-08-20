@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.5.1 — 2026-08-20
+
+### Changed
+
+- Made the packed-artifact release gate accept the successful Node test summary
+  emitted by both Node 22 and Node 24 while preserving exact pass counts and
+  zero-failure checks. The immutable `v2.5.0` tag was not published after its
+  Node 24 gate stopped before npm; the same accepted feature release ships as
+  `2.5.1`.
+
 ## 2.5.0 — 2026-08-20
 
 ### Added
