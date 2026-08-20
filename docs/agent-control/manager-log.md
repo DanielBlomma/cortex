@@ -499,6 +499,19 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - Commit `133ff10` was pushed on `release/2.5.1-recovery`, and non-draft PR
   #115 was opened against `main` with REQ-4/R18 traceability.
 
+## 2026-08-20 — 2.5.1 published and WO-049 closed
+
+- PR #115 merged as `e429319`. Release Bump run `32396681426` passed every gate,
+  committed `release: v2.5.1` as `a3d5a11`, created the immutable `v2.5.1`
+  tag, and triggered Publish run `32396882517`.
+- The Node 24 Publish run passed tag/metadata checks, root and MCP suites, five
+  audits, the repaired packed-containment gate, package verification, and npm
+  publication. npm `latest` is `2.5.1`; registry SHA-1 is
+  `7e6b6282455950dbe1f48175ef5c8d23c779ba7a`; a clean-prefix install reports
+  package version `2.5.1`.
+- `v2.5.0` remains an immutable annotated tag at `4887baa` and remains
+  unpublished. WO-049 and R18 are closed without waiver; cleanup may proceed.
+
 ## Archive
 
 - `archive/manager-log-2026-07-29.md` — foundation through WO-030 acceptance.

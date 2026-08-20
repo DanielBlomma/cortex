@@ -86,3 +86,15 @@ reusing the immutable, unpublished `v2.5.0` tag.
 - All three independently confirmed the eight-path scope, bounded positive and
   negative matcher behavior, immutable unpublished `v2.5.0`, and the normal
   patch-bump/tag-gated `v2.5.1` recovery sequence.
+
+## Release Outcome
+
+- PR #115 merged as `e4293199d22ecc60f2cf47e0835c6e23d80ef650`.
+- Release Bump `32396681426` passed and created release commit/tag
+  `a3d5a1193a0ef9c5b538be8e3b1c2e47051eeeff` / `v2.5.1`.
+- Tag-gated Publish `32396882517` passed every Node 24 gate and published npm
+  `@danielblomma/cortex-mcp@2.5.1`.
+- npm `latest` is `2.5.1`; registry SHA-1 is
+  `7e6b6282455950dbe1f48175ef5c8d23c779ba7a`, and a clean install reports
+  version `2.5.1`. The immutable `v2.5.0` tag remains at `4887baa` and was not
+  published.
