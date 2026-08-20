@@ -403,6 +403,54 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   REQ-4/16/17 and R3/15/16/17 traceability. Version metadata remains `2.4.2`
   until the post-merge minor Release Bump workflow.
 
+## 2026-08-20 — WO-048 release CI recovery assigned
+
+- PR #113 merged as `f2a6e6c`. Release Bump run `32393046529` failed in the
+  root filesystem-boundary suite before release commit, tag, or publication.
+- Linux exposed two narrow containment gaps: a removed/recreated stage may
+  reuse the same `dev`/`ino`, and a warm dashboard version cache may return
+  before revalidating the managed npm-cache path.
+- Packet 037 assigns a narrow recovery from `origin/main`. The accepted
+  progressive runtime, Angular evidence, package inventory, and public 2.5.0
+  scope remain unchanged.
+
+## 2026-08-20 — WO-048 first pass and review intake correction
+
+- The first pass strengthens file/stage identity with `ctimeNs`, leaves
+  directory identity at stable `dev`/`ino`, revalidates both dashboard
+  npm-cache paths before returning warm version-cache data, and adds
+  deterministic same-inode/warm-cache regressions.
+- Validation is green: boundary 41/41, Linux Node 22 reproduction 2/2, root
+  81/81 + 386/386, sequential MCP 426/426, frontend 2,267 modules, five audits
+  zero, packed containment 420 entries with unchanged inventory digest, and
+  syntax/version/diff checks. None of the frozen Angular report's 14 bound
+  source files changed.
+- Security review correctly rejected the initial intake because packet 037 did
+  not state a Work Profile/reviewer panel and the durable handoff was still
+  assignment-only. This policy major is fix-now: packet 037 and the handoff now
+  contain the exact scope, reviewers, tests, risks, and open decisions before
+  re-review continues.
+
+## 2026-08-20 — WO-048 accepted locally
+
+- Security/Contract, Code/Integration, and Validation/Ops independently return
+  GO with zero blocker, major, minor, or note findings after the control-record
+  fix. R16 and REQ-16 are mitigated through WO-048 with the existing same-user
+  syscall interval and possible commit-prefix residuals unchanged.
+- The accepted scope is exactly ten paths. Linux Node 22 focused tests are 2/2,
+  boundary is 41/41, root is 81/81 + 386/386, sequential MCP is 426/426,
+  frontend builds 2,267 modules, five audits are zero, and the 420-entry packed
+  inventory/ownership/upgrade gate remains green.
+- No frozen Angular source binding changed, so the accepted report remains
+  valid. Release recovery is authorized for exact staging, a narrow PR, merge,
+  a new minor Release Bump dispatch, tag-gated Publish, npm verification, and
+  cleanup. The failed workflow must not be rerun at its old SHA.
+- Cortex search/rules/impact were used before the code change. A clean-worktree
+  refresh was unavailable because the installed CLI lacks the candidate
+  scaffold; no mutating bootstrap/init workaround was used. Pattern evidence
+  succeeded for both dashboard mirrors and the regression test; the canonical
+  boundary target hit the pre-existing `aliases is not iterable` diagnostic.
+
 ## Archive
 
 - `archive/manager-log-2026-07-29.md` — foundation through WO-030 acceptance.
