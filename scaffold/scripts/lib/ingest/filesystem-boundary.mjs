@@ -764,11 +764,13 @@ function createBoundaryFromEstablishedAnchor(projectAnchor, initialDetails = PRO
 
   function snapshotOf(inspected) {
     if (!inspected.exists) return Object.freeze({ exists: false });
+    const kind = inspected.stats.isDirectory() ? "directory" : "file";
     return Object.freeze({
       exists: true,
       dev: String(inspected.stats.dev),
       ino: String(inspected.stats.ino),
-      kind: inspected.stats.isDirectory() ? "directory" : "file"
+      ctimeNs: kind === "file" ? String(inspected.stats.ctimeNs) : null,
+      kind
     });
   }
 
@@ -777,6 +779,7 @@ function createBoundaryFromEstablishedAnchor(projectAnchor, initialDetails = PRO
       !left.exists || (
         left.dev === right.dev &&
         left.ino === right.ino &&
+        (left.kind !== "file" || left.ctimeNs === right.ctimeNs) &&
         left.kind === right.kind
       )
     );
@@ -989,7 +992,8 @@ function createBoundaryFromEstablishedAnchor(projectAnchor, initialDetails = PRO
         stageStats.isSymbolicLink() ||
         !stageStats.isFile() ||
         String(stageStats.dev) !== stageRecord.dev ||
-        String(stageStats.ino) !== stageRecord.ino
+        String(stageStats.ino) !== stageRecord.ino ||
+        String(stageStats.ctimeNs) !== stageRecord.ctimeNs
       ) {
         policyError({ ...outputDetails(identity), reason: "path_replaced" });
       }
@@ -1002,7 +1006,8 @@ function createBoundaryFromEstablishedAnchor(projectAnchor, initialDetails = PRO
           stats.isSymbolicLink() ||
           !stats.isFile() ||
           String(stats.dev) !== stageRecord.dev ||
-          String(stats.ino) !== stageRecord.ino
+          String(stats.ino) !== stageRecord.ino ||
+          String(stats.ctimeNs) !== stageRecord.ctimeNs
         ) {
           return false;
         }
@@ -1113,6 +1118,7 @@ function createBoundaryFromEstablishedAnchor(projectAnchor, initialDetails = PRO
           parentIdentity: parentIdentityFor(identity),
           dev: String(stats.dev),
           ino: String(stats.ino),
+          ctimeNs: String(stats.ctimeNs),
           committed: false
         });
       } catch (error) {

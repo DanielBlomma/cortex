@@ -1644,8 +1644,16 @@ test("whole-set precommit rejects late final, manifest, parent, and stage replac
       label: "stage",
       mutate(_project, stagePaths) {
         const stagePath = stagePaths.get(INGEST_MANIFEST_OUTPUT_IDENTITY);
+        const before = fs.lstatSync(stagePath, { bigint: true });
+        const reboundPath = `${stagePath}.rebound`;
+        fs.linkSync(stagePath, reboundPath);
         fs.rmSync(stagePath);
-        fs.writeFileSync(stagePath, "unowned-stage-replacement\n", "utf8");
+        fs.writeFileSync(reboundPath, "unowned-stage-replacement\n", "utf8");
+        fs.renameSync(reboundPath, stagePath);
+        const after = fs.lstatSync(stagePath, { bigint: true });
+        assert.equal(after.dev, before.dev);
+        assert.equal(after.ino, before.ino);
+        assert.notEqual(after.ctimeNs, before.ctimeNs);
       },
       keepsUnownedStage: true
     }
@@ -1812,34 +1820,54 @@ test("dashboard data handle preserves safe missing fallbacks and revalidates the
   }
 });
 
-test("both dashboard gatherers rethrow npm-cache filesystem policy errors before ordinary version fallback", () => {
+test("both dashboard gatherers revalidate npm-cache policy on warm version-cache hits", () => {
   const baseline = { files: 0, lines: 0, chars: 0, tokens: 0 };
-  for (const gatherData of [rootGatherData, packagedGatherData]) {
-    let npmCacheCalls = 0;
-    const dashboardData = {
-      readJson() { return null; },
-      readJsonl() { return []; },
-      npmCachePath() {
-        npmCacheCalls += 1;
-        throw new CortexFilesystemPolicyError({
+  const { parent } = makeParent("dashboard-version-cache");
+  const previousPath = process.env.PATH;
+  const previousVersion = process.env.CORTEX_CLI_VERSION;
+  try {
+    const fakeNpm = installFakeNpm(parent);
+    process.env.PATH = fakeNpm.path;
+    process.env.CORTEX_CLI_VERSION = "2.4.2";
+    for (const gatherData of [rootGatherData, packagedGatherData]) {
+      gatherData(baseline, {
+        readJson() { return null; },
+        readJsonl() { return []; },
+        npmCachePath() { return path.join(parent, "safe-npm-cache"); }
+      });
+
+      let npmCacheCalls = 0;
+      const dashboardData = {
+        readJson() { return null; },
+        readJsonl() { return []; },
+        npmCachePath() {
+          npmCacheCalls += 1;
+          throw new CortexFilesystemPolicyError({
+            code: "CORTEX_FS_DASHBOARD",
+            phase: "dashboard_data",
+            subject_kind: "dashboard_path",
+            subject: ".context/cache/npm-cache",
+            reason: "path_replaced"
+          });
+        }
+      };
+      assert.throws(
+        () => gatherData(baseline, dashboardData),
+        (error) => assertPolicy(error, {
           code: "CORTEX_FS_DASHBOARD",
           phase: "dashboard_data",
-          subject_kind: "dashboard_path",
-          subject: ".context/cache/npm-cache",
+          kind: "dashboard_path",
           reason: "path_replaced"
-        });
-      }
-    };
-    assert.throws(
-      () => gatherData(baseline, dashboardData),
-      (error) => assertPolicy(error, {
-        code: "CORTEX_FS_DASHBOARD",
-        phase: "dashboard_data",
-        kind: "dashboard_path",
-        reason: "path_replaced"
-      })
-    );
-    assert.equal(npmCacheCalls, 1);
+        })
+      );
+      assert.equal(npmCacheCalls, 1);
+    }
+  } finally {
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+    if (previousVersion === undefined) delete process.env.CORTEX_CLI_VERSION;
+    else process.env.CORTEX_CLI_VERSION = previousVersion;
+    fs.rmSync(parent, { recursive: true, force: true });
   }
 });
 

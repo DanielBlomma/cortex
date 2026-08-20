@@ -262,6 +262,7 @@ function getLocalCliVersion() {
 }
 
 function getVersionStatus(dashboardData) {
+  const npmCache = dashboardData.npmCachePath();
   const now = Date.now();
   if (versionStatusCache.value && versionStatusCache.expiresAt > now) {
     return versionStatusCache.value;
@@ -288,7 +289,6 @@ function getVersionStatus(dashboardData) {
       };
     } else {
       try {
-        const npmCache = dashboardData.npmCachePath();
         const latestRaw = execFileSync("npm", ["view", "github:DanielBlomma/cortex", "version", "--json"], {
           cwd: REPO_ROOT,
           stdio: ["ignore", "pipe", "pipe"],
