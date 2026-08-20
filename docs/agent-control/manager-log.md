@@ -6,7 +6,7 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
-## Current State (2026-08-03)
+## Current State (2026-08-20)
 
 - Released npm baseline is `v2.4.2`. The annotated tag peels to corrected
   `origin/main` at `736becf34d929ea0bef88adbe476a584a1f081e9`,
@@ -33,17 +33,14 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   tests and added ordering regressions. After reviewer acceptance and merge,
   the unpublished tag was deliberately moved from `bd968d4` to corrected
   `736becf`; run `30523845440` passed every gate and published npm `2.4.2`.
-- R14 and R15 are mitigated locally. R16 remains the accepted pre-existing
-  ingest filesystem-containment risk. Its behavior-changing remediation is now
-  planned as WO-032 through WO-035 in context packet 022; the risk remains open
-  until packed-artifact acceptance. WO-030's narrow same-user ancestor-swap
-  assumption remains accepted.
-- The modularization program and release recovery are complete. WO-032 and
-  WO-033 are accepted locally. WO-033 established one canonical immutable
-  real-project boundary for control/source/worker/README/dashboard-source
-  reads; all review findings were fixed through `53a463c`. WO-034 is now
-  implemented from packet 024 and is awaiting independent review. R16 remains
-  open through WO-035.
+- R14 and R15 are mitigated locally. WO-032 through WO-035 are manager-accepted
+  and R16 is mitigated after clean packed-artifact acceptance. WO-030's narrow
+  same-user ancestor-swap assumption and WO-034's possible deterministic
+  commit prefix remain documented residuals.
+- The modularization program and release recovery are complete. WO-032 through
+  WO-035 are accepted locally. WO-035's dependency blocker and first-review
+  packed-dashboard, inventory, released-upgrade, Work Profile, and release-gate
+  findings are fixed; all three independent re-reviews are GO.
 
 ## Open Decisions
 
@@ -52,8 +49,8 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - Whether `@danielblomma/cortex-mcp` is retained as the npm package name during
   the CLI-first migration or followed by a new package with a migration
   window.
-- Release classification/version for the R16 behavior change after WO-033 and
-  WO-034 compatibility evidence is available.
+- Final integration/review evidence after accepted WO-046 is applied on top of
+  WO-035 and the locked package inventory is refreshed for `2.5.0`.
 
 ## Closed Decisions
 
@@ -75,6 +72,9 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - WO-033's reviewed source/control containment is accepted. Output,
   prior-cache, cleanup, and dashboard-data containment remain exclusively in
   WO-034; packed-artifact acceptance and R16 disposition remain in WO-035.
+- WO-035 is accepted after all first-review findings were fixed and all three
+  independent re-reviews returned GO. R3 and R16 are mitigated without waiver;
+  semver minor `2.5.0` is accepted for the later authorized release sequence.
 
 ## 2026-08-03
 
@@ -204,6 +204,75 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   (`hono`, `brace-expansion`, `fast-uri`, `ip-address`, `js-yaml`) and frontend
   1 high (`nanoid`) to zero without a waiver, then repeat the full packed
   negative acceptance before deciding R16 or integrating WO-046.
+
+## 2026-08-20 — WO-035 first pass ready for independent review
+
+- Exact same-major pins/overrides move MCP to `hono 4.12.34`,
+  `brace-expansion 5.0.9`, `fast-uri 3.1.5`, `ip-address 10.4.0`, and
+  `js-yaml 4.3.1`, and frontend to `nanoid 3.3.18`. The canonical four audits
+  and the extra root audit are zero; clean installs, MCP/frontend builds, root
+  364/364, and MCP 413/413 pass.
+- Added a standalone packed containment harness. A real 417-entry `2.4.2`
+  tarball with 396 `0644` and 21 `0755` entries was extracted and installed
+  into a clean prefix. Installed files pass boundary 41/41, characterization
+  3/3, dashboard 4/4, all four frozen hashes, 26/21 counts, 17 traces, 93/93
+  runtime ownership, and managed-replacement/protected/unknown preservation.
+- The first pass recommends semver minor `2.5.0`: formerly unsafe external or
+  redirected layouts intentionally fail closed, while repeated-separator and
+  interior-dot aliases receive a backward-compatible changed-mode correctness
+  fix. R3 mitigation and R16 closure are technical candidates only until the
+  required independent panel and manager accept them.
+- Release remains NO-GO. No version, changelog, WO-046, commit, GitHub, tag,
+  publish, or deploy action has occurred.
+
+## 2026-08-20 — WO-035 first-review findings fixed for re-review
+
+- Code/Integration returned NO-GO because the four rendering tests imported
+  only the copied development dashboard, inventory checks were spot checks,
+  ownership was not exact, and force-init started from the candidate rather
+  than released `v2.4.2`. Security independently reproduced 417 entries with
+  a pre-existing ignored MCP build marker versus 416 from a clean checkout.
+  Validation/Ops also noted the hard-coded candidate version and absence of a
+  release-workflow gate. Packet 025 lacked its required Work Profile.
+- The fix chooses the 416-entry clean-checkout contract. Root package metadata
+  includes only `scaffold/mcp/dist/**/*.js`, so the local
+  `.cortex-build-hash` cannot enter the artifact. The harness locks all sorted
+  path/mode pairs at digest
+  `c278da28d82a55abb60706b8fb2ad2bf0f77dc35709f4c9fa94056a4226ed5d2`,
+  exact counts 395 `0644`/21 `0755`, and proves clean/prebuilt equality.
+- Installed rendering now runs four cases directly against the packaged
+  `scaffold/scripts/dashboard.mjs`; development rendering is reported
+  separately. Ownership is exact at 381 unique managed paths and 93 packaged
+  runtime paths.
+- Force upgrade initializes offline from verified tag `v2.4.2` commit
+  `736becf34d929ea0bef88adbe476a584a1f081e9`, then verifies all 14 changed
+  managed scripts, the one new file, and all 14 installed state hashes while
+  preserving config, ontology, and an unknown script.
+- The harness reads candidate package metadata dynamically and is exposed as
+  `release:packed-containment`. Both Release Bump and Release Publish now run
+  it after locked builds/tests/audits and before tag or npm publication.
+  Packet 025 declares exactly one `Infra/deploy/security-sensitive` profile.
+- The complete fix-iteration rerun is green: clean installs and MCP/frontend
+  builds; five zero audits; syntax/workflow YAML/version/diff; boundary 41/41;
+  frozen 19/19; context 81/81; root 364/364; MCP 413/413; the packed matrix
+  above; Cortex update with zero failed embeddings; indexed patterns 7/7;
+  doctor 8/8; watcher stopped.
+- Release remains NO-GO and R3/R16 remain review-pending until the full
+  iteration matrix and independent panel are green. No version, commit,
+  GitHub, tag, publish, deploy, or WO-046 action occurred.
+
+## 2026-08-20 — WO-035 accepted after independent re-review
+
+- Code/Integration, Security/Dependency, and Validation/Ops independently
+  reproduced the fixed package, installed-dashboard, released-tag upgrade,
+  dependency, workflow, and simulated `2.5.0` gates. All three returned GO
+  without a blocker, major, or minor finding.
+- The manager accepts WO-035. R3 is mitigated without waiver and R16 is closed
+  as mitigated, retaining the documented trusted-same-user syscall interval and
+  possible deterministic commit prefix as residual notes.
+- Semver minor `2.5.0` is accepted. This decision authorizes the already
+  requested next integration/release work but does not itself bump metadata,
+  integrate WO-046, push, merge, tag, or publish.
 
 ## Archive
 

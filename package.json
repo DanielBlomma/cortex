@@ -55,7 +55,7 @@
     "scaffold/scripts/parsers/dotnet/*/*.csproj",
     "scaffold/scripts/parsers/dotnet/*/Program.cs",
     "scaffold/mcp/src",
-    "scaffold/mcp/dist",
+    "scaffold/mcp/dist/**/*.js",
     "scaffold/mcp/tests",
     "scaffold/mcp/build.mjs",
     "scaffold/mcp/package.json",
@@ -71,6 +71,7 @@
     "test": "node tests/context-regressions.test.mjs && node --test tests/cli-contract.test.mjs tests/ingest-units.test.mjs tests/ingest-filesystem-boundary.test.mjs tests/ingest-characterization.test.mjs tests/ingest-parallel.test.mjs tests/ingest-worker-crash.test.mjs tests/ingest-memory-trace.test.mjs tests/javascript-parser.test.mjs tests/markdown-parser.test.mjs tests/sql-parser.test.mjs tests/config-parser.test.mjs tests/resources-parser.test.mjs tests/vbnet-parser.test.mjs tests/cpp-parser.test.mjs tests/dashboard.test.mjs tests/init-config.test.mjs tests/init-agents.test.mjs tests/scaffold-migration.test.mjs tests/scaffold-ownership.test.mjs tests/multi-level.test.mjs tests/no-legacy-paths.test.mjs tests/tree-sitter-error-reporting.test.mjs tests/tree-sitter-body-cap.test.mjs tests/tree-sitter-exported.test.mjs tests/tree-sitter-robustness.test.mjs tests/bootstrapbench-run.test.mjs tests/bootstrapbench-stats.test.mjs tests/bootstrapbench-aggregate.test.mjs tests/bootstrapbench-cleanup.test.mjs tests/bootstrapbench-query-packs.test.mjs tests/query-cli-shim.test.mjs tests/enterprise-cli-security.test.mjs tests/session-bootstrap.test.mjs tests/plugin-skills.test.mjs tests/plugin-manifests.test.mjs",
     "release:sync-version": "node scripts/sync-release-version.mjs",
     "release:check-version-sync": "node scripts/sync-release-version.mjs --check",
+    "release:packed-containment": "node tests/packed-filesystem-containment.test.mjs",
     "audit:dependencies": "npm audit --package-lock-only --audit-level=low --prefix frontend && npm audit --package-lock-only --audit-level=low --prefix scaffold/mcp && npm audit --package-lock-only --audit-level=low --prefix scaffold/scripts/parsers && npm audit --package-lock-only --audit-level=low --prefix scripts/parsers",
     "prepublishOnly": "echo 'Ready to publish to npm'"
   },

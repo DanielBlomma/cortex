@@ -69,6 +69,9 @@ jobs:
       - name: Audit committed dependency trees
         run: npm run audit:dependencies
 
+      - name: Validate packed filesystem containment
+        run: npm run release:packed-containment
+
       - name: Verify npm package contents
         run: npm pack --dry-run
 

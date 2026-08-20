@@ -1,5 +1,11 @@
 # Integrated Filesystem-Containment Acceptance
 
+## Work Profile
+
+Infra/deploy/security-sensitive — WO-035 changes dependency resolution and
+release-workflow gates while accepting the security boundary of the published
+npm artifact, so it requires Security, Ops/Release, and Validation review.
+
 ## Objective
 
 Execute WO-035 only after the manager accepts
@@ -38,6 +44,8 @@ mutation into the WO-034 containment codefix.
   ownership, and Cortex gates
 - Real `npm pack`, extraction, clean-prefix install, and packed normal/negative
   ingest and dashboard smokes
+- Deterministic package inventory and an explicit packed-containment gate in
+  both release workflows before tag or publication mutation
 - Release classification for the fail-closed external-source/output behavior
   and the already documented changed-mode safe-alias correctness fix
 - Final R16 evidence and manager disposition
@@ -68,8 +76,10 @@ mutation into the WO-034 containment codefix.
    dependency iteration, then run every committed dependency audit at the
    repository-required threshold and require zero findings before readiness.
 6. Run version synchronization and `git diff --check`.
-7. Create a real tarball, inventory its exact entries and modes, extract it
-   under a test-owned temporary parent, and install it into a clean prefix.
+7. Create a real tarball, lock its full sorted path/mode inventory and exact
+   counts from a clean checkout, prove ignored local build markers cannot alter
+   that inventory, extract it under a test-owned temporary parent, and install
+   it into a clean prefix.
 8. From the installed artifact, initialize a benign project and prove full
    and changed ingest, 26/21 outputs, all four normalized hashes, 17 trace
    labels, dashboard rendering, and manifest-last successful completion.
@@ -78,9 +88,10 @@ mutation into the WO-034 containment codefix.
    hard-linked JSONL/TSV/manifest replacement, stage/pre-commit cleanup, unsafe
    dashboard manifest/relation/embedding/npm-cache denial, zero fake-npm
    invocation, one bounded diagnostic, and no normal completion output.
-10. Verify the installed ownership manifest contains every packaged runtime
-    file and a forced upgrade installs the changed canonical modules without
-    altering protected or unknown project content.
+10. Verify the installed ownership manifest exactly covers every packaged
+    runtime file and a forced upgrade from the verified `v2.4.2` release tag
+    installs and fingerprints every changed canonical module without altering
+    protected or unknown project content.
 11. Run Cortex update, pattern evidence for every changed indexed file,
     doctor, and watcher status.
 12. Close every reviewer finding with a regression and re-review. Record the
