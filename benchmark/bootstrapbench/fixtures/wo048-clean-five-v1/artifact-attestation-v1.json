@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wo048_fixture_artifact_attestation",
+  "fixture": {
+    "logical_path": "benchmark/bootstrapbench/fixtures/wo048-clean-five-v1/frozen-fixture-v1.json",
+    "file_sha256": "ec9788b14c5bd3ec9bb5c794a2c28f361bb97cf774f2410b9e73bf80a2902b0b",
+    "canonical_payload_sha256": "e6d4b5c22c27da0d83d062177df1cd63cd7514a2dd445179d7bce3746e0857ad"
+  },
+  "report": {
+    "logical_path": "docs/agent-control/wo048-alternative-five-fixture-report.md",
+    "file_sha256": "1bc7a3368bd33067cc78446226bc49a45eedf92751253be3f0413aba40c7e95c"
+  },
+  "attestation_payload_sha256": "f7a6ec23d2d30b59460ff28d02bcc1afd195fb19726dd121284ee89760faaccc"
+}
