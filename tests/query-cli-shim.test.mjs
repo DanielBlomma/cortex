@@ -62,6 +62,7 @@ test("top-level query commands preserve arguments and JSON envelope streams", ()
       ["pattern-evidence", "bin/cortex.mjs", "--top-k", "2", "--json"],
       ["conventions", "bin/cortex.mjs", "--json"],
       ["guidance", "bin/cortex.mjs", "--task", "add query routing", "--json"],
+      ["review", "--diff", "--json"],
     ]) {
       const result = spawnSync(
         process.execPath,

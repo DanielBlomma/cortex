@@ -250,6 +250,36 @@ test("guidance rejects missing, repeated, unknown, surplus, and unsafe arguments
   }
 });
 
+test("review --diff emits deterministic bounded local output without state mutation", () => {
+  const state = [
+    path.join(PROJECT_ROOT, ".context", "config.yaml"),
+    path.join(PROJECT_ROOT, ".context", "cache", "documents.jsonl"),
+    path.join(PROJECT_ROOT, ".context", "cache", "conventions", "v1", "manifest.json"),
+  ];
+  const before = state.map((file) => ({ file, bytes: fs.readFileSync(file), mtimeMs: fs.statSync(file).mtimeMs }));
+  const first = runQuery(["review", "--diff", "--json"]);
+  const second = runQuery(["review", "--json", "--diff"]);
+  assert.equal(first.status, 0, first.stderr);
+  assert.equal(second.status, 0, second.stderr);
+  const parsed = JSON.parse(first.stdout);
+  const reversed = JSON.parse(second.stdout);
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.command, "review");
+  assert.equal(parsed.generator_version, "repo-diff-review-v1");
+  assert.deepEqual(parsed.data, reversed.data);
+  assert.ok(parsed.data.changed_files.observed_count > 0);
+  assert.ok(Buffer.byteLength(first.stdout, "utf8") <= 1_000_000);
+  assert.doesNotMatch(first.stdout, new RegExp(PROJECT_ROOT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "u"));
+  for (const item of before) { assert.deepEqual(fs.readFileSync(item.file), item.bytes); assert.equal(fs.statSync(item.file).mtimeMs, item.mtimeMs); }
+});
+
+test("review runtime rejects missing, positional, duplicate, mixed, and unknown forms", () => {
+  for (const args of [["review", "--json"], ["review", "target", "--json"], ["review", "--diff", "target", "--json"], ["review", "--diff", "--diff", "--json"], ["review", "--diff", "--unknown", "--json"]]) {
+    const result = runQuery(args); assert.equal(result.status, 1); assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout); assert.equal(parsed.ok, false); assert.equal(parsed.command, "review"); assert.ok(Buffer.byteLength(result.stdout) < 1024);
+  }
+});
+
 test("conventions --json rejects malformed and non-code-backed targets", () => {
   const malformed = runJson(["conventions", "../outside.ts", "--json"], 1);
   assert.equal(malformed.ok, false);

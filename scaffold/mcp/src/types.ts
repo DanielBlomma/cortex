@@ -219,6 +219,10 @@ export type GuidanceParams = {
   task: string;
 };
 
+export type ReviewParams = {
+  diff: true;
+};
+
 export type ReloadParams = {
   force: boolean;
 };

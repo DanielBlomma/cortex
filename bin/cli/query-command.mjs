@@ -10,6 +10,7 @@ const CONVENTION_INPUT_LIMITS = {
 const UNSAFE_VISIBLE_TEXT_PATTERN = /[\p{Cc}\p{Zl}\p{Zp}\p{Bidi_Control}]/u;
 const GUIDANCE_PUBLIC_ERROR = "Guidance failed safely";
 const GUIDANCE_TASK_LIMITS = { scalars: 4_096, bytes: 16_384 };
+const REVIEW_PUBLIC_ERROR = "Review failed safely";
 
 export const QUERY_COMMANDS = new Set([
   "search",
@@ -20,6 +21,7 @@ export const QUERY_COMMANDS = new Set([
   "pattern-evidence",
   "conventions",
   "guidance",
+  "review",
 ]);
 
 export async function runQueryCommandShim(command, args) {
@@ -44,11 +46,31 @@ export async function runQueryCommandShim(command, args) {
       throw new Error(GUIDANCE_PUBLIC_ERROR);
     }
   }
+  if (command === "review") {
+    try {
+      parseReviewLoaderArgs(args);
+    } catch {
+      if (args.includes("--json")) {
+        process.stdout.write(serializeReviewLoaderError());
+        process.exitCode = 1;
+        return;
+      }
+      throw new Error(REVIEW_PUBLIC_ERROR);
+    }
+  }
   let mod;
   try {
     mod = await loadProjectCliModule("query");
   } catch (error) {
-    if (command !== "conventions" && command !== "guidance") throw error;
+    if (command !== "conventions" && command !== "guidance" && command !== "review") throw error;
+    if (command === "review") {
+      if (args.includes("--json")) {
+        process.stdout.write(serializeReviewLoaderError());
+        process.exitCode = 1;
+        return;
+      }
+      throw new Error(REVIEW_PUBLIC_ERROR);
+    }
     if (command === "guidance") {
       if (args.includes("--json")) {
         process.stdout.write(serializeGuidanceLoaderError(args));
@@ -65,6 +87,30 @@ export async function runQueryCommandShim(command, args) {
     throw new Error(CONVENTION_PUBLIC_ERROR);
   }
   await mod.runQueryCommand([command, ...args]);
+}
+
+function parseReviewLoaderArgs(args) {
+  let diff = false;
+  const seen = new Set();
+  for (const arg of args) {
+    if (arg !== "--diff" && arg !== "--json") throw new Error("invalid");
+    if (seen.has(arg)) throw new Error("invalid");
+    seen.add(arg);
+    if (arg === "--diff") diff = true;
+  }
+  if (!diff) throw new Error("invalid");
+  return { diff: true };
+}
+
+function serializeReviewLoaderError() {
+  return `${JSON.stringify({
+    ok: false,
+    command: "review",
+    schema_version: 1,
+    generator_version: "repo-diff-review-v1",
+    input: { diff: true },
+    error: { code: "INVALID_ARGS", message: REVIEW_PUBLIC_ERROR },
+  }, null, 2)}\n`;
 }
 
 function serializeGuidanceLoaderError(args) {

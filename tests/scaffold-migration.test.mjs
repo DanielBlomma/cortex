@@ -156,11 +156,12 @@ test("convention generation preserves foreground, progressive, and update orderi
   }
 });
 
-test("guidance remains inspection-only and is never invoked by lifecycle scripts", () => {
+test("guidance and diff review remain inspection-only and are never invoked by lifecycle scripts", () => {
   for (const prefix of ["scaffold/scripts", "scripts"]) {
     for (const name of ["bootstrap.sh", "update-context.sh", "watch.sh", "indexing.mjs"]) {
       const contents = fs.readFileSync(path.join(PROJECT_ROOT, prefix, name), "utf8");
       assert.equal(/(?:^|[\s/])guidance(?:\.mjs)?(?:[\s"']|$)/mu.test(contents), false, `${prefix}/${name} must not invoke guidance`);
+      assert.equal(/(?:^|[\s/])review(?:\.mjs)?(?:[\s"']|$)/mu.test(contents), false, `${prefix}/${name} must not invoke diff review`);
     }
   }
 });

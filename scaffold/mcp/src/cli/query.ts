@@ -17,12 +17,20 @@ import {
   serializeGuidancePublicError,
   serializeGuidancePublicResponse,
 } from "../guidance.js";
+import {
+  formatReviewPublicText,
+  runDiffReview,
+  sanitizeReviewPublicError,
+  serializeReviewPublicError,
+  serializeReviewPublicResponse,
+} from "../review.js";
 import { runContextImpact, runContextRelated, runContextSearch } from "../search.js";
 import type {
   ConventionsParams,
   GuidanceParams,
   ImpactParams,
   PatternEvidenceParams,
+  ReviewParams,
   RelatedParams,
   RelationType,
   RulesParams,
@@ -50,7 +58,7 @@ type JsonEnvelope = {
   };
 };
 
-const QUERY_COMMANDS = new Set(["search", "related", "impact", "rules", "explain", "pattern-evidence", "conventions", "guidance"]);
+const QUERY_COMMANDS = new Set(["search", "related", "impact", "rules", "explain", "pattern-evidence", "conventions", "guidance", "review"]);
 
 const ENTITY_ID_PREFIXES = [
   "file:",
@@ -93,6 +101,8 @@ export async function runQueryCommand(args: string[]): Promise<void> {
         return await runConventionsCommand(rest);
       case "guidance":
         return await runGuidanceCommand(rest);
+      case "review":
+        return await runReviewCommand(rest);
       default:
         throw new Error(`Unknown query command: ${command}`);
     }
@@ -114,6 +124,14 @@ export async function runQueryCommand(args: string[]): Promise<void> {
         return;
       }
       throw new Error(sanitizeGuidancePublicError(error));
+    }
+    if (command === "review") {
+      if (json) {
+        process.stdout.write(serializeReviewPublicError(error));
+        process.exitCode = 1;
+        return;
+      }
+      throw new Error(sanitizeReviewPublicError(error));
     }
     if (!json) {
       throw error;
@@ -141,6 +159,7 @@ function printHelp(): void {
     "  cortex pattern-evidence <file-path|entity-id> [--query <text>] [--top-k <n>] [--json]",
     "  cortex conventions <file-path|entity-id> [--json]  # bounded active repo-local profiles",
     "  cortex guidance <file-path|entity-id> --task <text> [--json]  # bounded additive pre-coding context",
+    "  cortex review --diff [--json]  # deterministic local review of the HEAD candidate",
     "",
     "These commands read the local Cortex graph and emit MCP-equivalent data with --json.",
   ];
@@ -314,6 +333,22 @@ function guidancePublicInputFromArgs(args: string[]): unknown {
   } catch {
     return sanitizeGuidancePublicInput(undefined);
   }
+}
+
+export function parseReviewArgs(args: string[]): { input: ReviewParams; json: boolean } {
+  let diff = false;
+  let json = false;
+  const seen = new Set<string>();
+  for (const arg of args) {
+    if (arg !== "--diff" && arg !== "--json") throw new Error("Review arguments contain an unknown or repeated flag");
+    const name = arg.slice(2);
+    if (seen.has(name)) throw new Error("Review arguments contain an unknown or repeated flag");
+    seen.add(name);
+    if (name === "diff") diff = true;
+    if (name === "json") json = true;
+  }
+  if (!diff) throw new Error("Review requires exactly --diff");
+  return { input: { diff: true }, json };
 }
 
 function emitJson(value: JsonEnvelope): void {
@@ -619,4 +654,10 @@ async function runGuidanceCommand(args: string[]): Promise<void> {
     return;
   }
   process.stdout.write(formatGuidancePublicText(data));
+}
+
+async function runReviewCommand(args: string[]): Promise<void> {
+  const { input, json } = parseReviewArgs(args);
+  const data = await runDiffReview(input);
+  process.stdout.write(json ? serializeReviewPublicResponse(input, data) : formatReviewPublicText(data));
 }

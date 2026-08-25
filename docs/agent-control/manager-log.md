@@ -8,6 +8,18 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
 ## Current State (2026-08-25)
 
+- WO-C deterministic local diff review is manager-accepted on accepted base
+  `482f196`. The same single reviewer returned final GO after packet-053
+  narrow verification. The exact candidate is 25 paths: 22 covered outputs plus
+  governing packets 051–053. `cortex review --diff` has strict root/runtime routing,
+  complete replayed Git-transaction binding, exact local profile mapping, deterministic and
+  heuristic separation, explicit conflict suppression, concrete live-backed
+  evidence, closed hashes/counts/limits, and bounded JSON/text. Full technical,
+  managed lifecycle, accepted-base compatibility, expanded-pattern/restored-
+  normal, backing, doctor, watch-stopped, and repeated state-neutral evidence
+  is recorded in `docs/agent-control/wo-c-diff-review-2.5.2-results.md`.
+  Version/dependencies remain unchanged and no commit or release action
+  occurred. WO-D is unblocked but not started and requires a fresh work order.
 - WO-B is manager-accepted locally on the accepted WO-A 2.5.2 base. The
   stable evidence locator is
   `docs/agent-control/wo-b-pre-coding-guidance-2.5.2-results.md`; packet 050
@@ -111,6 +123,66 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - WO-B pre-coding guidance is accepted locally on Cortex 2.5.2 after terminal
   remediation and the single independent final reviewer returned GO. WO-C is
   unblocked but remains a separate, not-started work order.
+
+## 2026-08-25 — WO-C owner completion
+
+- Implemented the packet-051 deterministic local-only post-coding review
+  contract without changing accepted conventions, guidance, retrieval,
+  two-pass, Enterprise, policy, version, or dependency behavior.
+- The frozen scope is 22 output paths plus packet 051. Production-boundary
+  tests cover exact/near/over input and retained-item caps, real Git state and
+  filesystem negatives, authority/conflict classification, schema/backing
+  tampering, runtime preflight, sanitization, and state neutrality.
+- Full MCP, context, root, frontend, five-audit, version, packed, managed
+  init/bootstrap/update/watch, installed-runtime, accepted-base byte-parity,
+  pattern, manifest/backing, doctor, watch-stopped, syntax, and diff evidence
+  is durable in the WO-C results file. Owner disposition is ready for exactly
+  one fresh independent comprehensive read-only review; only the manager may
+  accept WO-C or unblock WO-D.
+
+## 2026-08-25 — WO-C final-review remediation owner completion
+
+- Packet 052 was created before code edits and closes the exact five majors
+  from the single comprehensive review: complete linked-worktree-aware Git
+  transaction replay, exact locality and authority applicability, selected
+  canonical profile/live-backing rechecks even with zero results, recursively
+  strict canonical schema invariants, and literal placeholder-free evidence.
+- Focused review is 28/28, full MCP is 586/586, context regressions are 81/81,
+  root Node is 394/394, frontend transforms 2,267 modules, five audits are
+  zero, version remains 2.5.2, and packed containment remains 430 entries at
+  409/21 with inventory `0dd5599b…1795`.
+- The exact 24-path candidate is frozen for the same single reviewer's narrow
+  read-only delta verification only. No acceptance, commit, push, merge,
+  release, dependency/version change, WO-D, or extra broad review occurred.
+
+## 2026-08-25 — WO-C canonical chunk-backing remediation
+
+- Packet 053 was created before edits. Every selected profile's non-window
+  chunks are now freshly reconstructed from exact live or HEAD-backed bytes
+  through the shared ingest parser registry and canonical persistence helpers.
+  ID-preserving body, signature, kind, or description fabrication fails closed
+  even for profile-only zero-result review; all semantics and the Git/context
+  transaction are replayed again immediately before output.
+- Build and focused review pass 29/29; the proportional MCP gate passes
+  587/587, including the live checkout. The final candidate is 25 paths: 22
+  covered outputs plus packets 051–053. It is frozen for only the same
+  reviewer's narrow two-major verification; acceptance and WO-D remain blocked.
+
+## 2026-08-25 — WO-C accepted locally
+
+- The same single independent reviewer returned final GO/PASS after packet 053.
+  Canonical shared-parser reconstruction binds every selected profile chunk to
+  exact live/HEAD-backed source bytes and rechecks all output-affecting fields
+  immediately before output, including zero-finding paths.
+- Manager acceptance covers exactly 25 paths: 17 modified and 8 added, with 22
+  covered outputs plus packets 051–053. Definitive evidence is focused 32/32,
+  MCP 587/587, context 81/81, root 394/394, frontend 2,267, five zero audits,
+  packed 430 at 409/21, expanded pattern 22/22, restored normal 162 documents
+  and 12 profiles, six accepted-base byte comparisons, exact 18-state
+  neutrality, doctor 8/8, watcher stopped, and clean diff checks.
+- WO-C is accepted locally. No push, merge, release, publish, version or
+  dependency change occurred. WO-D is unblocked but remains not started and
+  requires a separate fresh work order.
 
 ## 2026-08-25 — WO-B owner completion
 

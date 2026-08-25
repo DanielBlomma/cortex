@@ -76,6 +76,9 @@ cortex conventions src/payments/retry.ts --json
 # Get cited, deterministic context before implementing a code task.
 cortex guidance src/payments/retry.ts --task "add bounded retry handling" --json
 
+# Review the staged, unstaged, and non-ignored untracked candidate against HEAD.
+cortex review --diff --json
+
 # Refresh context after significant changes.
 cortex update
 ```
@@ -113,6 +116,7 @@ repository -> local index -> Cortex CLI -> coding agent
 | `cortex pattern-evidence <file> --json` | Find nearby implementation patterns |
 | `cortex conventions <file-or-entity> --json` | Inspect bounded repository convention profiles |
 | `cortex guidance <file-or-entity> --task <text> --json` | Get bounded cited pre-coding guidance |
+| `cortex review --diff --json` | Review the current Git candidate with cited local evidence |
 | `cortex update` | Refresh changed context |
 | `cortex status` | Show index status |
 | `cortex doctor` | Diagnose the local setup |
@@ -131,6 +135,10 @@ context—not policy authority. Continue to use normal `search`, `related`, and
 `impact` when needed, and never skip explicit active rules or conflicts. The
 command is local-only and inspection-only; see the exact versioned contract in
 [Pre-coding guidance](docs/repository-guidance.md).
+
+After coding and before finalization, use `cortex review --diff`. It separates
+exact source-of-truth violations from heuristic local-pattern warnings and is
+inspection-only. See [Deterministic diff review](docs/repository-diff-review.md).
 
 ## Large repositories
 

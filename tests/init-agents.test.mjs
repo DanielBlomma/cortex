@@ -47,6 +47,7 @@ test("cortex init scaffolds AGENTS.md for Codex-compatible repos", () => {
     assert.match(contents, /cortex search "<query>" --json/);
     assert.match(contents, /cortex pattern-evidence/);
     assert.match(contents, /cortex guidance <target> --task <task> --json/);
+    assert.match(contents, /cortex review --diff --json/);
     assert.match(contents, /cited additive context, not policy authority/);
   } finally {
     fs.rmSync(repoRoot, { recursive: true, force: true });
