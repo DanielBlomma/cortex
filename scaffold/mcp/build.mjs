@@ -19,7 +19,7 @@ const DIST = path.join(ROOT, "dist");
 const MARKER = path.join(DIST, ".cortex-build-hash");
 // Every runtime entrypoint must exist for a build to count as current;
 // checking only one would let a partially deleted dist pass as fresh.
-const ENTRIES = ["server.js", "embed.js", "loadGraph.js"].map((name) => path.join(DIST, name));
+const ENTRIES = ["server.js", "embed.js", "loadGraph.js", "conventions.js", "cli/query.js"].map((name) => path.join(DIST, name));
 
 function collectSources(dir, files = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {

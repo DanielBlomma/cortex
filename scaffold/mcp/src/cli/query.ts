@@ -1,7 +1,17 @@
 import { runContextRules } from "../rules.js";
 import { runPatternEvidence } from "../patternEvidence.js";
+import {
+  CONVENTION_LIMITS,
+  formatConventionPublicText,
+  runConventions,
+  sanitizeConventionPublicError,
+  sanitizeConventionPublicInput,
+  serializeConventionPublicError,
+  serializeConventionPublicResponse,
+} from "../conventions.js";
 import { runContextImpact, runContextRelated, runContextSearch } from "../search.js";
 import type {
+  ConventionsParams,
   ImpactParams,
   PatternEvidenceParams,
   RelatedParams,
@@ -31,7 +41,7 @@ type JsonEnvelope = {
   };
 };
 
-const QUERY_COMMANDS = new Set(["search", "related", "impact", "rules", "explain", "pattern-evidence"]);
+const QUERY_COMMANDS = new Set(["search", "related", "impact", "rules", "explain", "pattern-evidence", "conventions"]);
 
 const ENTITY_ID_PREFIXES = [
   "file:",
@@ -70,10 +80,21 @@ export async function runQueryCommand(args: string[]): Promise<void> {
         return await runExplain(rest);
       case "pattern-evidence":
         return await runPatternEvidenceCommand(rest);
+      case "conventions":
+        return await runConventionsCommand(rest);
       default:
         throw new Error(`Unknown query command: ${command}`);
     }
   } catch (error) {
+    if (command === "conventions") {
+      const input = conventionPublicInputFromArgs(rest);
+      if (json) {
+        process.stdout.write(serializeConventionPublicError(input, error));
+        process.exitCode = 1;
+        return;
+      }
+      throw new Error(sanitizeConventionPublicError(error));
+    }
     if (!json) {
       throw error;
     }
@@ -98,6 +119,7 @@ function printHelp(): void {
     "  cortex rules [--scope <scope>] [--include-inactive] [--json]",
     "  cortex explain <query-or-entity-id> [--top-k <n>] [--json]",
     "  cortex pattern-evidence <file-path|entity-id> [--query <text>] [--top-k <n>] [--json]",
+    "  cortex conventions <file-path|entity-id> [--json]  # bounded active repo-local profiles",
     "",
     "These commands read the local Cortex graph and emit MCP-equivalent data with --json.",
   ];
@@ -209,6 +231,29 @@ function positionalText(rest: string[], label: string): string {
     throw new Error(`${label} is required`);
   }
   return value;
+}
+
+function boundedPositionalText(rest: string[], label: string, max: number): string {
+  let length = 0;
+  for (const item of rest) {
+    length += item.length + (length === 0 ? 0 : 1);
+    if (length > max) throw new Error(`Convention ${label} exceeds the version-1 input limit`);
+  }
+  return positionalText(rest, label);
+}
+
+function conventionPublicInputFromArgs(args: string[]): ConventionsParams {
+  try {
+    const { flags, rest } = parseArgs(args);
+    const target = optionalString(flags, "target") ?? boundedPositionalText(
+      rest,
+      "target",
+      Math.max(CONVENTION_LIMITS.max_path_chars, CONVENTION_LIMITS.max_identifier_chars),
+    );
+    return sanitizeConventionPublicInput({ target });
+  } catch {
+    return sanitizeConventionPublicInput(undefined);
+  }
 }
 
 function emitJson(value: JsonEnvelope): void {
@@ -486,4 +531,22 @@ async function runPatternEvidenceCommand(args: string[]): Promise<void> {
     const evidence = Array.isArray(tier.evidence) ? tier.evidence : [];
     process.stdout.write(`- ${String(tier.name ?? "")}: ${evidence.length}\n`);
   }
+}
+
+async function runConventionsCommand(args: string[]): Promise<void> {
+  const { flags, rest } = parseArgs(args);
+  const input: ConventionsParams = {
+    target: optionalString(flags, "target") ?? boundedPositionalText(
+      rest,
+      "target",
+      Math.max(CONVENTION_LIMITS.max_path_chars, CONVENTION_LIMITS.max_identifier_chars),
+    ),
+  };
+  const data = await runConventions(input);
+  if (isFlagEnabled(flags, "json")) {
+    process.stdout.write(serializeConventionPublicResponse(input, data));
+    return;
+  }
+
+  process.stdout.write(formatConventionPublicText(data));
 }

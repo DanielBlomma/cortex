@@ -70,6 +70,9 @@ cortex rules --json
 # Compare a changed file with nearby repository patterns.
 cortex pattern-evidence src/payments/retry.ts --json
 
+# Inspect deterministic active conventions for a file or indexed entity.
+cortex conventions src/payments/retry.ts --json
+
 # Refresh context after significant changes.
 cortex update
 ```
@@ -87,6 +90,7 @@ files. Cortex gives it structured repository context:
 - caller and dependency traversal;
 - impact analysis before refactoring;
 - active rules, deprecations, and source-of-truth signals;
+- deterministic, subsystem-scoped convention profiles with cited reusable symbols;
 - incremental updates after Git and filesystem changes.
 
 The pipeline is local and straightforward:
@@ -104,6 +108,7 @@ repository -> local index -> Cortex CLI -> coding agent
 | `cortex impact "..." --json` | Estimate the blast radius of a change |
 | `cortex rules --json` | Show active repository rules |
 | `cortex pattern-evidence <file> --json` | Find nearby implementation patterns |
+| `cortex conventions <file-or-entity> --json` | Inspect bounded repository convention profiles |
 | `cortex update` | Refresh changed context |
 | `cortex status` | Show index status |
 | `cortex doctor` | Diagnose the local setup |
@@ -111,6 +116,11 @@ repository -> local index -> Cortex CLI -> coding agent
 | `cortex dashboard` | Open the local status dashboard |
 
 Run `cortex help` for the complete command list.
+
+`cortex conventions` uses only the local index. It returns bounded, live-backed
+version-1 profiles and does not call a model, planner, provider, or network
+service. See [Repository convention profiles](docs/repository-conventions.md)
+for the exact eligibility, limit, hashing, persistence, and safety contract.
 
 ## Large repositories
 

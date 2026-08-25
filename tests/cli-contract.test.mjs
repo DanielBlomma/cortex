@@ -90,6 +90,7 @@ test("CLI help inventories the public top-level command surface", () => {
     "rules",
     "explain",
     "pattern-evidence",
+    "conventions",
     "dashboard",
     "memory-compile",
     "memory-lint",

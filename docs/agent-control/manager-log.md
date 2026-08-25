@@ -6,7 +6,22 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
-## Current State (2026-08-20)
+## Current State (2026-08-25)
+
+- WO-A is manager-accepted locally on Cortex 2.5.2. The owner completed packets
+  045–046; Code Quality, Contract, Security/Privacy, Integration, and
+  Validation all returned final PASS with no remaining blocker, major, minor,
+  or note finding. The final Validation follow-up independently proved the
+  durable pattern loop fails closed on an intermediate error and validates
+  exactly 26 successful JSON artifacts.
+- The stable evidence locator is
+  `docs/agent-control/wo-a-repo-local-conventions-2.5.2-results.md`: 28 changed
+  paths (20 modified, 8 added), 26 covered outputs plus two governing packets,
+  exact gates/hashes/reproduction commands, 151/151 normal-index checksums,
+  12 validated profiles, doctor 8/8, watcher stopped, and clean diff checks.
+  Version remains 2.5.2 and dependencies remain unchanged. WO-B was not
+  started; it may begin only as a separate fresh work order from this accepted
+  2.5.2 state.
 
 - Released npm baseline is `v2.4.2`. The annotated tag peels to corrected
   `origin/main` at `736becf34d929ea0bef88adbe476a584a1f081e9`,

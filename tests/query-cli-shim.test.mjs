@@ -59,6 +59,7 @@ test("top-level query commands preserve arguments and JSON envelope streams", ()
       ["rules", "--json"],
       ["explain", "file:bin/cortex.mjs", "--json"],
       ["pattern-evidence", "bin/cortex.mjs", "--top-k", "2", "--json"],
+      ["conventions", "bin/cortex.mjs", "--json"],
     ]) {
       const result = spawnSync(
         process.execPath,
@@ -120,6 +121,92 @@ test("top-level query shim preserves JSON error status and stdout ownership", ()
         message: "fixture validation error",
       },
     });
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  }
+});
+
+test("conventions root shim sanitizes missing and broken runtime loader failures", () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-query-loader-"));
+  const secret = "loader-secret-do-not-expose";
+  const controlRoot = path.join(sandbox, `project-${secret}-\n\u001b[31m`);
+  fs.mkdirSync(controlRoot);
+  const stateRoot = path.join(controlRoot, ".context", "cache", "conventions");
+
+  try {
+    for (const mode of ["missing", "broken"]) {
+      const runtimeDir = path.join(controlRoot, ".context", "mcp");
+      fs.rmSync(runtimeDir, { recursive: true, force: true });
+      if (mode === "broken") {
+        const cliDir = path.join(runtimeDir, "dist", "cli");
+        fs.mkdirSync(cliDir, { recursive: true });
+        fs.writeFileSync(path.join(runtimeDir, "package.json"), JSON.stringify({ type: "module" }), "utf8");
+        fs.writeFileSync(
+          path.join(cliDir, "query.js"),
+          `throw new Error(${JSON.stringify(`${secret}\n\u001b[31m raw import failure`)});\n`,
+          "utf8",
+        );
+      }
+
+      const requestedTarget = mode === "missing"
+        ? "bin/cortex.mjs"
+        : `target-${secret}-\n`;
+      const publicTarget = mode === "missing" ? requestedTarget : "[rejected]";
+
+      const json = spawnSync(
+        process.execPath,
+        [CLI_PATH, "conventions", "--target", requestedTarget, "--json"],
+        { cwd: controlRoot, encoding: "utf8", env: isolatedEnv(controlRoot) },
+      );
+      assert.equal(json.status, 1);
+      assert.equal(json.stderr, "");
+      assert.deepEqual(JSON.parse(json.stdout), {
+        ok: false,
+        command: "conventions",
+        input: { target: publicTarget },
+        error: {
+          code: "INVALID_ARGS",
+          message: "Convention inspection failed safely",
+        },
+      });
+      assert.equal(json.stdout, `${JSON.stringify(JSON.parse(json.stdout), null, 2)}\n`);
+      assert.equal(json.stdout.includes(secret), false);
+      assert.equal(/[\u0000-\u0009\u000b-\u001f\u007f]/u.test(json.stdout), false);
+      assert.ok(Buffer.byteLength(json.stdout) < 1024);
+
+      const text = spawnSync(
+        process.execPath,
+        [CLI_PATH, "conventions", "--target", requestedTarget],
+        { cwd: controlRoot, encoding: "utf8", env: isolatedEnv(controlRoot) },
+      );
+      assert.equal(text.status, 1);
+      assert.equal(text.stdout, "");
+      assert.match(text.stderr, /Convention inspection failed safely/u);
+      assert.equal(text.stderr.includes(secret), false);
+      assert.equal(text.stderr.includes(controlRoot), false);
+      assert.equal(text.stderr.includes("raw import failure"), false);
+      assert.equal(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(text.stderr), false);
+      assert.ok(Buffer.byteLength(text.stderr) < 1024);
+      assert.equal(fs.existsSync(stateRoot), false);
+    }
+  } finally {
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
+});
+
+test("non-conventions query commands preserve root runtime loader failures", () => {
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-query-loader-other-"));
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [CLI_PATH, "search", "fixture", "--json"],
+      { cwd: repoRoot, encoding: "utf8", env: isolatedEnv(repoRoot) },
+    );
+
+    assert.equal(result.status, 1);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /Build the project's context runtime first \(missing /u);
+    assert.match(result.stderr, /Run 'cortex bootstrap' in the project root/u);
   } finally {
     fs.rmSync(repoRoot, { recursive: true, force: true });
   }

@@ -210,6 +210,10 @@ export type PatternEvidenceParams = {
   include_deprecated?: boolean;
 };
 
+export type ConventionsParams = {
+  target: string;
+};
+
 export type ReloadParams = {
   force: boolean;
 };

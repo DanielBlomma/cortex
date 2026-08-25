@@ -31,7 +31,7 @@ if [[ "$BACKGROUND" -eq 0 && -n "$PROFILE" ]]; then
   exit 1
 fi
 
-TOTAL_STEPS=6
+TOTAL_STEPS=7
 STEP_INDEX=0
 
 step() {
@@ -47,9 +47,9 @@ info() {
 info "bootstrap start"
 info "repo: $REPO_ROOT"
 if [[ "$BACKGROUND" -eq 1 ]]; then
-  info "pipeline: deps -> ingest -> graph -> background embeddings -> status"
+  info "pipeline: deps -> ingest -> graph -> conventions -> background embeddings -> status"
 else
-  info "pipeline: deps -> ingest -> embeddings -> graph -> status"
+  info "pipeline: deps -> ingest -> embeddings -> graph -> conventions -> status"
 fi
 
 mkdir -p "$MCP_DIR/.npm-cache"
@@ -89,6 +89,9 @@ if [[ "$BACKGROUND" -eq 1 ]]; then
   "$REPO_ROOT/scripts/load-ryu.sh"
   info "search_ready=lexical+graph semantic_coverage=incomplete"
 
+  step "Building repository convention profiles"
+  node "$REPO_ROOT/scripts/conventions.mjs"
+
   step "Starting resource-limited semantic indexing"
   node "$REPO_ROOT/scripts/indexing.mjs" start --profile "$PROFILE"
 
@@ -102,6 +105,9 @@ else
 
   step "Loading RyuGraph"
   "$REPO_ROOT/scripts/load-ryu.sh"
+
+  step "Building repository convention profiles"
+  node "$REPO_ROOT/scripts/conventions.mjs"
 
   step "Reading context status"
   "$REPO_ROOT/scripts/status.sh"

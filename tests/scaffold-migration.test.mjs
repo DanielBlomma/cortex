@@ -136,6 +136,26 @@ test("runtime naming keeps .context/mcp as the compatibility path", () => {
   assert.match(rootBootstrap, /MCP_DIR="\$CONTEXT_RUNTIME_DIR"/);
 });
 
+test("convention generation preserves foreground, progressive, and update ordering", () => {
+  for (const prefix of ["scaffold/scripts", "scripts"]) {
+    const bootstrap = fs.readFileSync(path.join(PROJECT_ROOT, prefix, "bootstrap.sh"), "utf8");
+    const update = fs.readFileSync(path.join(PROJECT_ROOT, prefix, "update-context.sh"), "utf8");
+
+    const earlyGraph = bootstrap.indexOf('step "Loading RyuGraph for early search readiness"');
+    const firstConventions = bootstrap.indexOf('step "Building repository convention profiles"');
+    const background = bootstrap.indexOf('step "Starting resource-limited semantic indexing"');
+    assert.ok(earlyGraph >= 0 && earlyGraph < firstConventions && firstConventions < background);
+
+    const foregroundGraph = bootstrap.lastIndexOf('step "Loading RyuGraph"');
+    const foregroundConventions = bootstrap.lastIndexOf('step "Building repository convention profiles"');
+    const status = bootstrap.indexOf('step "Reading context status"');
+    assert.ok(foregroundGraph >= 0 && foregroundGraph < foregroundConventions && foregroundConventions < status);
+
+    assert.ok(update.indexOf("load-ryu.sh") < update.indexOf("conventions.mjs"));
+    assert.ok(update.indexOf("conventions.mjs") < update.indexOf("status.sh"));
+  }
+});
+
 test("memory scripts import shared helpers through the context runtime dist", () => {
   const memoryCompile = fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "scripts", "memory-compile.mjs"), "utf8");
   const memoryLint = fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "scripts", "memory-lint.mjs"), "utf8");

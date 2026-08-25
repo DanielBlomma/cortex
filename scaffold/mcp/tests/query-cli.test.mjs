@@ -1,10 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const QUERY_MODULE = fileURLToPath(new URL("../dist/cli/query.js", import.meta.url));
-const PROJECT_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const PROJECT_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 
 function runQuery(args) {
   const script = [
@@ -113,7 +115,7 @@ test("explain --json enables scores and matched rules", () => {
 test("pattern-evidence --json emits ordered cited evidence tiers", () => {
   const parsed = runJson([
     "pattern-evidence",
-    "mcp/src/cli/query.ts",
+    "bin/cli/query-command.mjs",
     "--query",
     "CLI argument parsing error handling",
     "--top-k",
@@ -123,7 +125,7 @@ test("pattern-evidence --json emits ordered cited evidence tiers", () => {
 
   assert.equal(parsed.ok, true);
   assert.equal(parsed.command, "pattern-evidence");
-  assert.equal(parsed.input.target, "mcp/src/cli/query.ts");
+  assert.equal(parsed.input.target, "bin/cli/query-command.mjs");
   assert.equal(parsed.input.top_k, 2);
   assert.deepEqual(parsed.data.evidence_order, [
     "same_file",
@@ -155,7 +157,7 @@ test("pattern-evidence --json rejects targets that are not file-backed", () => {
 });
 
 test("pattern-evidence derives a query from the target when --query is omitted", () => {
-  const parsed = runJson(["pattern-evidence", "mcp/src/cli/query.ts", "--top-k", "1", "--json"]);
+  const parsed = runJson(["pattern-evidence", "bin/cli/query-command.mjs", "--top-k", "1", "--json"]);
 
   assert.equal(parsed.ok, true);
   assert.equal(parsed.data.query_source, "derived_from_target");
@@ -166,7 +168,7 @@ test("pattern-evidence derives a query from the target when --query is omitted",
 test("pattern-evidence rejects malformed --top-k values", () => {
   const parsed = runJson([
     "pattern-evidence",
-    "mcp/src/cli/query.ts",
+    "bin/cli/query-command.mjs",
     "--top-k",
     "2junk",
     "--json",
@@ -175,6 +177,97 @@ test("pattern-evidence rejects malformed --top-k values", () => {
   assert.equal(parsed.ok, false);
   assert.equal(parsed.command, "pattern-evidence");
   assert.match(parsed.error.message, /must be an integer/);
+});
+
+test("conventions --json emits versioned deterministic profiles", () => {
+  const parsed = runJson(["conventions", "bin/cli/query-command.mjs", "--json"]);
+
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.command, "conventions");
+  assert.equal(parsed.input.target, "bin/cli/query-command.mjs");
+  assert.equal(parsed.data.schema_version, 1);
+  assert.ok(parsed.data.profile_count >= 1);
+  assert.equal(parsed.data.profiles.length, parsed.data.profile_count);
+  for (const profile of parsed.data.profiles) {
+    assert.equal(typeof profile.profile_hash, "string");
+    assert.equal(typeof profile.source_hash, "string");
+    assert.ok(Array.isArray(profile.reusable_symbols));
+    assert.ok(profile.structural_facts.every((fact) => fact.normative === false));
+  }
+});
+
+test("conventions --json rejects malformed and non-code-backed targets", () => {
+  const malformed = runJson(["conventions", "../outside.ts", "--json"], 1);
+  assert.equal(malformed.ok, false);
+  assert.equal(malformed.command, "conventions");
+  assert.match(malformed.error.message, /Invalid repository-relative/);
+
+  const rule = runJson(["conventions", "rule.source_of_truth", "--json"], 1);
+  assert.equal(rule.ok, false);
+  assert.match(rule.error.message, /not code-backed/);
+});
+
+test("conventions bounds and sanitizes near/over-limit JSON and text errors before persistence", () => {
+  const manifestPath = path.join(PROJECT_ROOT, ".context", "cache", "conventions", "v1", "manifest.json");
+  const before = fs.existsSync(manifestPath) ? fs.readFileSync(manifestPath) : null;
+  const nearTarget = "x".repeat(1024);
+  const near = runQuery(["conventions", nearTarget, "--json"]);
+  assert.equal(near.status, 1, near.stderr || near.stdout);
+  const nearParsed = JSON.parse(near.stdout);
+  assert.deepEqual(nearParsed.input, { target: nearTarget });
+  assert.equal(near.stdout, `${JSON.stringify(nearParsed, null, 2)}\n`);
+  assert.ok(Buffer.byteLength(near.stdout) < 4096);
+
+  const overTarget = `external-secret-${"x".repeat(1025)}`;
+  const overJson = runQuery(["conventions", overTarget, "--json"]);
+  assert.equal(overJson.status, 1, overJson.stderr || overJson.stdout);
+  const overParsed = JSON.parse(overJson.stdout);
+  assert.deepEqual(overParsed.input, { target: "[rejected]" });
+  assert.equal(overJson.stdout, `${JSON.stringify(overParsed, null, 2)}\n`);
+  assert.equal(overJson.stdout.includes("external-secret"), false);
+  assert.ok(Buffer.byteLength(overJson.stdout) < 1024);
+
+  const overText = runQuery(["conventions", overTarget]);
+  assert.notEqual(overText.status, 0);
+  assert.equal(overText.stdout.includes("external-secret"), false);
+  assert.equal(overText.stderr.includes("external-secret"), false);
+  assert.ok(Buffer.byteLength(overText.stderr) < 4096);
+
+  const after = fs.existsSync(manifestPath) ? fs.readFileSync(manifestPath) : null;
+  assert.deepEqual(after, before);
+});
+
+test("conventions applies the entity limit to dot and colon rule and ADR IDs in JSON and text", () => {
+  const manifestPath = path.join(PROJECT_ROOT, ".context", "cache", "conventions", "v1", "manifest.json");
+  const before = fs.existsSync(manifestPath) ? fs.readFileSync(manifestPath) : null;
+  for (const prefix of ["rule.", "rule:", "adr.", "adr:"]) {
+    for (const length of [999, 1000]) {
+      const target = `${prefix}${"x".repeat(length - prefix.length)}`;
+      const json = runQuery(["conventions", target, "--json"]);
+      assert.equal(json.status, 1, json.stderr || json.stdout);
+      const parsed = JSON.parse(json.stdout);
+      assert.deepEqual(parsed.input, { target });
+      assert.match(parsed.error.message, /not code-backed/);
+
+      const text = runQuery(["conventions", target]);
+      assert.notEqual(text.status, 0);
+      assert.equal(text.stdout.includes(target), false);
+      assert.equal(text.stderr.includes(target), false);
+    }
+    const target = `${prefix}${"x".repeat(1001 - prefix.length)}`;
+    const json = runQuery(["conventions", target, "--json"]);
+    assert.equal(json.status, 1, json.stderr || json.stdout);
+    const parsed = JSON.parse(json.stdout);
+    assert.deepEqual(parsed.input, { target: "[rejected]" });
+    assert.equal(json.stdout.includes(target), false);
+
+    const text = runQuery(["conventions", target]);
+    assert.notEqual(text.status, 0);
+    assert.equal(text.stdout.includes(target), false);
+    assert.equal(text.stderr.includes(target), false);
+  }
+  const after = fs.existsSync(manifestPath) ? fs.readFileSync(manifestPath) : null;
+  assert.deepEqual(after, before);
 });
 
 test("json validation errors emit an error envelope", () => {

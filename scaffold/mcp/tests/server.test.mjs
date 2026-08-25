@@ -8,12 +8,14 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const MCP_DIR = path.resolve(__dirname, "..");
+const PROJECT_ROOT = path.resolve(MCP_DIR, "../..");
 
 async function withClient(fn) {
   const transport = new StdioClientTransport({
     command: "node",
     args: ["dist/server.js"],
     cwd: MCP_DIR,
+    env: { ...process.env, CORTEX_PROJECT_ROOT: PROJECT_ROOT },
     stderr: "pipe"
   });
 

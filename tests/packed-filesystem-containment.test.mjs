@@ -14,13 +14,13 @@ const PREVIOUS_RELEASE_COMMIT = "736becf34d929ea0bef88adbe476a584a1f081e9";
 const PREVIOUS_RELEASE_SHA1 = "995ddb990eedf26f833be5f511a2cf45b9671d6a";
 const PREVIOUS_RELEASE_INTEGRITY =
   "sha512-lRt7yCLMp+yGNOnya60rlZog6qEDjScbz6TTk4k6l6JoWQzm+gV6umTfHaYs5SjoBqYia9EERHcxVLUeYANdlQ==";
-const EXPECTED_ENTRY_COUNT = 420;
-const EXPECTED_MODE_COUNTS = new Map([[0o644, 399], [0o755, 21]]);
-const EXPECTED_INVENTORY_SHA256 = "cebf97a2b13ef48733d79b97b0c7785d3152915e0b5ab6706190a836e38b48bd";
-const EXPECTED_RUNTIME_OWNERSHIP_COUNT = 94;
-const EXPECTED_MANAGED_OWNERSHIP_COUNT = 385;
-const EXPECTED_CHANGED_MANAGED_COUNT = 38;
-const EXPECTED_NEW_MANAGED_COUNT = 5;
+const EXPECTED_ENTRY_COUNT = 424;
+const EXPECTED_MODE_COUNTS = new Map([[0o644, 403], [0o755, 21]]);
+const EXPECTED_INVENTORY_SHA256 = "071bb802bed0e798ae65dae87d27738cbc094c85c753112ae6d63c9b57f5c980";
+const EXPECTED_RUNTIME_OWNERSHIP_COUNT = 95;
+const EXPECTED_MANAGED_OWNERSHIP_COUNT = 389;
+const EXPECTED_CHANGED_MANAGED_COUNT = 50;
+const EXPECTED_NEW_MANAGED_COUNT = 9;
 const BUILD_MARKER = path.join(REPO_ROOT, "scaffold", "mcp", "dist", ".cortex-build-hash");
 const REQUIRED_CONTAINMENT_UPGRADE_PATHS = [
   "scaffold/scripts/dashboard.mjs",
@@ -192,6 +192,15 @@ function verifyPackInventory(pack) {
   const inventory = `${inventoryRows(pack).join("\n")}\n`;
   assert.equal(sha256Buffer(inventory), EXPECTED_INVENTORY_SHA256);
   return inventory;
+}
+
+function reportedModeCounts() {
+  return Object.fromEntries(
+    [...EXPECTED_MODE_COUNTS].map(([mode, count]) => [
+      Number(mode).toString(8).padStart(4, "0"),
+      count,
+    ]),
+  );
 }
 
 function packCandidate(destination, npmCache) {
@@ -447,7 +456,7 @@ try {
     package: PACKAGE_NAME,
     version: cleanPack.version,
     entries: cleanPack.files.length,
-    mode_counts: { "0644": 399, "0755": 21 },
+    mode_counts: reportedModeCounts(),
     inventory_sha256: EXPECTED_INVENTORY_SHA256,
     tarball_sha1: cleanPack.shasum,
     tarball_sha256: sha256File(tarball),
