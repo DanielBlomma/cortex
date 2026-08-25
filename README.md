@@ -73,6 +73,9 @@ cortex pattern-evidence src/payments/retry.ts --json
 # Inspect deterministic active conventions for a file or indexed entity.
 cortex conventions src/payments/retry.ts --json
 
+# Get cited, deterministic context before implementing a code task.
+cortex guidance src/payments/retry.ts --task "add bounded retry handling" --json
+
 # Refresh context after significant changes.
 cortex update
 ```
@@ -109,6 +112,7 @@ repository -> local index -> Cortex CLI -> coding agent
 | `cortex rules --json` | Show active repository rules |
 | `cortex pattern-evidence <file> --json` | Find nearby implementation patterns |
 | `cortex conventions <file-or-entity> --json` | Inspect bounded repository convention profiles |
+| `cortex guidance <file-or-entity> --task <text> --json` | Get bounded cited pre-coding guidance |
 | `cortex update` | Refresh changed context |
 | `cortex status` | Show index status |
 | `cortex doctor` | Diagnose the local setup |
@@ -121,6 +125,12 @@ Run `cortex help` for the complete command list.
 version-1 profiles and does not call a model, planner, provider, or network
 service. See [Repository convention profiles](docs/repository-conventions.md)
 for the exact eligibility, limit, hashing, persistence, and safety contract.
+
+Before implementing a code task, use `cortex guidance` as cited additive
+context—not policy authority. Continue to use normal `search`, `related`, and
+`impact` when needed, and never skip explicit active rules or conflicts. The
+command is local-only and inspection-only; see the exact versioned contract in
+[Pre-coding guidance](docs/repository-guidance.md).
 
 ## Large repositories
 

@@ -9,9 +9,18 @@ import {
   serializeConventionPublicError,
   serializeConventionPublicResponse,
 } from "../conventions.js";
+import {
+  formatGuidancePublicText,
+  runGuidance,
+  sanitizeGuidancePublicError,
+  sanitizeGuidancePublicInput,
+  serializeGuidancePublicError,
+  serializeGuidancePublicResponse,
+} from "../guidance.js";
 import { runContextImpact, runContextRelated, runContextSearch } from "../search.js";
 import type {
   ConventionsParams,
+  GuidanceParams,
   ImpactParams,
   PatternEvidenceParams,
   RelatedParams,
@@ -41,7 +50,7 @@ type JsonEnvelope = {
   };
 };
 
-const QUERY_COMMANDS = new Set(["search", "related", "impact", "rules", "explain", "pattern-evidence", "conventions"]);
+const QUERY_COMMANDS = new Set(["search", "related", "impact", "rules", "explain", "pattern-evidence", "conventions", "guidance"]);
 
 const ENTITY_ID_PREFIXES = [
   "file:",
@@ -82,6 +91,8 @@ export async function runQueryCommand(args: string[]): Promise<void> {
         return await runPatternEvidenceCommand(rest);
       case "conventions":
         return await runConventionsCommand(rest);
+      case "guidance":
+        return await runGuidanceCommand(rest);
       default:
         throw new Error(`Unknown query command: ${command}`);
     }
@@ -94,6 +105,15 @@ export async function runQueryCommand(args: string[]): Promise<void> {
         return;
       }
       throw new Error(sanitizeConventionPublicError(error));
+    }
+    if (command === "guidance") {
+      const input = guidancePublicInputFromArgs(rest);
+      if (json) {
+        process.stdout.write(serializeGuidancePublicError(input, error));
+        process.exitCode = 1;
+        return;
+      }
+      throw new Error(sanitizeGuidancePublicError(error));
     }
     if (!json) {
       throw error;
@@ -120,6 +140,7 @@ function printHelp(): void {
     "  cortex explain <query-or-entity-id> [--top-k <n>] [--json]",
     "  cortex pattern-evidence <file-path|entity-id> [--query <text>] [--top-k <n>] [--json]",
     "  cortex conventions <file-path|entity-id> [--json]  # bounded active repo-local profiles",
+    "  cortex guidance <file-path|entity-id> --task <text> [--json]  # bounded additive pre-coding context",
     "",
     "These commands read the local Cortex graph and emit MCP-equivalent data with --json.",
   ];
@@ -253,6 +274,45 @@ function conventionPublicInputFromArgs(args: string[]): ConventionsParams {
     return sanitizeConventionPublicInput({ target });
   } catch {
     return sanitizeConventionPublicInput(undefined);
+  }
+}
+
+function parseGuidanceArgs(args: string[]): { input: GuidanceParams; json: boolean } {
+  let target: string | undefined;
+  let task: string | undefined;
+  let json = false;
+  const seen = new Set<string>();
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--json") {
+      if (seen.has("json")) throw new Error("Guidance arguments contain an unknown or repeated flag");
+      seen.add("json");
+      json = true;
+      continue;
+    }
+    if (arg === "--task") {
+      const name = arg.slice(2);
+      if (seen.has(name)) throw new Error("Guidance arguments contain an unknown or repeated flag");
+      const next = args[index + 1];
+      if (next === undefined || next.startsWith("--")) throw new Error("Guidance argument flag is missing its value");
+      seen.add(name);
+      task = next;
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--")) throw new Error("Guidance arguments contain an unknown or repeated flag");
+    if (target !== undefined) throw new Error("Guidance requires exactly one target and one --task value");
+    target = arg;
+  }
+  if (target === undefined || task === undefined) throw new Error("Guidance requires exactly one target and one --task value");
+  return { input: { target, task }, json };
+}
+
+function guidancePublicInputFromArgs(args: string[]): unknown {
+  try {
+    return parseGuidanceArgs(args).input;
+  } catch {
+    return sanitizeGuidancePublicInput(undefined);
   }
 }
 
@@ -549,4 +609,14 @@ async function runConventionsCommand(args: string[]): Promise<void> {
   }
 
   process.stdout.write(formatConventionPublicText(data));
+}
+
+async function runGuidanceCommand(args: string[]): Promise<void> {
+  const { input, json } = parseGuidanceArgs(args);
+  const data = await runGuidance(input);
+  if (json) {
+    process.stdout.write(serializeGuidancePublicResponse(input, data));
+    return;
+  }
+  process.stdout.write(formatGuidancePublicText(data));
 }

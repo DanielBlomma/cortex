@@ -49,6 +49,7 @@ export function printHelp() {
   console.log(helpRow("explain <query|entity-id> [--json]", "Show search score evidence"));
   console.log(helpRow("pattern-evidence <file|entity-id> [--query <text>] [--top-k <n>] [--json]", "Collect cited repo-local pattern evidence"));
   console.log(helpRow("conventions <file|entity-id> [--json]", "Inspect bounded active repo-local conventions"));
+  console.log(helpRow("guidance <file|entity-id> --task <text> [--json]", "Get bounded cited pre-coding guidance"));
   console.log(helpRow("dashboard [--interval <sec>]", "Live local dashboard"));
   console.log(helpRow("memory-compile [--dry-run] [--verbose]", "Compile memory artifacts"));
   console.log(helpRow("memory-lint [--verbose] [--json]", "Lint compiled memory"));

@@ -196,6 +196,60 @@ test("conventions --json emits versioned deterministic profiles", () => {
   }
 });
 
+test("guidance --json emits deterministic hashed additive context without persistence", () => {
+  const manifestPath = path.join(PROJECT_ROOT, ".context", "cache", "conventions", "v1", "manifest.json");
+  const before = fs.statSync(manifestPath);
+  const beforeBytes = fs.readFileSync(manifestPath);
+  const args = ["guidance", "bin/cli/query-command.mjs", "--task", "add strict guidance argument validation", "--json"];
+  const firstResult = runQuery(args);
+  const secondResult = runQuery(args);
+  assert.equal(firstResult.status, 0, firstResult.stderr);
+  assert.equal(secondResult.status, 0, secondResult.stderr);
+  assert.equal(firstResult.stdout, secondResult.stdout);
+  const parsed = JSON.parse(firstResult.stdout);
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.command, "guidance");
+  assert.equal(parsed.schema_version, 1);
+  assert.equal(parsed.generator_version, "repo-guidance-v1");
+  assert.match(parsed.input.task_hash, /^[a-f0-9]{64}$/u);
+  assert.equal(firstResult.stdout.includes("add strict guidance argument validation"), false);
+  assert.ok(parsed.data.active_governing_rules.items.length <= 8);
+  assert.ok(parsed.data.reusable_symbols.items.length <= 12);
+  assert.ok(parsed.data.concrete_examples.items.length <= 6);
+  assert.equal(Object.hasOwn(parsed.data, "retrieval_evidence"), false);
+  assert.equal(Object.hasOwn(parsed.data.limits, "max_retrieval_evidence"), false);
+  assert.ok(parsed.data.conflicts.items.length <= 10);
+  assert.deepEqual(fs.readFileSync(manifestPath), beforeBytes);
+  assert.equal(fs.statSync(manifestPath).mtimeMs, before.mtimeMs);
+});
+
+test("guidance rejects missing, repeated, unknown, surplus, and unsafe arguments without task leakage", () => {
+  const secret = "guidance-secret-do-not-echo";
+  for (const args of [
+    ["guidance", "bin/cli/query-command.mjs", "--json"],
+    ["guidance", "bin/cli/query-command.mjs", "--task", secret, "--task", "again", "--json"],
+    ["guidance", "bin/cli/query-command.mjs", "--task", secret, "--unknown", "x", "--json"],
+    ["guidance", "bin/cli/query-command.mjs", "extra.ts", "--task", secret, "--json"],
+    ["guidance", "bin/cli/query-command.mjs", "--task", `${secret}\nline`, "--json"],
+    ["guidance", "--target", "bin/cli/query-command.mjs", "--task", secret, "--json"],
+    ["guidance", "bin/cli/query-command.mjs", "--target", "README.md", "--task", secret, "--json"],
+    ["guidance", "bin/cli/query-command.mjs", "--task", "", "--json"],
+    ["guidance", "bin/cli/query-command.mjs", "--task", secret, "--json", "--json"],
+    ["guidance", "file:/private/secret.ts", "--task", secret, "--json"],
+    ["guidance", "chunk:../secret.ts:name:1-2", "--task", secret, "--json"],
+  ]) {
+    const result = runQuery(args);
+    assert.equal(result.status, 1, result.stderr || result.stdout);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.ok, false);
+    assert.equal(parsed.command, "guidance");
+    assert.equal(parsed.schema_version, 1);
+    assert.equal(result.stdout.includes(secret), false);
+    assert.ok(Buffer.byteLength(result.stdout) < 1_024);
+  }
+});
+
 test("conventions --json rejects malformed and non-code-backed targets", () => {
   const malformed = runJson(["conventions", "../outside.ts", "--json"], 1);
   assert.equal(malformed.ok, false);

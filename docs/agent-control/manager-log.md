@@ -8,6 +8,20 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
 ## Current State (2026-08-25)
 
+- WO-B is manager-accepted locally on the accepted WO-A 2.5.2 base. The
+  stable evidence locator is
+  `docs/agent-control/wo-b-pre-coding-guidance-2.5.2-results.md`; packet 050
+  captures the single terminal NO-GO. The exact candidate is 25 paths: 21
+  covered outputs plus governing packets 047–050. Public raw-task/allowlist
+  recomputation is closed; convention source/tests/public bytes are restored
+  exactly to `d326227`; guidance alone derives real caller/test relation
+  provenance and reusable identity. Search/related/impact, accepted
+  conventions, and two-pass public behavior remain unchanged.
+  Build/focused/full/root/frontend/audit/version/packed/base-byte/managed
+  lifecycle gates are green. Final expanded-pattern/restored-normal evidence
+  is recorded in the results file. Version/dependencies remain unchanged; no
+  commit or release action occurred. WO-C is unblocked but has not started;
+  it requires a separate fresh work order.
 - WO-A is manager-accepted locally on Cortex 2.5.2. The owner completed packets
   045–046; Code Quality, Contract, Security/Privacy, Integration, and
   Validation all returned final PASS with no remaining blocker, major, minor,
@@ -94,6 +108,128 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - WO-035 is accepted after all first-review findings were fixed and all three
   independent re-reviews returned GO. R3 and R16 are mitigated without waiver;
   semver minor `2.5.0` is accepted for the later authorized release sequence.
+- WO-B pre-coding guidance is accepted locally on Cortex 2.5.2 after terminal
+  remediation and the single independent final reviewer returned GO. WO-C is
+  unblocked but remains a separate, not-started work order.
+
+## 2026-08-25 — WO-B owner completion
+
+- Implemented the packet-047 versioned guidance contract as CLI-first
+  inspection only. Guidance validates target and Unicode-scalar task syntax
+  before context reads, hashes rather than emits the task, recomputes accepted
+  WO-A profiles from current data, cites active source-of-truth authority,
+  preserves contradictions, and ranks bounded rules/symbols/examples/
+  retrieval deterministically with exact observed/omitted accounting.
+- Guidance reuses the normal lexical search projection without embeddings or
+  provider/model/planner/fetch/telemetry paths. It does not persist profiles,
+  index, config, task, cache, log, or output. Root/runtime loaders and public
+  JSON/text errors fail closed without leaking task, path, source, loader, or
+  warning content. Bootstrap/update/watch never invoke guidance.
+- Integrated runtime/root help and routing, build inventory, ownership,
+  scaffold instructions, package/runtime parity, contract documentation, and
+  negative/boundary tests while preserving accepted WO-A, 2.5.2 two-pass
+  search, progressive lifecycle, and containment behavior.
+- Owner validation is green: pure 6/6; focused MCP 143/143; focused root 56/56;
+  MCP 546/546; context 81/81; root 391/391; frontend 2,267 modules; five audits
+  zero; version and syntax checks; packed 427 entries at 406/21 with 57
+  changed/12 new; foreground bootstrap/update/watch; runtime parity and
+  deterministic live state checks. The results record contains final immutable
+  pattern/index evidence and reproduction commands.
+- This is owner completion only. No acceptance, commit, merge, rebase, version,
+  dependency, release, publish, WO-C, or WO-D action is authorized or taken.
+  A fresh Code Quality, Contract, Security/Privacy, Integration, and Validation
+  read-only review is the next bounded work order.
+
+## 2026-08-25 — WO-B first-review remediation owner completion
+
+- Packet 048 consolidates the five reviewer reports to six fix-now majors:
+  exact pre-context target grammar; complete recursive/context-aware schema
+  validation; capped evidence arrays with graph provenance; exact typed
+  identity/live backing; the mandatory adversarial matrix; and immutable
+  fail-closed evidence.
+- Manager resolution removes `retrieval_evidence` and its cap from guidance
+  schema v1. Guidance is only a deterministic convention-profile projection;
+  normal search, related, and impact stay separate and unchanged. This is a
+  pre-acceptance correction, not a compatibility migration.
+- All six majors are owner-remediated. Exact target grammar and typed unique
+  live backing run before context-dependent output; complete recursive and
+  context-aware validation rejects rehashed fabricated projections; all four
+  item classes retain capped evidence arrays and relation provenance. The
+  mandatory malformed-target, nested-tamper, identity/backing, cap/reversal,
+  prohibited-surface, lifecycle, and state-sentinel matrices are green.
+- Validation is green at pure guidance 12/12, conventions 108/108, combined
+  MCP focus 149/149, focused root 34/34, full MCP 552/552, context 81/81, root
+  392/392, frontend 2,267 modules, and five zero-vulnerability audits. Packed
+  containment is 427 entries at 406/21 with 53 changed/12 new. Expanded index
+  evidence is 170 files/1,492 entities/18 profiles and 23/23 patterns; restored
+  normal evidence is 155 files/1,434 entities/12 profiles with zero failures.
+- This is owner completion only. No acceptance, commit, merge, rebase,
+  release, publish, version/dependency action, WO-C, or WO-D is recorded. A
+  fresh five-role read-only remediation re-review is mandatory.
+
+## 2026-08-25 — WO-B final-remediation owner completion
+
+- Packet 049 records the exact Security, Contract, Code Quality, Integration,
+  and Validation dispositions. The empty-name chunk form now fails root
+  preflight with sanitized JSON/text before missing, broken, or import-capable
+  runtime access; the full root/runtime grammar matrix is differential-tested.
+- Recursive validation now closes observed/retained/omitted/matched-term
+  accounting. Caller/test examples preserve a real accepted CALLS/IMPORTS edge
+  and reusable-symbol identity. Context-backed 10-to-11 evidence reaches every
+  item class and passes context-aware validation.
+- Exact scalar/byte, 32-to-33, NFKC/tie, profile fallback/multilanguage,
+  typed/backing/containment, prohibited-surface, and accepted-base output
+  matrices are complete. Impossible byte/profile/directory-hard-link cases are
+  documented as physical non-applicability rather than fabricated tests.
+- Validation is green: build; focused 147/147; MCP 555/555; context 81/81;
+  root 394/394; frontend 2,267; five audits zero; version 2.5.2; packed 427 at
+  406/21 with 53 changed/12 new; accepted-base search/related/impact bytes and
+  two-pass sources unchanged; fresh managed bootstrap/guidance/watch parity.
+- The exact 26-path accounting is 19 modified plus 7 added. The results record
+  contains literal config expansion/restoration, both 23-target digests,
+  checksum/profile/manifest validation, and exact 18-state replay commands.
+  This is owner completion only: no acceptance, commit, merge, rebase, release,
+  publish, WO-C, or WO-D action is authorized or taken.
+
+## 2026-08-25 — WO-B terminal NO-GO remediation owner completion
+
+- Packet 050 captures exactly three terminal majors. Standalone public
+  serialization now recomputes normalized task accounting and every relevance
+  component from the raw task and exact rule/symbol/example field allowlists.
+  Coherently rehashed upward counts, fabricated terms, exact/prefix swaps, and
+  altered matched fields/components fail public and context validation.
+- Accepted convention builder/schema/public behavior and tests are byte-exact
+  to `d326227`. Convention representative caller/test citations remain
+  citation-only. Guidance joins them to the direct canonical CALLS/IMPORTS
+  relation and reusable-symbol identity without changing profile hashes.
+- Validation is green: build and focused 148/148; MCP 556/556; context 81/81;
+  root 394/394; frontend 2,267; five audits zero; version 2.5.2; packed 427 at
+  406/21 with unchanged inventory digest; base conventions source/tests exact.
+- The terminal candidate is 25 paths: 17 modified, 8 added, 21 covered outputs,
+  and packets 047–050. The results record contains the literal final managed,
+  expanded/normal, 21-pattern, configured-path/checksum, complete manifest,
+  canonical profile/context/backing, four accepted-base public-byte, and
+  18-state sequence. No acceptance, commit, release, WO-C, or WO-D occurred.
+
+## 2026-08-25 — WO-B accepted locally
+
+- The single independent final reviewer first returned NO-GO on public
+  raw-task recomputation, accepted convention-byte preservation, and final
+  immutable reproduction. Packet 050 remediated all three without changing
+  version, dependencies, accepted search/related/impact/two-pass behavior, or
+  WO-A convention source/tests/public bytes.
+- The same reviewer performed one narrow read-only delta verification and
+  returned final GO with no actionable finding. It independently reproduced
+  serializer rejection of coherent rehash tampering, byte-identical accepted
+  conventions, the four accepted-base output hashes, 157 configured document
+  checksums, 12 canonical context/backing-valid profiles, complete manifests,
+  exact 21-pattern evidence, and 18-state neutrality.
+- Manager decision: WO-B is accepted locally. The accepted scope is exactly 25
+  paths (17 modified, 8 added), with validation at focused 148/148, MCP
+  556/556, context 81/81, root 394/394, frontend 2,267 modules, five zero
+  audits, packed 427 at 406/21, doctor 8/8, and watcher stopped. No commit,
+  push, merge, release, publish, WO-C, or WO-D action occurred. WO-C may begin
+  only as a separate fresh work order.
 
 ## 2026-08-03
 

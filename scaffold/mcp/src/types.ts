@@ -214,6 +214,11 @@ export type ConventionsParams = {
   target: string;
 };
 
+export type GuidanceParams = {
+  target: string;
+  task: string;
+};
+
 export type ReloadParams = {
   force: boolean;
 };

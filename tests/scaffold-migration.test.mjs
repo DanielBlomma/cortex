@@ -156,6 +156,15 @@ test("convention generation preserves foreground, progressive, and update orderi
   }
 });
 
+test("guidance remains inspection-only and is never invoked by lifecycle scripts", () => {
+  for (const prefix of ["scaffold/scripts", "scripts"]) {
+    for (const name of ["bootstrap.sh", "update-context.sh", "watch.sh", "indexing.mjs"]) {
+      const contents = fs.readFileSync(path.join(PROJECT_ROOT, prefix, name), "utf8");
+      assert.equal(/(?:^|[\s/])guidance(?:\.mjs)?(?:[\s"']|$)/mu.test(contents), false, `${prefix}/${name} must not invoke guidance`);
+    }
+  }
+});
+
 test("memory scripts import shared helpers through the context runtime dist", () => {
   const memoryCompile = fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "scripts", "memory-compile.mjs"), "utf8");
   const memoryLint = fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "scripts", "memory-lint.mjs"), "utf8");
