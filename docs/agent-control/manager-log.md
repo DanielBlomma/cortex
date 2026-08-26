@@ -6,7 +6,40 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
-## Current State (2026-08-25)
+## 2026-08-26 — all-language parser-backed codebase-dialect program planned
+
+- User intent is now explicit: codebase dialect means the recurring, locally
+  evidenced structural and implementation patterns that show how a codebase
+  normally solves a particular kind of problem. Coding style and broad
+  architecture are adjacent but are not the primary target.
+- Packet 054 covers all 14 current programming-language families using their
+  existing Acorn, Tree-sitter, Roslyn, dispatcher/fallback, SQL, and VB6 parser
+  paths. The shared observation contract lives at the parser-result boundary;
+  no language is reparsed through a second parser.
+- WO-051 freezes the contract and harness, WO-052/053 implement disjoint parser
+  families, WO-054 adds persistence and task-conditioned comparison, and WO-055
+  runs the blind all-language evaluation.
+- Program acceptance requires 14/14 available language outputs, at least 14
+  fresh tasks and 56 facets, strict recall/citation gates, a minimum 0.30 lift
+  over baseline, deterministic local-only output, and no reuse of prior WO-D
+  tasks.
+- Public generation/review integration, parser migration, new-language support,
+  legacy scaffold migration, release, and promotion are explicitly deferred.
+- Planning is isolated at accepted WO-C base `e74e03f` in
+  `/Users/danielnilsson/GIT/cortex-wo051-dialect-poc`. The dirty discarded WO-D
+  worktree is not an input and may be removed only through a separate explicit
+  worktree/branch cleanup after this plan is durably retained.
+- The user accepted the staged program and authorized execution on 2026-08-26.
+  WO-051 must now start in a fresh agent session from packet 054; WO-052 and
+  WO-053 remain blocked until its contract and harness are independently
+  accepted.
+- The clean planning worktree's generated Cortex scaffold is older than the
+  installed CLI and was deliberately not auto-migrated. Cortex rules/search use
+  the already functioning local runtime in the discarded worktree until a
+  separately authorized scaffold migration exists; product and plan diffs stay
+  isolated in the clean worktree.
+
+## Current State (2026-08-26)
 
 - WO-C deterministic local diff review is manager-accepted on accepted base
   `482f196`. The same single reviewer returned final GO after packet-053
