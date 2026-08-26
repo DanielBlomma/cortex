@@ -49,6 +49,25 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   054 and its direct references only. No parser implementation stage is yet
   authorized.
 
+## 2026-08-26 — WO-051 round-1 review NO-GO
+
+- The four-file candidate changed only new benchmark contract/harness modules
+  and focused tests. Nominal dialect tests passed 14/14; SQL/VB6 and Roslyn
+  proportional regressions also passed.
+- Three independent fresh reviews returned NO-GO. Adversarial runs proved the
+  score gate could pass with candidate recurrence and scope precision at zero,
+  and with every baseline facet contradicted. Gold could omit applicable
+  categories; failure fixtures could use the wrong status; the manifest
+  validator accepted a fabricated family/mode; and rehashed earlier artifacts
+  were not compared with an evaluator-retained predecessor hash.
+- Additional bounded findings cover exact clang/regex fallback identities,
+  frozen source-catalog citation binding, deterministic claim-id ordering,
+  task-local reveal facets, and pre-canonicalization caps. These are WO-051
+  contract/harness fixes, not authorization for parser behavior or WO-052.
+- The implementation owner received one consolidated fix assignment in the
+  same four-file boundary. WO-052 and WO-053 remain blocked until re-review and
+  manager acceptance.
+
 ## Current State (2026-08-26)
 
 - WO-C deterministic local diff review is manager-accepted on accepted base
