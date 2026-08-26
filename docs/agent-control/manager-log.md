@@ -35,9 +35,38 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   accepted.
 - The clean planning worktree's generated Cortex scaffold is older than the
   installed CLI and was deliberately not auto-migrated. Cortex rules/search use
-  the already functioning local runtime in the discarded worktree until a
-  separately authorized scaffold migration exists; product and plan diffs stay
-  isolated in the clean worktree.
+  the already functioning local runtime in `/Users/danielnilsson/GIT/cortex`
+  until a separately authorized scaffold migration exists; product and plan
+  diffs stay isolated in the clean worktree.
+- The accepted plan is committed as `d8689c8`. Read-only verification showed
+  the obsolete `feature/wo-d-held-out-evaluation-2.5.2` branch had zero commits
+  relative to base and its worktree contained only the recorded uncommitted
+  experiments. The exact worktree and branch were then removed; the healthy
+  `/Users/danielnilsson/GIT/cortex` runtime remains available for mandatory
+  Cortex context.
+- WO-051 now runs in `/Users/danielnilsson/GIT/cortex-wo051-contract` on
+  `feature/wo051-dialect-contract`, owned by a fresh agent session with packet
+  054 and its direct references only. No parser implementation stage is yet
+  authorized.
+
+## 2026-08-26 — WO-051 round-1 review NO-GO
+
+- The four-file candidate changed only new benchmark contract/harness modules
+  and focused tests. Nominal dialect tests passed 14/14; SQL/VB6 and Roslyn
+  proportional regressions also passed.
+- Three independent fresh reviews returned NO-GO. Adversarial runs proved the
+  score gate could pass with candidate recurrence and scope precision at zero,
+  and with every baseline facet contradicted. Gold could omit applicable
+  categories; failure fixtures could use the wrong status; the manifest
+  validator accepted a fabricated family/mode; and rehashed earlier artifacts
+  were not compared with an evaluator-retained predecessor hash.
+- Additional bounded findings cover exact clang/regex fallback identities,
+  frozen source-catalog citation binding, deterministic claim-id ordering,
+  task-local reveal facets, and pre-canonicalization caps. These are WO-051
+  contract/harness fixes, not authorization for parser behavior or WO-052.
+- The implementation owner received one consolidated fix assignment in the
+  same four-file boundary. WO-052 and WO-053 remain blocked until re-review and
+  manager acceptance.
 
 ## Current State (2026-08-26)
 
