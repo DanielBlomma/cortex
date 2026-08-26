@@ -35,9 +35,19 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   accepted.
 - The clean planning worktree's generated Cortex scaffold is older than the
   installed CLI and was deliberately not auto-migrated. Cortex rules/search use
-  the already functioning local runtime in the discarded worktree until a
-  separately authorized scaffold migration exists; product and plan diffs stay
-  isolated in the clean worktree.
+  the already functioning local runtime in `/Users/danielnilsson/GIT/cortex`
+  until a separately authorized scaffold migration exists; product and plan
+  diffs stay isolated in the clean worktree.
+- The accepted plan is committed as `d8689c8`. Read-only verification showed
+  the obsolete `feature/wo-d-held-out-evaluation-2.5.2` branch had zero commits
+  relative to base and its worktree contained only the recorded uncommitted
+  experiments. The exact worktree and branch were then removed; the healthy
+  `/Users/danielnilsson/GIT/cortex` runtime remains available for mandatory
+  Cortex context.
+- WO-051 now runs in `/Users/danielnilsson/GIT/cortex-wo051-contract` on
+  `feature/wo051-dialect-contract`, owned by a fresh agent session with packet
+  054 and its direct references only. No parser implementation stage is yet
+  authorized.
 
 ## Current State (2026-08-26)
 
