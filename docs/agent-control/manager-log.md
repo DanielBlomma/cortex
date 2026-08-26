@@ -68,6 +68,33 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   same four-file boundary. WO-052 and WO-053 remain blocked until re-review and
   manager acceptance.
 
+## 2026-08-26 — WO-051 accepted locally
+
+- The accepted implementation is commit `2508c20` and contains exactly four
+  new files: two benchmark-owned contract/harness modules and two focused test
+  files. No parser, ingest, scaffold source, dependency, CLI/MCP, version, or
+  public product contract changed.
+- Review fixes close every round-1 and re-review finding: exact 14-family and
+  29-mode identities with clang/regex fallbacks; exact golden failure and
+  oversized/truncation semantics; 68-facet full applicable-category gold;
+  source-catalog path/hash/line binding; symmetric valid-audit explicit credit;
+  citation/recurrence/scope precision and contradiction gates; evaluator-held
+  predecessor hashes; deterministic task-local claim/reveal relations; and
+  cumulative input/task/artifact caps.
+- Stable symlink/hard-link layouts fail closed. The contract explicitly records
+  the local trust residual for offline whole-chain rewrite and a privileged
+  concurrent same-user run-root/parent race; no network, model, provider,
+  planner, telemetry, subprocess, or worker path is added.
+- Manager reruns pass focused 21/21 and proportional dialect plus SQL/VB6/C#/
+  VB.NET 61/61, module syntax, and diff checks. Three final independent
+  Parser/Contract, Security/Containment, and Validation/Evaluation re-reviews
+  return GO with zero blocker, major, or minor findings.
+- Cortex search/rules/impact used the healthy primary runtime. Pattern-evidence
+  cannot resolve files newly created only in a separate worktree without an
+  unauthorized scaffold/index migration; that limitation is recorded rather
+  than bypassed. WO-052 and WO-053 may now receive dedicated packets and fresh
+  parallel sessions; WO-054 remains blocked on both.
+
 ## Current State (2026-08-26)
 
 - WO-C deterministic local diff review is manager-accepted on accepted base
