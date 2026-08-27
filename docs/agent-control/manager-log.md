@@ -6,6 +6,29 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-27 — WO-051E accepted; WO-052 and WO-053 ready
+
+- The exact two-file legacy parser-error transport bridge is committed as
+  `73117b5`. The constructor omits only own enumerable data properties named
+  `line` or `column` whose direct plain error-record value is `undefined`;
+  the caller object and strict direct validator remain unchanged.
+- First Security review found the shared array helper still read Proxy
+  `length` through an ordinary property access. The final candidate derives
+  length from its collected own data descriptor, and a mutating Proxy
+  regression proves zero `get` calls and unchanged caller bytes.
+- Contract/evaluation/runtime passes 30/30 and packed containment 1/1. The
+  package remains 432 entries at 411/21 modes with digest `f7647e5…661`,
+  ownership 396/96, and published-predecessor upgrade 57 changed/16 new.
+  All frozen hashes and 33 runtime exports remain exact.
+- Contract, Security/Containment, and Validation/Pack final re-reviews are GO
+  with zero blocker, major, or minor findings. Temporary dependency overlays
+  were removed. Canonical Cortex update/doctor completed at 100% freshness;
+  changed-file pattern evidence remains unavailable in the older feature
+  scaffold without the forbidden bootstrap/migration.
+- WO-052 may now advance its preserved uncommitted candidate onto this
+  accepted head in a fresh session and add the exact deep-error regression
+  required by Packet 060. WO-053 is likewise Ready from the shared head.
+
 ## 2026-08-27 — WO-052 paused for legacy parser-error transport bridge
 
 - After accepted WO-051D, the preserved WO-052 candidate closed Ruby/Bash

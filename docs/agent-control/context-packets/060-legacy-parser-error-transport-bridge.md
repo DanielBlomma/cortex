@@ -148,6 +148,34 @@ The resumed Packet 057 candidate must:
 WO-053 must also start from the accepted WO-051E head so all adapters share the
 same constructor authority.
 
+## Acceptance State
+
+Accepted locally on 2026-08-27. The exact two-file implementation is commit
+`73117b5`. The constructor projects only direct own enumerable data
+`line`/`column: undefined` properties from plain records in `errors`; the
+legacy input remains deep-exact and the direct validator remains fully strict.
+The shared array inspection also now derives length from its collected own
+data descriptor, closing the mutating Proxy `get`-trap finding from the first
+Security review.
+
+Contract/evaluation/runtime passed 30/30 and packed containment passed 1/1.
+The package remains 432 entries at 411/21 modes with inventory digest
+`f7647e513e6ab40e6327e6bd14aa4db26fc248930780a3967de56ddf423ff661`,
+ownership 396/96, and published-predecessor upgrade characterization 57
+changed/16 new with all 57 hashes verified. The 33 runtime exports and the
+capability, limits, adapter-shape, and ownership-v1 hashes remain exact.
+
+Contract, Security/Containment, and Validation/Pack final re-reviews returned
+GO with zero blocker, major, or minor findings. Dependency overlays and
+tarballs were absent at final inspection. Canonical Cortex update and doctor
+completed at 100% freshness with the watcher stopped; changed-file pattern
+evidence remains unavailable because the older feature scaffold lacks its
+built query runtime and was not bootstrapped or migrated.
+
+WO-052 may now advance its preserved candidate onto this accepted head in a
+fresh session and must add the deep-nesting regression above before the full
+final panel. WO-053 is likewise unblocked from the shared accepted head.
+
 ## Stop Conditions
 
 Stop and split rather than changing a parser result, permitting general
