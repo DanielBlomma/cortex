@@ -93,6 +93,24 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   this accepted head in fresh packets, worktrees, and sessions. WO-054 remains
   blocked until both adapter work orders are accepted.
 
+## 2026-08-27 — WO-051C adapter prerequisite split
+
+- Three fresh read-only assignment audits examined the Acorn/Tree-sitter,
+  Roslyn/lightweight, and cross-branch seams from accepted WO-051B.
+- Parallel adapters remain technically disjoint, but two shared ambiguities must
+  close first: the accepted column contract omits its unit, and shape strings
+  have no packet-authoritative cross-language vocabulary. Local probes confirm
+  Acorn, Roslyn, and installed web-tree-sitter use UTF-16 code-unit columns.
+- The parser baseline also has one stale test: non-Rust input produces zero
+  chunks plus one bounded syntax error, while the assertion expects no errors.
+  The focused Acorn/Tree-sitter matrix is 194/195; Roslyn/lightweight is 40/40.
+- Packet 056 defines WO-051C with exactly three owned files: extend the separate
+  column contract, add frozen shape inventories/helpers/hash, and repair only
+  the stale Rust expectation. No parser implementation, ownership, package,
+  dependency, registry, worker, pipeline, persistence, or public API changes.
+- WO-052 and WO-053 are blocked until WO-051C is independently accepted; their
+  eventual packets are renumbered 057 and 058.
+
 ## 2026-08-26 — all-language parser-backed codebase-dialect program planned
 
 - User intent is now explicit: codebase dialect means the recurring, locally
