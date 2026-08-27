@@ -1,0 +1,11 @@
+- insert:
+    - id: cortex-context
+      name: '@danielblomma/dsh-cortex/provider'
+      config:
+        timeoutMs: 15000
+    - id: cortex-tools
+      name: '@danielblomma/dsh-cortex/tools'
+      config:
+        required: false
+    - id: cortex-skills
+      name: '@danielblomma/dsh-cortex/skills'

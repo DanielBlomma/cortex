@@ -98,6 +98,16 @@ Project configuration and rules are preserved. See
 The normal Cortex workflow uses the CLI. If a client explicitly requires MCP,
 run `cortex connect`.
 
+## DeepSeek Harness integration (planned)
+
+An installable Cortex integration for DeepSeek Harness is planned, but is not
+available yet. Stage 0 verified the upstream APIs and found that the official
+MCP bridge cannot safely isolate concurrent Web workspaces. The selected V1
+candidate instead binds a native Cortex provider and its tools to each Harness
+agent workspace. Local implementation and validation are complete; independent
+final acceptance and explicit release authorization are still pending. See the
+[V1-to-V2 integration plan](docs/superpowers/plans/2026-08-25-deepseek-harness-integration.md).
+
 ## Links
 
 - [Website](https://danielblomma.github.io/cortex/)
