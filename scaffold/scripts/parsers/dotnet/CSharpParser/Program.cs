@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -21,7 +22,7 @@ var source = options.UseStdin
     ? Console.In.ReadToEnd()
     : File.ReadAllText(options.FilePath);
 
-var parseResult = ParseCSharp(source, options.FilePath, options.Language, semanticModel: null);
+var parseResult = ParseCSharp(source, options.FilePath, options.Language, semanticModel: null, includeDialect: options.Dialect);
 var json = JsonSerializer.Serialize(parseResult, JsonOut());
 
 Console.WriteLine(json);
@@ -54,6 +55,9 @@ static ParseOptions ParseArgs(string[] args)
             case "--batch":
                 options.Batch = true;
                 break;
+            case "--dialect":
+                options.Dialect = true;
+                break;
         }
     }
 
@@ -72,7 +76,12 @@ static JsonSerializerOptions JsonIn() => new()
     PropertyNameCaseInsensitive = true
 };
 
-static ParserOutput ParseCSharp(string source, string filePath, string language, SemanticModel? semanticModel)
+static ParserOutput ParseCSharp(
+    string source,
+    string filePath,
+    string language,
+    SemanticModel? semanticModel,
+    bool includeDialect)
 {
     var tree = semanticModel?.SyntaxTree ?? CSharpSyntaxTree.ParseText(source, path: filePath);
     var root = (CompilationUnitSyntax)tree.GetRoot();
@@ -87,11 +96,19 @@ static ParserOutput ParseCSharp(string source, string filePath, string language,
 
     if (diagnostics.Count > 0)
     {
-        return new ParserOutput(new List<ChunkOutput>(), diagnostics);
+        return new ParserOutput(
+            new List<ChunkOutput>(),
+            diagnostics,
+            includeDialect ? new DialectPayload(new List<DialectCandidate>(), 0) : null
+        );
     }
 
     var collector = new CSharpChunkCollector(tree, root, source, language, semanticModel);
-    return new ParserOutput(collector.Collect(), diagnostics);
+    return new ParserOutput(
+        collector.Collect(),
+        diagnostics,
+        includeDialect ? CSharpDialectCollector.Collect(root) : null
+    );
 }
 
 static void RunBatchMode()
@@ -134,11 +151,238 @@ static void RunBatchMode()
     {
         var model = compilation.GetSemanticModel(tree);
         var file = batch.Files.First(f => f.Path == tree.FilePath);
-        var parseResult = ParseCSharp(file.Source ?? string.Empty, tree.FilePath, "csharp", model);
+        var parseResult = ParseCSharp(
+            file.Source ?? string.Empty,
+            tree.FilePath,
+            "csharp",
+            model,
+            includeDialect: false
+        );
         result.Files[tree.FilePath] = parseResult;
     }
 
     Console.WriteLine(JsonSerializer.Serialize(result, JsonOut()));
+}
+
+static class CSharpDialectCollector
+{
+    private const int SerializedCandidateLimit = 513;
+
+    public static DialectPayload Collect(CompilationUnitSyntax root)
+    {
+        var candidates = new List<DialectCandidate>();
+        var identities = new HashSet<string>(StringComparer.Ordinal);
+        var observedCount = 0;
+
+        void Add(SyntaxNode node, string category, string kind, string form, int? ordinal = null)
+        {
+            if (node.Span.Length <= 0)
+            {
+                return;
+            }
+            var syntaxKind = node.Kind().ToString();
+            var identity = string.Join("\0", node.SpanStart, node.Span.End, category, kind, form, syntaxKind, ordinal);
+            if (!identities.Add(identity))
+            {
+                return;
+            }
+            observedCount += 1;
+            if (candidates.Count < SerializedCandidateLimit)
+            {
+                candidates.Add(new DialectCandidate(
+                    node.SpanStart,
+                    node.Span.End,
+                    category,
+                    kind,
+                    form,
+                    syntaxKind,
+                    ordinal
+                ));
+            }
+        }
+
+        foreach (var node in root.DescendantNodesAndSelf())
+        {
+            switch (node)
+            {
+                case CompilationUnitSyntax:
+                    Add(node, "declaration_structure", "module", "declaration");
+                    break;
+                case BaseNamespaceDeclarationSyntax:
+                    Add(node, "declaration_structure", "namespace", "declaration");
+                    break;
+                case ConstructorDeclarationSyntax:
+                    Add(node, "declaration_structure", "constructor", "declaration");
+                    break;
+                case MethodDeclarationSyntax method:
+                    Add(node, "declaration_structure", "method", "declaration");
+                    if (HasTestAttribute(method.AttributeLists))
+                    {
+                        Add(node, "test_shape", "test_declaration", "declaration");
+                    }
+                    break;
+                case LocalFunctionStatementSyntax:
+                    Add(node, "declaration_structure", "function", "declaration");
+                    break;
+                case PropertyDeclarationSyntax:
+                    Add(node, "declaration_structure", "property", "declaration");
+                    break;
+                case FieldDeclarationSyntax:
+                    Add(node, "declaration_structure", "field", "declaration");
+                    Add(node, "data_representation", "field", "declaration");
+                    break;
+                case ParameterSyntax:
+                    Add(node, "declaration_structure", "parameter", "declaration");
+                    Add(node, "data_representation", "parameter", "declaration");
+                    break;
+                case BaseTypeDeclarationSyntax typeDeclaration:
+                    Add(node, "declaration_structure", "type", "declaration");
+                    if (typeDeclaration is RecordDeclarationSyntax)
+                    {
+                        Add(node, "data_representation", "record", "declaration");
+                    }
+                    if (typeDeclaration is EnumDeclarationSyntax)
+                    {
+                        Add(node, "data_representation", "variant", "declaration");
+                    }
+                    break;
+            }
+
+            switch (node)
+            {
+                case IfStatementSyntax:
+                case SwitchStatementSyntax:
+                case SwitchExpressionSyntax:
+                case ConditionalExpressionSyntax:
+                    Add(node, "control_flow", "branch", node is ConditionalExpressionSyntax or SwitchExpressionSyntax ? "expression" : "statement");
+                    break;
+                case ForStatementSyntax:
+                case ForEachStatementSyntax:
+                case WhileStatementSyntax:
+                case DoStatementSyntax:
+                    Add(node, "control_flow", "loop", "statement");
+                    break;
+                case ReturnStatementSyntax:
+                    Add(node, "control_flow", "early_return", "statement");
+                    Add(node, "data_representation", "return", "statement");
+                    break;
+                case InvocationExpressionSyntax invocation:
+                    Add(node, "control_flow", "delegation", "expression");
+                    if (IsAssertion(invocation))
+                    {
+                        Add(node, "test_shape", "assertion", "expression");
+                    }
+                    break;
+            }
+
+            switch (node)
+            {
+                case ThrowStatementSyntax:
+                case ThrowExpressionSyntax:
+                    Add(node, "error_flow", "raise", node is ThrowExpressionSyntax ? "expression" : "statement");
+                    break;
+                case TryStatementSyntax:
+                case CatchClauseSyntax:
+                    Add(node, "error_flow", "handler", node is CatchClauseSyntax ? "clause" : "statement");
+                    break;
+                case FinallyClauseSyntax:
+                    Add(node, "error_flow", "cleanup", "clause");
+                    break;
+            }
+
+            switch (node)
+            {
+                case VariableDeclarationSyntax:
+                    Add(node, "data_representation", "state", "declaration");
+                    break;
+                case ArrayCreationExpressionSyntax:
+                case ImplicitArrayCreationExpressionSyntax:
+                case CollectionExpressionSyntax:
+                    Add(node, "data_representation", "container", "expression");
+                    break;
+            }
+
+            if (node is AttributeSyntax attribute)
+            {
+                var attributeName = QualifiedAttributeName(attribute.Name.ToString());
+                if (new[] {
+                    "Xunit.InlineData", "Xunit.MemberData", "Xunit.ClassData", "Xunit.Theory",
+                    "NUnit.Framework.TestCase", "NUnit.Framework.TestCaseSource"
+                }.Contains(attributeName, StringComparer.Ordinal))
+                {
+                    Add(node, "test_shape", "parameterization", "attribute");
+                }
+                else if (new[] {
+                    "NUnit.Framework.SetUp", "NUnit.Framework.OneTimeSetUp",
+                    "Microsoft.VisualStudio.TestTools.UnitTesting.TestInitialize"
+                }.Contains(attributeName, StringComparer.Ordinal))
+                {
+                    Add(node, "test_shape", "setup", "attribute");
+                }
+                else if (new[] {
+                    "NUnit.Framework.TearDown", "NUnit.Framework.OneTimeTearDown",
+                    "Microsoft.VisualStudio.TestTools.UnitTesting.TestCleanup"
+                }.Contains(attributeName, StringComparer.Ordinal))
+                {
+                    Add(node, "test_shape", "teardown", "attribute");
+                }
+                else if (new[] {
+                    "Xunit.Collection", "NUnit.Framework.TestFixture",
+                    "Microsoft.VisualStudio.TestTools.UnitTesting.TestClass"
+                }.Contains(attributeName, StringComparer.Ordinal))
+                {
+                    Add(node, "test_shape", "suite", "attribute");
+                }
+            }
+        }
+
+        foreach (var callable in root.DescendantNodes().Where(node =>
+                     node is BaseMethodDeclarationSyntax or LocalFunctionStatementSyntax or AnonymousFunctionExpressionSyntax))
+        {
+            var ordinal = 0;
+            foreach (var invocation in callable.DescendantNodes().OfType<InvocationExpressionSyntax>())
+            {
+                var nearestCallable = invocation.Ancestors().FirstOrDefault(node =>
+                    node is BaseMethodDeclarationSyntax or LocalFunctionStatementSyntax or AnonymousFunctionExpressionSyntax);
+                if (!ReferenceEquals(nearestCallable, callable))
+                {
+                    continue;
+                }
+                Add(invocation, "control_flow", "ordered_calls", "expression", ordinal);
+                ordinal += 1;
+            }
+        }
+
+        return new DialectPayload(candidates, observedCount);
+    }
+
+    private static bool HasTestAttribute(SyntaxList<AttributeListSyntax> lists)
+    {
+        var expected = new HashSet<string>(new[] {
+            "Xunit.Fact", "Xunit.Theory", "NUnit.Framework.Test", "NUnit.Framework.TestCase",
+            "Microsoft.VisualStudio.TestTools.UnitTesting.TestMethod"
+        }, StringComparer.Ordinal);
+        return lists.SelectMany(list => list.Attributes)
+            .Any(attribute => expected.Contains(QualifiedAttributeName(attribute.Name.ToString())));
+    }
+
+    private static bool IsAssertion(InvocationExpressionSyntax invocation)
+    {
+        var target = invocation.Expression.ToString().Replace("global::", "", StringComparison.Ordinal);
+        return target.StartsWith("Xunit.Assert.", StringComparison.Ordinal) ||
+            target.StartsWith("NUnit.Framework.Assert.", StringComparison.Ordinal) ||
+            target.StartsWith("Microsoft.VisualStudio.TestTools.UnitTesting.Assert.", StringComparison.Ordinal) ||
+            target.StartsWith("Microsoft.VisualStudio.TestTools.UnitTesting.CollectionAssert.", StringComparison.Ordinal) ||
+            target.StartsWith("Microsoft.VisualStudio.TestTools.UnitTesting.StringAssert.", StringComparison.Ordinal);
+    }
+
+    private static string QualifiedAttributeName(string value)
+    {
+        var name = value.Replace("global::", "", StringComparison.Ordinal);
+        return name.EndsWith("Attribute", StringComparison.Ordinal)
+            ? name[..^"Attribute".Length]
+            : name;
+    }
 }
 
 sealed class CSharpChunkCollector
@@ -473,6 +717,7 @@ sealed record ParseOptions
 {
     public bool UseStdin { get; set; }
     public bool Batch { get; set; }
+    public bool Dialect { get; set; }
     public string FilePath { get; set; } = "";
     public string Language { get; set; } = "csharp";
 }
@@ -492,7 +737,26 @@ sealed record ChunkOutput(
 
 sealed record ParserError(string Message, int Line, int Column);
 
-sealed record ParserOutput(List<ChunkOutput> Chunks, List<ParserError> Errors);
+sealed record ParserOutput(
+    List<ChunkOutput> Chunks,
+    List<ParserError> Errors,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DialectPayload? Dialect
+);
+
+sealed record DialectPayload(
+    List<DialectCandidate> Candidates,
+    int ObservedCount
+);
+
+sealed record DialectCandidate(
+    int StartOffset,
+    int EndOffset,
+    string Category,
+    string Kind,
+    string Form,
+    string SyntaxKind,
+    int? Ordinal
+);
 
 sealed class BatchInput
 {
