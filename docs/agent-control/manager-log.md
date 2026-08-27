@@ -32,6 +32,26 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   prerequisite head.
 - WO-052 and WO-053 remain blocked until WO-051B is independently accepted.
 
+## 2026-08-27 — WO-051B round-1 review NO-GO
+
+- The first pass stayed inside the exact eight-file packet scope and passed the
+  nominal gates: dialect/runtime 27/27, ownership 15/15, combined ownership and
+  packed containment 16/16, 432 packed entries, and all three frozen hashes.
+- Security adversarial review proved ownership v2 expanded legacy cleanup to
+  the new `scripts/lib/dialect-observation-contract.mjs` path. Clean init then
+  deleted an unknown byte-identical file and unlinked a hard-linked file. That
+  violates the packet even though `.context` collision tests passed.
+- Code/Contract and Validation also reproduced hidden-state bypasses through
+  inherited, symbol, non-enumerable, accessor, and alias raw-syntax fields.
+  Public canonicalization/transport helpers lacked direct file/chunk and
+  aggregate graph caps, and column numbering/end semantics were not frozen.
+- The fix remains inside the eight-file scope: ownership v2 keeps the legacy
+  `.context/scripts` root inventory identical to v1 and adds a separate nested
+  managed root without legacy mapping; the runtime rejects non-plain hidden
+  data and raw aliases, applies caps at every public boundary, and exports an
+  exact separate column contract without changing accepted hashes.
+- WO-052 and WO-053 remain blocked pending rerun and final full-panel GO.
+
 ## 2026-08-26 — all-language parser-backed codebase-dialect program planned
 
 - User intent is now explicit: codebase dialect means the recurring, locally
