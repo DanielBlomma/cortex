@@ -8,25 +8,26 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
 ## Current State (2026-08-27)
 
-- Released npm baseline is `2.5.1`; the DeepSeek Harness bundle is a distinct
-  dirty local candidate and has not been committed, merged, tagged, or
-  published.
+- Released npm baseline is `2.5.1`; the accepted DeepSeek Harness bundle is
+  committed as `594ff26`, pushed on `feature/deepseek-harness-stage0`, and open
+  as PR #120. It has not been merged, tagged, or published.
 - WO-056 Stage 0 selected the native Agent-scoped topology. WO-057 and WO-058
   are now complete and accepted locally on
   `/Users/danielnilsson/GIT/cortex-worktrees/deepseek-stage0`, branch
-  `feature/deepseek-harness-stage0`, HEAD
-  `c82fd113e923025297bb701a1189f5bf706d9ddd`.
+  `feature/deepseek-harness-stage0`. The independently reviewed dirty tree at
+  base HEAD `c82fd113e923025297bb701a1189f5bf706d9ddd` is captured by implementation
+  commit `594ff26` and opened as PR #120.
 - The direct WO-058 report is GO for all six roles with findings `none`.
   Independent totals are upstream 18/18, focused 32/32, bundle 6/6, negative
   lifecycle 2/2, roots 2/2, offline commands 4/4, root 490/490, MCP 426/426,
   and six audits at zero. Two fresh 12-entry packs are identical at SHA-256
   `d7be11a964d6aa4562fac22a3a944e1919a0b46652f3f1a2dc732dde96c90beb`;
   pinned headless/Web install, upgrade, smoke, shutdown, and removal pass.
-- R20 is closed locally for accepted V1. README remains `planned`; PR, merge,
-  tag, release, npm publication, README promotion, and V2 remain unauthorized.
-- Auto-advance stops here: the user requested manager acceptance only, the
-  candidate has no authoritative CI run as a committed PR, and every
-  downstream release/publication/V2 action requires separate authorization.
+- R20 is closed locally for accepted V1. README remains `planned`; merge, tag,
+  release, npm publication, README promotion, and V2 remain unauthorized.
+- Auto-advance stops before merge. PR #120 is open, but this repository has no
+  pull-request-triggered GitHub Actions workflow; the complete accepted local
+  matrix remains the available validation evidence.
 
 ## Open Decisions
 
@@ -35,9 +36,8 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - Whether `@danielblomma/cortex-mcp` is retained as the npm package name during
   the CLI-first migration or followed by a new package with a migration
   window.
-- Whether and when a separate user-authorized work order may commit/open a PR
-  for the accepted DeepSeek Harness V1 candidate; release/publication and V2
-  remain later independent decisions.
+- Whether and when separately authorized work may merge PR #120;
+  release/publication and V2 remain later independent decisions.
 
 ## Closed Decisions
 
@@ -618,6 +618,21 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   ends after manager acceptance and downstream actions remain separately
   gated. A new session can continue only after explicit user authorization,
   beginning with candidate/CI revalidation for the separately scoped action.
+
+## 2026-08-27 — WO-057/WO-058 committed and PR opened
+
+- After explicit user authorization, captured the accepted candidate in commit
+  `594ff26545697fb93318d4cb9643d744ee9affd8` with subject
+  `feat: add DeepSeek Harness Cortex provider`.
+- Pushed `feature/deepseek-harness-stage0` and opened non-draft PR #120 against
+  `main`: `https://github.com/DanielBlomma/cortex/pull/120`.
+- The PR body maps WO-056 through WO-058, REQ-19, R20, the six-role GO, exact
+  validation totals, and artifact SHA-256. The acceptance-matrix traceability
+  table now maps PR #120 before merge.
+- GitHub reports the PR merge state as clean. No GitHub Actions run is created
+  because the repository has no `pull_request` workflow trigger.
+- No merge, tag, version bump, release, npm publication, README promotion, or
+  V2 work was performed or authorized.
 
 ## Archive
 
