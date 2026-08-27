@@ -14,18 +14,20 @@ const PREVIOUS_RELEASE_COMMIT = "736becf34d929ea0bef88adbe476a584a1f081e9";
 const PREVIOUS_RELEASE_SHA1 = "995ddb990eedf26f833be5f511a2cf45b9671d6a";
 const PREVIOUS_RELEASE_INTEGRITY =
   "sha512-lRt7yCLMp+yGNOnya60rlZog6qEDjScbz6TTk4k6l6JoWQzm+gV6umTfHaYs5SjoBqYia9EERHcxVLUeYANdlQ==";
-const EXPECTED_ENTRY_COUNT = 430;
-const EXPECTED_MODE_COUNTS = new Map([[0o644, 409], [0o755, 21]]);
-const EXPECTED_INVENTORY_SHA256 = "0dd5599b782a30509a82d2e83c0e10bd8f21055228821c15c3e58dc343141795";
-const EXPECTED_RUNTIME_OWNERSHIP_COUNT = 95;
-const EXPECTED_MANAGED_OWNERSHIP_COUNT = 395;
-const EXPECTED_CHANGED_MANAGED_COUNT = 56;
-const EXPECTED_NEW_MANAGED_COUNT = 15;
+const EXPECTED_ENTRY_COUNT = 432;
+const EXPECTED_MODE_COUNTS = new Map([[0o644, 411], [0o755, 21]]);
+const EXPECTED_INVENTORY_SHA256 = "f7647e513e6ab40e6327e6bd14aa4db26fc248930780a3967de56ddf423ff661";
+const EXPECTED_RUNTIME_OWNERSHIP_COUNT = 96;
+const EXPECTED_MANAGED_OWNERSHIP_COUNT = 396;
+const EXPECTED_CHANGED_MANAGED_COUNT = 57;
+const EXPECTED_NEW_MANAGED_COUNT = 16;
+const OWNERSHIP_V1_SHA256 = "b3b97387f541e718ac3b27f677e00cf815cb9bd600b1305391891685f03423ff";
 const BUILD_MARKER = path.join(REPO_ROOT, "scaffold", "mcp", "dist", ".cortex-build-hash");
 const REQUIRED_CONTAINMENT_UPGRADE_PATHS = [
   "scaffold/scripts/dashboard.mjs",
   "scaffold/scripts/ingest-worker.mjs",
   "scaffold/scripts/ingest.mjs",
+  "scaffold/scripts/lib/dialect-observation-contract.mjs",
   "scaffold/scripts/lib/ingest/chunks.mjs",
   "scaffold/scripts/lib/ingest/config.mjs",
   "scaffold/scripts/lib/ingest/files.mjs",
@@ -69,9 +71,11 @@ const candidateMetadata = JSON.parse(
 );
 
 function run(command, args, { cwd = REPO_ROOT, env = process.env } = {}) {
+  const childEnv = { ...env };
+  delete childEnv.NODE_TEST_CONTEXT;
   const result = spawnSync(command, args, {
     cwd,
-    env,
+    env: childEnv,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
   });
@@ -103,9 +107,17 @@ function copyTest(packageRoot, name) {
 }
 
 function installedOwnership(packageRoot) {
-  const manifest = JSON.parse(
-    fs.readFileSync(path.join(packageRoot, "scaffold", "ownership", "v1.json"), "utf8"),
+  const pointer = JSON.parse(
+    fs.readFileSync(path.join(packageRoot, "scaffold", "ownership", "current.json"), "utf8"),
   );
+  const manifest = JSON.parse(
+    fs.readFileSync(
+      path.join(packageRoot, "scaffold", "ownership", `v${pointer.manifestVersion}.json`),
+      "utf8",
+    ),
+  );
+  assert.equal(pointer.manifestVersion, 2);
+  assert.equal(manifest.manifestVersion, 2);
   const paths = manifest.managedRoots.flatMap((root) =>
     root.files.map((file) => path.posix.join(
       root.target,
@@ -116,8 +128,14 @@ function installedOwnership(packageRoot) {
 }
 
 function installedOwnershipEntries(packageRoot) {
+  const pointer = JSON.parse(
+    fs.readFileSync(path.join(packageRoot, "scaffold", "ownership", "current.json"), "utf8"),
+  );
   const manifest = JSON.parse(
-    fs.readFileSync(path.join(packageRoot, "scaffold", "ownership", "v1.json"), "utf8"),
+    fs.readFileSync(
+      path.join(packageRoot, "scaffold", "ownership", `v${pointer.manifestVersion}.json`),
+      "utf8",
+    ),
   );
   return manifest.managedRoots.flatMap((root) =>
     root.files.map((file) => {
@@ -183,6 +201,23 @@ function verifyPackInventory(pack) {
   assert.equal(
     pack.files.some((entry) => entry.path === "scaffold/mcp/dist/.cortex-build-hash"),
     false,
+  );
+  for (const requiredPath of [
+    "scaffold/ownership/current.json",
+    "scaffold/ownership/v1.json",
+    "scaffold/ownership/v2.json",
+    "scaffold/scripts/lib/dialect-observation-contract.mjs",
+  ]) {
+    assert.equal(
+      pack.files.some((entry) => entry.path === requiredPath),
+      true,
+      `missing packed runtime contract path: ${requiredPath}`,
+    );
+  }
+  assert.equal(
+    pack.files.some((entry) => entry.path.startsWith("benchmark/")),
+    false,
+    "the packaged runtime must not depend on benchmark files",
   );
   const modeCounts = new Map();
   for (const entry of pack.files) {
@@ -337,7 +372,7 @@ function verifyForcedUpgrade(packageRoot, sandbox, npmCache) {
     fs.readFileSync(path.join(project, ".context", "scaffold-state.json"), "utf8"),
   );
   assert.equal(state.schemaVersion, 1);
-  assert.equal(state.manifestVersion, 1);
+  assert.equal(state.manifestVersion, 2);
   for (const entry of changedFiles) {
     const targetPath = path.join(project, ...entry.targetIdentity.split("/"));
     const candidatePath = path.join(packageRoot, ...entry.sourcePath.split("/"));
@@ -412,6 +447,15 @@ try {
     JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "utf8")).version,
     candidateMetadata.version,
   );
+  assert.equal(
+    sha256File(path.join(packageRoot, "scaffold", "ownership", "v1.json")),
+    OWNERSHIP_V1_SHA256,
+  );
+  const packedRuntimeSource = fs.readFileSync(
+    path.join(packageRoot, "scaffold", "scripts", "lib", "dialect-observation-contract.mjs"),
+    "utf8",
+  );
+  assert.doesNotMatch(packedRuntimeSource, /benchmark/);
   const ownership = verifyPackedRuntimeOwnership(cleanPack, packageRoot);
 
   run("npm", [

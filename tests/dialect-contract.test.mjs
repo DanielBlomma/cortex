@@ -7,6 +7,7 @@ import {
   DIALECT_GOLDEN_CASE_KINDS,
   DIALECT_GOLDEN_CASE_STATUS,
   DIALECT_LIMITS,
+  DIALECT_LIMITS_SHA256,
   canonicalJson,
   canonicalize,
   sha256,
@@ -42,7 +43,9 @@ function observation({
     repository_path: sourcePath,
     containing_chunk_id: `chunk:${sourcePath}:sample:${line}-${line}`,
     start_line: line,
+    start_column: 0,
     end_line: line,
+    end_column: 1,
     category,
     normalized_shape: `${category}:sample`,
     language_specific_shape: languageShape,
@@ -72,7 +75,14 @@ test("capability manifest freezes all 14 parser families and 29 registered modes
     family.modes.map((mode) => ({ family: family.family, ...mode }))
   );
   assert.equal(modes.length, 29);
-  assert.match(DIALECT_CAPABILITY_MANIFEST_SHA256, /^[a-f0-9]{64}$/);
+  assert.equal(
+    DIALECT_CAPABILITY_MANIFEST_SHA256,
+    "32ea6b9331a562ba06d87b5f9a01dc1a5487f0619e38040488de813505489f11"
+  );
+  assert.equal(
+    DIALECT_LIMITS_SHA256,
+    "aabe57c65a97253e4ae617b00c653ef5f14e2259a5006b354807468e47a1a602"
+  );
 
   for (const mode of modes) {
     const registryStart = PARSER_REGISTRY_SOURCE.indexOf("const CHUNK_PARSERS");

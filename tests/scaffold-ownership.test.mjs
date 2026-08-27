@@ -9,9 +9,11 @@ import { fileURLToPath } from "node:url";
 
 import { initializeScaffold } from "../bin/cli/scaffold.mjs";
 import {
+  expandLegacyFiles,
   expandManagedFiles,
   installManagedScaffold,
   loadCurrentOwnershipManifest,
+  loadOwnershipManifest,
   scaffoldOwnershipConstants,
   validateOwnershipManifest,
 } from "../bin/cli/scaffold-ownership.mjs";
@@ -36,6 +38,17 @@ const V241_WORKER_FIXTURE = path.join(
   "scaffold-baseline-v2.4.1",
   "ingest-worker.mjs",
 );
+const DIALECT_RUNTIME_TARGET =
+  ".context/scripts/lib/dialect-observation-contract.mjs";
+const DIALECT_RUNTIME_SOURCE = path.join(
+  PROJECT_ROOT,
+  "scaffold",
+  "scripts",
+  "lib",
+  "dialect-observation-contract.mjs",
+);
+const OWNERSHIP_V1_SHA256 =
+  "b3b97387f541e718ac3b27f677e00cf815cb9bd600b1305391891685f03423ff";
 
 function makeTarget(prefix = "cortex-scaffold-ownership-") {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -93,6 +106,7 @@ function installFixtureV1(target) {
 
 test("package ownership manifest explicitly covers canonical scaffold sources", () => {
   const manifest = loadCurrentOwnershipManifest(PROJECT_ROOT);
+  const previousManifest = loadOwnershipManifest(PROJECT_ROOT, 1);
   const targets = new Set(
     expandManagedFiles(manifest).map((entry) => entry.target),
   );
@@ -115,8 +129,70 @@ test("package ownership manifest explicitly covers canonical scaffold sources", 
   ];
 
   assert.equal(manifest.schemaVersion, 1);
-  assert.equal(manifest.manifestVersion, 1);
+  assert.equal(manifest.manifestVersion, 2);
   assert.deepEqual(manifest.preStateBaselines, ["v2.4.1"]);
+  assert.equal(targets.has(DIALECT_RUNTIME_TARGET), true);
+  assert.equal(
+    targets.size,
+    expandManagedFiles(previousManifest).length + 1,
+    "v2 must add exactly one managed target",
+  );
+  const currentScriptsRoot = manifest.managedRoots.find(
+    (root) => root.source === "scripts" && root.target === ".context/scripts",
+  );
+  const previousScriptsRoot = previousManifest.managedRoots.find(
+    (root) => root.source === "scripts" && root.target === ".context/scripts",
+  );
+  assert.deepEqual(
+    currentScriptsRoot,
+    previousScriptsRoot,
+    "the legacy-mapped scripts root must remain identical to v1",
+  );
+  const rawV2 = JSON.parse(
+    fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "ownership", "v2.json"), "utf8"),
+  );
+  assert.deepEqual(
+    rawV2.managedRoots.find((root) => root.source === "scripts/lib"),
+    {
+      source: "scripts/lib",
+      target: ".context/scripts/lib",
+      files: ["dialect-observation-contract.mjs"],
+    },
+  );
+  assert.equal(
+    expandLegacyFiles(manifest).some(
+      (entry) => entry.target === "scripts/lib/dialect-observation-contract.mjs",
+    ),
+    false,
+    "the new nested root must have no legacy cleanup authority",
+  );
+  assert.equal(
+    crypto.createHash("sha256").update(
+      fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "ownership", "v1.json")),
+    ).digest("hex"),
+    OWNERSHIP_V1_SHA256,
+  );
+  const reconstructedV1 = structuredClone(rawV2);
+  reconstructedV1.manifestVersion = 1;
+  const v2RootCount = reconstructedV1.managedRoots.length;
+  reconstructedV1.managedRoots = reconstructedV1.managedRoots.filter(
+    (root) => !(
+      root.source === "scripts/lib" &&
+      root.target === ".context/scripts/lib"
+    ),
+  );
+  assert.equal(
+    reconstructedV1.managedRoots.length,
+    v2RootCount - 1,
+    "v1 reconstruction must remove exactly the new nested runtime root",
+  );
+  assert.deepEqual(
+    reconstructedV1,
+    JSON.parse(
+      fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "ownership", "v1.json"), "utf8"),
+    ),
+    "v2 may differ from v1 only by its version and the runtime target",
+  );
   for (const file of canonicalIngestFiles) {
     assert.equal(
       targets.has(`.context/scripts/lib/ingest/${file}`),
@@ -149,6 +225,209 @@ test("package ownership manifest explicitly covers canonical scaffold sources", 
   );
   assert.equal(packageJson.files.includes("scaffold/ownership"), true);
 });
+
+test("clean install and v1-to-v2 force upgrade install the packaged runtime fingerprint", () => {
+  const cleanTarget = makeTarget("cortex-scaffold-runtime-clean-");
+  const upgradeTarget = makeTarget("cortex-scaffold-runtime-upgrade-");
+  const expectedBytes = fs.readFileSync(DIALECT_RUNTIME_SOURCE);
+  const expectedHash = crypto.createHash("sha256").update(expectedBytes).digest("hex");
+  try {
+    installManagedScaffold(PROJECT_ROOT, cleanTarget, { force: true });
+    assert.deepEqual(
+      fs.readFileSync(targetPath(cleanTarget, DIALECT_RUNTIME_TARGET)),
+      expectedBytes,
+    );
+    assert.equal(readInstalledState(cleanTarget).manifestVersion, 2);
+    assert.equal(
+      readInstalledState(cleanTarget).fileHashes[DIALECT_RUNTIME_TARGET],
+      expectedHash,
+    );
+
+    installManagedScaffold(PROJECT_ROOT, upgradeTarget, {
+      force: true,
+      manifestVersion: 1,
+    });
+    assert.equal(fs.existsSync(targetPath(upgradeTarget, DIALECT_RUNTIME_TARGET)), false);
+    assert.equal(readInstalledState(upgradeTarget).manifestVersion, 1);
+
+    installManagedScaffold(PROJECT_ROOT, upgradeTarget, { force: true });
+    assert.deepEqual(
+      fs.readFileSync(targetPath(upgradeTarget, DIALECT_RUNTIME_TARGET)),
+      expectedBytes,
+    );
+    assert.equal(readInstalledState(upgradeTarget).manifestVersion, 2);
+    assert.equal(
+      readInstalledState(upgradeTarget).fileHashes[DIALECT_RUNTIME_TARGET],
+      expectedHash,
+    );
+  } finally {
+    fs.rmSync(cleanTarget, { recursive: true, force: true });
+    fs.rmSync(upgradeTarget, { recursive: true, force: true });
+  }
+});
+
+test(
+  "clean-state byte-identical runtime collisions are never treated as owned",
+  { skip: process.platform === "win32" },
+  () => {
+    const regularTarget = makeTarget("cortex-scaffold-runtime-clean-identical-");
+    const hardLinkTarget = makeTarget("cortex-scaffold-runtime-clean-hardlink-");
+    const external = makeTarget("cortex-scaffold-runtime-clean-external-");
+    const runtimeBytes = fs.readFileSync(DIALECT_RUNTIME_SOURCE);
+    const externalFile = path.join(external, "dialect-observation-contract.mjs");
+    fs.writeFileSync(externalFile, runtimeBytes);
+    try {
+      const regularPath = targetPath(regularTarget, DIALECT_RUNTIME_TARGET);
+      fs.mkdirSync(path.dirname(regularPath), { recursive: true });
+      fs.writeFileSync(regularPath, runtimeBytes);
+      const regularBefore = fs.statSync(regularPath);
+      assert.throws(
+        () => installManagedScaffold(PROJECT_ROOT, regularTarget, { force: true }),
+        /unowned scaffold collision: \.context\/scripts\/lib\/dialect-observation-contract\.mjs/,
+      );
+      const regularAfter = fs.statSync(regularPath);
+      assert.equal(regularAfter.ino, regularBefore.ino);
+      assert.equal(regularAfter.nlink, regularBefore.nlink);
+      assert.deepEqual(fs.readFileSync(regularPath), runtimeBytes);
+      assert.equal(
+        fs.existsSync(targetPath(regularTarget, scaffoldOwnershipConstants.installedStateRelativePath)),
+        false,
+      );
+
+      const hardLinkedPath = targetPath(hardLinkTarget, DIALECT_RUNTIME_TARGET);
+      fs.mkdirSync(path.dirname(hardLinkedPath), { recursive: true });
+      fs.linkSync(externalFile, hardLinkedPath);
+      const targetBefore = fs.statSync(hardLinkedPath);
+      const externalBefore = fs.statSync(externalFile);
+      assert.throws(
+        () => installManagedScaffold(PROJECT_ROOT, hardLinkTarget, { force: true }),
+        /unowned scaffold collision: \.context\/scripts\/lib\/dialect-observation-contract\.mjs/,
+      );
+      const targetAfter = fs.statSync(hardLinkedPath);
+      const externalAfter = fs.statSync(externalFile);
+      assert.equal(targetAfter.ino, targetBefore.ino);
+      assert.equal(externalAfter.ino, externalBefore.ino);
+      assert.equal(targetAfter.ino, externalAfter.ino);
+      assert.equal(targetAfter.nlink, targetBefore.nlink);
+      assert.equal(externalAfter.nlink, externalBefore.nlink);
+      assert.deepEqual(fs.readFileSync(hardLinkedPath), runtimeBytes);
+      assert.deepEqual(fs.readFileSync(externalFile), runtimeBytes);
+      assert.equal(
+        fs.existsSync(targetPath(hardLinkTarget, scaffoldOwnershipConstants.installedStateRelativePath)),
+        false,
+      );
+    } finally {
+      fs.rmSync(regularTarget, { recursive: true, force: true });
+      fs.rmSync(hardLinkTarget, { recursive: true, force: true });
+      fs.rmSync(external, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "clean init preserves unknown legacy dialect files and hard links outside legacy authority",
+  { skip: process.platform === "win32" },
+  () => {
+    const byteIdenticalTarget = makeTarget("cortex-scaffold-runtime-legacy-identical-");
+    const hardLinkTarget = makeTarget("cortex-scaffold-runtime-legacy-hardlink-");
+    const external = makeTarget("cortex-scaffold-runtime-legacy-external-");
+    const runtimeBytes = fs.readFileSync(DIALECT_RUNTIME_SOURCE);
+    const externalFile = path.join(external, "dialect-observation-contract.mjs");
+    fs.writeFileSync(externalFile, runtimeBytes);
+    try {
+      const byteIdenticalLegacyPath = targetPath(
+        byteIdenticalTarget,
+        "scripts/lib/dialect-observation-contract.mjs",
+      );
+      fs.mkdirSync(path.dirname(byteIdenticalLegacyPath), { recursive: true });
+      fs.writeFileSync(byteIdenticalLegacyPath, runtimeBytes);
+      initializeScaffold(byteIdenticalTarget, false);
+      assert.deepEqual(fs.readFileSync(byteIdenticalLegacyPath), runtimeBytes);
+      assert.deepEqual(
+        fs.readFileSync(targetPath(byteIdenticalTarget, DIALECT_RUNTIME_TARGET)),
+        runtimeBytes,
+      );
+
+      const hardLinkedLegacyPath = targetPath(
+        hardLinkTarget,
+        "scripts/lib/dialect-observation-contract.mjs",
+      );
+      fs.mkdirSync(path.dirname(hardLinkedLegacyPath), { recursive: true });
+      fs.linkSync(externalFile, hardLinkedLegacyPath);
+      const externalInode = fs.statSync(externalFile).ino;
+      initializeScaffold(hardLinkTarget, false);
+      assert.equal(fs.statSync(hardLinkedLegacyPath).ino, externalInode);
+      assert.equal(fs.statSync(externalFile).ino, externalInode);
+      assert.deepEqual(fs.readFileSync(externalFile), runtimeBytes);
+      assert.deepEqual(
+        fs.readFileSync(targetPath(hardLinkTarget, DIALECT_RUNTIME_TARGET)),
+        runtimeBytes,
+      );
+    } finally {
+      fs.rmSync(byteIdenticalTarget, { recursive: true, force: true });
+      fs.rmSync(hardLinkTarget, { recursive: true, force: true });
+      fs.rmSync(external, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "v2 runtime collisions, links, and redirected ancestors fail closed during upgrade",
+  { skip: process.platform === "win32" },
+  () => {
+    const target = makeTarget("cortex-scaffold-runtime-collision-");
+    const external = makeTarget("cortex-scaffold-runtime-external-");
+    const runtimeTarget = targetPath(target, DIALECT_RUNTIME_TARGET);
+    const externalFile = path.join(external, "outside.mjs");
+    fs.writeFileSync(externalFile, "export const outside = true;\n", "utf8");
+    try {
+      installManagedScaffold(PROJECT_ROOT, target, {
+        force: true,
+        manifestVersion: 1,
+      });
+
+      fs.writeFileSync(runtimeTarget, "export const userOwned = true;\n", "utf8");
+      assert.throws(
+        () => installManagedScaffold(PROJECT_ROOT, target, { force: true }),
+        /unowned scaffold collision: \.context\/scripts\/lib\/dialect-observation-contract\.mjs/,
+      );
+      assert.equal(fs.readFileSync(runtimeTarget, "utf8"), "export const userOwned = true;\n");
+      assert.equal(readInstalledState(target).manifestVersion, 1);
+      fs.unlinkSync(runtimeTarget);
+
+      fs.symlinkSync(externalFile, runtimeTarget);
+      assert.throws(
+        () => installManagedScaffold(PROJECT_ROOT, target, { force: true }),
+        /Refusing symlinked managed scaffold target/,
+      );
+      assert.equal(fs.readFileSync(externalFile, "utf8"), "export const outside = true;\n");
+      fs.unlinkSync(runtimeTarget);
+
+      fs.linkSync(externalFile, runtimeTarget);
+      const externalInode = fs.statSync(externalFile).ino;
+      assert.throws(
+        () => installManagedScaffold(PROJECT_ROOT, target, { force: true }),
+        /unowned scaffold collision: \.context\/scripts\/lib\/dialect-observation-contract\.mjs/,
+      );
+      assert.equal(fs.statSync(externalFile).ino, externalInode);
+      assert.equal(fs.readFileSync(externalFile, "utf8"), "export const outside = true;\n");
+      fs.unlinkSync(runtimeTarget);
+
+      const libDirectory = targetPath(target, ".context/scripts/lib");
+      fs.rmSync(libDirectory, { recursive: true, force: true });
+      fs.symlinkSync(external, libDirectory);
+      assert.throws(
+        () => installManagedScaffold(PROJECT_ROOT, target, { force: true }),
+        /Refusing symlinked managed scaffold target/,
+      );
+      assert.equal(fs.readFileSync(externalFile, "utf8"), "export const outside = true;\n");
+      assert.equal(readInstalledState(target).manifestVersion, 1);
+    } finally {
+      fs.rmSync(target, { recursive: true, force: true });
+      fs.rmSync(external, { recursive: true, force: true });
+    }
+  },
+);
 
 test("forced upgrade removes only unmodified obsolete owned files", () => {
   const target = makeTarget();
@@ -328,7 +607,11 @@ test("the hash-pinned 2.4.1 scaffold upgrades before installed state exists", ()
         "utf8",
       ),
     );
-    assert.equal(readInstalledState(target).manifestVersion, 1);
+    assert.equal(readInstalledState(target).manifestVersion, 2);
+    assert.deepEqual(
+      fs.readFileSync(targetPath(target, DIALECT_RUNTIME_TARGET)),
+      fs.readFileSync(DIALECT_RUNTIME_SOURCE),
+    );
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }
@@ -626,7 +909,11 @@ test("project init persists ownership and force preserves unknown and protected 
     );
     const state = readInstalledState(target);
     assert.equal(state.schemaVersion, 1);
-    assert.equal(state.manifestVersion, 1);
+    assert.equal(state.manifestVersion, 2);
+    assert.equal(
+      state.fileHashes[DIALECT_RUNTIME_TARGET],
+      crypto.createHash("sha256").update(fs.readFileSync(DIALECT_RUNTIME_SOURCE)).digest("hex"),
+    );
     assert.equal(
       typeof state.fileHashes[
         ".context/scripts/lib/ingest/main.mjs"
