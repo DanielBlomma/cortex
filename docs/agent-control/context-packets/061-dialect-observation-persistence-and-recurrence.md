@@ -15,6 +15,10 @@ stable CLI/MCP contract.
 
 - Start in a fresh session and separate feature worktree from accepted WO-053
   head `763b105`, which contains implementation `bf53d6a` and accepted WO-052.
+- Assigned branch: `feature/wo054-dialect-persistence-recurrence`.
+- Assigned worktree:
+  `/Users/danielnilsson/GIT/cortex-wo054-dialect-persistence-recurrence`.
+- Packet/control commit: `fb33477`; implementation starts after that commit.
 - Use only this packet and its direct references. Run Cortex
   search/rules/impact before implementation; do not migrate a feature-worktree
   scaffold merely to make the canonical index understand new files.

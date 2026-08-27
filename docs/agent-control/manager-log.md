@@ -27,8 +27,11 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   worker protocol, filesystem output set, and pattern-evidence search seam as
   the blast radius. The separate-worktree index must not be repaired through an
   unowned scaffold migration.
-- WO-054 is Ready from Packet 061 and must begin in its separate feature
-  worktree and a fresh packet-only session. WO-055 remains blocked.
+- WO-054 is assigned from packet/control commit `fb33477` on branch
+  `feature/wo054-dialect-persistence-recurrence` in worktree
+  `/Users/danielnilsson/GIT/cortex-wo054-dialect-persistence-recurrence`. It
+  must begin in a fresh packet-only implementation session. WO-055 remains
+  blocked.
 
 ## 2026-08-27 — WO-053 accepted; WO-054 ready
 
