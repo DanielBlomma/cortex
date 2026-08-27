@@ -317,3 +317,32 @@ export function parseAst(code) {
     };
   }
 }
+
+/**
+ * Iterative native-AST walk used by the opt-in dialect adapter. The visitor
+ * receives the owning key/index so parameter patterns and method bodies can be
+ * identified from syntax structure without retaining parent links.
+ */
+export function walkAst(ast, visitor) {
+  const stack = [{ node: ast, parent: null, key: null, index: null, ancestors: [ast] }];
+  while (stack.length > 0) {
+    const entry = stack.pop();
+    visitor(entry.node, entry.parent, entry.key, entry.index, entry.ancestors);
+    const children = [];
+    for (const [key, value] of Object.entries(entry.node)) {
+      if (Array.isArray(value)) {
+        for (let index = 0; index < value.length; index += 1) {
+          const child = value[index];
+          if (child && typeof child === "object" && typeof child.type === "string") {
+            children.push({ node: child, parent: entry.node, key, index, ancestors: [...entry.ancestors, child] });
+          }
+        }
+      } else if (value && typeof value === "object" && typeof value.type === "string") {
+        children.push({ node: value, parent: entry.node, key, index: null, ancestors: [...entry.ancestors, value] });
+      }
+    }
+    for (let index = children.length - 1; index >= 0; index -= 1) {
+      stack.push(children[index]);
+    }
+  }
+}

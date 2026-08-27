@@ -30,9 +30,14 @@ import {
   loadGrammar,
   bodyOf,
   collectErrors,
+  commonTreeSitterDialectFacts,
   parseSource,
-  runQuery
+  prepareDialectAdapterInput,
+  runQuery,
+  treeSitterDialectObservationEnvelope,
+  treeSitterUnavailableTransport
 } from "./tree-sitter/base.mjs";
+import { createDialectObservationTransport } from "../lib/dialect-observation-contract.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -208,9 +213,13 @@ function buildConstructorChunk(node, imports, language) {
 }
 
 export async function parseCode(code, filePath, language = "java") {
+  return (await parseInternal(code, filePath, language)).parserResult;
+}
+
+async function parseInternal(code, filePath, language) {
   await ensureLanguage();
   const { tree, reason } = parseSource(JAVA_LANG, code);
-  if (!tree) return { chunks: [], errors: [{ message: reason }] };
+  if (!tree) return { tree: null, parserResult: { chunks: [], errors: [{ message: reason }] } };
   const root = tree.rootNode;
   const imports = collectImports(root);
 
@@ -238,7 +247,37 @@ export async function parseCode(code, filePath, language = "java") {
     return true;
   });
 
-  return { chunks: deduped, errors: collectErrors(tree) };
+  return { tree, parserResult: { chunks: deduped, errors: collectErrors(tree) } };
+}
+
+export async function parseCodeWithDialectObservations(code, repositoryPath, language = "java") {
+  const metadata = prepareDialectAdapterInput(code, repositoryPath, language, ["java"]);
+  let parsed;
+  try {
+    parsed = await parseInternal(code, repositoryPath, language);
+  } catch {
+    return treeSitterUnavailableTransport(metadata.oversized ? "oversized" : "unavailable");
+  }
+  const { tree, parserResult } = parsed;
+  const observationEnvelope = treeSitterDialectObservationEnvelope({
+    code,
+    repositoryPath,
+    family: metadata.family,
+    syntaxMode: metadata.syntaxMode,
+    rootNode: tree?.rootNode ?? null,
+    parserResult,
+    classifyNode: classifyDialectNode
+  });
+  return createDialectObservationTransport(parserResult, observationEnvelope);
+}
+
+function classifyDialectNode(node) {
+  const facts = commonTreeSitterDialectFacts(node);
+  if (node.type === "constant_declaration") {
+    facts.push({ category: "declaration_structure", kind: "field", form: "declaration" });
+    facts.push({ category: "data_representation", kind: "field", form: "declaration" });
+  }
+  return facts;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

@@ -11,6 +11,12 @@
  *   unset / other                  → tree-sitter with clang auto-fallback
  */
 
+import {
+  dialectObservationEnvelope,
+  prepareDialectAdapterInput
+} from "./tree-sitter/base.mjs";
+import { createDialectObservationTransport } from "../lib/dialect-observation-contract.mjs";
+
 const choice = process.env.CORTEX_CPP_PARSER;
 
 let activeParser = null;
@@ -46,6 +52,27 @@ async function resolveParser() {
 export async function parseCode(code, filePath, language = "cpp") {
   const parser = await resolveParser();
   return parser.parseCode(code, filePath, language);
+}
+
+export async function parseCodeWithDialectObservations(code, repositoryPath, language = "cpp") {
+  const metadata = prepareDialectAdapterInput(code, repositoryPath, language, ["c", "cpp"]);
+  const parser = await resolveParser();
+  if (typeof parser.parseCodeWithDialectObservations === "function") {
+    return parser.parseCodeWithDialectObservations(code, repositoryPath, language);
+  }
+  const parserResult = await parser.parseCode(code, repositoryPath, language);
+  const observationEnvelope = metadata.oversized
+    ? dialectObservationEnvelope("oversized", [], {
+      message: "source exceeds dialect observation byte cap",
+      observedCount: 0,
+      omittedCount: 0
+    })
+    : dialectObservationEnvelope("unavailable", [], {
+      message: "selected clang bridge cannot emit dialect observations",
+      observedCount: 0,
+      omittedCount: 0
+    });
+  return createDialectObservationTransport(parserResult, observationEnvelope);
 }
 
 export async function isCppParserAvailable() {
