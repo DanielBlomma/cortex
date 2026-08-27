@@ -6,6 +6,30 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-27 — WO-054 packet frozen and worktree handoff prepared
+
+- Packet 061 freezes WO-054 from accepted WO-053 head `763b105`. The sole
+  persisted artifact is the bounded canonical
+  `.context/cache/dialect-observations.v1.jsonl` sidecar in the existing
+  manifest-last filesystem transaction; graph, embeddings, rules,
+  conventions, guidance, and public tools remain excluded.
+- Exact integration owns the composite registry/worker path, canonical staging
+  and incremental hydration, C# project-batch dialect transport, and the
+  existing MCP pattern-evidence module. No managed production path, package
+  inventory, ownership, version, dependency, or public CLI/MCP change is
+  authorized.
+- Recurrence requires two distinct comparable owners and two distinct frozen
+  source spans after exact task family/scope filtering. Claims are bounded,
+  deterministic, cited from the frozen source catalog, informational, and
+  non-normative. One-off, unsupported, ambiguous, drifted, or insufficient
+  evidence yields diagnostics only.
+- Canonical Cortex search/rules/impact identified the ingest parse stage,
+  worker protocol, filesystem output set, and pattern-evidence search seam as
+  the blast radius. The separate-worktree index must not be repaired through an
+  unowned scaffold migration.
+- WO-054 is Ready from Packet 061 and must begin in its separate feature
+  worktree and a fresh packet-only session. WO-055 remains blocked.
+
 ## 2026-08-27 — WO-053 accepted; WO-054 ready
 
 - WO-053 started in the required fresh session and separate worktree from the
