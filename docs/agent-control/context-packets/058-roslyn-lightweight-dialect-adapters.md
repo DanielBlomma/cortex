@@ -11,10 +11,10 @@ codebase dialect, persist observations, or change retrieval.
 
 ## Starting State
 
-- Start in a fresh session and feature worktree from the accepted WO-051E head,
-  which must contain WO-051C implementation `6f7af6b`, the Packet 059
-  capability-truth amendment, and the Packet 060 legacy parser-error transport
-  bridge.
+- Start in a fresh session and feature worktree from the accepted WO-052 branch
+  head containing implementation `7d3adec`, WO-051C implementation `6f7af6b`, the Packet 059
+  capability-truth amendment, the Packet 060 legacy parser-error transport
+  bridge, and the accepted Acorn/Tree-sitter adapters.
 - Use only this packet and its direct references.
 - Run Cortex search/rules/impact before implementation. Do not migrate the
   accepted scaffold merely to make a separate-worktree index understand new

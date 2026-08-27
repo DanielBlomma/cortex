@@ -6,6 +6,35 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-27 — WO-052 accepted; WO-053 ready
+
+- The user explicitly authorized WO-052 to continue in the current session
+  despite the workflow's fresh-session rule. Packet 057 and its direct
+  references were reread before resumption. This one-work-order override is
+  not precedent for WO-053 or later work.
+- The exact 17-file Acorn/Tree-sitter adapter implementation is committed as
+  `7d3adec`: twelve existing parser files, four focused tests, and only the
+  authorized packed-upgrade count change 57→69.
+- Ten families now expose opt-in one-pass composite transports across every
+  registered mode in scope while legacy `parseCode`, selection, fallbacks,
+  chunks, errors, registry, workers, ingest, and public surfaces remain exact.
+  The required deep Acorn regression preserves own undefined locations and
+  returns a JSON-safe `malformed` transport without parser drift.
+- Final Security review found generic `builtin trap` could be shadowed and was
+  not syntax proof. The command-name heuristic was removed. Bash error-flow is
+  now derived only from Tree-sitter's direct native `||` token, and Bash
+  `list` no longer inherits the unrelated cross-language container fact.
+- Final gates pass: contract 30/30, JavaScript 24/24, C/C++/Rust 65/65,
+  Tree-sitter 73/73, focused adapters 34/34, and packed containment 1/1.
+  Package inventory remains 432 at 411/21 with `f7647e5…661`, ownership
+  396/96, and upgrade 69 changed/16 new with all 69 hashes verified.
+- Parser/Contract, Security/Containment, and Validation/Pack final re-reviews
+  are unanimous GO with zero findings. Overlays/tarballs are absent. Canonical
+  Cortex supplied required context and doctor 8/8; candidate changed-file
+  evidence remains unavailable without forbidden feature-scaffold migration.
+- WO-053 is Ready from accepted `7d3adec`. R19 remains open for the final four
+  parser families, persisted recurrence comparison, and blind evaluation.
+
 ## 2026-08-27 — WO-051E accepted; WO-052 and WO-053 ready
 
 - The exact two-file legacy parser-error transport bridge is committed as

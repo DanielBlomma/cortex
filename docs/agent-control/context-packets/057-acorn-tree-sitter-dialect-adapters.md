@@ -1,15 +1,11 @@
 # WO-052 Acorn and Tree-sitter Dialect Adapters
 
-## Paused State
+## Resume State
 
-WO-051D is accepted and its Ruby/Bash capability correction is already applied
-to the preserved candidate. A subsequent final review found a second frozen
-boundary conflict: an existing Acorn parser error can own optional `line` and
-`column` values of `undefined`, while the strict dialect transport rejects all
-non-JSON values. Changing the legacy parser result or weakening transport is
-forbidden. Packet 060/WO-051E must therefore be accepted first. Resume from
-that accepted head in a fresh session; do not alter legacy parser error bytes
-or add an adapter-local canonicalizer.
+WO-051D and WO-051E are accepted. The preserved candidate was advanced without
+byte drift onto the shared transport bridge, then received the required deep
+Acorn error regression. Legacy parser error bytes remain exact and no
+adapter-local canonicalizer was introduced.
 
 ## Objective
 
@@ -23,8 +19,8 @@ codebase dialect, persist observations, or change retrieval.
 
 ## Starting State
 
-- Start in a fresh session and feature worktree from the accepted
-  `feature/wo051c-adapter-contract` head containing implementation `6f7af6b`.
+- Start from the accepted WO-051E head containing implementation `73117b5` and
+  its durable acceptance records.
 - Use only this packet and its direct references.
 - Run Cortex search/rules/impact before implementation. Do not migrate the
   accepted scaffold merely to make a separate-worktree index understand new
@@ -228,6 +224,43 @@ Independent Parser/Contract, Security/Containment, and Validation/Pack reviewers
 must return GO with no blocker or major findings. Any finding is fixed and
 re-reviewed within this work order before manager acceptance.
 
+## Acceptance State
+
+Accepted locally on 2026-08-27. The exact 17-file implementation is commit
+`7d3adec`: twelve existing managed parser files, four focused adapter tests,
+and only the authorized packed-upgrade count change from 57 to 69.
+
+The adapters cover JavaScript, TypeScript, C, C++, Rust, Python, Go, Java,
+Ruby, and Bash across every registered mode in scope. Existing `parseCode`
+results and parser selection remain exact; composite calls parse natively once
+and return detached canonical observations. The Packet 060 deep Acorn case
+retains legacy own `line`/`column: undefined`, returns `malformed` with zero
+observations, omits only those transport fields, and remains JSON-equivalent.
+
+Final Security review found and closed one Bash false positive: a command name
+`builtin trap` cannot prove cleanup because `builtin` can be shadowed. The
+accepted adapter instead derives `error_flow/handler` only from Tree-sitter's
+direct native `||` token, and prevents Bash `list` from inheriting the
+cross-language container fact. Direct, builtin, and shadowed-builtin trap
+forms remain negative.
+
+Final validation passed contract/evaluation/runtime 30/30, JavaScript 24/24,
+C/C++/Rust 65/65, Tree-sitter families 73/73, focused adapters 34/34, and
+packed containment 1/1. The package remains 432 entries at 411/21 modes with
+inventory digest
+`f7647e513e6ab40e6327e6bd14aa4db26fc248930780a3967de56ddf423ff661`,
+ownership 396/96, and published-predecessor upgrade 69 changed/16 new with all
+69 state hashes verified. Frozen contract, capability, limits, shape,
+ownership, lock, dependency, version, registry, worker, and public surfaces
+remain unchanged.
+
+Parser/Contract, Security/Containment, and Validation/Pack final re-reviews
+returned GO with zero blocker, major, or minor findings. Dependency overlays
+and tarballs were absent at final inspection. The older feature scaffold could
+not provide candidate changed-file evidence without forbidden migration;
+canonical Cortex supplied search/rules/impact, baseline pattern evidence for
+11 production files, doctor 8/8 at 100% freshness, and stopped watcher state.
+
 ## Stop Conditions
 
 Stop and split rather than changing parser selection, fallbacks, dependencies,
@@ -240,6 +273,8 @@ the exact scope.
 - `docs/agent-control/context-packets/054-all-language-parser-backed-codebase-dialect.md`
 - `docs/agent-control/context-packets/055-runtime-dialect-contract-promotion.md`
 - `docs/agent-control/context-packets/056-adapter-span-shape-baseline-closure.md`
+- `docs/agent-control/context-packets/059-dynamic-language-test-shape-capability-truth.md`
+- `docs/agent-control/context-packets/060-legacy-parser-error-transport-bridge.md`
 - `scaffold/scripts/lib/dialect-observation-contract.mjs`
 - every production and existing parser test file named above
 - `tests/dialect-contract.test.mjs`
