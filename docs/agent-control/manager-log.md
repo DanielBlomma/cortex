@@ -6,45 +6,28 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
-## Current State (2026-08-20)
+## Current State (2026-08-27)
 
-- Released npm baseline is `v2.4.2`. The annotated tag peels to corrected
-  `origin/main` at `736becf34d929ea0bef88adbe476a584a1f081e9`,
-  and Release Publish run `30523845440` completed successfully.
-- WO-026 through WO-031 are accepted, merged, and released. The final
-  integrated record is
-  `docs/agent-control/wo-031-integrated-validation-baseline.md`.
-- WO-031 preserved the frozen CLI, Enterprise, ingest, deterministic, package,
-  upgrade, and memory contracts. Syntax, focused tests, context regressions,
-  full root/MCP suites, five dependency audits, extracted-package smokes, and
-  all six reviewer roles are green.
-- Final memory medians are 631.46 MB for Cortex (+2.79% versus WO-026) and
-  1,016.16 MB for Angular (-1.75%), inside the five-percent acceptance band.
-- The accepted worktree `2.4.2` tarball contains 417 entries, all 19 CLI
-  modules, all 15 canonical ingest modules, and all three ownership files. A
-  clean-prefix install reports `2.4.2`. The clean release checkout correctly
-  produces 416 entries because the intentionally unowned stale
-  `scaffold/mcp/dist/embeddingModel.js` is absent.
-- Release review fixed MCP registry Node-floor drift and added the registry
-  submission to release-version synchronization and Release Bump staging. All
-  six reviewers then closed with no blocker, major, or minor findings.
-- Initial Release Publish run `30521392683` stopped safely before npm. PR #110
-  fixed both release workflows to install/build `scaffold/mcp` before root
-  tests and added ordering regressions. After reviewer acceptance and merge,
-  the unpublished tag was deliberately moved from `bd968d4` to corrected
-  `736becf`; run `30523845440` passed every gate and published npm `2.4.2`.
-- R14 and R15 are mitigated locally. WO-032 through WO-035 are manager-accepted
-  and R16 is mitigated after clean packed-artifact acceptance. WO-030's narrow
-  same-user ancestor-swap assumption and WO-034's possible deterministic
-  commit prefix remain documented residuals.
-- The modularization program and release recovery are complete. WO-032 through
-  WO-035 are accepted locally. WO-035's dependency blocker and first-review
-  packed-dashboard, inventory, released-upgrade, Work Profile, and release-gate
-  findings are fixed; all three independent re-reviews are GO.
-- WO-046 is accepted locally as a progressive-indexing prototype. WO-047
-  integrates it into the 2.5.0 candidate; all round-1 and round-2 NO-GO
-  findings are fixed, all three final re-reviews are GO, and the manager has
-  accepted the candidate for the authorized PR/release sequence.
+- Released npm baseline is `2.5.1`; the accepted DeepSeek Harness bundle is
+  committed as `594ff26`, pushed on `feature/deepseek-harness-stage0`, and open
+  as PR #120. It has not been merged, tagged, or published.
+- WO-056 Stage 0 selected the native Agent-scoped topology. WO-057 and WO-058
+  are now complete and accepted locally on
+  `/Users/danielnilsson/GIT/cortex-worktrees/deepseek-stage0`, branch
+  `feature/deepseek-harness-stage0`. The independently reviewed dirty tree at
+  base HEAD `c82fd113e923025297bb701a1189f5bf706d9ddd` is captured by implementation
+  commit `594ff26` and opened as PR #120.
+- The direct WO-058 report is GO for all six roles with findings `none`.
+  Independent totals are upstream 18/18, focused 32/32, bundle 6/6, negative
+  lifecycle 2/2, roots 2/2, offline commands 4/4, root 490/490, MCP 426/426,
+  and six audits at zero. Two fresh 12-entry packs are identical at SHA-256
+  `d7be11a964d6aa4562fac22a3a944e1919a0b46652f3f1a2dc732dde96c90beb`;
+  pinned headless/Web install, upgrade, smoke, shutdown, and removal pass.
+- R20 is closed locally for accepted V1. README remains `planned`; merge, tag,
+  release, npm publication, README promotion, and V2 remain unauthorized.
+- Auto-advance stops before merge. PR #120 is open, but this repository has no
+  pull-request-triggered GitHub Actions workflow; the complete accepted local
+  matrix remains the available validation evidence.
 
 ## Open Decisions
 
@@ -53,8 +36,8 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - Whether `@danielblomma/cortex-mcp` is retained as the npm package name during
   the CLI-first migration or followed by a new package with a migration
   window.
-- Whether the merged `2.5.0` Release Bump and tag-gated Publish workflows pass
-  on GitHub and npm `latest` resolves to the verified final artifact.
+- Whether and when separately authorized work may merge PR #120;
+  release/publication and V2 remain later independent decisions.
 
 ## Closed Decisions
 
@@ -79,6 +62,10 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - WO-035 is accepted after all first-review findings were fixed and all three
   independent re-reviews returned GO. R3 and R16 are mitigated without waiver;
   semver minor `2.5.0` is accepted for the later authorized release sequence.
+- WO-057 and WO-058 are accepted locally against the exact dirty candidate at
+  `c82fd113e923025297bb701a1189f5bf706d9ddd`. R20 is closed locally for V1;
+  no downstream release, publication, README promotion, or V2 authorization
+  is implied.
 
 ## 2026-08-03
 
@@ -511,6 +498,141 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   package version `2.5.1`.
 - `v2.5.0` remains an immutable annotated tag at `4887baa` and remains
   unpublished. WO-049 and R18 are closed without waiver; cleanup may proceed.
+
+## 2026-08-26 — WO-056 DeepSeek Harness Stage 0 blocked safely
+
+- Fetched `origin/main` at `c82fd11` and created isolated worktree/branch
+  `feature/deepseek-harness-stage0`; the dirty planning checkout was not merged,
+  rebased, or modified for this work order.
+- Renumbered the recovered DeepSeek plan to WO-056 and packet 055 because
+  mainline WO-049 is the completed 2.5.1 recovery, WO-050 is discarded prior
+  dialect work, and WO-051 through WO-055 are reserved by the active dialect
+  program.
+- Stage 0 pins DeepSeek Harness `0.1.1-rc.2` at
+  `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`, verifies 18 upstream API files,
+  and freezes all five normalized Cortex MCP tool names.
+- The planned Web-profile V1 bridge is NO-GO: the official MCP client binds one
+  static plugin-instance cwd and registers host-global tools, while Harness Web
+  sessions have independent immutable workspace roots. A Cortex process could
+  therefore serve the wrong repository.
+- Safe next choices are single-workspace-only V1, waiting for official
+  workspace-scoped MCP, or a revised session-scoped native provider packet.
+  No bundle, package publication, release state, or runtime default changed.
+- Validation: upstream hashes 18/18; compatibility tests 5/5; root context
+  regressions 81/81 and Node tests 391/391; release version sync and diff check
+  pass; Cortex update completed and doctor is 8/8. Pattern evidence succeeded
+  for indexed docs/scripts; package/test/fixture targets are outside the
+  configured Cortex source paths and returned `INVALID_ARGS` verbatim.
+
+## 2026-08-27 — WO-057 native session-scoped path selected
+
+- The user selected WO-056 safe path 3, so the official MCP client's static
+  process cwd and global tool layer remain prohibited while a native
+  `ctx.cortexContext` provider moves into V1.
+- Pinned Harness evidence confirms `ToolRunContext.agent`, immutable
+  `agent.session.header.cwd`, agent-scoped tool/skill layers, automatic scope
+  disposal, and managed `ctx.subprocess` are sufficient seams for a safe
+  multi-workspace implementation.
+- Packet 056 freezes Agent-only workspace authority, canonical cwd resolution,
+  exact package-owned Cortex CLI execution, four read-only native tools,
+  bounded stdout/stderr and cancellation, stable failures, agent-scoped
+  `required` semantics, canonical skill synchronization, and a two-repository
+  isolation acceptance gate.
+- `context.reload` is deliberately excluded: the native provider has no
+  long-lived MCP graph, while `cortex update` is a different mutating command.
+  Proactive retrieval and public index-generation support remain a later work
+  order after accepted V1.
+- In accordance with the repository's context-window rule, this session made
+  architecture/control changes only. WO-057 runtime work starts in a fresh
+  session after independent Contract and Security/Privacy GO; no bundle,
+  dependency, package publication, or runtime default was created.
+- Planning validation reverified the pinned checkout 18/18 and compatibility
+  tests 5/5; version synchronization and `git diff --check` pass. Cortex update
+  completed, all 12 indexed targets returned successful pattern evidence, and
+  doctor is 8/8. The earlier Stage 0 full root gate remains 81 context plus 391
+  Node tests; architecture edits after that gate are documentation-only.
+
+## 2026-08-27 — WO-057 implementation candidate complete
+
+- Contract and Security/Privacy reviewed packet 056 before runtime work and
+  both returned GO. The implementation then added the exact-version
+  `@danielblomma/dsh-cortex` Harness bundle with a native provider, four
+  agent-scoped read tools, and five agent-scoped canonical behavior skills.
+- Repository authority comes only from exact calling-Agent identity and a
+  per-call canonical `agent.session.header.cwd`. The provider resolves the
+  direct package Cortex executable and uses bounded, cancellable
+  `ctx.subprocess`; there is no shell, PATH command, root setting, bootstrap,
+  update, watcher, background retrieval, or remote transport.
+- The final full gate passed 81 context regressions, 402 root Node tests, four
+  real Harness integration tests, 426 MCP tests, release version sync, diff,
+  and six zero-finding audits. Retrieval also passed with network denied and
+  PATH disabled.
+- The final 12-file tarball installed and upgraded in clean pinned Web and
+  headless profiles with no peer issues and three Cortex layers. Headless help
+  loaded, Web returned HTTP 200, and removal cleared both profiles.
+- Local Integration/Code Quality and Validation passes are GO without open
+  findings. The candidate is ready for independent final acceptance review;
+  R20 stays open until that review. Publication, README status promotion, and
+  V2 proactive retrieval are not authorized.
+
+## 2026-08-27 — WO-058 independent V1 review prepared
+
+- Auto-advance stops at the required independence boundary: the WO-057
+  implementation session cannot review its own candidate and no reviewer was
+  substituted in the long-running implementation context.
+- Packet 057 assigns one read-only fresh-session full-panel review covering
+  Code Quality, Contract, Security/Privacy, Integration, Validation, and
+  Ops/Release. It requires independent code inspection, test reproduction,
+  exact packing, offline/PATH-less four-command retrieval, two-root isolation,
+  and pinned Web/headless lifecycle evidence.
+- The reviewer may write only the WO-058 review report. Findings return to a
+  separate bounded implementation iteration; a clean GO returns to a fresh
+  manager acceptance session. V2, merge, release, and publication remain
+  blocked.
+
+## 2026-08-27 — WO-057/WO-058 fresh-manager acceptance
+
+- Verified the exact candidate worktree, branch, and HEAD as
+  `/Users/danielnilsson/GIT/cortex-worktrees/deepseek-stage0`,
+  `feature/deepseek-harness-stage0`, and
+  `c82fd113e923025297bb701a1189f5bf706d9ddd`. The pre-acceptance dirty status
+  matches the status recorded in the independent report.
+- Read the current WO-058 report directly. It supersedes the stale Cortex
+  index excerpt that still reports the earlier NO-GO iteration. The current
+  report returns GO for Code Quality, Contract, Security/Privacy, Integration,
+  Validation, and Ops/Release with findings `none`.
+- The report is internally complete: upstream 18/18; focused 32/32; bundle
+  6/6; real negative lifecycle 2/2; two-root isolation 2/2; offline/PATH-less
+  commands 4/4; root 490/490; MCP 426/426; audits 6/6 at zero; two identical
+  12-entry artifacts with SHA-256
+  `d7be11a964d6aa4562fac22a3a944e1919a0b46652f3f1a2dc732dde96c90beb`;
+  and passing pinned headless/Web install, upgrade, smoke, shutdown, and
+  removal evidence.
+- Manager decision: WO-057 and WO-058 are complete and accepted locally. R20
+  closes locally for V1. README remains explicitly `planned`, and the package
+  remains unpublished.
+- No runtime, test, package, manifest, skill, release, or README file was
+  changed during acceptance. No commit, push, PR, merge, tag, version bump,
+  npm publication, README promotion, or V2 work was performed or authorized.
+- Auto-advance does not start another work order because the explicit task
+  ends after manager acceptance and downstream actions remain separately
+  gated. A new session can continue only after explicit user authorization,
+  beginning with candidate/CI revalidation for the separately scoped action.
+
+## 2026-08-27 — WO-057/WO-058 committed and PR opened
+
+- After explicit user authorization, captured the accepted candidate in commit
+  `594ff26545697fb93318d4cb9643d744ee9affd8` with subject
+  `feat: add DeepSeek Harness Cortex provider`.
+- Pushed `feature/deepseek-harness-stage0` and opened non-draft PR #120 against
+  `main`: `https://github.com/DanielBlomma/cortex/pull/120`.
+- The PR body maps WO-056 through WO-058, REQ-19, R20, the six-role GO, exact
+  validation totals, and artifact SHA-256. The acceptance-matrix traceability
+  table now maps PR #120 before merge.
+- GitHub reports the PR merge state as clean. No GitHub Actions run is created
+  because the repository has no `pull_request` workflow trigger.
+- No merge, tag, version bump, release, npm publication, README promotion, or
+  V2 work was performed or authorized.
 
 ## Archive
 

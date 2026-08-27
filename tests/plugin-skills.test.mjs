@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const SKILLS_DIR = fileURLToPath(new URL("../plugins/cortex/skills", import.meta.url));
@@ -53,4 +54,28 @@ test("skills directory contains exactly the expected skills", () => {
     .map((entry) => entry.name)
     .sort();
   assert.deepEqual(actual, [...EXPECTED_SKILLS].sort());
+});
+
+test("DeepSeek Harness skills are byte-identical to canonical Cortex skills", () => {
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "plugins/dsh-cortex/skills-manifest.json"), "utf8"),
+  );
+  assert.equal(manifest.schema_version, 1);
+  assert.equal(manifest.source_root, "plugins/cortex/skills");
+  assert.equal(manifest.skills.length, 5);
+  for (const entry of manifest.skills) {
+    const canonical = fs.readFileSync(
+      path.join(repoRoot, manifest.source_root, entry.name, "SKILL.md"),
+    );
+    const packaged = fs.readFileSync(
+      path.join(repoRoot, "plugins/dsh-cortex/skills", entry.name, "SKILL.md"),
+    );
+    assert.deepEqual(packaged, canonical, `${entry.name} packaged body drifted`);
+    assert.equal(
+      crypto.createHash("sha256").update(packaged).digest("hex"),
+      entry.sha256,
+      `${entry.name} manifest hash drifted`,
+    );
+  }
 });

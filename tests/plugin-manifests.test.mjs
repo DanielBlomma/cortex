@@ -28,6 +28,39 @@ test("claude and codex plugin manifests exist and share the release version", ()
   assert.equal(codex.version, version);
 });
 
+test("DeepSeek Harness bundle pins the reviewed session-scoped runtime", () => {
+  const bundle = readJson("plugins/dsh-cortex/package.json");
+  assert.equal(bundle.name, "@danielblomma/dsh-cortex");
+  assert.equal(bundle.version, version);
+  assert.equal(bundle.dsh.bundle.patch, "./cordis.patch.yml");
+  assert.deepEqual(bundle.engines, { node: "^22.19.0 || >=24.0.0" });
+  for (const name of [
+    "@deepseek-ai/dsh-agent",
+    "@deepseek-ai/dsh-attachment",
+    "@deepseek-ai/dsh-brand",
+    "@deepseek-ai/dsh-code-runtime",
+    "@deepseek-ai/dsh-invariants",
+    "@deepseek-ai/dsh-llm",
+    "@deepseek-ai/dsh-scope",
+    "@deepseek-ai/dsh-session",
+    "@deepseek-ai/dsh-skill",
+    "@deepseek-ai/dsh-subprocess",
+    "@deepseek-ai/dsh-system-prompt",
+    "@deepseek-ai/dsh-timeout",
+    "@deepseek-ai/dsh-tools",
+    "@deepseek-ai/dsh-typert-protocol",
+    "@deepseek-ai/dsh-user-approval",
+  ]) {
+    assert.equal(bundle.dependencies[name], "0.1.1-rc.2", `${name} must use the reviewed Harness pin`);
+  }
+  assert.equal(bundle.dependencies[packageJson.name], version);
+  const patch = readText("plugins/dsh-cortex/cordis.patch.yml");
+  assert.match(patch, /@danielblomma\/dsh-cortex\/provider/);
+  assert.match(patch, /@danielblomma\/dsh-cortex\/tools/);
+  assert.match(patch, /@danielblomma\/dsh-cortex\/skills/);
+  assert.doesNotMatch(patch, /mcp-client|process\.cwd|projectRoot|project-root/);
+});
+
 test("marketplace entry lists the cortex plugin at the release version", () => {
   const marketplace = readJson(".claude-plugin/marketplace.json");
   const plugin = marketplace.plugins.find((entry) => entry.name === "cortex");

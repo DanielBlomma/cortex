@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "upstream": {
+    "repository": "https://github.com/deepseek-ai/deepseek-harness.git",
+    "commit": "b150a551b8d465e31e418e1b2eaf5e79bbb7d28e",
+    "commit_date": "2026-08-21T20:03:37+08:00",
+    "release": "0.1.1-rc.2",
+    "npm_tag": "next",
+    "node": "^22.19.0 || >=24.0.0",
+    "package_manager": "pnpm@11.7.0",
+    "cordis": "4.0.1"
+  },
+  "packages": {
+    "@deepseek-ai/dsh": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-agent": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-mcp-client": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-skill": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-tool-skill": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-tools": "0.1.1-rc.2"
+  },
+  "contracts": {
+    "bundle_manifest": "dsh.bundle.patch",
+    "mcp_transport": "stdio",
+    "mcp_server_name": "cortex",
+    "mcp_cwd_scope": "static-plugin-instance",
+    "mcp_tool_scope": "host-global",
+    "workspace_identity": "agent.session.header.cwd",
+    "skill_service": "ctx.skills",
+    "skill_registration": "ctx.skills.registerProvider",
+    "pre_step_event": "agent/pre-step",
+    "pre_step_mode": "waterfall"
+  },
+  "tool_names": [
+    {
+      "raw": "context.search",
+      "public": "mcp__cortex__context_search_a8d245956d31"
+    },
+    {
+      "raw": "context.get_related",
+      "public": "mcp__cortex__context_get_related_2d54136df8a0"
+    },
+    {
+      "raw": "context.impact",
+      "public": "mcp__cortex__context_impact_8a35fa4ccf18"
+    },
+    {
+      "raw": "context.get_rules",
+      "public": "mcp__cortex__context_get_rules_5ff454152fe4"
+    },
+    {
+      "raw": "context.reload",
+      "public": "mcp__cortex__context_reload_bc5bfe813469"
+    }
+  ],
+  "files": [
+    {
+      "path": "package.json",
+      "sha256": "4adbdffa373754a048a214c5de3ec0671ac6e1f3c1521ec5b37e8fad1a4986d7"
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "sha256": "6f20c268e76df1294c16f016ab10a7fa1271608b4db0f4fafe8f7c21ec90013e"
+    },
+    {
+      "path": "vendor/cordis/package.json",
+      "sha256": "4c9ed665b821f7549cb540f456ce1174b162c3ee4e0711f9526abd266246ecbb"
+    },
+    {
+      "path": "packages/bundle/base/package.json",
+      "sha256": "879ee9bc9eb84331eaee17c86e4b62b6b75a3bb1abf0bc4b2d2af90162d942b7"
+    },
+    {
+      "path": "packages/bundle/base/cordis.patch.yml",
+      "sha256": "9870a518274194c0e1ebd870cee2737fbc2ffc04ae36887871ffe6fcf74beac1"
+    },
+    {
+      "path": "packages/mcp/mcp-client/package.json",
+      "sha256": "8a2cef0b895448c7cba1b1decc4ff42d1e953cc6a4c119f8f9c91474cf948e8d"
+    },
+    {
+      "path": "packages/mcp/mcp-client/README.md",
+      "sha256": "c5308b2ceb4b04038c7c5f9a241346e6816cacc1803efcd893412cf34ecdddde"
+    },
+    {
+      "path": "packages/mcp/mcp-client/src/index.ts",
+      "sha256": "823220ce9d41e6645076e123b4bfbfcffc84afaeecd0c3f991cb4e48683b32af"
+    },
+    {
+      "path": "packages/mcp/mcp-client/src/tools.ts",
+      "sha256": "9b8a6bce781a35aec16df82cb399c39ba0dbcbf156693c7f6d394d97043f1049"
+    },
+    {
+      "path": "packages/mcp/mcp-client/src/transport.ts",
+      "sha256": "07f977e2fa72f1c11f7a45621e6d20e04a1bee1e73168974860b860e75ea6be6"
+    },
+    {
+      "path": "packages/skill/skill/package.json",
+      "sha256": "baeffae275a3be5e0ba7e63bab25e6694ece42970da4b67d281f222fc22ddf9a"
+    },
+    {
+      "path": "packages/skill/skill/src/index.ts",
+      "sha256": "54132bb38543cb3be0d6d011fa723d8e62bd574fb39884822ce276432cd93973"
+    },
+    {
+      "path": "packages/skill/tool-skill/package.json",
+      "sha256": "4d3de0930781adccb9fa76be221f5cc92dd237b0037678f15a37229e375e85cf"
+    },
+    {
+      "path": "packages/skill/tool-skill/src/index.ts",
+      "sha256": "ce77832b79d257f3b8e50f768261b1f6e017d44f0bd5e5822298bb9d031c7df4"
+    },
+    {
+      "path": "packages/core/agent/package.json",
+      "sha256": "2103cb0b08c9f8f98cf56dc29bad30ad91f2fa61fdace061deb8d5a6eb9cfc45"
+    },
+    {
+      "path": "packages/core/agent/src/runtime-types.ts",
+      "sha256": "c2151e5b245fef908e8fcb0a1ea8d0a32e222c753cbaea23aee6dc865e2d6010"
+    },
+    {
+      "path": "packages/core/tools/package.json",
+      "sha256": "d370a51345b23ee8d8ba55d6f1fcb8f8d1670aababe81b1c14ed08ba76ddb47d"
+    },
+    {
+      "path": "docs/subsystems/workspace.md",
+      "sha256": "d79a278e0c8ccc2e632636f41c93c4d07f8b608444b5b459ad9d758e2a1eed17"
+    }
+  ]
+}

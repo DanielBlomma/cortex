@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "source_root": "plugins/cortex/skills",
+  "skills": [
+    {
+      "name": "change-impact",
+      "sha256": "4af466cb0f4760d10df328880166568d7f321cbbcce4c92e31d9e34becc0da79"
+    },
+    {
+      "name": "context-review",
+      "sha256": "4b9cc4f7587a10a30caaae47726793e89832f9b089a92c8747c65df0b939d8ce"
+    },
+    {
+      "name": "pattern-review",
+      "sha256": "34160dcb2fa0c497cb8c5d8727355a47d7296703dbc4d780051fab6b30d83125"
+    },
+    {
+      "name": "repo-research",
+      "sha256": "99877023a1b1e83455fbec91b7e49bd243015f14ba06e2e1b410cd695d077172"
+    },
+    {
+      "name": "using-cortex",
+      "sha256": "548f5b394d2216ddd541e3485316e4c01edac943e9453a3953fadbe1ac9287c7"
+    }
+  ]
+}

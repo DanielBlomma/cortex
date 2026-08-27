@@ -54,6 +54,19 @@ function syncPluginManifest(pluginManifest, version) {
   return next;
 }
 
+function syncDshCortexPackage(pluginPackage, version, packageName) {
+  const next = structuredClone(pluginPackage);
+  next.version = version;
+  if (!next.dependencies || typeof next.dependencies !== "object") {
+    throw new Error("Invalid plugins/dsh-cortex/package.json: expected dependencies object");
+  }
+  if (!Object.hasOwn(next.dependencies, packageName)) {
+    throw new Error(`plugins/dsh-cortex/package.json is missing ${packageName}`);
+  }
+  next.dependencies[packageName] = version;
+  return next;
+}
+
 function syncMarketplace(marketplace, version) {
   const next = structuredClone(marketplace);
   if (!Array.isArray(next.plugins)) {
@@ -142,6 +155,11 @@ function main() {
       path: "plugins/cortex/.codex-plugin/plugin.json",
       required: true,
       transform: (value) => syncPluginManifest(value, version)
+    },
+    {
+      path: "plugins/dsh-cortex/package.json",
+      required: true,
+      transform: (value) => syncDshCortexPackage(value, version, packageName)
     },
     {
       path: ".claude-plugin/marketplace.json",
