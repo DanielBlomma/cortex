@@ -13,8 +13,38 @@ export const DIALECT_OBSERVATION_CATEGORIES = Object.freeze([
 
 export const DIALECT_OBSERVATION_COLUMN_CONTRACT = deepFreeze({
   column_numbering: "zero_based",
+  column_unit: "utf16_code_units",
   end_column: "inclusive"
 });
+
+// Adapters convert positive-width half-open native spans by locating source
+// offset endOffset - 1. They must not decrement a native end-position column
+// across multiline or CRLF spans. Zero-width nodes are not observations.
+
+export const DIALECT_NORMALIZED_SHAPE_VOCABULARY = deepFreeze({
+  control_flow: [
+    "branch", "delegation", "early_return", "fallback", "loop", "ordered_calls"
+  ],
+  data_representation: [
+    "container", "field", "parameter", "record", "return", "state", "variant"
+  ],
+  declaration_structure: [
+    "constructor", "field", "function", "method", "module", "namespace",
+    "parameter", "property", "type"
+  ],
+  error_flow: [
+    "cleanup", "handler", "propagate", "raise", "result"
+  ],
+  test_shape: [
+    "assertion", "fixture", "parameterization", "setup", "suite", "teardown",
+    "test_declaration"
+  ]
+});
+
+export const DIALECT_LANGUAGE_SPECIFIC_SHAPE_FORMS = deepFreeze([
+  "annotation", "attribute", "block", "clause", "declaration",
+  "expression", "modifier", "pattern", "statement"
+]);
 
 export const DIALECT_LIMITS = deepFreeze({
   max_source_bytes: 1_000_000,
@@ -187,6 +217,10 @@ export const DIALECT_CAPABILITY_MANIFEST = deepFreeze({
 
 export const DIALECT_CAPABILITY_MANIFEST_SHA256 = sha256(canonicalJson(DIALECT_CAPABILITY_MANIFEST));
 export const DIALECT_LIMITS_SHA256 = sha256(canonicalJson(DIALECT_LIMITS));
+export const DIALECT_ADAPTER_SHAPE_INVENTORY_SHA256 = sha256(canonicalJson({
+  language_specific_shape_forms: DIALECT_LANGUAGE_SPECIFIC_SHAPE_FORMS,
+  normalized_shape_vocabulary: DIALECT_NORMALIZED_SHAPE_VOCABULARY
+}));
 
 const FAMILY_BY_ID = new Map(DIALECT_CAPABILITY_MANIFEST.families.map((entry) => [entry.family, entry]));
 const MODE_BY_EXTENSION = new Map(
@@ -242,6 +276,29 @@ export function stablePayloadHash(value, hashKey = "payload_sha256") {
   const copy = { ...canonicalize(value) };
   delete copy[hashKey];
   return sha256(canonicalJson(copy));
+}
+
+export function canonicalDialectNormalizedShape(category, kind) {
+  if (arguments.length !== 2) fail("normalized shape requires exactly category and kind");
+  if (typeof category !== "string" ||
+      !Object.hasOwn(DIALECT_NORMALIZED_SHAPE_VOCABULARY, category)) {
+    fail("unknown normalized shape category");
+  }
+  if (typeof kind !== "string" ||
+      !DIALECT_NORMALIZED_SHAPE_VOCABULARY[category].includes(kind)) {
+    fail("unknown normalized shape kind");
+  }
+  return canonicalJson({ kind });
+}
+
+export function canonicalDialectLanguageSpecificShape(form, syntaxKind) {
+  if (arguments.length !== 2) fail("language-specific shape requires exactly form and syntax kind");
+  if (typeof form !== "string" ||
+      !DIALECT_LANGUAGE_SPECIFIC_SHAPE_FORMS.includes(form)) {
+    fail("unknown language-specific shape form");
+  }
+  visibleIdentifier(syntaxKind, "language-specific syntax kind");
+  return canonicalJson({ form, syntax_kind: syntaxKind });
 }
 
 export function validateDialectCapabilityManifest(manifest = DIALECT_CAPABILITY_MANIFEST) {

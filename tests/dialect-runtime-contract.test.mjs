@@ -89,6 +89,7 @@ test("the packaged runtime is the sole shared authority exported by the benchmar
   );
   assert.deepEqual(runtimeContract.DIALECT_OBSERVATION_COLUMN_CONTRACT, {
     column_numbering: "zero_based",
+    column_unit: "utf16_code_units",
     end_column: "inclusive"
   });
   assert.equal(Object.isFrozen(runtimeContract.DIALECT_OBSERVATION_COLUMN_CONTRACT), true);
@@ -101,6 +102,9 @@ test("the packaged runtime is the sole shared authority exported by the benchmar
     runtimeSource,
     /benchmark|node:(?:fs|path|child_process|worker_threads|http|https|net)|(?:parser|ingest|worker|pipeline|persistence|provider|planner|telemetry|policy)\.mjs/
   );
+  assert.match(runtimeSource, /offset endOffset - 1/);
+  assert.match(runtimeSource, /multiline or CRLF spans/);
+  assert.match(runtimeSource, /Zero-width nodes are not observations/);
 
   const benchmarkSource = fs.readFileSync(BENCHMARK_SOURCE_URL, "utf8");
   assert.match(
@@ -109,6 +113,165 @@ test("the packaged runtime is the sole shared authority exported by the benchmar
   );
   assert.equal((benchmarkSource.match(/DIALECT_CAPABILITY_MANIFEST\s*=/g) ?? []).length, 0);
   assert.equal((benchmarkSource.match(/function validateDialectObservation\b/g) ?? []).length, 0);
+});
+
+test("adapter shape inventories and canonical helpers are closed, frozen, and byte-stable", () => {
+  const expectedVocabulary = {
+    control_flow: [
+      "branch", "delegation", "early_return", "fallback", "loop", "ordered_calls"
+    ],
+    data_representation: [
+      "container", "field", "parameter", "record", "return", "state", "variant"
+    ],
+    declaration_structure: [
+      "constructor", "field", "function", "method", "module", "namespace",
+      "parameter", "property", "type"
+    ],
+    error_flow: [
+      "cleanup", "handler", "propagate", "raise", "result"
+    ],
+    test_shape: [
+      "assertion", "fixture", "parameterization", "setup", "suite", "teardown",
+      "test_declaration"
+    ]
+  };
+  const expectedForms = [
+    "annotation", "attribute", "block", "clause", "declaration",
+    "expression", "modifier", "pattern", "statement"
+  ];
+
+  assert.deepEqual(runtimeContract.DIALECT_NORMALIZED_SHAPE_VOCABULARY, expectedVocabulary);
+  assert.deepEqual(runtimeContract.DIALECT_LANGUAGE_SPECIFIC_SHAPE_FORMS, expectedForms);
+  assert.equal(
+    runtimeContract.DIALECT_ADAPTER_SHAPE_INVENTORY_SHA256,
+    "f09fdb942324539c94a5ef64ed4ee743a28ab26fad773d60afddcc7414323250"
+  );
+
+  assert.equal(Object.isFrozen(runtimeContract.DIALECT_NORMALIZED_SHAPE_VOCABULARY), true);
+  for (const [category, kinds] of Object.entries(runtimeContract.DIALECT_NORMALIZED_SHAPE_VOCABULARY)) {
+    assert.equal(Object.isFrozen(kinds), true, category);
+    assert.deepEqual(kinds, [...kinds].sort(), `${category} kinds must be sorted`);
+    assert.equal(new Set(kinds).size, kinds.length, `${category} kinds must be unique`);
+    for (const kind of kinds) {
+      assert.equal(
+        runtimeContract.canonicalDialectNormalizedShape(category, kind),
+        runtimeContract.canonicalJson({ kind })
+      );
+    }
+  }
+  assert.equal(Object.isFrozen(runtimeContract.DIALECT_LANGUAGE_SPECIFIC_SHAPE_FORMS), true);
+  assert.deepEqual(expectedForms, [...expectedForms].sort());
+  assert.equal(new Set(expectedForms).size, expectedForms.length);
+  for (const form of expectedForms) {
+    assert.equal(
+      runtimeContract.canonicalDialectLanguageSpecificShape(form, "CallExpression"),
+      runtimeContract.canonicalJson({ form, syntax_kind: "CallExpression" })
+    );
+  }
+
+  const normalizedBeforeMutation = runtimeContract.canonicalDialectNormalizedShape(
+    "control_flow",
+    "branch"
+  );
+  const languageSpecificBeforeMutation = runtimeContract.canonicalDialectLanguageSpecificShape(
+    "expression",
+    "call_expression"
+  );
+  assert.throws(
+    () => runtimeContract.DIALECT_NORMALIZED_SHAPE_VOCABULARY.control_flow.push("caller_value"),
+    TypeError
+  );
+  assert.throws(
+    () => runtimeContract.DIALECT_LANGUAGE_SPECIFIC_SHAPE_FORMS.push("caller_value"),
+    TypeError
+  );
+  assert.equal(
+    runtimeContract.canonicalDialectNormalizedShape("control_flow", "branch"),
+    normalizedBeforeMutation
+  );
+  assert.equal(
+    runtimeContract.canonicalDialectLanguageSpecificShape("expression", "call_expression"),
+    languageSpecificBeforeMutation
+  );
+});
+
+test("adapter shape helpers fail closed on unknown, unbounded, and structured input", () => {
+  for (const [category, kind] of [
+    ["unknown", "branch"],
+    ["control_flow", "unknown"],
+    ["", "branch"],
+    ["control_flow", ""],
+    [null, "branch"],
+    ["control_flow", null],
+    [{}, "branch"],
+    ["control_flow", {}],
+    [[], "branch"],
+    ["control_flow", []],
+    [Symbol("category"), "branch"],
+    ["control_flow", Symbol("kind")]
+  ]) {
+    assert.throws(
+      () => runtimeContract.canonicalDialectNormalizedShape(category, kind),
+      /normalized shape/
+    );
+  }
+  assert.throws(() => runtimeContract.canonicalDialectNormalizedShape(), /exactly/);
+  assert.throws(() => runtimeContract.canonicalDialectNormalizedShape("control_flow"), /exactly/);
+  assert.throws(
+    () => runtimeContract.canonicalDialectNormalizedShape("control_flow", "branch", "extra"),
+    /exactly/
+  );
+
+  for (const [form, syntaxKind] of [
+    ["unknown", "CallExpression"],
+    ["expression", ""],
+    ["expression", "x".repeat(runtimeContract.DIALECT_LIMITS.max_identifier_chars + 1)],
+    ["expression", "Call\u0000Expression"],
+    ["expression", "Call\u202eExpression"],
+    [null, "CallExpression"],
+    ["expression", null],
+    [{}, "CallExpression"],
+    ["expression", {}],
+    [[], "CallExpression"],
+    ["expression", []],
+    [Symbol("form"), "CallExpression"],
+    ["expression", Symbol("syntax kind")]
+  ]) {
+    assert.throws(
+      () => runtimeContract.canonicalDialectLanguageSpecificShape(form, syntaxKind),
+      /language-specific/
+    );
+  }
+  assert.throws(() => runtimeContract.canonicalDialectLanguageSpecificShape(), /exactly/);
+  assert.throws(
+    () => runtimeContract.canonicalDialectLanguageSpecificShape("expression"),
+    /exactly/
+  );
+  assert.throws(
+    () => runtimeContract.canonicalDialectLanguageSpecificShape(
+      "expression",
+      "CallExpression",
+      "extra"
+    ),
+    /exactly/
+  );
+
+  for (const helper of [
+    runtimeContract.canonicalDialectNormalizedShape,
+    runtimeContract.canonicalDialectLanguageSpecificShape
+  ]) {
+    let getterCalls = 0;
+    const accessor = {};
+    Object.defineProperty(accessor, "value", {
+      enumerable: true,
+      get() {
+        getterCalls += 1;
+        return "branch";
+      }
+    });
+    assert.throws(() => helper(accessor, accessor));
+    assert.equal(getterCalls, 0);
+  }
 });
 
 test("canonical observation ordering follows every frozen precedence without mutating input", () => {
