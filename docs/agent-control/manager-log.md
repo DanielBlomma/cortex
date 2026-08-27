@@ -52,6 +52,26 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   exact separate column contract without changing accepted hashes.
 - WO-052 and WO-053 remain blocked pending rerun and final full-panel GO.
 
+## 2026-08-27 — WO-051B round-2 review NO-GO and scope revision
+
+- Manager verification passed dialect/runtime 27/27 and combined ownership plus
+  packed containment 17/17 on the eight-file candidate. Validation returned GO,
+  but Code/Contract and Security independently reproduced two unclosed cases.
+- `rootNode` aliases and a caller-controlled Proxy could retain raw syntax
+  because validation returned the original transport references. Packet 055 now
+  requires a bounded canonical plain-data return value and explicit Tree-sitter
+  alias negatives.
+- On a clean forced install without ownership state, byte equality with the
+  current source was incorrectly accepted as ownership evidence. An unknown
+  regular file was replaced and an unknown hard link was severed at the new
+  managed target.
+- Cortex impact resolves that behavior to `installManagedScaffold` and its
+  existing ownership/scaffold/migration/CLI/packed consumers. The original
+  eight files cannot close it, so packet 055 now narrowly adds
+  `bin/cli/scaffold-ownership.mjs` as the ninth file and requires all affected
+  gates to rerun. No parser or integration scope is opened.
+- WO-052 and WO-053 remain blocked pending a fresh unanimous final review.
+
 ## 2026-08-26 — all-language parser-backed codebase-dialect program planned
 
 - User intent is now explicit: codebase dialect means the recurring, locally
