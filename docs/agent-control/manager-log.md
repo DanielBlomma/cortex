@@ -93,6 +93,32 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   this accepted head in fresh packets, worktrees, and sessions. WO-054 remains
   blocked until both adapter work orders are accepted.
 
+## 2026-08-27 — WO-051C accepted locally
+
+- The exact three-file implementation is committed as `6f7af6b`. It freezes
+  zero-based UTF-16 code-unit columns with inclusive ends, conversion rules for
+  half-open spans, CRLF/multiline spans, and exclusion of zero-width nodes.
+- Closed, deeply frozen normalized and language-specific shape inventories now
+  have mandatory canonical helpers and accepted hash
+  `f09fdb942324539c94a5ef64ed4ee743a28ab26fad773d60afddcc7414323250`.
+  Existing WO-051 manifest/limits and WO-051B ownership hashes are unchanged.
+- The only Rust change updates the stale non-Rust-input assertion to the current
+  one-error result; parser implementation and behavior are unchanged.
+- Contract/evaluation/runtime passed 29/29; Rust passed 21/21 using a temporary,
+  residue-free link to lock-matching installed dependencies; packed containment
+  passed 1/1; ownership passed 17/17; package inventory remains 432 entries.
+- Code/Contract, Security/Containment, and Validation independently returned GO
+  with zero blocker, major, or minor findings. The Validation review initially
+  reported missing fresh-worktree tools, then returned GO after applying packet
+  056's explicit dependency-preflight rule to the independently reproduced gates.
+- Cortex search/rules/impact and main-root doctor 8/8 at 100% freshness are
+  recorded. Changed-file pattern evidence is unavailable until the unmerged
+  candidate can be indexed; the candidate's older scaffold was not migrated.
+- Packets 057 and 058 now freeze disjoint exact scopes, the additive one-pass
+  composite API, shared precedence/span/shape rules, fallback behavior, and
+  proportional gates. WO-052 and WO-053 are Ready to start from this accepted
+  head in fresh sessions. No adapter work starts in this session.
+
 ## 2026-08-27 — WO-051C adapter prerequisite split
 
 - Three fresh read-only assignment audits examined the Acorn/Tree-sitter,

@@ -1,5 +1,25 @@
 # WO-051C Adapter Span, Shape, and Baseline Closure
 
+## Acceptance State
+
+Accepted locally on `feature/wo051c-adapter-contract` at implementation commit
+`6f7af6b`.
+
+- Exactly the three packet-owned files changed.
+- The column contract now states zero-based UTF-16 code units with inclusive
+  end columns, plus the required half-open, CRLF, multiline, and zero-width
+  conversion rules.
+- The closed normalized and language-specific shape inventories are deeply
+  frozen behind canonical helpers. Their accepted SHA-256 is
+  `f09fdb942324539c94a5ef64ed4ee743a28ab26fad773d60afddcc7414323250`.
+- The Rust change corrects only the stale non-Rust-input expectation; parser
+  behavior and code are unchanged.
+- Contract/evaluation/runtime passed 29/29, Rust passed 21/21 with
+  lock-matching dependencies, packed containment passed 1/1, ownership passed
+  17/17, and the package remains 432 entries with its accepted inventory.
+- Code/Contract, Security/Containment, and Validation independently returned GO
+  with zero blocker, major, or minor findings.
+
 ## Objective
 
 Close the last shared adapter ambiguity before WO-052 and WO-053 start in
