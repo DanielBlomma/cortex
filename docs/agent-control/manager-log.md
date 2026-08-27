@@ -72,6 +72,27 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   gates to rerun. No parser or integration scope is opened.
 - WO-052 and WO-053 remain blocked pending a fresh unanimous final review.
 
+## 2026-08-27 — WO-051B accepted locally
+
+- The exact nine-file candidate is committed as `503880b`. It establishes the
+  packaged runtime authority, benchmark re-export, canonical ordering and
+  detached bounded transport, ownership v2/current, the narrow clean-state
+  ownership hardening, and focused runtime/ownership/package regressions.
+- Accepted capability and limits hashes remain exact; ownership v1 remains
+  byte-identical. V2 expands 395 to 396 managed targets with only
+  `.context/scripts/lib/dialect-observation-contract.mjs`, without extending
+  legacy cleanup authority.
+- Final gates pass: dialect/evaluation/runtime 27/27, ownership/pack 18/18,
+  scaffold migration plus CLI contract 27/27, init/public behavior 14/14,
+  432 packed entries at 411/21 modes, and Cortex doctor 8/8 at 100% freshness.
+- Code/Contract, Security/Containment, and Validation/Pack independently return
+  GO with zero blocker, major, or minor findings. Proxy/raw-syntax probes,
+  clean-state byte-identical regular/hard-link probes, v2.4.1 baseline recovery,
+  v1 state upgrade, and published-v2.4.2 packed upgrade all pass.
+- R20 is mitigated locally. WO-052 and WO-053 are now Ready and must start from
+  this accepted head in fresh packets, worktrees, and sessions. WO-054 remains
+  blocked until both adapter work orders are accepted.
+
 ## 2026-08-26 — all-language parser-backed codebase-dialect program planned
 
 - User intent is now explicit: codebase dialect means the recurring, locally

@@ -1,5 +1,12 @@
 # WO-051B Runtime Dialect Contract Promotion
 
+## Acceptance State
+
+Accepted locally on 2026-08-27. Implementation commit `503880b`; final
+Code/Contract, Security/Containment, and Validation/Pack reviews all returned GO
+with no blocker, major, or minor findings. WO-052 and WO-053 may start only from
+the accepted WO-051B head in fresh worktrees and sessions.
+
 ## Objective
 
 Promote the accepted WO-051 dialect-observation contract from its benchmark-only
