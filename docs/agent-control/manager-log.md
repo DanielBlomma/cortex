@@ -6,6 +6,32 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-27 — WO-051B runtime-contract prerequisite planned
+
+- The user authorized auto-advance. Cortex rules/search/impact and three
+  read-only scope audits checked the accepted WO-051 head before WO-052/053
+  assignment.
+- Direct parallel start is blocked: the accepted dialect contract is
+  benchmark-only and excluded from the npm package, while parser modules are
+  packaged managed scaffold sources. Copying validators would create two
+  authorities; importing benchmark code would break installed parsers.
+- Adding a neutral runtime authority also adds one managed scaffold target.
+  Packet 054 explicitly requires package/ownership expansion to become a
+  separate packet. Packet 055 therefore defines WO-051B before any parser code.
+- WO-051B owns only the neutral runtime contract, benchmark re-export,
+  ownership v2/current pointer, and narrow contract/ownership/packed tests. It
+  freezes canonical observation order and an exact opt-in in-memory composite
+  transport while preserving existing `{chunks, errors}` and the accepted
+  manifest/limits hashes.
+- Ownership v1 remains byte-identical. Registry, parser composition, worker,
+  pipeline, persistence, parser selection, dependencies, versions, and public
+  CLI/MCP are excluded. WO-054 retains sole ownership of integration.
+- After WO-051B full-panel acceptance, WO-052 owns Acorn/Tree-sitter/C/C++/Rust
+  parser seams and WO-053 owns C#/VB.NET/Roslyn/VB6/SQL seams. Their parser and
+  test scopes are disjoint and may run in parallel from the accepted
+  prerequisite head.
+- WO-052 and WO-053 remain blocked until WO-051B is independently accepted.
+
 ## 2026-08-26 — all-language parser-backed codebase-dialect program planned
 
 - User intent is now explicit: codebase dialect means the recurring, locally
