@@ -81,14 +81,21 @@ const UNSUPPORTED_TEST_SHAPE = Object.freeze({
   status: "unsupported",
   reason: "the existing lightweight parser has no framework-independent test-shape syntax contract"
 });
+const UNSUPPORTED_DYNAMIC_LANGUAGE_TEST_SHAPE = Object.freeze({
+  status: "unsupported",
+  reason: "the existing syntax-only parser cannot prove framework-bound test shape under language-level dynamic rebinding"
+});
 
-function capabilities({ testShape = true } = {}) {
+function capabilities({
+  testShape = true,
+  unsupportedTestShape = UNSUPPORTED_TEST_SHAPE
+} = {}) {
   return {
     declaration_structure: APPLICABLE,
     control_flow: APPLICABLE,
     error_flow: APPLICABLE,
     data_representation: APPLICABLE,
-    test_shape: testShape ? APPLICABLE : UNSUPPORTED_TEST_SHAPE
+    test_shape: testShape ? APPLICABLE : unsupportedTestShape
   };
 }
 
@@ -203,14 +210,20 @@ export const DIALECT_CAPABILITY_MANIFEST = deepFreeze({
       parser_technology: "tree-sitter",
       parser_backends: ["tree-sitter"],
       modes: modes([[".rb", "ruby"]]),
-      capabilities: capabilities()
+      capabilities: capabilities({
+        testShape: false,
+        unsupportedTestShape: UNSUPPORTED_DYNAMIC_LANGUAGE_TEST_SHAPE
+      })
     },
     {
       family: "bash",
       parser_technology: "tree-sitter",
       parser_backends: ["tree-sitter"],
       modes: modes([[".sh", "bash"], [".bash", "bash"], [".zsh", "bash"]]),
-      capabilities: capabilities()
+      capabilities: capabilities({
+        testShape: false,
+        unsupportedTestShape: UNSUPPORTED_DYNAMIC_LANGUAGE_TEST_SHAPE
+      })
     }
   ]
 });

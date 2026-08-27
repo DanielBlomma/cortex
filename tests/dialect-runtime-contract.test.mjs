@@ -81,7 +81,20 @@ test("the packaged runtime is the sole shared authority exported by the benchmar
   }
   assert.equal(
     runtimeContract.DIALECT_CAPABILITY_MANIFEST_SHA256,
-    "32ea6b9331a562ba06d87b5f9a01dc1a5487f0619e38040488de813505489f11"
+    "94f1c645ce4bb7963a30b2da65bce3e5130e38b05f93046623e1759d000f871c"
+  );
+  const unchangedManifestProjection = structuredClone(
+    runtimeContract.DIALECT_CAPABILITY_MANIFEST
+  );
+  for (const family of unchangedManifestProjection.families) {
+    if (["ruby", "bash"].includes(family.family)) {
+      family.capabilities.test_shape = "wo051d-amended-entry";
+    }
+  }
+  assert.equal(
+    runtimeContract.sha256(runtimeContract.canonicalJson(unchangedManifestProjection)),
+    "9c0bec46a59d3773c63866f1ffa952d6daca885b87a13b0c206b7ef2c905c1c5",
+    "all predecessor manifest bytes outside the two amended entries must remain exact"
   );
   assert.equal(
     runtimeContract.DIALECT_LIMITS_SHA256,

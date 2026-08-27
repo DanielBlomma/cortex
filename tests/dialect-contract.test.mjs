@@ -77,7 +77,7 @@ test("capability manifest freezes all 14 parser families and 29 registered modes
   assert.equal(modes.length, 29);
   assert.equal(
     DIALECT_CAPABILITY_MANIFEST_SHA256,
-    "32ea6b9331a562ba06d87b5f9a01dc1a5487f0619e38040488de813505489f11"
+    "94f1c645ce4bb7963a30b2da65bce3e5130e38b05f93046623e1759d000f871c"
   );
   assert.equal(
     DIALECT_LIMITS_SHA256,
@@ -92,8 +92,32 @@ test("capability manifest freezes all 14 parser families and 29 registered modes
     assert.match(registryEntry, new RegExp(`language: "${mode.registry_language}"`), mode.extension);
   }
 
-  assert.equal(DIALECT_CAPABILITY_MANIFEST.families.find((family) => family.family === "sql").capabilities.test_shape.status, "unsupported");
-  assert.equal(DIALECT_CAPABILITY_MANIFEST.families.find((family) => family.family === "vb6").capabilities.test_shape.status, "unsupported");
+  const unsupportedTestShapeFamilies = DIALECT_CAPABILITY_MANIFEST.families
+    .filter((family) => family.capabilities.test_shape.status === "unsupported");
+  assert.deepEqual(
+    unsupportedTestShapeFamilies.map((family) => family.family),
+    ["vb6", "sql", "ruby", "bash"]
+  );
+  assert.deepEqual(
+    unsupportedTestShapeFamilies.map((family) => family.capabilities.test_shape.reason),
+    [
+      "the existing lightweight parser has no framework-independent test-shape syntax contract",
+      "the existing lightweight parser has no framework-independent test-shape syntax contract",
+      "the existing syntax-only parser cannot prove framework-bound test shape under language-level dynamic rebinding",
+      "the existing syntax-only parser cannot prove framework-bound test shape under language-level dynamic rebinding"
+    ]
+  );
+  const unchangedManifestProjection = structuredClone(DIALECT_CAPABILITY_MANIFEST);
+  for (const family of unchangedManifestProjection.families) {
+    if (["ruby", "bash"].includes(family.family)) {
+      family.capabilities.test_shape = "wo051d-amended-entry";
+    }
+  }
+  assert.equal(
+    sha256(canonicalJson(unchangedManifestProjection)),
+    "9c0bec46a59d3773c63866f1ffa952d6daca885b87a13b0c206b7ef2c905c1c5",
+    "all predecessor manifest bytes outside the two amended entries must remain exact"
+  );
   assert.deepEqual(DIALECT_CAPABILITY_MANIFEST.families.find((family) => family.family === "c").parser_backends, ["tree-sitter", "clang-bridge"]);
   assert.deepEqual(DIALECT_CAPABILITY_MANIFEST.families.find((family) => family.family === "cpp").parser_backends, ["tree-sitter", "clang-bridge"]);
   assert.deepEqual(DIALECT_CAPABILITY_MANIFEST.families.find((family) => family.family === "rust").parser_backends, ["tree-sitter", "regex"]);
@@ -109,7 +133,19 @@ test("capability manifest rejects valid-looking family, mode, backend, and capab
         status: "applicable",
         reason: null
       };
-    }
+    },
+    ...["ruby", "bash"].flatMap((familyId) => [
+      (manifest) => {
+        manifest.families.find((family) => family.family === familyId).capabilities.test_shape = {
+          status: "applicable",
+          reason: null
+        };
+      },
+      (manifest) => {
+        manifest.families.find((family) => family.family === familyId).capabilities.test_shape.reason =
+          "the existing syntax-only parser usually identifies framework-bound test shape";
+      }
+    ])
   ];
   for (const mutate of mutations) {
     const manifest = structuredClone(DIALECT_CAPABILITY_MANIFEST);
@@ -142,14 +178,24 @@ test("DialectObservation validates closed fields, canonical paths, exact spans, 
 });
 
 test("unsupported capabilities and fallback failures cannot become positive observations", () => {
-  const sqlTest = observation({
-    family: "sql",
-    mode: ".sql",
-    backend: "lightweight-sql",
-    category: "test_shape",
-    sourcePath: "fixtures/sql/sample.sql"
-  });
-  assert.throws(() => validateDialectObservation(sqlTest), /unsupported capability/);
+  for (const [family, mode, backend] of [
+    ["vb6", ".bas", "lightweight-vb6"],
+    ["sql", ".sql", "lightweight-sql"],
+    ["ruby", ".rb", "tree-sitter"],
+    ["bash", ".sh", "tree-sitter"]
+  ]) {
+    assert.throws(
+      () => validateDialectObservation(observation({
+        family,
+        mode,
+        backend,
+        category: "test_shape",
+        sourcePath: `fixtures/${family}/sample${mode}`
+      })),
+      /unsupported capability/,
+      family
+    );
+  }
 
   assert.deepEqual(validateDialectObservationEnvelope(envelope("unavailable")), envelope("unavailable"));
   assert.throws(

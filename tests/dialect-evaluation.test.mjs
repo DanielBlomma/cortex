@@ -216,7 +216,7 @@ test("blind evaluation freezes all phases, score gates, and deterministic hashes
   const state = freezeCompleteRun();
   const artifacts = readDialectEvaluation(state.runDirectory);
   assert.deepEqual(Object.keys(artifacts), ["run_lock", "gold", "baseline", "candidate", "score", "reveal"]);
-  assert.equal(artifacts.gold.facets.length, 68);
+  assert.equal(artifacts.gold.facets.length, 66);
   assert.equal(artifacts.score.summary.candidate_strict_recall, 1);
   assert.equal(artifacts.score.summary.baseline_strict_recall, 0);
   assert.equal(artifacts.score.summary.candidate_citation_precision, 1);
