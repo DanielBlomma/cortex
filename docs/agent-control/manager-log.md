@@ -93,6 +93,28 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   this accepted head in fresh packets, worktrees, and sessions. WO-054 remains
   blocked until both adapter work orders are accepted.
 
+## 2026-08-27 — WO-052 paused for capability-truth amendment
+
+- WO-052 implemented its exact twelve parser files, four new tests, and the
+  authorized packed-count correction. Nominal gates reached 29/29, 22/22,
+  65/65, 71/71, focused 30/30, and packed 1/1 with 432 entries, ownership
+  396/96, and upgrade counts 69/16.
+- Three adversarial review rounds removed ordinary-return/await error facts,
+  bare-name test facts, incomplete JS lexical resolution, and multiple C/Go/
+  Ruby/Bash binding spoofs. One-pass, exact cap accounting, transport
+  containment, statuses, parser-result parity, package, and ownership gates are
+  otherwise green.
+- Final review still produced valid executable Ruby and Bash programs that
+  dynamically replace `require`/`Minitest` or `source`/aliases while retaining
+  the same syntax tree and causing false `test_shape` positives. A syntax-only
+  adapter cannot prove those bindings without execution or another semantic
+  parser, both forbidden.
+- Manager decision: stop adding heuristics. WO-052 remains uncommitted and
+  paused. Packet 059 creates the exact three-file WO-051D amendment marking
+  Ruby/Bash `test_shape` explicitly unsupported. After acceptance WO-052 must
+  rebase, remove those positives, close TypeScript type-only and Go conflicting
+  import cases, and receive a fresh final review panel.
+
 ## 2026-08-27 — WO-052 packed-count scope correction
 
 - Packet 057's first complete implementation stayed inside its exact twelve

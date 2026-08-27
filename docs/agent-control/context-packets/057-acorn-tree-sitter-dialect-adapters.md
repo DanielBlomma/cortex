@@ -1,5 +1,13 @@
 # WO-052 Acorn and Tree-sitter Dialect Adapters
 
+## Paused State
+
+WO-052 is paused after three review rounds exposed a frozen capability error:
+syntax-only Ruby and Bash adapters cannot prove framework-bound `test_shape`
+under valid dynamic rebinding without fabricating positives. Packet 059/WO-051D
+must be accepted first. Resume from that accepted head in a fresh session; do
+not continue adding Ruby/Bash name or framework heuristics.
+
 ## Objective
 
 Emit bounded, canonical dialect observations from the existing one-pass Acorn
@@ -104,8 +112,9 @@ categories with the accepted closed kinds:
 - `test_shape`: assertion, fixture, parameterization, setup, suite, teardown,
   test_declaration.
 
-Not every source must emit every kind. Tests must prove at least one positive
-facet for each applicable category per family across bounded fixtures, without
+Not every source must emit every kind. After WO-051D, tests must prove at least
+one positive facet for each manifest-applicable category per family across
+bounded fixtures, without
 classifying identifiers or source text heuristically when a native syntax node
 does not prove the fact.
 
