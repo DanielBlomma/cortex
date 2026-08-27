@@ -70,7 +70,10 @@ The implementation may change only:
 - `tests/packed-filesystem-containment.test.mjs`; and
 - at most one new focused test file named
   `tests/dialect-runtime-contract.test.mjs` if separation materially improves
-  readability.
+  readability; and
+- `bin/cli/scaffold-ownership.mjs`, solely to make a pre-existing managed target
+  fail closed when no installed ownership state or pinned predecessor baseline
+  proves ownership.
 
 If another tracked file must change, stop and request a packet revision. Do not
 silently refresh broad package inventories, release metadata, generated
@@ -150,7 +153,10 @@ Requirements:
   gate;
 - parser chunks/errors are not copied into observations or diagnostics;
 - observations cannot appear inside `parser_result`;
-- raw AST/tree/source objects are never accepted or retained;
+- raw AST/tree/source objects are never accepted or retained, including common
+  Tree-sitter `rootNode`/`root_node` aliases and caller-controlled Proxy views;
+- validation returns a bounded canonical plain-data transport rather than
+  retaining caller-owned object, array, accessor, prototype, or Proxy identity;
 - construction is in-memory only and performs no I/O; and
 - no registry, worker, pipeline, or parser calls this transport in WO-051B.
 
@@ -166,6 +172,9 @@ Requirements:
 - A v1-to-v2 forced upgrade must add the new file when absent.
 - Unknown pre-existing, modified, symlinked, hard-linked, traversing, or
   redirected targets remain fail-closed and must not be overwritten or deleted.
+- Byte equality with the current package source is not ownership evidence when
+  installed state is absent. Only explicit installed state or a frozen
+  predecessor baseline may authorize overwrite of a pre-existing managed path.
 - Do not add a new pre-state baseline. The installed v1 state is already an
   explicit versioned predecessor.
 
@@ -198,6 +207,9 @@ Requirements:
 - Clean install and v1-to-v2 force upgrade add the runtime file with installed
   fingerprints.
 - Unknown collision plus symlink/hard-link/path-redirection cases fail closed.
+- Clean-state byte-identical regular-file and hard-link collisions at the new
+  managed target fail closed without inode, link-count, namespace, or byte
+  mutation.
 - `npm pack --dry-run` contains the runtime authority, v1, v2, and current
   pointer, and still excludes benchmark runtime dependency.
 - Existing packed filesystem-containment and ownership suites remain green
@@ -224,6 +236,23 @@ cortex watch status
 Omit the optional new test path if no such file is created. Run broader root
 tests only if the focused package/ownership changes reveal shared failures; CI
 remains the authoritative full matrix.
+
+## Review-Round-2 Scope Revision
+
+The second independent review reproduced two failures that cannot be waived:
+
+1. raw syntax remained reachable through `rootNode` aliases and a Proxy because
+   the validator returned caller-owned references; and
+2. the generic clean-state ownership path treated equality with the current
+   package source as proof of ownership and replaced an unknown byte-identical
+   regular file or hard link at the new managed target.
+
+The runtime fix remains inside the original runtime/test paths. The ownership
+fix necessarily adds the one narrowly authorized CLI file above; Cortex impact
+resolves the change to `installManagedScaffold` and its existing ownership,
+scaffold, migration, CLI-contract, and packed-containment consumers. No parser,
+registry, worker, pipeline, public dialect API, dependency, version, or release
+scope is added. All affected focused ownership and packed gates must rerun.
 
 ## Acceptance Gates
 

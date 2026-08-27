@@ -32,6 +32,46 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   prerequisite head.
 - WO-052 and WO-053 remain blocked until WO-051B is independently accepted.
 
+## 2026-08-27 — WO-051B round-1 review NO-GO
+
+- The first pass stayed inside the exact eight-file packet scope and passed the
+  nominal gates: dialect/runtime 27/27, ownership 15/15, combined ownership and
+  packed containment 16/16, 432 packed entries, and all three frozen hashes.
+- Security adversarial review proved ownership v2 expanded legacy cleanup to
+  the new `scripts/lib/dialect-observation-contract.mjs` path. Clean init then
+  deleted an unknown byte-identical file and unlinked a hard-linked file. That
+  violates the packet even though `.context` collision tests passed.
+- Code/Contract and Validation also reproduced hidden-state bypasses through
+  inherited, symbol, non-enumerable, accessor, and alias raw-syntax fields.
+  Public canonicalization/transport helpers lacked direct file/chunk and
+  aggregate graph caps, and column numbering/end semantics were not frozen.
+- The fix remains inside the eight-file scope: ownership v2 keeps the legacy
+  `.context/scripts` root inventory identical to v1 and adds a separate nested
+  managed root without legacy mapping; the runtime rejects non-plain hidden
+  data and raw aliases, applies caps at every public boundary, and exports an
+  exact separate column contract without changing accepted hashes.
+- WO-052 and WO-053 remain blocked pending rerun and final full-panel GO.
+
+## 2026-08-27 — WO-051B round-2 review NO-GO and scope revision
+
+- Manager verification passed dialect/runtime 27/27 and combined ownership plus
+  packed containment 17/17 on the eight-file candidate. Validation returned GO,
+  but Code/Contract and Security independently reproduced two unclosed cases.
+- `rootNode` aliases and a caller-controlled Proxy could retain raw syntax
+  because validation returned the original transport references. Packet 055 now
+  requires a bounded canonical plain-data return value and explicit Tree-sitter
+  alias negatives.
+- On a clean forced install without ownership state, byte equality with the
+  current source was incorrectly accepted as ownership evidence. An unknown
+  regular file was replaced and an unknown hard link was severed at the new
+  managed target.
+- Cortex impact resolves that behavior to `installManagedScaffold` and its
+  existing ownership/scaffold/migration/CLI/packed consumers. The original
+  eight files cannot close it, so packet 055 now narrowly adds
+  `bin/cli/scaffold-ownership.mjs` as the ninth file and requires all affected
+  gates to rerun. No parser or integration scope is opened.
+- WO-052 and WO-053 remain blocked pending a fresh unanimous final review.
+
 ## 2026-08-26 — all-language parser-backed codebase-dialect program planned
 
 - User intent is now explicit: codebase dialect means the recurring, locally
