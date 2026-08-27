@@ -39,6 +39,12 @@ Tests may add exactly these two root files:
 7. `tests/roslyn-dialect-adapter.test.mjs`
 8. `tests/lightweight-dialect-adapter.test.mjs`
 
+At final acceptance the user explicitly authorized one additional test-only
+scope amendment: change `tests/packed-filesystem-containment.test.mjs` expected
+managed-upgrade count from 69 to 75, exactly accounting for the six managed
+production files above. No package inventory, ownership, dependency, version,
+or runtime scope changed.
+
 Do not edit root `scripts/**` mirrors. Do not add a production file under
 `scaffold/scripts/**`: ownership v2 enumerates those paths and a new path would
 require a separate ownership/package work order.
@@ -186,6 +192,34 @@ Independent Parser/Contract, Security/Containment, and Validation/Pack reviewers
 must return GO with no blocker or major findings. Any finding is fixed and
 re-reviewed within this work order before manager acceptance.
 
+## Acceptance State
+
+Accepted locally on 2026-08-27. Implementation commit `bf53d6a` contains the
+six existing managed parser files, two focused adapter tests, and only the
+user-authorized packed-upgrade expectation change from 69 to 75.
+
+C# and VB.NET emit bounded Roslyn candidates only for explicit composite calls;
+normal and oversized calls omit dialect collection while preserving one native
+parse and the legacy parser surface. VB6 and SQL use their existing traversal,
+mask strings and comments (including nested SQL block comments), retain exact
+UTF-16 inclusive spans, and emit no unsupported `test_shape` observations.
+Callable ordinals remain local across local functions and lambdas. Ambiguous
+test names, unsafe chunk IDs, invalid payloads, oversized inputs, and large
+subprocess diagnostics fail closed without raw syntax retention.
+
+Final validation passed contract/evaluation/runtime 30/30, C#/VB.NET 33/33 on
+.NET SDK 8.0.422, VB6/SQL 23/23, both .NET builds, packed containment 1/1, and
+npm pack dry-run. The package remains 432 entries at 411/21 modes with digest
+`f7647e513e6ab40e6327e6bd14aa4db26fc248930780a3967de56ddf423ff661`,
+ownership 396/96, and published-predecessor upgrade 75 changed/16 new with all
+75 state hashes verified.
+
+Parser/Contract, Security/Containment, and Validation/Pack final reviews are GO
+with zero blocker, major, or minor findings. Temporary dependency links were
+removed. Candidate changed-file pattern evidence remained unavailable without
+the feature-scaffold migration explicitly forbidden by this packet; canonical
+Cortex supplied the required context and doctor passed 8/8.
+
 ## Stop Conditions
 
 Stop and split rather than changing parser selection, fallback behavior,
@@ -198,6 +232,8 @@ any file outside the exact scope.
 - `docs/agent-control/context-packets/054-all-language-parser-backed-codebase-dialect.md`
 - `docs/agent-control/context-packets/055-runtime-dialect-contract-promotion.md`
 - `docs/agent-control/context-packets/056-adapter-span-shape-baseline-closure.md`
+- `docs/agent-control/context-packets/059-dynamic-language-test-shape-capability-truth.md`
+- `docs/agent-control/context-packets/060-legacy-parser-error-transport-bridge.md`
 - `scaffold/scripts/lib/dialect-observation-contract.mjs`
 - every production and existing parser test file named above
 - `tests/dialect-contract.test.mjs`
