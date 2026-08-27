@@ -115,6 +115,12 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   rebase, remove those positives, close TypeScript type-only and Go conflicting
   import cases, and receive a fresh final review panel.
 
+- WO-051D preflight exposed one derived characterization outside the original
+  three-file scope: the blind fixture count is computed from applicable
+  capabilities and therefore moves exactly from 68 to 66. Packet 059 now adds
+  only that frozen literal in `tests/dialect-evaluation.test.mjs` as its fourth
+  file; evaluator behavior remains unchanged.
+
 ## 2026-08-27 — WO-052 packed-count scope correction
 
 - Packet 057's first complete implementation stayed inside its exact twelve

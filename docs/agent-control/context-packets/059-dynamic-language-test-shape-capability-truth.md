@@ -42,11 +42,14 @@ outside the program contract.
 
 ## Exact Owned Scope
 
-Change exactly these three files:
+Change exactly these four files:
 
 1. `scaffold/scripts/lib/dialect-observation-contract.mjs`
 2. `tests/dialect-contract.test.mjs`
 3. `tests/dialect-runtime-contract.test.mjs`
+4. `tests/dialect-evaluation.test.mjs` — change only the frozen applicable-facet
+   count from 68 to 66. The two newly unsupported capabilities are the entire
+   delta; do not change evaluator logic or another assertion.
 
 No parser, adapter, benchmark, evaluator, ownership, package, dependency,
 version, registry, worker, pipeline, persistence, CLI, MCP, or public behavior
@@ -104,6 +107,8 @@ Tests must prove:
 - valid-looking manifest mutations fail closed;
 - runtime/benchmark authority parity remains green;
 - all unrelated accepted hashes remain exact; and
+- the blind fixture contains exactly 66 applicable facets after the two
+  explicit unsupported entries; and
 - package inventory, ownership counts, and upgrade characterization remain
   unchanged.
 
@@ -135,7 +140,7 @@ share the same manifest hash.
 
 Stop and split rather than changing any capability other than the two exact
 entries, weakening the unsupported reason, editing adapter/parser behavior,
-changing another accepted hash, or expanding beyond the three files.
+changing another accepted hash, or expanding beyond the four files.
 
 ## Direct References
 
