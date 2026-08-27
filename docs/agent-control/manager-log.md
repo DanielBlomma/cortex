@@ -8,26 +8,28 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
 ## Current State (2026-08-27)
 
-- Released npm baseline is `2.5.1`; the accepted DeepSeek Harness bundle is
-  committed as `594ff26`, pushed on `feature/deepseek-harness-stage0`, and open
-  as PR #120. It has not been merged, tagged, or published.
+- Released npm baseline is `2.5.1`; the accepted DeepSeek Harness bundle was
+  committed as `594ff26` and merged through PR #120 as
+  `350829cea9b85d4a93d21efdedc074a441826b18`. It has not been tagged or
+  published.
 - WO-056 Stage 0 selected the native Agent-scoped topology. WO-057 and WO-058
   are now complete and accepted locally on
   `/Users/danielnilsson/GIT/cortex-worktrees/deepseek-stage0`, branch
   `feature/deepseek-harness-stage0`. The independently reviewed dirty tree at
   base HEAD `c82fd113e923025297bb701a1189f5bf706d9ddd` is captured by implementation
-  commit `594ff26` and opened as PR #120.
+  commit `594ff26` and merged through PR #120 as `350829c`.
 - The direct WO-058 report is GO for all six roles with findings `none`.
   Independent totals are upstream 18/18, focused 32/32, bundle 6/6, negative
   lifecycle 2/2, roots 2/2, offline commands 4/4, root 490/490, MCP 426/426,
   and six audits at zero. Two fresh 12-entry packs are identical at SHA-256
   `d7be11a964d6aa4562fac22a3a944e1919a0b46652f3f1a2dc732dde96c90beb`;
   pinned headless/Web install, upgrade, smoke, shutdown, and removal pass.
-- R20 is closed locally for accepted V1. README remains `planned`; merge, tag,
-  release, npm publication, README promotion, and V2 remain unauthorized.
-- Auto-advance stops before merge. PR #120 is open, but this repository has no
-  pull-request-triggered GitHub Actions workflow; the complete accepted local
-  matrix remains the available validation evidence.
+- R20 is closed for the merged V1. README remains `planned`; tag, release, npm
+  publication, README promotion, and V2 remain unauthorized.
+- Auto-advance stops after merge. PR #120 is merged, and no GitHub Actions run
+  started because the repository has no `pull_request` trigger and the changed
+  paths do not match the Pages push trigger. The complete accepted local matrix
+  remains the validation evidence.
 
 ## Open Decisions
 
@@ -36,8 +38,9 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - Whether `@danielblomma/cortex-mcp` is retained as the npm package name during
   the CLI-first migration or followed by a new package with a migration
   window.
-- Whether and when separately authorized work may merge PR #120;
-  release/publication and V2 remain later independent decisions.
+- Whether and when separately authorized work may run the release/publication
+  gate for `@danielblomma/dsh-cortex`; README promotion and V2 remain later
+  independent decisions.
 
 ## Closed Decisions
 
@@ -633,6 +636,32 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   because the repository has no `pull_request` workflow trigger.
 - No merge, tag, version bump, release, npm publication, README promotion, or
   V2 work was performed or authorized.
+
+## 2026-08-27 — PR #120 merged
+
+- After explicit user authorization, ran a fresh merge gate against PR #120.
+  GitHub and the remote refs agreed on `main@c82fd11` and
+  `feature/deepseek-harness-stage0@1880641`; the branch contained exactly the
+  accepted implementation commit `594ff26` plus traceability commit `1880641`.
+- GitHub reported the non-draft PR `MERGEABLE`/`CLEAN`. Reviews, review
+  requests, requested changes, issue comments, review comments, commit
+  comments, status contexts, and check runs were all empty. The missing checks
+  are expected because no workflow has a `pull_request` trigger; the complete
+  WO-058 local matrix remains the acceptance evidence.
+- A fresh fetch plus `git merge-tree --write-tree origin/main HEAD` produced
+  the accepted head tree `32f5b13664c852b91ff529326d667a8871a65516` without
+  conflicts, and `git diff --check origin/main...HEAD` passed.
+- Merged with the repository's established merge-commit method, head-SHA
+  guarded, as `350829cea9b85d4a93d21efdedc074a441826b18`. GitHub reports
+  PR #120 `MERGED`, `origin/main` points to the merge commit, and the remote
+  feature branch remains present at `1880641`.
+- No Action run started for the merge. Tag refs and GitHub releases were
+  unchanged; no tag, version bump, release, npm publication, README promotion,
+  or V2 work was performed.
+- Auto-advance stops at the next explicit boundary. A fresh separately
+  authorized session may run the release/publication gate for
+  `@danielblomma/dsh-cortex`; README promotion must follow actual availability,
+  and V2 remains an independent work order.
 
 ## Archive
 
