@@ -6,6 +6,26 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-27 — WO-052 paused for legacy parser-error transport bridge
+
+- After accepted WO-051D, the preserved WO-052 candidate closed Ruby/Bash
+  unsupported test facts, TypeScript type-only imports, and Go conflicting
+  qualifiers. Final nominal gates reached contract 29/29, JavaScript 24/24,
+  C/C++/Rust 65/65, Tree-sitter 72/72, and packed containment 1/1 with the
+  unchanged 432-entry inventory and 69/16 upgrade characterization.
+- Final Security review found bounded valid deep JavaScript can make Acorn
+  return a location-less `RangeError`. The accepted legacy result owns
+  `line`/`column: undefined`; the strict transport rejects it and throws rather
+  than returning `malformed`.
+- Converting those values to `null` closed the throw but changed legacy
+  `parseCode` deep and serialized behavior. Parser/Contract and Security both
+  returned NO-GO; Validation returned GO. The rejected normalization was
+  removed from the preserved candidate.
+- Packet 060 creates exact two-file WO-051E. Its constructor may omit only
+  direct undefined error `line`/`column` fields before strict validation while
+  leaving caller/legacy bytes unchanged and keeping the direct validator fully
+  strict. WO-052 remains uncommitted and paused until independent acceptance.
+
 ## 2026-08-27 — WO-051D accepted; WO-052 ready to resume
 
 - The exact four-file capability-truth amendment is committed as `934e281`.

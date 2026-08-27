@@ -2,11 +2,14 @@
 
 ## Paused State
 
-WO-052 is paused after three review rounds exposed a frozen capability error:
-syntax-only Ruby and Bash adapters cannot prove framework-bound `test_shape`
-under valid dynamic rebinding without fabricating positives. Packet 059/WO-051D
-must be accepted first. Resume from that accepted head in a fresh session; do
-not continue adding Ruby/Bash name or framework heuristics.
+WO-051D is accepted and its Ruby/Bash capability correction is already applied
+to the preserved candidate. A subsequent final review found a second frozen
+boundary conflict: an existing Acorn parser error can own optional `line` and
+`column` values of `undefined`, while the strict dialect transport rejects all
+non-JSON values. Changing the legacy parser result or weakening transport is
+forbidden. Packet 060/WO-051E must therefore be accepted first. Resume from
+that accepted head in a fresh session; do not alter legacy parser error bytes
+or add an adapter-local canonicalizer.
 
 ## Objective
 
@@ -202,6 +205,10 @@ change dependencies or skip final family coverage.
 Tests must additionally prove:
 
 - existing `parseCode` byte/deep equality before and after adapter use;
+- JSON-safe parser results remain deep-equal inside the composite transport;
+  the sole Packet 060 legacy exception keeps the original `parseCode` object
+  byte/deep unchanged while the strict transport omits only direct undefined
+  error `line`/`column` fields and remains canonical-JSON equivalent;
 - one native parse per composite call;
 - all 10 families and every registered mode in this scope;
 - deterministic ordering and IDs across repeated runs;
