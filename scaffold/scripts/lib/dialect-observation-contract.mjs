@@ -468,7 +468,7 @@ export function validateExistingParserResult(result) {
 export function createDialectObservationTransport(parserResult, observationEnvelope) {
   const transport = {
     schema_version: 1,
-    parser_result: parserResult,
+    parser_result: projectExistingParserResultForTransport(parserResult),
     observation_envelope: observationEnvelope
   };
   return validateDialectObservationTransport(transport);
@@ -523,6 +523,27 @@ export function nonNegativeInteger(value, label) {
 
 function nullableIdentifier(value, label) {
   if (value !== null) visibleBounded(value, DIALECT_LIMITS.max_identifier_chars, label);
+}
+
+function projectExistingParserResultForTransport(result) {
+  const entries = ownRecordEntries(result, "existing parser result");
+  const values = new Map(entries);
+  if (entries.length !== 2 || !values.has("chunks") || !values.has("errors")) {
+    fail("existing parser result has unexpected keys");
+  }
+  const chunks = values.get("chunks");
+  const errors = values.get("errors");
+  if (!Array.isArray(chunks) || !Array.isArray(errors)) fail("existing parser result arrays are invalid");
+  const projectedErrors = ownArrayEntries(errors, "existing parser errors").map(([, error], index) => {
+    if (error === null || typeof error !== "object" || Array.isArray(error)) return error;
+    const prototype = Object.getPrototypeOf(error);
+    if (prototype !== Object.prototype && prototype !== null) return error;
+    return Object.fromEntries(
+      ownRecordEntries(error, `existing parser error ${index}`)
+        .filter(([key, value]) => !((key === "line" || key === "column") && value === undefined))
+    );
+  });
+  return { chunks, errors: projectedErrors };
 }
 
 function positiveInteger(value, label) {
@@ -645,11 +666,16 @@ function ownArrayEntries(value, label) {
   const keys = Reflect.ownKeys(value);
   if (keys.some((key) => typeof key === "symbol")) fail(`${label} cannot contain symbol keys`);
   const descriptors = Object.getOwnPropertyDescriptors(value);
+  const lengthDescriptor = descriptors.length;
+  if (!lengthDescriptor || !("value" in lengthDescriptor) || !Number.isSafeInteger(lengthDescriptor.value) || lengthDescriptor.value < 0) {
+    fail(`${label} has an invalid length descriptor`);
+  }
+  const length = lengthDescriptor.value;
   const dataKeys = keys.filter((key) => key !== "length");
-  if (dataKeys.length !== value.length) fail(`${label} must be a dense JSON array`);
+  if (dataKeys.length !== length) fail(`${label} must be a dense JSON array`);
   const entries = [];
   for (const key of dataKeys) {
-    if (!isCanonicalArrayIndex(key, value.length)) fail(`${label} has a non-index property`);
+    if (!isCanonicalArrayIndex(key, length)) fail(`${label} has a non-index property`);
     const descriptor = descriptors[key];
     if (!descriptor.enumerable) fail(`${label} has a non-enumerable array entry`);
     if (!("value" in descriptor)) fail(`${label} cannot contain accessors`);

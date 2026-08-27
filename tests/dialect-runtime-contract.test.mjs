@@ -420,6 +420,172 @@ test("the in-memory composite transport is exact and preserves transport separat
   assert.notEqual(fromProxy.parser_result.chunks[0], proxyChunk);
 });
 
+test("the composite constructor narrowly projects undefined legacy error locations", () => {
+  const parserError = {
+    message: "Maximum call stack size exceeded",
+    line: undefined,
+    column: undefined,
+    parser_kind: "STACK"
+  };
+  const parserResult = { chunks: [], errors: [parserError] };
+  const parserResultSnapshot = structuredClone(parserResult);
+  const transport = runtimeContract.createDialectObservationTransport(
+    parserResult,
+    envelope([])
+  );
+
+  assert.deepEqual(transport.parser_result, {
+    chunks: [],
+    errors: [{ message: "Maximum call stack size exceeded", parser_kind: "STACK" }]
+  });
+  assert.equal(Object.hasOwn(parserError, "line"), true);
+  assert.equal(Object.hasOwn(parserError, "column"), true);
+  assert.equal(parserError.line, undefined);
+  assert.equal(parserError.column, undefined);
+  assert.deepEqual(parserResult, parserResultSnapshot);
+  assert.equal(parserResult.errors[0], parserError);
+  assert.deepEqual(transport.parser_result, JSON.parse(JSON.stringify(parserResult)));
+  assert.deepEqual(
+    runtimeContract.createDialectObservationTransport({
+      chunks: [],
+      errors: [
+        { message: "located", line: 2, column: 7 },
+        { message: "explicitly absent", line: null, column: null }
+      ]
+    }, envelope([])).parser_result.errors,
+    [
+      { column: 7, line: 2, message: "located" },
+      { column: null, line: null, message: "explicitly absent" }
+    ]
+  );
+
+  assert.throws(
+    () => runtimeContract.validateDialectObservationTransport({
+      schema_version: 1,
+      parser_result: parserResult,
+      observation_envelope: envelope([])
+    }),
+    /non-JSON undefined value/
+  );
+
+  for (const errors of [
+    [{ message: undefined, line: undefined }],
+    [{ message: "nested", details: { line: undefined } }],
+    [{ message: "nested array", details: [undefined] }],
+    [undefined]
+  ]) {
+    assert.throws(
+      () => runtimeContract.createDialectObservationTransport(
+        { chunks: [], errors },
+        envelope([])
+      ),
+      /non-JSON undefined value/
+    );
+  }
+  assert.throws(
+    () => runtimeContract.createDialectObservationTransport(
+      { chunks: [{ line: undefined }], errors: [] },
+      envelope([])
+    ),
+    /non-JSON undefined value/
+  );
+  assert.throws(
+    () => runtimeContract.createDialectObservationTransport(
+      { chunks: [], errors: new Array(1) },
+      envelope([])
+    ),
+    /dense JSON array/
+  );
+  for (const invalidError of [() => {}, Symbol("error")]) {
+    assert.throws(
+      () => runtimeContract.createDialectObservationTransport(
+        { chunks: [], errors: [invalidError] },
+        envelope([])
+      ),
+      /non-JSON/
+    );
+  }
+
+  let getterCalls = 0;
+  const accessorError = { message: "accessor" };
+  Object.defineProperty(accessorError, "line", {
+    enumerable: true,
+    get() {
+      getterCalls += 1;
+      return undefined;
+    }
+  });
+  assert.throws(
+    () => runtimeContract.createDialectObservationTransport(
+      { chunks: [], errors: [accessorError] },
+      envelope([])
+    ),
+    /accessors/
+  );
+  assert.equal(getterCalls, 0);
+
+  const hiddenLocation = { message: "hidden" };
+  Object.defineProperty(hiddenLocation, "line", {
+    value: undefined,
+    enumerable: false
+  });
+  assert.throws(
+    () => runtimeContract.createDialectObservationTransport(
+      { chunks: [], errors: [hiddenLocation] },
+      envelope([])
+    ),
+    /non-enumerable/
+  );
+  const symbolLocation = { message: "symbol", [Symbol("line")]: undefined };
+  assert.throws(
+    () => runtimeContract.createDialectObservationTransport(
+      { chunks: [], errors: [symbolLocation] },
+      envelope([])
+    ),
+    /symbol keys/
+  );
+  assert.throws(
+    () => runtimeContract.createDialectObservationTransport(
+      { chunks: [], errors: [Object.assign(Object.create({ inherited: true }), { line: undefined })] },
+      envelope([])
+    ),
+    /plain record prototype/
+  );
+
+  const proxyTarget = { message: "visible", line: undefined, column: undefined };
+  const visibleError = new Proxy(proxyTarget, {
+    ownKeys() {
+      return ["message"];
+    },
+    getOwnPropertyDescriptor(target, key) {
+      return key === "message" ? Reflect.getOwnPropertyDescriptor(target, key) : undefined;
+    }
+  });
+  const fromProxy = runtimeContract.createDialectObservationTransport(
+    { chunks: [], errors: [visibleError] },
+    envelope([])
+  );
+  assert.deepEqual(fromProxy.parser_result.errors, [{ message: "visible" }]);
+  assert.equal(Object.hasOwn(proxyTarget, "line"), true);
+
+  let arrayGetCalls = 0;
+  const proxyErrorsTarget = [{ message: "before", line: undefined }];
+  const proxyErrors = new Proxy(proxyErrorsTarget, {
+    get(target, key, receiver) {
+      arrayGetCalls += 1;
+      target[0].message = "mutated-by-get-trap";
+      return Reflect.get(target, key, receiver);
+    }
+  });
+  const fromArrayProxy = runtimeContract.createDialectObservationTransport(
+    { chunks: [], errors: proxyErrors },
+    envelope([])
+  );
+  assert.equal(arrayGetCalls, 0);
+  assert.equal(proxyErrorsTarget[0].message, "before");
+  assert.deepEqual(fromArrayProxy.parser_result.errors, [{ message: "before" }]);
+});
+
 test("the composite transport rejects mixed keys, raw syntax objects, and non-canonical envelopes", () => {
   const valid = runtimeContract.createDialectObservationTransport(
     { chunks: [], errors: [] },
