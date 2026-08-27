@@ -136,6 +136,28 @@ Only after WO-051D is accepted may WO-052 rebase onto it. The resumed Packet
 WO-053 must also start from the accepted WO-051D head so both adapter branches
 share the same manifest hash.
 
+## Acceptance State
+
+Accepted locally on 2026-08-27. The exact four-file implementation is commit
+`934e281` with capability-manifest SHA-256
+`94f1c645ce4bb7963a30b2da65bce3e5130e38b05f93046623e1759d000f871c`.
+It preserves 14 families and 29 modes, changes exactly the Ruby and Bash
+`test_shape` status/reason leaves, and reduces the applicable fixture facets
+from 68 to 66.
+
+Contract/evaluation/runtime passed 29/29, packed containment passed 1/1, the
+package remained 432 entries at 411/21 modes with inventory digest
+`f7647e513e6ab40e6327e6bd14aa4db26fc248930780a3967de56ddf423ff661`,
+and ownership remained 396/96. Contract, Security/Truthfulness, and
+Validation/Pack reviewers independently returned GO with zero blocker, major,
+or minor findings. Feature-worktree changed-file Cortex evidence remained
+unavailable because the older scaffold lacks the built query runtime; the
+canonical runtime search/rules/impact and doctor evidence was used without
+bootstrapping or migrating the candidate.
+
+WO-052 may now resume in a fresh session from the accepted WO-051D head and
+must satisfy every resume condition above. WO-053 is likewise unblocked.
+
 ## Stop Conditions
 
 Stop and split rather than changing any capability other than the two exact

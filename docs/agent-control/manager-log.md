@@ -6,6 +6,30 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-27 — WO-051D accepted; WO-052 ready to resume
+
+- The exact four-file capability-truth amendment is committed as `934e281`.
+  Ruby and Bash `test_shape` are now explicitly unsupported because the
+  existing syntax-only parsers cannot prove framework binding under valid
+  language-level dynamic rebinding. All other manifest leaves are unchanged.
+- The new capability-manifest hash is
+  `94f1c645ce4bb7963a30b2da65bce3e5130e38b05f93046623e1759d000f871c`;
+  the limits, adapter-shape, and ownership-v1 hashes remain unchanged. The
+  blind fixture now contains exactly 66 applicable facets across 14 families
+  and 29 modes.
+- Contract/evaluation/runtime passes 29/29, packed containment 1/1, package
+  inventory remains 432 entries at 411/21 modes with digest `f7647e5…661`,
+  and ownership remains 396/96. Contract, Security/Truthfulness, and
+  Validation/Pack reviewers independently returned GO with zero findings.
+- The older feature scaffold cannot provide changed-file pattern evidence,
+  doctor, or watch state without forbidden bootstrap/migration. Canonical
+  Cortex search/rules/impact and doctor evidence was used and the limitation
+  is accepted transparently; the candidate was not altered to manufacture it.
+- WO-052 is Ready to resume in a fresh session by advancing its preserved
+  uncommitted candidate onto this accepted head, removing Ruby/Bash test facts,
+  closing TypeScript type-only and Go conflicting-import cases, and rerunning
+  the full independent review panel. WO-053 is also Ready from the same head.
+
 ## 2026-08-27 — WO-051B runtime-contract prerequisite planned
 
 - The user authorized auto-advance. Cortex rules/search/impact and three
