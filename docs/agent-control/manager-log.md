@@ -93,6 +93,22 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   this accepted head in fresh packets, worktrees, and sessions. WO-054 remains
   blocked until both adapter work orders are accepted.
 
+## 2026-08-27 — WO-052 packed-count scope correction
+
+- Packet 057's first complete implementation stayed inside its exact twelve
+  managed parser files plus four new root tests and passed the four focused
+  groups at 29/29, 20/20, 62/62, and 69/69.
+- The required packed-containment gate then stopped at its frozen
+  previous-release characterization: 69 changed managed files versus the
+  pre-adapter expectation 57. The delta is exactly the twelve authorized parser
+  files; package inventory remains 432, ownership remains 396/96, and the new
+  managed-file count remains 16.
+- The implementer correctly stopped without touching the out-of-scope test.
+  Packet 057 is narrowly revised to authorize only the count change 57 to 69 in
+  `tests/packed-filesystem-containment.test.mjs`. No assertion, behavior,
+  ownership, package, dependency, parser, or integration scope is otherwise
+  opened. All affected gates and independent reviews must still rerun.
+
 ## 2026-08-27 — WO-051C accepted locally
 
 - The exact three-file implementation is committed as `6f7af6b`. It freezes

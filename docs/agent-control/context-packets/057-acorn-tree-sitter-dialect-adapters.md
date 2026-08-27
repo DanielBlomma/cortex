@@ -46,6 +46,14 @@ Tests may add exactly these four root files:
 15. `tests/tree-sitter-dialect-adapter.test.mjs`
 16. `tests/dialect-adapter-fallbacks.test.mjs`
 
+The packed-upgrade characterization test may change in exactly one place:
+
+17. `tests/packed-filesystem-containment.test.mjs` — update only
+    `EXPECTED_CHANGED_MANAGED_COUNT` from 57 to 69. The twelve authorized
+    managed parser edits are the entire delta. Keep
+    `EXPECTED_NEW_MANAGED_COUNT` at 16 and do not change package inventory,
+    ownership, containment, upgrade behavior, or any other assertion.
+
 Do not edit root `scripts/**` mirrors. Do not add a production file under
 `scaffold/scripts/**`: ownership v2 enumerates those paths and a new path would
 require a separate ownership/package work order.
@@ -194,7 +202,9 @@ Tests must additionally prove:
 - no raw syntax retention, including hidden aliases, accessors, and Proxies;
 - accepted manifest, limits, ownership-v1, and adapter-shape hashes unchanged;
   and
-- package inventory and ownership counts unchanged.
+- package inventory and ownership counts unchanged; and
+- packed previous-release characterization reports exactly 69 changed managed
+  files, of which exactly 16 remain new managed files.
 
 ## Review And Acceptance
 
