@@ -6,6 +6,22 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-28 — Packet 065 compacted after final generator drift
+
+- Packet 065 implemented v3 routing, exact semantic chunk ownership,
+  HEAD-bound contamination, canonical fetch arrays, detached validation, and a
+  retained exclusive creator with request/denial receipts. Focused 8/8,
+  proportional 80/80, query/cleanup 8/8, and 432-entry pack checks passed.
+- The session then made final generator changes for frozen authority and full-
+  freeze routing after creating the exact root. Its receipt therefore binds
+  older generator `e23c83…40d2`, while the current generator is
+  `4bc67d…3460`. Context compacted before an exact refreeze, so the session
+  stopped correctly and no earlier green result is treated as final evidence.
+- Packet 066 is the minimal fresh-session remainder: preserve the stale root,
+  exclusively recreate it against current generator and exact control HEAD,
+  rerun gates, and stop for the three Packet 065 re-reviews. SQL-002 and public
+  artifacts remain unchanged; Packet 063 and WO-055B-D stay blocked.
+
 ## 2026-08-28 — SQL-002 selection review NO-GO; integration bridge assigned
 
 - Packet 064 selected a strong SQL-002 binding with two separate procedures
