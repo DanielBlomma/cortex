@@ -52,6 +52,9 @@ Tests may add or change only:
 16. `tests/packed-filesystem-containment.test.mjs`, only if an exact existing
     packed expectation must reflect the owned runtime changes
 17. `scaffold/mcp/tests/pattern-evidence.test.mjs`
+18. `tests/ingest-characterization.test.mjs`, only to keep its frozen legacy
+    26-JSONL hashes/counts scoped to the pre-existing artifacts while the new
+    dialect sidecar is asserted separately
 
 Do not add a managed production path, change ownership manifests, edit root
 `scripts/**` mirrors, or register a public tool. A necessary file outside this
