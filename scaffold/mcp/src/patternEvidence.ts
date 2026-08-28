@@ -1,8 +1,11 @@
+import fs from "node:fs";
+import path from "node:path";
 import { loadContextData } from "./graph.js";
 import { iterateSearchEntities } from "./contextEntities.js";
 import { embedQuery, loadEmbeddingIndex } from "./embeddings.js";
+import { PATHS, REPO_ROOT } from "./paths.js";
 import { runContextSearch } from "./search.js";
-import type { ChunkRecord, ContextData, PatternEvidenceParams, ToolPayload } from "./types.js";
+import type { ChunkRecord, ContextData, PatternEvidenceParams, SearchEntity, ToolPayload } from "./types.js";
 
 type SearchResult = Record<string, unknown>;
 
@@ -344,4 +347,450 @@ export async function runLocalPatternEvidence(
   options: { data?: ContextData } = {}
 ): Promise<ToolPayload> {
   return runPatternEvidence(parsed, { ...options, use_embeddings: false });
+}
+
+type DialectTaskBinding = {
+  base_commit: string;
+  family: string;
+  source_scope: string[];
+  task_bytes: number;
+  task_id: string;
+  task_sha256: string;
+};
+
+type DialectSourceCatalogEntry = {
+  bytes: number;
+  line_count: number;
+  path: string;
+  source_sha256: string;
+};
+
+type DialectRecurrenceInput = {
+  task_binding: DialectTaskBinding;
+  task_bytes: string | Uint8Array;
+  source_catalog: DialectSourceCatalogEntry[];
+  ingest_manifest?: string | Record<string, unknown>;
+  dialect_sidecar?: string;
+};
+
+type DialectRecurrenceOptions = {
+  data?: ContextData;
+  search?: typeof runContextSearch;
+};
+
+type DialectRuntimeContract = {
+  DIALECT_CAPABILITY_MANIFEST: { families: Array<{ family: string }> };
+  DIALECT_LIMITS: Record<string, number>;
+  canonicalJson(value: unknown): string;
+  canonicalRepositoryPath(value: unknown): string;
+  dialectFamilyForMode(extension: string): { family: string } | null;
+  exactKeys(value: unknown, keys: string[], label: string): void;
+  hexSha256(value: unknown, label?: string): string;
+  sha256(value: string | Uint8Array): string;
+  visibleIdentifier(value: unknown, label: string): void;
+};
+
+type DialectSidecarRuntime = {
+  DIALECT_MANIFEST_FIELD: string;
+  parseDialectObservationSidecar(text: string): { records: Array<Record<string, any>>; text: string };
+  summarizeDialectObservationSidecar(serialized: { records: Array<Record<string, any>>; text: string }): Record<string, unknown>;
+};
+
+const DIALECT_CONTRACT_URL = new URL(
+  "../../scripts/lib/dialect-observation-contract.mjs",
+  import.meta.url,
+).href;
+const DIALECT_SIDECAR_URL = new URL(
+  "../../scripts/lib/ingest/pipeline-stages.mjs",
+  import.meta.url,
+).href;
+
+function dialectDiagnostic(value: unknown, limit: number): string {
+  const normalized = String(value instanceof Error ? value.message : value)
+    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/gu, " ")
+    .trim();
+  return [...(normalized || "dialect recurrence input was rejected")].slice(0, limit).join("");
+}
+
+function readContainedCacheFile(filePath: string, maxBytes: number): string {
+  const relative = path.relative(REPO_ROOT, filePath);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("dialect cache path escaped the repository root");
+  }
+  let current = REPO_ROOT;
+  const componentSnapshots: Array<{ path: string; dev: bigint; ino: bigint; ctimeNs: bigint; directory: boolean }> = [];
+  for (const component of relative.split(path.sep)) {
+    current = path.join(current, component);
+    const stats = fs.lstatSync(current, { bigint: true });
+    if (stats.isSymbolicLink()) throw new Error("dialect cache path contains a symlink");
+    const directory = current !== filePath;
+    if (directory ? !stats.isDirectory() : !stats.isFile()) {
+      throw new Error("dialect cache path has an unexpected file type");
+    }
+    componentSnapshots.push({
+      path: current,
+      dev: stats.dev,
+      ino: stats.ino,
+      ctimeNs: stats.ctimeNs,
+      directory,
+    });
+  }
+  const descriptor = fs.openSync(
+    filePath,
+    fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
+  );
+  try {
+    const before = fs.fstatSync(descriptor, { bigint: true });
+    if (!before.isFile() || before.nlink !== 1n || before.size > BigInt(maxBytes)) {
+      throw new Error("dialect cache file failed containment or size policy");
+    }
+    const leaf = componentSnapshots.at(-1);
+    if (!leaf || leaf.dev !== before.dev || leaf.ino !== before.ino || leaf.ctimeNs !== before.ctimeNs) {
+      throw new Error("dialect cache file changed before its contained read");
+    }
+    const text = fs.readFileSync(descriptor, "utf8");
+    const after = fs.fstatSync(descriptor, { bigint: true });
+    if (
+      before.dev !== after.dev ||
+      before.ino !== after.ino ||
+      before.ctimeNs !== after.ctimeNs ||
+      before.size !== after.size
+    ) {
+      throw new Error("dialect cache file changed during validation");
+    }
+    for (const snapshot of componentSnapshots) {
+      const currentStats = fs.lstatSync(snapshot.path, { bigint: true });
+      if (
+        currentStats.isSymbolicLink() ||
+        (snapshot.directory ? !currentStats.isDirectory() : !currentStats.isFile()) ||
+        snapshot.dev !== currentStats.dev ||
+        snapshot.ino !== currentStats.ino ||
+        snapshot.ctimeNs !== currentStats.ctimeNs
+      ) {
+        throw new Error("dialect cache path changed during its contained read");
+      }
+    }
+    return text;
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
+function pathIsScoped(repositoryPath: string, scopes: string[]): boolean {
+  return scopes.some((scope) => repositoryPath === scope || repositoryPath.startsWith(`${scope}/`));
+}
+
+function sourceMode(repositoryPath: string): string {
+  const extension = path.posix.extname(repositoryPath).toLowerCase();
+  return extension;
+}
+
+function createDialectEvaluationOutput(
+  taskId: string,
+  renderedOutput: string,
+  claims: Array<Record<string, unknown>>,
+  diagnostics: string[],
+  runtime: DialectRuntimeContract,
+): Record<string, unknown> {
+  return {
+    task_id: taskId,
+    rendered_output: renderedOutput,
+    rendered_output_bytes: Buffer.byteLength(renderedOutput),
+    rendered_output_sha256: runtime.sha256(renderedOutput),
+    claims,
+    diagnostics,
+  };
+}
+
+/**
+ * Explicit evaluator-only dialect path. It is intentionally not registered by
+ * server.ts and performs exactly one lexical/graph search with embeddings
+ * disabled before intersecting candidates with the frozen sidecar evidence.
+ */
+export async function runDialectPatternEvidence(
+  input: DialectRecurrenceInput,
+  options: DialectRecurrenceOptions = {},
+): Promise<Record<string, unknown>> {
+  const runtime = await import(DIALECT_CONTRACT_URL) as DialectRuntimeContract;
+  const sidecarRuntime = await import(DIALECT_SIDECAR_URL) as DialectSidecarRuntime;
+  const limits = runtime.DIALECT_LIMITS;
+  let taskId = "invalid-task";
+  const diagnostics: string[] = [];
+  const diagnostic = (message: unknown): void => {
+    if (diagnostics.length < limits.max_diagnostics_per_task) {
+      diagnostics.push(dialectDiagnostic(message, limits.max_diagnostic_chars));
+    }
+  };
+  const noClaims = (): Record<string, unknown> => createDialectEvaluationOutput(
+    taskId,
+    "No recurring dialect shape was established from the validated local evidence.",
+    [],
+    [...new Set(diagnostics)].sort(),
+    runtime,
+  );
+
+  let taskText: string;
+  let taskFamily: string;
+  let sourceScopes: string[];
+  let sourceCatalog: DialectSourceCatalogEntry[];
+  let serializedSidecar: { records: Array<Record<string, any>>; text: string };
+  let data: ContextData;
+  try {
+    runtime.exactKeys(input, [
+      "dialect_sidecar",
+      "ingest_manifest",
+      "source_catalog",
+      "task_binding",
+      "task_bytes",
+    ].filter((key) => Object.prototype.hasOwnProperty.call(input, key)), "dialect recurrence input");
+    runtime.exactKeys(input.task_binding, [
+      "base_commit", "family", "source_scope", "task_bytes", "task_id", "task_sha256",
+    ], "dialect task binding");
+    const binding = input.task_binding;
+    runtime.visibleIdentifier(binding.task_id, "task id");
+    taskId = binding.task_id;
+    if (!/^[a-f0-9]{40,64}$/.test(binding.base_commit)) throw new Error("invalid immutable base commit");
+    runtime.hexSha256(binding.task_sha256, "task hash");
+    if (!runtime.DIALECT_CAPABILITY_MANIFEST.families.some((entry) => entry.family === binding.family)) {
+      throw new Error("unsupported dialect task family");
+    }
+    if (!Array.isArray(binding.source_scope) || binding.source_scope.length === 0) {
+      throw new Error("dialect task source scope is empty");
+    }
+    const scopes = binding.source_scope.map((scope) => runtime.canonicalRepositoryPath(scope));
+    if (
+      new Set(scopes).size !== scopes.length ||
+      runtime.canonicalJson(scopes) !== runtime.canonicalJson([...scopes].sort())
+    ) {
+      throw new Error("dialect task source scope is not unique and sorted");
+    }
+    sourceScopes = [...scopes];
+    taskFamily = binding.family;
+    const exactTaskBytes = typeof input.task_bytes === "string"
+      ? Buffer.from(input.task_bytes, "utf8")
+      : Buffer.from(input.task_bytes);
+    if (
+      exactTaskBytes.length < 1 ||
+      exactTaskBytes.length > limits.max_task_bytes ||
+      binding.task_bytes !== exactTaskBytes.length ||
+      binding.task_sha256 !== runtime.sha256(exactTaskBytes)
+    ) {
+      throw new Error("dialect task bytes do not match the frozen task binding");
+    }
+    taskText = new TextDecoder("utf-8", { fatal: true }).decode(exactTaskBytes);
+
+    if (!Array.isArray(input.source_catalog) || input.source_catalog.length === 0 ||
+        input.source_catalog.length > limits.max_source_catalog_files) {
+      throw new Error("invalid frozen source catalog size");
+    }
+    sourceCatalog = input.source_catalog.map((source) => ({ ...source }));
+    let aggregateBytes = 0;
+    let previousPath = "";
+    for (const source of sourceCatalog) {
+      runtime.exactKeys(source, ["bytes", "line_count", "path", "source_sha256"], "source catalog entry");
+      runtime.canonicalRepositoryPath(source.path);
+      runtime.hexSha256(source.source_sha256, "catalog source hash");
+      if (source.path <= previousPath) throw new Error("source catalog is not unique and sorted");
+      previousPath = source.path;
+      if (!pathIsScoped(source.path, scopes)) throw new Error("source catalog escaped task scope");
+      if (!Number.isSafeInteger(source.bytes) || source.bytes < 0 || source.bytes > limits.max_source_bytes ||
+          !Number.isSafeInteger(source.line_count) || source.line_count < 1) {
+        throw new Error("source catalog contains invalid bounds");
+      }
+      aggregateBytes += source.bytes;
+      if (!Number.isSafeInteger(aggregateBytes) || aggregateBytes > limits.max_source_catalog_bytes) {
+        throw new Error("source catalog exceeds its aggregate byte cap");
+      }
+    }
+
+    const manifestText = input.ingest_manifest === undefined
+      ? readContainedCacheFile(PATHS.ingestManifest, limits.max_canonical_input_bytes)
+      : typeof input.ingest_manifest === "string"
+        ? input.ingest_manifest
+        : runtime.canonicalJson(input.ingest_manifest);
+    if (Buffer.byteLength(manifestText, "utf8") > limits.max_canonical_input_bytes) {
+      throw new Error("dialect ingest manifest exceeds its canonical byte cap");
+    }
+    const sidecarText = input.dialect_sidecar === undefined
+      ? readContainedCacheFile(PATHS.dialectObservations, limits.max_source_catalog_bytes)
+      : input.dialect_sidecar;
+    const manifest = JSON.parse(manifestText) as Record<string, unknown>;
+    serializedSidecar = sidecarRuntime.parseDialectObservationSidecar(sidecarText);
+    const summary = sidecarRuntime.summarizeDialectObservationSidecar(serializedSidecar);
+    if (runtime.canonicalJson(manifest[sidecarRuntime.DIALECT_MANIFEST_FIELD]) !== runtime.canonicalJson(summary)) {
+      throw new Error("dialect manifest and sidecar hash or diagnostics differ");
+    }
+    data = options.data ?? await loadContextData();
+  } catch (error) {
+    void error;
+    diagnostic("Dialect recurrence unavailable: validated inputs or contained cache artifacts were unavailable.");
+    return noClaims();
+  }
+
+  const catalogByPath = new Map(sourceCatalog.map((source) => [source.path, source]));
+  const documentsById = new Map(data.documents.map((document) => [document.id, document]));
+  const chunksById = new Map(data.chunks.map((chunk) => [chunk.id, chunk]));
+  const selectedChunksByPath = new Map<string, Set<string>>();
+  const candidateFilter = (entity: SearchEntity): boolean => {
+    if (entity.entity_type !== "Chunk" || entity.id.includes(":window:")) return false;
+    const chunk = chunksById.get(entity.id);
+    const owner = chunk ? documentsById.get(chunk.file_id) : undefined;
+    if (!chunk || !owner) return false;
+    const repositoryPath = normalizeRepoPath(owner.path);
+    const family = runtime.DIALECT_CAPABILITY_MANIFEST.families.find(
+      (entry) => entry.family === taskFamily,
+    );
+    return Boolean(
+      family &&
+      catalogByPath.has(repositoryPath) &&
+      pathIsScoped(repositoryPath, sourceScopes) &&
+      runtime.dialectFamilyForMode(sourceMode(repositoryPath))?.family === taskFamily
+    );
+  };
+
+  let results: SearchResult[] = [];
+  try {
+    const search = await (options.search ?? runContextSearch)(
+      {
+        query: taskText,
+        top_k: 50,
+        include_deprecated: false,
+        response_preset: "minimal",
+        include_scores: false,
+        include_matched_rules: false,
+        include_content: false,
+      },
+      {
+        data,
+        embedding_index: { model: null, vectors: new Map<string, Float32Array>() },
+        query_vector: null,
+        candidate_filter: candidateFilter,
+      },
+    );
+    results = Array.isArray(search.results) ? search.results as SearchResult[] : [];
+  } catch (error) {
+    void error;
+    diagnostic("Dialect recurrence search failed without retaining external error details.");
+    return noClaims();
+  }
+
+  for (const result of results.slice(0, 50)) {
+    const chunkId = typeof result.id === "string" ? result.id : "";
+    const chunk = chunksById.get(chunkId);
+    const owner = chunk ? documentsById.get(chunk.file_id) : undefined;
+    if (!chunk || !owner || chunkId.includes(":window:")) continue;
+    const repositoryPath = normalizeRepoPath(owner.path);
+    if (!candidateFilter({ ...result, id: chunkId, entity_type: "Chunk" } as SearchEntity)) continue;
+    const ids = selectedChunksByPath.get(repositoryPath) ?? new Set<string>();
+    ids.add(chunkId);
+    selectedChunksByPath.set(repositoryPath, ids);
+  }
+  if (selectedChunksByPath.size === 0) {
+    diagnostic("No comparable non-window code chunk matched the frozen family and source scope.");
+    return noClaims();
+  }
+
+  type GroupEvidence = { owner: string; citation: Record<string, unknown>; location: string };
+  const groups = new Map<string, GroupEvidence[]>();
+  for (const record of serializedSidecar.records) {
+    const repositoryPath = String(record.repository_path ?? "");
+    const source = catalogByPath.get(repositoryPath);
+    const selectedChunkIds = selectedChunksByPath.get(repositoryPath);
+    if (!source || !selectedChunkIds || record.source_sha256 !== source.source_sha256 || record.family !== taskFamily) {
+      continue;
+    }
+    if (record.observation_envelope?.status !== "ok") continue;
+    for (const observation of record.observation_envelope.observations as Array<Record<string, any>>) {
+      if (observation.end_line > source.line_count) continue;
+      const resolvedChunkOwner = typeof observation.containing_chunk_id === "string" &&
+        selectedChunkIds.has(observation.containing_chunk_id)
+        ? observation.containing_chunk_id
+        : null;
+      const owner = resolvedChunkOwner ?? repositoryPath;
+      const citationPayload = {
+        end_line: observation.end_line,
+        path: repositoryPath,
+        source_sha256: source.source_sha256,
+        start_line: observation.start_line,
+      };
+      const citation = {
+        citation_id: `dialect-citation-v1:${runtime.sha256(runtime.canonicalJson(citationPayload))}`,
+        ...citationPayload,
+      };
+      const location = `${repositoryPath}:${observation.start_line}:${observation.end_line}:${source.source_sha256}`;
+      const key = runtime.canonicalJson([
+        observation.family,
+        observation.category,
+        observation.normalized_shape,
+        observation.language_specific_shape,
+      ]);
+      const evidence = groups.get(key) ?? [];
+      evidence.push({ owner, citation, location });
+      groups.set(key, evidence);
+    }
+  }
+
+  const claims: Array<Record<string, unknown>> = [];
+  let oneOffGroups = 0;
+  for (const [key, rawEvidence] of [...groups.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+    const uniqueByOwnerAndLocation = new Map<string, GroupEvidence>();
+    for (const evidence of rawEvidence) {
+      uniqueByOwnerAndLocation.set(`${evidence.owner}\u0000${evidence.location}`, evidence);
+    }
+    if (uniqueByOwnerAndLocation.size !== rawEvidence.length) {
+      diagnostic("A recurring dialect shape contained duplicate owner/span evidence and was omitted.");
+      continue;
+    }
+    const evidence = [...uniqueByOwnerAndLocation.values()].sort((left, right) =>
+      left.owner.localeCompare(right.owner) || left.location.localeCompare(right.location));
+    const owners = new Set(evidence.map((entry) => entry.owner));
+    const locations = new Set(evidence.map((entry) => entry.location));
+    if (owners.size < 2 || locations.size < 2) {
+      oneOffGroups += 1;
+      continue;
+    }
+    const firstByOwner = new Map<string, GroupEvidence>();
+    for (const entry of evidence) if (!firstByOwner.has(entry.owner)) firstByOwner.set(entry.owner, entry);
+    if (firstByOwner.size > limits.max_citations_per_claim) {
+      diagnostic("A recurring dialect shape exceeded the frozen citation cap and was omitted.");
+      continue;
+    }
+    const citations = [...firstByOwner.values()]
+      .map((entry) => entry.citation)
+      .sort((left, right) => String(left.citation_id).localeCompare(String(right.citation_id)));
+    if (citations.length < 2) continue;
+    const [, category] = JSON.parse(key) as [string, string, string, string | null];
+    const statement = `A ${category} shape (${runtime.sha256(key)}) was observed recurring in comparable local ${taskFamily} implementations.`;
+    if ([...statement].length > limits.max_shape_chars) {
+      diagnostic("A recurring dialect shape exceeded the rendered statement cap and was omitted.");
+      continue;
+    }
+    const claimPayload = { citations, statement };
+    claims.push({
+      claim_id: `dialect-claim-v1:${runtime.sha256(runtime.canonicalJson(claimPayload))}`,
+      ...claimPayload,
+    });
+  }
+  claims.sort((left, right) => String(left.claim_id).localeCompare(String(right.claim_id)));
+  if (oneOffGroups > 0) diagnostic(`${oneOffGroups} dialect shape group(s) lacked two distinct comparable owners and spans.`);
+  if (claims.length === 0) {
+    diagnostic("No recurring dialect shape met the two-owner and two-span evidence threshold.");
+    return noClaims();
+  }
+  if (claims.length > limits.max_claims_per_task) {
+    diagnostic("Recurring dialect claims exceeded the frozen task cap.");
+    return noClaims();
+  }
+  const renderedOutput = claims.map((claim) => String(claim.statement)).join("\n");
+  if (Buffer.byteLength(renderedOutput) > limits.max_rendered_output_bytes) {
+    diagnostic("Recurring dialect claims exceeded the frozen rendered-output byte cap.");
+    return noClaims();
+  }
+  return createDialectEvaluationOutput(
+    taskId,
+    renderedOutput,
+    claims,
+    [...new Set(diagnostics)].sort().slice(0, limits.max_diagnostics_per_task),
+    runtime,
+  );
 }

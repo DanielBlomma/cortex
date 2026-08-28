@@ -68,6 +68,7 @@ export const PATHS = {
   config: path.join(CONTEXT_DIR, "config.yaml"),
   rulesYaml: path.join(CONTEXT_DIR, "rules.yaml"),
   ingestManifest: path.join(CACHE_DIR, "manifest.json"),
+  dialectObservations: path.join(CACHE_DIR, "dialect-observations.v1.jsonl"),
   graphManifest: path.join(CACHE_DIR, "graph-manifest.json"),
   embeddingsManifest: path.join(CONTEXT_DIR, "embeddings", "manifest.json"),
   embeddingsEntities: path.join(CONTEXT_DIR, "embeddings", "entities.jsonl"),

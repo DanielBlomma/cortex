@@ -2,6 +2,19 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import {
+  DIALECT_LIMITS,
+  canonicalJson,
+  canonicalRepositoryPath,
+  canonicalize,
+  createDialectObservationTransport,
+  dialectFamilyForMode,
+  exactKeys,
+  hexSha256,
+  sha256,
+  validateDialectObservationEnvelope,
+  validateDialectObservationTransport
+} from "../dialect-observation-contract.mjs";
+import {
   collectParseEligibleFiles,
   createCSharpBatchCache,
   createWorkerTasks,
@@ -85,6 +98,7 @@ import {
 } from "./relations.mjs";
 import { initializeRuntimePaths } from "./runtime-paths.mjs";
 import {
+  DIALECT_OBSERVATION_OUTPUT_IDENTITY,
   INGEST_MANIFEST_OUTPUT_IDENTITY,
   isFilesystemPolicyError
 } from "./filesystem-boundary.mjs";
@@ -92,6 +106,278 @@ import {
   resolveIngestWorkerCount,
   startWorkerParseStream
 } from "./workers.mjs";
+
+const DIALECT_FILE_RECORD_TYPE = "dialect_observation_file";
+const DIALECT_FILE_RECORD_ID_PREFIX = "dialect-observation-file-v1:";
+const DIALECT_INDEX_ID = "cortex-dialect-observations-v1";
+const DIALECT_MANIFEST_FIELD = "experimental_dialect_observations";
+const DIALECT_STATUSES = Object.freeze([
+  "ok",
+  "unsupported",
+  "malformed",
+  "oversized",
+  "unavailable",
+  "truncated"
+]);
+
+function createDialectObservationFileRecord({
+  repositoryPath,
+  sourceSha256,
+  family,
+  syntaxMode,
+  observationEnvelope
+}) {
+  const record = {
+    family,
+    observation_envelope: observationEnvelope,
+    record_id: "",
+    record_type: DIALECT_FILE_RECORD_TYPE,
+    repository_path: repositoryPath,
+    schema_version: 1,
+    source_sha256: sourceSha256,
+    syntax_mode: syntaxMode
+  };
+  const identityPayload = { ...record };
+  delete identityPayload.record_id;
+  record.record_id = `${DIALECT_FILE_RECORD_ID_PREFIX}${sha256(canonicalJson(identityPayload))}`;
+  return validateDialectObservationFileRecord(record);
+}
+
+function validateDialectObservationFileRecord(record) {
+  const canonical = canonicalize(record);
+  exactKeys(canonical, [
+    "family",
+    "observation_envelope",
+    "record_id",
+    "record_type",
+    "repository_path",
+    "schema_version",
+    "source_sha256",
+    "syntax_mode"
+  ], "dialect observation file record");
+  if (canonical.schema_version !== 1 || canonical.record_type !== DIALECT_FILE_RECORD_TYPE) {
+    throw new TypeError("Dialect sidecar: unsupported file record identity");
+  }
+  canonicalRepositoryPath(canonical.repository_path);
+  if (path.posix.extname(canonical.repository_path).toLowerCase() !== canonical.syntax_mode) {
+    throw new TypeError("Dialect sidecar: syntax mode does not match repository path extension");
+  }
+  hexSha256(canonical.source_sha256, "dialect source hash");
+  const manifestFamily = dialectFamilyForMode(canonical.syntax_mode);
+  if (!manifestFamily || manifestFamily.family !== canonical.family) {
+    throw new TypeError("Dialect sidecar: family and syntax mode do not match");
+  }
+  validateDialectObservationEnvelope(canonical.observation_envelope);
+  for (const observation of canonical.observation_envelope.observations) {
+    if (observation.repository_path !== canonical.repository_path ||
+        observation.family !== canonical.family ||
+        observation.syntax_mode !== canonical.syntax_mode) {
+      throw new TypeError("Dialect sidecar: observation escaped its file record");
+    }
+  }
+  const identityPayload = { ...canonical };
+  delete identityPayload.record_id;
+  const expectedId = `${DIALECT_FILE_RECORD_ID_PREFIX}${sha256(canonicalJson(identityPayload))}`;
+  if (canonical.record_id !== expectedId) {
+    throw new TypeError("Dialect sidecar: file record identity mismatch");
+  }
+  return canonical;
+}
+
+function serializeDialectObservationSidecar(records) {
+  if (!Array.isArray(records) || records.length > DIALECT_LIMITS.max_source_catalog_files) {
+    throw new TypeError("Dialect sidecar: file record cap exceeded");
+  }
+  const canonicalRecords = records.map(validateDialectObservationFileRecord);
+  canonicalRecords.sort((left, right) => left.repository_path.localeCompare(right.repository_path));
+  const paths = new Set();
+  const recordIds = new Set();
+  const observationIds = new Set();
+  for (const record of canonicalRecords) {
+    if (paths.has(record.repository_path) || recordIds.has(record.record_id)) {
+      throw new TypeError("Dialect sidecar: duplicate file record");
+    }
+    paths.add(record.repository_path);
+    recordIds.add(record.record_id);
+    for (const observation of record.observation_envelope.observations) {
+      if (observationIds.has(observation.observation_id)) {
+        throw new TypeError("Dialect sidecar: duplicate observation identity");
+      }
+      observationIds.add(observation.observation_id);
+    }
+  }
+  const text = canonicalRecords.length > 0
+    ? `${canonicalRecords.map((record) => canonicalJson(record)).join("\n")}\n`
+    : "";
+  if (Buffer.byteLength(text) > DIALECT_LIMITS.max_source_catalog_bytes) {
+    throw new TypeError("Dialect sidecar: aggregate byte cap exceeded");
+  }
+  return { records: canonicalRecords, text };
+}
+
+function parseDialectObservationSidecar(text) {
+  if (typeof text !== "string") throw new TypeError("Dialect sidecar: text is required");
+  if (Buffer.byteLength(text) > DIALECT_LIMITS.max_source_catalog_bytes) {
+    throw new TypeError("Dialect sidecar: aggregate byte cap exceeded");
+  }
+  if (text.length === 0) return serializeDialectObservationSidecar([]);
+  if (!text.endsWith("\n")) throw new TypeError("Dialect sidecar: missing canonical newline");
+  const records = text.slice(0, -1).split("\n").map((line) => {
+    if (line.trim() !== line || line.length === 0) {
+      throw new TypeError("Dialect sidecar: non-canonical JSONL line");
+    }
+    try {
+      return JSON.parse(line);
+    } catch {
+      throw new TypeError("Dialect sidecar: malformed JSONL line");
+    }
+  });
+  const serialized = serializeDialectObservationSidecar(records);
+  if (serialized.text !== text) throw new TypeError("Dialect sidecar: non-canonical bytes");
+  return serialized;
+}
+
+function summarizeDialectObservationSidecar(serialized) {
+  const statusCounts = Object.fromEntries(DIALECT_STATUSES.map((status) => [status, 0]));
+  let observations = 0;
+  let observedCount = 0;
+  let omittedCount = 0;
+  for (const record of serialized.records) {
+    const envelope = record.observation_envelope;
+    statusCounts[envelope.status] += 1;
+    observations += envelope.observations.length;
+    observedCount += envelope.diagnostics.observed_count;
+    omittedCount += envelope.diagnostics.omitted_count;
+  }
+  return canonicalize({
+    file_records: serialized.records.length,
+    index_id: DIALECT_INDEX_ID,
+    observations,
+    observed_count: observedCount,
+    omitted_count: omittedCount,
+    schema_version: 1,
+    sha256: sha256(serialized.text),
+    status_counts: statusCounts
+  });
+}
+
+function parsedSourceSha256(fileRecord) {
+  return sha256(String(fileRecord.content ?? ""));
+}
+
+function unavailableDialectTransport(message = "dialect composite parse failed") {
+  return createDialectObservationTransport(
+    { chunks: [], errors: [] },
+    {
+      diagnostics: { message, observed_count: 0, omitted_count: 0 },
+      observations: [],
+      schema_version: 1,
+      status: "unavailable"
+    }
+  );
+}
+
+function fileRecordContentWasTruncated(fileRecord) {
+  const sourceBytes = Number(fileRecord?.size_bytes);
+  return Number.isSafeInteger(sourceBytes) && sourceBytes >= 0 &&
+    sourceBytes > Buffer.byteLength(String(fileRecord?.content ?? ""), "utf8");
+}
+
+function truncatedDialectTransport(transport) {
+  const observedCount = transport.observation_envelope.diagnostics.observed_count;
+  return createDialectObservationTransport(
+    transport.parser_result,
+    {
+      diagnostics: {
+        message: "source was truncated before dialect observation parsing",
+        observed_count: observedCount,
+        omitted_count: observedCount
+      },
+      observations: [],
+      schema_version: 1,
+      status: "truncated"
+    }
+  );
+}
+
+function hydrateDialectObservationRecords(
+  priorCache,
+  fileRecords,
+  incrementalMode,
+  changedPaths = new Set(),
+  deletedPaths = []
+) {
+  if (!incrementalMode || !priorCache) return new Map();
+  try {
+    const sidecarText = priorCache.readText(
+      DIALECT_OBSERVATION_OUTPUT_IDENTITY,
+      DIALECT_LIMITS.max_source_catalog_bytes
+    );
+    const manifestText = priorCache.readText(
+      INGEST_MANIFEST_OUTPUT_IDENTITY,
+      DIALECT_LIMITS.max_canonical_input_bytes
+    );
+    if (sidecarText === null || manifestText === null) return new Map();
+    const manifest = JSON.parse(manifestText);
+    const dialectManifest = manifest?.[DIALECT_MANIFEST_FIELD];
+    exactKeys(dialectManifest, [
+      "file_records",
+      "index_id",
+      "observations",
+      "observed_count",
+      "omitted_count",
+      "schema_version",
+      "sha256",
+      "status_counts"
+    ], "dialect ingest manifest field");
+    const serialized = parseDialectObservationSidecar(sidecarText);
+    const summary = summarizeDialectObservationSidecar(serialized);
+    if (canonicalJson(summary) !== canonicalJson(dialectManifest)) return new Map();
+    const filesByPath = new Map(fileRecords.map((record) => [record.path, record]));
+    const priorByPath = new Map(serialized.records.map((record) => [record.repository_path, record]));
+    const wasDeleted = (repositoryPath) => deletedPaths.some((deletedPath) => {
+      const prefix = deletedPath.endsWith("/") ? deletedPath : `${deletedPath}/`;
+      return repositoryPath === deletedPath || repositoryPath.startsWith(prefix);
+    });
+
+    // Validate the prior generation as a whole before retaining any record.
+    // Expected changed/deleted paths may differ, but any other unknown, stale,
+    // or hash-mismatched record invalidates the complete dialect cache.
+    for (const record of serialized.records) {
+      const fileRecord = filesByPath.get(record.repository_path);
+      if (!fileRecord) {
+        if (wasDeleted(record.repository_path)) continue;
+        return new Map();
+      }
+      if (
+        parsedSourceSha256(fileRecord) !== record.source_sha256 &&
+        !changedPaths.has(record.repository_path)
+      ) {
+        return new Map();
+      }
+    }
+    for (const fileRecord of fileRecords) {
+      const syntaxMode = path.posix.extname(fileRecord.path).toLowerCase();
+      if (!dialectFamilyForMode(syntaxMode) || changedPaths.has(fileRecord.path)) continue;
+      const priorRecord = priorByPath.get(fileRecord.path);
+      if (!priorRecord || parsedSourceSha256(fileRecord) !== priorRecord.source_sha256) {
+        return new Map();
+      }
+    }
+
+    return new Map(serialized.records
+      .filter((record) => {
+        const fileRecord = filesByPath.get(record.repository_path);
+        return fileRecord &&
+          !changedPaths.has(record.repository_path) &&
+          parsedSourceSha256(fileRecord) === record.source_sha256;
+      })
+      .map((record) => [record.repository_path, record]));
+  } catch (error) {
+    if (isFilesystemPolicyError(error)) throw error;
+    return new Map();
+  }
+}
 
 function createIngestPipelineState() {
   const boundary = initializeRuntimePaths();
@@ -313,6 +599,23 @@ function runScanHydrationStage(state) {
 
   const fileRecords = [...fileRecordMap.values()].sort((a, b) => a.path.localeCompare(b.path));
   const adrRecords = [...adrRecordMap.values()].sort((a, b) => a.path.localeCompare(b.path));
+  const dialectRecordMap = hydrateDialectObservationRecords(
+    state.priorCache,
+    fileRecords,
+    incrementalMode,
+    candidates,
+    deletedRelPaths
+  );
+  for (const candidateIdentity of candidates) dialectRecordMap.delete(candidateIdentity);
+  for (const deletedPath of deletedRelPaths) {
+    const prefix = deletedPath.endsWith("/") ? deletedPath : `${deletedPath}/`;
+    for (const repositoryPath of dialectRecordMap.keys()) {
+      if (repositoryPath === deletedPath || repositoryPath.startsWith(prefix)) {
+        dialectRecordMap.delete(repositoryPath);
+      }
+    }
+  }
+  const cachedDialectPaths = new Set(dialectRecordMap.keys());
   memoryTrace.checkpoint("scan:file_records", {
     candidates: candidates.size,
     incremental_mode: incrementalMode,
@@ -353,7 +656,8 @@ function runScanHydrationStage(state) {
     cached_defines_relations: definesRelationMap.size,
     cached_calls_relations: callsRelationMap.size,
     cached_imports_relations: importsRelationMap.size,
-    cached_calls_sql_relations: callsSqlRelationMap.size
+    cached_calls_sql_relations: callsSqlRelationMap.size,
+    cached_dialect_files: dialectRecordMap.size
   });
 
   const cachedChunkFileIds = new Set(
@@ -391,6 +695,8 @@ function runScanHydrationStage(state) {
     callsSqlRelationMap,
     cachedChunkFileIds,
     cachedSqlReferenceFileIds,
+    dialectRecordMap,
+    cachedDialectPaths,
     usesConfigKeyRelationMap,
     usesResourceKeyRelationMap,
     usesSettingKeyRelationMap,
@@ -412,6 +718,8 @@ async function runParseStage(state) {
     changedFileIds,
     indexedFileIds,
     cachedChunkFileIds,
+    cachedDialectPaths,
+    dialectRecordMap,
     chunkRecordMap,
     definesRelationMap,
     callsRelationMap,
@@ -431,26 +739,22 @@ async function runParseStage(state) {
     settingChunkIdsByAlias
   } = state;
 
-  // C# project-wide batch parse: when Roslyn is available and batching
-  // isn't disabled, compile all .cs files together via CSharpCompilation
-  // to enable SemanticModel-resolved calls (e.g. "System.IO.File.ReadAllText"
-  // instead of bare "ReadAllText"). Falls back silently to per-file parse
-  // if batch isn't usable.
-  const csharpBatchCache = createCSharpBatchCache({
-    fileRecords,
-    incrementalMode,
-    changedFileIds,
-    cachedChunkFileIds,
-    verbose
-  });
-
   // Determine which files need parsing (single pass over the gates, shared by
   // the worker dispatch and the merge loop below so the two cannot diverge).
   const parseEligible = await collectParseEligibleFiles({
     fileRecords,
     incrementalMode,
     changedFileIds,
-    cachedChunkFileIds
+    cachedChunkFileIds,
+    cachedDialectPaths
+  });
+
+  // C# project-wide batch parse retains SemanticModel-resolved calls while
+  // collecting the detached dialect envelope in the same Roslyn invocation.
+  const csharpBatchCache = createCSharpBatchCache({
+    fileRecords,
+    parseEligible,
+    verbose
   });
   memoryTrace.checkpoint("parse:eligible", {
     files: fileRecords.length,
@@ -493,19 +797,47 @@ async function runParseStage(state) {
     if (!eligible) continue;
     const { parser } = eligible;
 
-    removeChunkStateForFile(
-      fileRecord.id,
-      chunkRecordMap,
-      definesRelationMap,
-      callsRelationMap,
-      importsRelationMap,
-      callsSqlRelationMap
-    );
-
     try {
       let parseResult;
-      if (parser.language === "csharp" && csharpBatchCache.has(fileRecord.path)) {
-        parseResult = csharpBatchCache.get(fileRecord.path);
+      if (eligible.useDialect) {
+        let transport;
+        try {
+          if (parser.language === "csharp" && csharpBatchCache.has(fileRecord.path)) {
+            transport = csharpBatchCache.get(fileRecord.path);
+          } else if (workerStream?.hasTask(fileRecord.id)) {
+            transport = await workerStream.take(fileRecord.id);
+            if (!transport) {
+              transport = await parser.parseWithDialect(
+                fileRecord.content,
+                fileRecord.path,
+                parser.language
+              );
+            }
+          } else {
+            transport = await parser.parseWithDialect(
+              fileRecord.content,
+              fileRecord.path,
+              parser.language
+            );
+          }
+          transport = validateDialectObservationTransport(transport);
+          if (fileRecordContentWasTruncated(fileRecord)) {
+            transport = truncatedDialectTransport(transport);
+          }
+        } catch (error) {
+          if (isFilesystemPolicyError(error)) throw error;
+          transport = unavailableDialectTransport();
+        }
+        const family = dialectFamilyForMode(eligible.ext);
+        dialectRecordMap.set(fileRecord.path, createDialectObservationFileRecord({
+          repositoryPath: fileRecord.path,
+          sourceSha256: parsedSourceSha256(fileRecord),
+          family: family.family,
+          syntaxMode: eligible.ext,
+          observationEnvelope: transport.observation_envelope
+        }));
+        if (!eligible.shouldParseLegacy) continue;
+        parseResult = transport.parser_result;
       } else if (workerStream?.hasTask(fileRecord.id)) {
         parseResult = await workerStream.take(fileRecord.id);
         if (!parseResult) {
@@ -514,6 +846,15 @@ async function runParseStage(state) {
       } else {
         parseResult = await parser.parse(fileRecord.content, fileRecord.path, parser.language);
       }
+
+      removeChunkStateForFile(
+        fileRecord.id,
+        chunkRecordMap,
+        definesRelationMap,
+        callsRelationMap,
+        importsRelationMap,
+        callsSqlRelationMap
+      );
 
       if (parseResult.errors.length > 0 && verbose) {
         console.log(`[ingest] parse errors in ${fileRecord.path}:`, parseResult.errors[0].message);
@@ -1198,7 +1539,8 @@ function runCacheWriteStage(state) {
     usesResourceRelations,
     usesSettingRelations,
     usesConfigRelations,
-    configTransformRelations
+    configTransformRelations,
+    dialectRecordMap
   } = state;
   memoryTrace.checkpoint("writes:cache_start", {
     files: fileRecords.length,
@@ -1230,11 +1572,19 @@ function runCacheWriteStage(state) {
   stageJsonlOutput(state, ".context/cache/relations.uses_config.jsonl", usesConfigRelations);
   stageJsonlOutput(state, ".context/cache/relations.transforms_config.jsonl", configTransformRelations);
   stageJsonlOutput(state, ".context/cache/relations.references_project.jsonl", projectReferencesProjectRelations);
-  memoryTrace.checkpoint("writes:cache_complete", {
-    jsonl_files: 26,
-    files: fileRecords.length,
-    chunks: chunkRecords.length
+  const dialectSidecar = serializeDialectObservationSidecar([...dialectRecordMap.values()]);
+  const dialectSummary = summarizeDialectObservationSidecar(dialectSidecar);
+  state.outputSet.stage(DIALECT_OBSERVATION_OUTPUT_IDENTITY, (descriptor) => {
+    fs.writeSync(descriptor, dialectSidecar.text, undefined, "utf8");
   });
+  memoryTrace.checkpoint("writes:cache_complete", {
+    jsonl_files: 27,
+    files: fileRecords.length,
+    chunks: chunkRecords.length,
+    dialect_files: dialectSidecar.records.length,
+    dialect_observations: dialectSummary.observations
+  });
+  Object.assign(state, { dialectSidecar, dialectSummary });
 }
 
 function runDatabaseWriteStage(state) {
@@ -1566,7 +1916,8 @@ function runManifestCompletionStage(state) {
     usesConfigRelations,
     configTransformRelations,
     skipped,
-    parserHealth
+    parserHealth,
+    dialectSummary
   } = state;
   const manifest = {
     schema_version: 2,
@@ -1605,7 +1956,8 @@ function runManifestCompletionStage(state) {
     parser_health: parserHealth,
     incremental_mode: incrementalMode,
     changed_candidates: candidates.size,
-    deleted_paths: deletedRelPaths.length
+    deleted_paths: deletedRelPaths.length,
+    [DIALECT_MANIFEST_FIELD]: dialectSummary
   };
 
   state.outputSet.stage(INGEST_MANIFEST_OUTPUT_IDENTITY, (descriptor) => {
@@ -1663,8 +2015,13 @@ function runManifestCompletionStage(state) {
 }
 
 export {
+  DIALECT_FILE_RECORD_TYPE,
+  DIALECT_INDEX_ID,
+  DIALECT_MANIFEST_FIELD,
+  createDialectObservationFileRecord,
   createIngestPipelineState,
   ensureIngestOutputDirectories,
+  parseDialectObservationSidecar,
   runCacheWriteStage,
   runDatabaseWriteStage,
   runFileCacheStagingStage,
@@ -1672,5 +2029,8 @@ export {
   runMaterializationStage,
   runParseStage,
   runScanHydrationStage,
-  runTokenMatchingStage
+  runTokenMatchingStage,
+  serializeDialectObservationSidecar,
+  summarizeDialectObservationSidecar,
+  validateDialectObservationFileRecord
 };

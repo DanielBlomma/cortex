@@ -140,6 +140,7 @@ function normalizedOutputHash(root, relativeDir, extension) {
   const directory = path.join(root, relativeDir);
   const names = fs.readdirSync(directory)
     .filter((name) => name.endsWith(extension))
+    .filter((name) => name !== "dialect-observations.v1.jsonl")
     .sort();
   const hash = crypto.createHash("sha256");
   for (const name of names) {

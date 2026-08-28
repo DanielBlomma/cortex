@@ -4,13 +4,20 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { parseFilesInWorkers } from "../scaffold/scripts/lib/ingest/workers.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const INGEST = path.join(REPO_ROOT, "scaffold", "scripts", "ingest.mjs");
 const INGEST_LIB = path.join(REPO_ROOT, "scaffold", "scripts", "lib", "ingest");
+const DIALECT_CONTRACT = path.join(
+  REPO_ROOT,
+  "scaffold",
+  "scripts",
+  "lib",
+  "dialect-observation-contract.mjs",
+);
 const INGEST_PARSERS = path.join(
   REPO_ROOT,
   "scaffold",
@@ -68,6 +75,7 @@ function writeFallbackIngest(scriptDir) {
   fs.mkdirSync(scriptDir, { recursive: true });
   fs.copyFileSync(INGEST, path.join(scriptDir, "ingest.mjs"));
   fs.cpSync(INGEST_LIB, path.join(scriptDir, "lib", "ingest"), { recursive: true });
+  fs.copyFileSync(DIALECT_CONTRACT, path.join(scriptDir, "lib", "dialect-observation-contract.mjs"));
   fs.copyFileSync(INGEST_PARSERS, path.join(scriptDir, "ingest-parsers.mjs"));
   fs.symlinkSync(PARSERS_DIR, path.join(scriptDir, "parsers"), "dir");
   fs.writeFileSync(
@@ -248,4 +256,71 @@ test("parseFilesInWorkers runs single-worker when workerCount is 1", async () =>
     "single worker"
   );
   assert.equal(results.size, 5, "all tasks parse through a single worker");
+});
+
+test("composite worker results require the exact validated dialect transport", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-dialect-worker-protocol-"));
+  const validTransport = `{
+    schema_version: 1,
+    parser_result: { chunks: [], errors: [] },
+    observation_envelope: {
+      diagnostics: { message: null, observed_count: 0, omitted_count: 0 },
+      observations: [],
+      schema_version: 1,
+      status: "ok"
+    }
+  }`;
+  const payloads = [
+    `{ ...(${validTransport}), extra: true }`,
+    `{ chunks: [], errors: [], observation_envelope: (${validTransport}).observation_envelope }`,
+    `{ ...(${validTransport}), parser_result: { chunks: [{ ast: "forbidden" }], errors: [] } }`,
+    `{ ...(${validTransport}), observation_envelope: { diagnostics: { message: "bad", observed_count: 0, omitted_count: 0 }, observations: [], schema_version: 1, status: "ok" } }`,
+    `{ ...(${validTransport}), observation_envelope: { diagnostics: { message: "x".repeat(1001), observed_count: 0, omitted_count: 0 }, observations: [], schema_version: 1, status: "unavailable" } }`,
+  ];
+  try {
+    for (let index = 0; index < payloads.length; index += 1) {
+      const workerPath = path.join(root, `malicious-${index}.mjs`);
+      fs.writeFileSync(workerPath, [
+        `import { parentPort } from "node:worker_threads";`,
+        `parentPort.on("message", (message) => {`,
+        `  if (message?.type === "shutdown") process.exit(0);`,
+        `  parentPort.postMessage({ taskId: message.taskId, ok: true, result: ${payloads[index]} });`,
+        `});`,
+        ``,
+      ].join("\n"));
+      await assert.rejects(
+        parseFilesInWorkers([{
+          id: "file:src/app.js",
+          ext: ".js",
+          path: "src/app.js",
+          projectAnchor: {},
+          contentLimit: 1000,
+          dialect: true,
+        }], { workerCount: 1, workerUrl: pathToFileURL(workerPath) }),
+        (error) => error?.reason === "worker_protocol",
+        `malicious composite payload ${index} must be rejected`,
+      );
+    }
+
+    const validWorker = path.join(root, "valid.mjs");
+    fs.writeFileSync(validWorker, [
+      `import { parentPort } from "node:worker_threads";`,
+      `parentPort.on("message", (message) => {`,
+      `  if (message?.type === "shutdown") process.exit(0);`,
+      `  parentPort.postMessage({ taskId: message.taskId, ok: true, result: ${validTransport} });`,
+      `});`,
+      ``,
+    ].join("\n"));
+    const results = await parseFilesInWorkers([{
+      id: "file:src/app.js",
+      ext: ".js",
+      path: "src/app.js",
+      projectAnchor: {},
+      contentLimit: 1000,
+      dialect: true,
+    }], { workerCount: 1, workerUrl: pathToFileURL(validWorker) });
+    assert.equal(results.get("file:src/app.js").schema_version, 1);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

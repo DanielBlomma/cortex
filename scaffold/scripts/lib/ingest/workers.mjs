@@ -4,6 +4,7 @@ import {
   createWorkerProtocolError,
   workerPolicyErrorFromMessage
 } from "./filesystem-boundary.mjs";
+import { validateDialectObservationTransport } from "../dialect-observation-contract.mjs";
 
 function resolveIngestWorkerCount(taskCount) {
   const raw = process.env.CORTEX_INGEST_WORKERS;
@@ -44,9 +45,17 @@ function createEmptyWorkerParseStream(tasks, workerCount) {
   };
 }
 
-function isValidWorkerResult(result) {
+function isValidWorkerResult(result, dialect) {
   if (!result || typeof result !== "object" || Array.isArray(result)) {
     return false;
+  }
+  if (dialect) {
+    try {
+      validateDialectObservationTransport(result);
+      return true;
+    } catch {
+      return false;
+    }
   }
   const keys = Object.keys(result).sort();
   return (
@@ -170,6 +179,7 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
       taskId: task.id,
       ext: task.ext,
       contentLimit: task.contentLimit,
+      dialect: Boolean(task.dialect),
       filePath: task.path,
       projectAnchor: task.projectAnchor
     });
@@ -192,7 +202,7 @@ function startWorkerParseStream(tasks, { workerCount, verbose, workerUrl } = {})
     const validSuccess =
       message?.ok === true &&
       message.taskId === taskId &&
-      isValidWorkerResult(message.result) &&
+      isValidWorkerResult(message.result, Boolean(task?.dialect)) &&
       messageKeys.join(",") === "ok,result,taskId";
     const validSkip =
       message?.ok === false &&

@@ -348,6 +348,12 @@ async function createFilesystemKind(target, kind, parent) {
     fs.writeFileSync(target, "wrong type\n", "utf8");
     return async () => {};
   }
+  if (kind === "hardlink") {
+    const canary = path.join(parent, `hardlink-${path.basename(target)}-${Date.now()}-${Math.random()}`);
+    fs.writeFileSync(canary, "canary\n", "utf8");
+    fs.linkSync(canary, target);
+    return async () => {};
+  }
   if (kind === "fifo") {
     const made = spawnSync("mkfifo", [target], { encoding: "utf8" });
     if (made.status !== 0) return null;
@@ -1256,13 +1262,13 @@ test("ingest and both dashboard entrypoints sanitize hostile filesystem errors a
   }
 });
 
-test("WO-034 inventories exactly seven prior caches and 48 manifest-last outputs", () => {
-  assert.equal(PRIOR_CACHE_IDENTITIES.length, 7);
-  assert.equal(INGEST_JSONL_OUTPUT_IDENTITIES.length, 26);
+test("WO-054 inventories exactly nine prior caches and 49 manifest-last outputs", () => {
+  assert.equal(PRIOR_CACHE_IDENTITIES.length, 9);
+  assert.equal(INGEST_JSONL_OUTPUT_IDENTITIES.length, 27);
   assert.equal(INGEST_TSV_OUTPUT_IDENTITIES.length, 21);
-  assert.equal(INGEST_OUTPUT_IDENTITIES.length, 48);
+  assert.equal(INGEST_OUTPUT_IDENTITIES.length, 49);
   assert.equal(INGEST_OUTPUT_IDENTITIES.at(-1), INGEST_MANIFEST_OUTPUT_IDENTITY);
-  assert.equal(new Set(INGEST_OUTPUT_IDENTITIES).size, 48);
+  assert.equal(new Set(INGEST_OUTPUT_IDENTITIES).size, 49);
   assert.equal(DASHBOARD_DATA_IDENTITIES.length, 12);
 });
 
@@ -1289,7 +1295,7 @@ test("prior-cache matrix covers every leaf as regular, missing, symlink, directo
     const unsafeKinds = [
       "symlink",
       "directory",
-      ...(process.platform === "win32" ? [] : ["fifo"])
+      ...(process.platform === "win32" ? [] : ["hardlink", "fifo"])
     ];
     for (const unsafeKind of unsafeKinds) {
       const { parent, project } = makeParent(`prior-cache-${unsafeKind}`);
@@ -1344,6 +1350,10 @@ test("prior-cache matrix covers every leaf as regular, missing, symlink, directo
       "utf8"
     );
     const priorCache = createFilesystemBoundary(project).preflightPriorCache();
+    assert.equal(
+      priorCache.readText(accepted),
+      '\n{"id":"first"}\nnot-json\n{"id":"second"}\n',
+    );
     assert.deepEqual(priorCache.read(accepted).map((record) => record.id), ["first", "second"]);
     assert.deepEqual(priorCache.read(PRIOR_CACHE_IDENTITIES[1]), []);
 
@@ -1356,6 +1366,40 @@ test("prior-cache matrix covers every leaf as regular, missing, symlink, directo
         kind: "cache_path",
         reason: "path_replaced"
       })
+    );
+  } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("prior-cache text reads reject validation-to-open identity replacement", () => {
+  const { parent, project } = makeParent("prior-cache-read-identity");
+  try {
+    writeControls(project);
+    fs.mkdirSync(path.join(project, ".context", "cache"));
+    const identity = PRIOR_CACHE_IDENTITIES[0];
+    const target = projectPath(project, identity);
+    const parked = `${target}.validated`;
+    fs.writeFileSync(target, "validated bytes\n", "utf8");
+    let replaced = false;
+    const priorCache = createFilesystemBoundary(project).preflightPriorCache({
+      testHooks: {
+        beforeReadTextOpen(readIdentity) {
+          if (readIdentity !== identity || replaced) return;
+          replaced = true;
+          fs.renameSync(target, parked);
+          fs.writeFileSync(target, "replacement bytes\n", "utf8");
+        },
+      },
+    });
+    assert.throws(
+      () => priorCache.readText(identity),
+      (error) => assertPolicy(error, {
+        code: "CORTEX_FS_CACHE",
+        phase: "discovery",
+        kind: "cache_path",
+        reason: "path_replaced",
+      }),
     );
   } finally {
     fs.rmSync(parent, { recursive: true, force: true });

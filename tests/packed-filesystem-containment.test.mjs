@@ -19,7 +19,7 @@ const EXPECTED_MODE_COUNTS = new Map([[0o644, 411], [0o755, 21]]);
 const EXPECTED_INVENTORY_SHA256 = "f7647e513e6ab40e6327e6bd14aa4db26fc248930780a3967de56ddf423ff661";
 const EXPECTED_RUNTIME_OWNERSHIP_COUNT = 96;
 const EXPECTED_MANAGED_OWNERSHIP_COUNT = 396;
-const EXPECTED_CHANGED_MANAGED_COUNT = 75;
+const EXPECTED_CHANGED_MANAGED_COUNT = 79;
 const EXPECTED_NEW_MANAGED_COUNT = 16;
 const OWNERSHIP_V1_SHA256 = "b3b97387f541e718ac3b27f677e00cf815cb9bd600b1305391891685f03423ff";
 const BUILD_MARKER = path.join(REPO_ROOT, "scaffold", "mcp", "dist", ".cortex-build-hash");
@@ -472,7 +472,7 @@ try {
     "--test",
     path.join(packageRoot, "tests", "ingest-filesystem-boundary.test.mjs"),
   ]);
-  assertNodeTestSummary(boundary.stdout, 41);
+  assertNodeTestSummary(boundary.stdout, 42);
 
   const characterization = run(process.execPath, [
     "--test",
@@ -506,7 +506,7 @@ try {
     tarball_sha256: sha256File(tarball),
     clean_and_prebuilt_inventory_equal: true,
     installed_prefix: true,
-    packed_boundary_cases: 41,
+    packed_boundary_cases: 42,
     packed_characterization_cases: 3,
     development_dashboard_cases: 4,
     packed_dashboard_cases: 4,

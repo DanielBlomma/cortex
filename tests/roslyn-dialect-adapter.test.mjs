@@ -438,6 +438,32 @@ test("Roslyn composite failure diagnostics stay bounded and batch mode omits dia
   const batchOutput = JSON.parse(batch.stdout);
   assert.deepEqual(Object.keys(batchOutput.files["src/A.cs"]).sort(), ["chunks", "errors"]);
 
+  const dialectBatch = childProcess.spawnSync(runtime.command, [published.dllPath, "--batch", "--dialect"], {
+    input: JSON.stringify({ files: [
+      { path: "src/A.cs", source: "public class A {}", dialect: true },
+      { path: "src/TooLarge.cs", source: "public class TooLarge {}", dialect: false },
+    ] }),
+    encoding: "utf8",
+    timeout: 30000
+  });
+  assert.equal(dialectBatch.status, 0, dialectBatch.stderr);
+  const dialectBatchOutput = JSON.parse(dialectBatch.stdout);
+  assert.deepEqual(
+    Object.keys(dialectBatchOutput.files["src/A.cs"]).sort(),
+    ["chunks", "dialect", "errors"],
+  );
+  assert.deepEqual(
+    {
+      chunks: dialectBatchOutput.files["src/A.cs"].chunks,
+      errors: dialectBatchOutput.files["src/A.cs"].errors,
+    },
+    batchOutput.files["src/A.cs"],
+  );
+  assert.deepEqual(
+    Object.keys(dialectBatchOutput.files["src/TooLarge.cs"]).sort(),
+    ["chunks", "errors"],
+  );
+
   for (const fixture of [
     {
       parser: csharp,

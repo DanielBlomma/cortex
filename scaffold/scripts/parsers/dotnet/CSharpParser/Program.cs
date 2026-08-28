@@ -8,7 +8,7 @@ var options = ParseArgs(args);
 
 if (options.Batch)
 {
-    RunBatchMode();
+    RunBatchMode(options.Dialect);
     return;
 }
 
@@ -111,7 +111,7 @@ static ParserOutput ParseCSharp(
     );
 }
 
-static void RunBatchMode()
+static void RunBatchMode(bool includeDialect)
 {
     var input = Console.In.ReadToEnd();
     BatchInput? batch;
@@ -156,7 +156,7 @@ static void RunBatchMode()
             tree.FilePath,
             "csharp",
             model,
-            includeDialect: false
+            includeDialect && file.Dialect == true
         );
         result.Files[tree.FilePath] = parseResult;
     }
@@ -767,6 +767,7 @@ sealed class BatchFile
 {
     public string? Path { get; set; }
     public string? Source { get; set; }
+    public bool? Dialect { get; set; }
 }
 
 sealed class BatchOutput

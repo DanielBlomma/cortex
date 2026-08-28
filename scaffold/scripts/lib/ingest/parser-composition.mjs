@@ -2,10 +2,11 @@ import path from "node:path";
 import {
   getChunkParserForExtension,
   getCSharpParserRuntime,
+  hasCSharpProjectDialectParser,
   hasCSharpProjectParser,
   isCSharpParserAvailable,
   loadParsers,
-  parseCSharpProject,
+  parseCSharpProjectWithDialectObservations,
   PARALLEL_SAFE_LANGUAGES
 } from "./parser-registry.mjs";
 import {
@@ -29,26 +30,20 @@ function inspectCSharpParser(fileRecords) {
 
 function createCSharpBatchCache({
   fileRecords,
-  incrementalMode,
-  changedFileIds,
-  cachedChunkFileIds,
+  parseEligible,
   verbose
 }) {
   const batchCache = new Map();
   if (
     hasCSharpProjectParser() &&
+    hasCSharpProjectDialectParser() &&
     isCSharpParserAvailable() &&
     process.env.CORTEX_CSHARP_BATCH !== "never"
   ) {
-    const csharpFilesForBatch = fileRecords.filter((record) => {
-      if (record.kind !== "CODE") return false;
-      if (path.extname(record.path).toLowerCase() !== ".cs") return false;
-      return (
-        !incrementalMode ||
-        changedFileIds.has(record.id) ||
-        !cachedChunkFileIds.has(record.id)
-      );
-    });
+    const csharpFilesForBatch = fileRecords.filter((record) =>
+      path.extname(record.path).toLowerCase() === ".cs" &&
+      parseEligible.get(record.id)?.useDialect === true
+    );
     if (csharpFilesForBatch.length > 0) {
       const allCsharpInputs = fileRecords
         .filter(
@@ -58,9 +53,9 @@ function createCSharpBatchCache({
         )
         .map((record) => ({ path: record.path, content: record.content }));
       try {
-        const batchResult = parseCSharpProject(allCsharpInputs);
+        const batchResult = parseCSharpProjectWithDialectObservations(allCsharpInputs);
         for (const [filePath, result] of batchResult) {
-          batchCache.set(filePath, result);
+          if (parseEligible.has(`file:${filePath}`)) batchCache.set(filePath, result);
         }
       } catch (error) {
         if (verbose) {
@@ -78,7 +73,8 @@ async function collectParseEligibleFiles({
   fileRecords,
   incrementalMode,
   changedFileIds,
-  cachedChunkFileIds
+  cachedChunkFileIds,
+  cachedDialectPaths = new Set()
 }) {
   const parseEligible = new Map();
   for (const fileRecord of fileRecords) {
@@ -87,21 +83,32 @@ async function collectParseEligibleFiles({
     const isStructuredNonCodeChunk = STRUCTURED_NON_CODE_CHUNK_EXTENSIONS.has(ext);
     if (fileRecord.kind !== "CODE" && !isStructuredNonCodeChunk) continue;
     if (!parser) continue;
-    if (
+    const parserAvailable = !(
       typeof parser.isAvailable === "function" &&
       !(await parser.isAvailable())
-    ) {
-      continue;
-    }
+    );
+    const useDialect = fileRecord.kind === "CODE" &&
+      typeof parser.parseWithDialect === "function";
+    if (!parserAvailable && !useDialect) continue;
 
-    const shouldParseFile =
+    const shouldParseLegacy = parserAvailable && (
       !incrementalMode ||
       changedFileIds.has(fileRecord.id) ||
-      !cachedChunkFileIds.has(fileRecord.id);
-    if (!shouldParseFile) {
-      continue;
-    }
-    parseEligible.set(fileRecord.id, { parser, ext });
+      !cachedChunkFileIds.has(fileRecord.id)
+    );
+    const shouldParseDialect = useDialect && (
+      !incrementalMode ||
+      changedFileIds.has(fileRecord.id) ||
+      !cachedDialectPaths.has(fileRecord.path)
+    );
+    if (!shouldParseLegacy && !shouldParseDialect) continue;
+    parseEligible.set(fileRecord.id, {
+      parser,
+      ext,
+      parserAvailable,
+      shouldParseLegacy,
+      useDialect
+    });
   }
   return parseEligible;
 }
@@ -112,6 +119,7 @@ function createWorkerTasks(fileRecords, parseEligible, csharpBatchCache, project
       const eligible = parseEligible.get(fileRecord.id);
       if (!eligible) return false;
       if (!PARALLEL_SAFE_LANGUAGES.has(eligible.parser.language)) return false;
+      if (!eligible.parserAvailable) return false;
       if (
         eligible.parser.language === "csharp" &&
         csharpBatchCache.has(fileRecord.path)
@@ -124,6 +132,7 @@ function createWorkerTasks(fileRecords, parseEligible, csharpBatchCache, project
       id: fileRecord.id,
       ext: parseEligible.get(fileRecord.id).ext,
       contentLimit: MAX_CONTENT_CHARS,
+      dialect: Boolean(parseEligible.get(fileRecord.id).useDialect),
       projectAnchor,
       path: fileRecord.path
     }));

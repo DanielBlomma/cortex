@@ -511,11 +511,53 @@ function statusEnvelope(status, message, observedCount = 0, omittedCount = 0, ob
  * @returns {Map<string, {chunks: Array, errors: Array}>}
  */
 export function parseProject(files) {
+  const batch = runCSharpProjectBatch(files, false);
+  return new Map([...batch].map(([filePath, entry]) => [filePath, entry.parserResult]));
+}
+
+export function parseProjectWithDialectObservations(files) {
+  const batch = runCSharpProjectBatch(files, true);
+  const transports = new Map();
+  for (const file of files) {
+    const run = batch.get(file.path) ?? {
+      parserResult: { chunks: [], errors: [] },
+      parsed: null,
+      observationFailure: "Roslyn batch parser omitted a source file"
+    };
+    const metadata = prepareDialectInput(file.content, file.path, "csharp");
+    let envelope;
+    if (metadata.oversized) {
+      envelope = statusEnvelope("oversized", "source exceeds dialect observation byte cap");
+    } else if (!run.parsed) {
+      envelope = statusEnvelope("unavailable", run.observationFailure);
+    } else if (run.parserResult.errors.length > 0) {
+      envelope = statusEnvelope("malformed", "native parser reported syntax errors");
+    } else {
+      try {
+        const dialectPayload = validateRoslynPayload(run.parsed);
+        envelope = roslynObservationEnvelope(file.content, file.path, metadata, dialectPayload);
+      } catch {
+        envelope = statusEnvelope(
+          "unavailable",
+          "Roslyn parser returned invalid dialect observation data"
+        );
+      }
+    }
+    transports.set(file.path, createRoslynTransport(run.parserResult, envelope));
+  }
+  return transports;
+}
+
+function runCSharpProjectBatch(files, includeDialect) {
   const runtime = getCSharpParserRuntime();
   if (!runtime.available) {
     const empty = new Map();
     for (const file of files) {
-      empty.set(file.path, { chunks: [], errors: [] });
+      empty.set(file.path, {
+        parserResult: { chunks: [], errors: [] },
+        parsed: null,
+        observationFailure: "selected Roslyn backend is unavailable"
+      });
     }
     return empty;
   }
@@ -525,15 +567,26 @@ export function parseProject(files) {
     const errors = [{ message: `C# parser publish failed: ${published.reason}` }];
     const fallback = new Map();
     for (const file of files) {
-      fallback.set(file.path, { chunks: [], errors });
+      fallback.set(file.path, {
+        parserResult: { chunks: [], errors },
+        parsed: null,
+        observationFailure: "Roslyn parser publish failed"
+      });
     }
     return fallback;
   }
 
   const args = [published.dllPath, "--batch"];
+  if (includeDialect) args.push("--dialect");
 
   const payload = JSON.stringify({
-    files: files.map((f) => ({ path: f.path, source: f.content }))
+    files: files.map((f) => ({
+      path: f.path,
+      source: f.content,
+      ...(includeDialect
+        ? { dialect: !prepareDialectInput(f.content, f.path, "csharp").oversized }
+        : {})
+    }))
   });
 
   const result = spawnSync(runtime.command, args, {
@@ -554,7 +607,11 @@ export function parseProject(files) {
     ];
     const fallback = new Map();
     for (const file of files) {
-      fallback.set(file.path, { chunks: [], errors });
+      fallback.set(file.path, {
+        parserResult: { chunks: [], errors },
+        parsed: null,
+        observationFailure: "Roslyn batch parser subprocess failed"
+      });
     }
     return fallback;
   }
@@ -567,11 +624,19 @@ export function parseProject(files) {
       const entry = perFile[file.path];
       if (entry) {
         out.set(file.path, {
-          chunks: Array.isArray(entry.chunks) ? entry.chunks : [],
-          errors: Array.isArray(entry.errors) ? entry.errors : []
+          parserResult: {
+            chunks: Array.isArray(entry.chunks) ? entry.chunks : [],
+            errors: Array.isArray(entry.errors) ? entry.errors : []
+          },
+          parsed: entry,
+          observationFailure: null
         });
       } else {
-        out.set(file.path, { chunks: [], errors: [] });
+        out.set(file.path, {
+          parserResult: { chunks: [], errors: [] },
+          parsed: null,
+          observationFailure: "Roslyn batch parser omitted a source file"
+        });
       }
     }
     return out;
@@ -583,7 +648,11 @@ export function parseProject(files) {
     ];
     const fallback = new Map();
     for (const file of files) {
-      fallback.set(file.path, { chunks: [], errors });
+      fallback.set(file.path, {
+        parserResult: { chunks: [], errors },
+        parsed: null,
+        observationFailure: "Roslyn batch parser returned invalid JSON"
+      });
     }
     return fallback;
   }

@@ -13,8 +13,10 @@
 import { parentPort } from "node:worker_threads";
 import {
   loadParsers,
-  parseFileContent
+  parseFileContent,
+  parseFileContentWithDialectObservations
 } from "./lib/ingest/parser-registry.mjs";
+import { validateDialectObservationTransport } from "./lib/dialect-observation-contract.mjs";
 import {
   createFilesystemBoundaryFromAnchor,
   createWorkerProtocolError,
@@ -46,14 +48,15 @@ parentPort.on("message", async (message) => {
       ? Object.keys(message).sort()
       : [];
     const validEnvelope =
-      keys.join(",") === "contentLimit,ext,filePath,projectAnchor,taskId" &&
+      keys.join(",") === "contentLimit,dialect,ext,filePath,projectAnchor,taskId" &&
       typeof message.taskId === "string" &&
       typeof message.ext === "string" &&
       typeof message.filePath === "string" &&
+      typeof message.dialect === "boolean" &&
       Number.isInteger(message.contentLimit) &&
       message.contentLimit >= 0;
     if (!validEnvelope) throw createWorkerProtocolError(filePath);
-    const { ext, contentLimit, projectAnchor } = message;
+    const { ext, contentLimit, dialect, projectAnchor } = message;
     await ready;
     const protocolError = createWorkerProtocolError(filePath);
     const failureDetails = {
@@ -65,12 +68,22 @@ parentPort.on("message", async (message) => {
     };
     const boundary = createFilesystemBoundaryFromAnchor(projectAnchor, failureDetails);
     const content = boundary.readRepositoryFile(filePath, "worker_read", "utf8").slice(0, contentLimit);
-    const parsed = await parseFileContent(ext, content, filePath);
+    const parsed = dialect
+      ? await parseFileContentWithDialectObservations(ext, content, filePath)
+      : await parseFileContent(ext, content, filePath);
     if (!parsed) {
       parentPort.postMessage({ taskId, ok: false, reason: "no parser available" });
       return;
     }
-    parentPort.postMessage({ taskId, ok: true, result: parsed.result });
+    let result = parsed.result;
+    if (dialect) {
+      try {
+        result = validateDialectObservationTransport(result);
+      } catch {
+        throw createWorkerProtocolError(filePath);
+      }
+    }
+    parentPort.postMessage({ taskId, ok: true, result });
   } catch (error) {
     if (isFilesystemPolicyError(error)) {
       parentPort.postMessage(policyErrorEnvelope(error));
