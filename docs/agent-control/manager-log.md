@@ -6,6 +6,35 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-28 — WO-054 accepted; WO-055A packet frozen and assigned
+
+- WO-054 implementation commit `e4b9168` is accepted locally. Its exact
+  20-file change persists the canonical bounded dialect sidecar, integrates
+  one-pass composite worker/C# batch transport, and exposes only the internal
+  fail-closed comparable-owner recurrence evaluator.
+- Required gates passed: contract 30/30, ingest/sidecar/parallel/worker 17/17,
+  filesystem/C#/.NET/Roslyn 69/69 with live .NET, MCP 591/591, root context
+  81/81 plus 400/400, and packed containment 1/1. Package inventory remains
+  432 files at 411/21 modes with digest `f7647e5…661`; versions, dependencies,
+  ownership, and public server/search behavior remain unchanged.
+- Parser/Contract, Security/Containment, and Validation/Pack independently
+  returned final GO with no blocker or major finding. The feature worktree was
+  clean after ignored build/test outputs were moved to recoverable temporary
+  directories.
+- R19 remains open only for the blind all-language evidence. To preserve both
+  the context-window rule and evaluator blindness, WO-055 is split into four
+  sequential fresh-session work orders: A task/source/index/run lock, B blind
+  gold, C baseline/candidate treatments, and D score/replay/final decision.
+- Packet 062 freezes WO-055A as input selection only. It forbids gold,
+  treatment, candidate recurrence, patch, and scoring access; exact task bytes
+  live in an outside-Git `0600` bundle while tracked fixtures contain only
+  bindings/hashes. No production, package, dependency, ownership, or public
+  behavior change is authorized.
+- WO-055A is assigned from the manager control commit following `e4b9168` on
+  branch `feature/wo055a-dialect-fixture-lock` in worktree
+  `/Users/danielnilsson/GIT/cortex-wo055a-dialect-fixture-lock`. It must begin
+  in a fresh packet-only session. WO-055B through D remain blocked.
+
 ## 2026-08-27 — WO-054 packet frozen and worktree handoff prepared
 
 - Packet 061 freezes WO-054 from accepted WO-053 head `763b105`. The sole
