@@ -6,6 +6,22 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-28 — Packet 067 stops at TypeScript availability NO-GO
+
+- Packet 067 closed the SQL bridge's v3 schema, span-independent semantic
+  owners, trusted request/denial/runtime receipts, exact identity validation,
+  and race/special-file boundaries. The exact SQL-002 root validates and nine
+  focused adversarial cases pass.
+- The mandatory detached 14-task full freeze then failed closed on immutable
+  `wo055a-typescript-001`: its two frozen files became two documents but zero
+  parser chunks with two errors at the same unsupported `override` construct.
+  VB6 and VB.NET were not reached.
+- Task substitution, parser changes, or a lowered owner gate are outside
+  Packets 064-067. No public artifact, task/private byte, or binding changed;
+  no commit was made. Continuing requires explicit authorization for a new
+  TypeScript task-reselection work order. Packet 063 and WO-055B-D remain
+  blocked.
+
 ## 2026-08-28 — Packet 066 re-review remains NO-GO
 
 - Packet 066 produced an exact current-hash root and passed focused 8/8,
