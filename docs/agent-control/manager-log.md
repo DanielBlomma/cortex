@@ -6,6 +6,23 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-28 — SQL task reselection explicitly authorized
+
+- The user explicitly authorized a new SQL-selection work order after the
+  Packet 063 availability NO-GO. This authority is narrow: retire only
+  `wo055a-sql-001`, select one fresh real SQL task before gold/treatments, and
+  preserve the other 13 task/private bindings exactly.
+- Packet 064 owns only new outside-Git selection, bundle v2, plan v3, fetch,
+  contamination, repository, and accepted-index artifacts. It cannot edit the
+  five-file WO-055A candidate or any production/package path.
+- Selection must use accepted packaged SQL ingest, prove at least two
+  independent declaration owners twice deterministically, exclude the retired
+  task and all prior authorities, avoid all solution patches and post-change
+  source, and record GitHub-only execution without private task text.
+- Packet 064 is assigned in a separate branch/worktree and fresh session.
+  Packet 063 and WO-055B through D remain blocked until three independent
+  Packet 064 reviews and manager acceptance.
+
 ## 2026-08-28 — WO-055A repair stopped at SQL availability NO-GO
 
 - The fresh Packet 063 session applied only the outside-Git Bash selector
