@@ -6,6 +6,27 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-28 — SQL-002 selection review NO-GO; integration bridge assigned
+
+- Packet 064 selected a strong SQL-002 binding with two separate procedures
+  and two byte-identical accepted ingests at 2 documents, 62 chunks, 64
+  relations, and 21 graph inputs. It preserved the other 13 tasks exactly and
+  exposed no task text or blind output.
+- All three required reviews nevertheless returned NO-GO. Selection/Contract
+  and Security proved that the pinned WO-055A generator cannot consume the v3
+  plan. Contract also defeated the asserted split-owner negative through
+  inclusive overlap/next-chunk fallback and found non-canonical fetch order.
+  Validation proved contamination was frozen at parent `258086f` rather than
+  exact Packet 064 HEAD `1a3ba24`. Security also required replayable exclusive
+  creation and per-request GitHub/capability-denial evidence.
+- Packet 065 retains SQL-002 and authorizes only the existing WO-055A generator
+  and focused test plus a new immutable outside-Git reselection-v2 root. It
+  closes v3 compatibility, exact semantic owner matching, current authority,
+  canonical fetch ordering, exclusive creation, and execution receipts.
+- No public fixture freeze, other task change, production/package mutation, or
+  blind output is authorized. Packet 063 and WO-055B-D remain blocked pending
+  three final Packet 065 re-reviews.
+
 ## 2026-08-28 — SQL task reselection explicitly authorized
 
 - The user explicitly authorized a new SQL-selection work order after the
