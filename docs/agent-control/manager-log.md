@@ -6,6 +6,30 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-28 — WO-055A review NO-GO; accepted-index repair split fresh
+
+- The first WO-055A candidate froze 14/14 public task bindings and passed its
+  focused, root, MCP, pack, deterministic-rerun, and containment checks, but
+  all three required independent reviewers returned NO-GO.
+- The common blocker is substantive: the candidate hashed a benchmark-only
+  owner projection rather than the accepted packaged ingest/index outputs.
+  Reviewers also proved fail-open owner/span identity, retrieval-budget,
+  contamination authority, attestation, output-containment, freshness, and
+  execution-evidence boundaries.
+- The repair rewrites only the existing WO-055A generator and its four public
+  artifact/test/report companions. It preserves the same 14 tasks and exact
+  private task bundle; no gold, treatment, recurrence, scoring, reveal, model,
+  provider, planner, telemetry, solution, production, or package scope opens.
+- The repair session reached a safe stop after its context compacted. Its v2
+  generator passes syntax and the first accepted Bash ingest produced two
+  documents, two parser chunks, seven relations, and 21 graph inputs, then
+  failed closed because the outside-Git owner selectors did not identify two
+  accepted parser owners.
+- Packet 063 records the exact five-file scope, review findings, outside-Git
+  hashes, and immediate Bash owner-selector resume point. Remaining 14/14
+  ingest, refreeze, validation, and re-review must run in a new packet-only
+  session. WO-055B through D remain blocked.
+
 ## 2026-08-28 — WO-054 accepted; WO-055A packet frozen and assigned
 
 - WO-054 implementation commit `e4b9168` is accepted locally. Its exact
