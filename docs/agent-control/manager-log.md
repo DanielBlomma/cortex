@@ -6,6 +6,27 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-28 — Packet 066 re-review remains NO-GO
+
+- Packet 066 produced an exact current-hash root and passed focused 8/8,
+  proportional 91/91, query/cleanup 8/8, and 432-entry pack checks. The normal
+  SQL-002 binding, exact 13+1 delta, indexes, modes, and authority facts remain
+  honest.
+- Contract re-review found two blockers: the v3 full-freeze contamination
+  schema rejects its own `frozen_authority_commit`, and owner identity still
+  includes location-dependent chunk/body facts so two adjacent or overlapping
+  chunks for one declaration count twice.
+- Contract and Security also proved rehashed forged request argv/tool/response
+  receipts pass. Security further found unbound executed runtime/Node inputs,
+  incomplete retired/current identity validation, non-exact denial and receipt
+  inventories, and tests that did not exercise real concurrency/live rebind or
+  special files.
+- Packet 067 retains SQL-002 and the two-file tracked scope. It adds detached
+  full-freeze coverage, span-independent semantic owner keys, trusted frozen
+  receipt/runtime expectations, exact identity recomputation, and real or
+  deterministic production-helper race tests. Packet 063 and WO-055B-D remain
+  blocked.
+
 ## 2026-08-28 — Packet 065 compacted after final generator drift
 
 - Packet 065 implemented v3 routing, exact semantic chunk ownership,
