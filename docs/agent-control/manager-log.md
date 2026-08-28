@@ -6,6 +6,25 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-28 — WO-055A repair stopped at SQL availability NO-GO
+
+- The fresh Packet 063 session applied only the outside-Git Bash selector
+  correction. The same Bash task now binds the two independent accepted parser
+  owners at `lib/bats-core/warnings.bash:7-27` and `:30-34`; its accepted index
+  remains 10,295 bytes at SHA-256 `252c9ceb…305`.
+- Accepted packaged ingest then reached the unchanged `wo055a-sql-001` frozen
+  scope. All three dbt staging SQL sources became documents, but the accepted
+  SQL parser emitted zero chunks because the files are query models rather
+  than supported `CREATE` declarations.
+- Packet 063 explicitly makes a family without two independent accepted owners
+  a real NO-GO and forbids task substitution or a lowered gate. The session
+  therefore stopped before TypeScript/VB6/VB.NET, wrote no v2 public artifact,
+  retained no failed SQL index, changed no tracked candidate bytes, and made no
+  commit.
+- WO-055A is blocked. Continuing requires a new manager-authorized task-
+  selection work order for SQL with an explicit integrity decision; WO-055B
+  through D remain blocked.
+
 ## 2026-08-28 — WO-055A review NO-GO; accepted-index repair split fresh
 
 - The first WO-055A candidate froze 14/14 public task bindings and passed its
