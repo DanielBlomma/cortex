@@ -6,6 +6,21 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-29 — Packet 068 TypeScript reselection authorized
+
+- The user explicitly authorized a new TypeScript selection after Packet 067's
+  fail-closed availability result. Packet 068 replaces only retired
+  `wo055a-typescript-001`; the other 13 tasks and every SQL-002 private,
+  provenance, source, owner, index, receipt, and runtime fact remain exact.
+- The selector owns a new mode-`0700` outside-Git root and no tracked edits. It
+  must bind one real public GitHub TypeScript maintenance request without
+  inspecting a solution, then prove two distinct semantic owners through two
+  deterministic accepted packaged ingests.
+- The new bundle v3/plan v4 includes a closed compatibility record against the
+  current candidate generator. Selection review does not authorize generator
+  integration; any required bridge remains a fresh work order. Packet 063 and
+  WO-055B-D remain blocked.
+
 ## 2026-08-28 — Packet 067 stops at TypeScript availability NO-GO
 
 - Packet 067 closed the SQL bridge's v3 schema, span-independent semantic
