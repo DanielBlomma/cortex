@@ -72,6 +72,8 @@
     "release:sync-version": "node scripts/sync-release-version.mjs",
     "release:check-version-sync": "node scripts/sync-release-version.mjs --check",
     "release:test": "node --test tests/plugin-manifests.test.mjs tests/release-workflows.test.mjs",
+    "release:test-fresh-checkout": "node scripts/release-fresh-checkout.mjs",
+    "release:prepare-root-test-context": "node scripts/release-artifacts.mjs root-context",
     "release:prepare-mcp-test-context": "node scripts/release-artifacts.mjs mcp-context",
     "release:packed-containment": "node tests/packed-filesystem-containment.test.mjs",
     "audit:dependencies": "npm audit --package-lock-only --audit-level=low && npm audit --package-lock-only --audit-level=low --prefix frontend && npm audit --package-lock-only --audit-level=low --prefix scaffold/mcp && npm audit --package-lock-only --audit-level=low --prefix scaffold/scripts/parsers && npm audit --package-lock-only --audit-level=low --prefix scripts/parsers",

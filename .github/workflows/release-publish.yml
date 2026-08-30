@@ -101,6 +101,9 @@ jobs:
           CORTEX_EXPECTED_RELEASE_VERSION: ${{ steps.version.outputs.value }}
         run: npm run release:test
 
+      - name: Prepare isolated repository test context
+        run: npm run release:prepare-root-test-context
+
       - name: Run full root and bundle tests
         env:
           CORTEX_EXPECTED_RELEASE_VERSION: ${{ steps.version.outputs.value }}
@@ -111,6 +114,12 @@ jobs:
 
       - name: Run context runtime and MCP compatibility tests
         run: npm --prefix scaffold/mcp run test:ci
+
+      - name: Run executable fresh-checkout regression
+        run: |
+          git clean -fdx .context scaffold/.context
+          git restore .context scaffold/.context
+          npm run release:test-fresh-checkout
 
       - name: Audit all six committed dependency trees
         run: |

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { registryTarballUrl } from "../scripts/release-artifacts.mjs";
+import { assertFinalHarnessEvidence, registryTarballUrl } from "../scripts/release-artifacts.mjs";
 import { syncDshCortexLock } from "../scripts/sync-release-version.mjs";
 
 function readText(relative) {
@@ -46,6 +46,7 @@ function validateBumpWorkflow(workflow) {
   }
   for (const gate of [
     "Run focused release contract tests",
+    "Prepare isolated repository test context",
     "Run full root and bundle tests",
     "Prepare isolated MCP test context",
     "Run context runtime and MCP compatibility tests",
@@ -54,11 +55,15 @@ function validateBumpWorkflow(workflow) {
     "Create and verify duplicate dual-package artifacts",
     "Install both unpublished artifacts with an empty cache",
     "Run packed Harness headless and Web lifecycle",
+    "Run executable fresh-checkout regression",
   ]) {
     assertBefore(workflow, `- name: ${gate}`, "- name: Commit and create immutable release tag");
   }
   assertBefore(workflow, "- name: Commit and create immutable release tag", "- name: Trigger publish from the immutable tag");
   assert.match(workflow, /Run full root and bundle tests[\s\S]*?CORTEX_EXPECTED_RELEASE_VERSION: \$\{\{ env\.RELEASE_VERSION \}\}[\s\S]*?run: npm test/);
+  assertBefore(workflow, "- name: Prepare isolated repository test context", "- name: Run full root and bundle tests");
+  assert.match(workflow, /release:prepare-root-test-context/);
+  assert.match(workflow, /release:test-fresh-checkout/);
   assertBefore(workflow, "- name: Prepare isolated MCP test context", "- name: Run context runtime and MCP compatibility tests");
   assert.match(workflow, /release:prepare-mcp-test-context/);
   assert.match(workflow, /git push --atomic origin "HEAD:main" "refs\/tags\/\$\{RELEASE_TAG\}"/);
@@ -70,6 +75,7 @@ function validatePublishWorkflow(workflow) {
   assertBefore(workflow, 'test "${TAG_VERSION}" = "${BUNDLE_DEPENDENCY}"', "- name: Install five independently published dependency trees");
   for (const gate of [
     "Run focused release contract tests",
+    "Prepare isolated repository test context",
     "Run full root and bundle tests",
     "Prepare isolated MCP test context",
     "Run context runtime and MCP compatibility tests",
@@ -78,6 +84,7 @@ function validatePublishWorkflow(workflow) {
     "Recreate and verify the reviewed dual artifacts",
     "Install both reviewed artifacts with an empty cache",
     "Run packed Harness headless and Web lifecycle",
+    "Run executable fresh-checkout regression",
   ]) {
     assertBefore(workflow, `- name: ${gate}`, "- name: Publish exact root artifact first");
   }
@@ -88,6 +95,9 @@ function validatePublishWorkflow(workflow) {
   assert.match(workflow, /if: steps\.registry\.outputs\.bundle_state == 'missing'/);
   assert.match(workflow, /release-artifacts\.mjs registry-state/);
   assert.match(workflow, /Run full root and bundle tests[\s\S]*?CORTEX_EXPECTED_RELEASE_VERSION: \$\{\{ steps\.version\.outputs\.value \}\}[\s\S]*?run: npm test/);
+  assertBefore(workflow, "- name: Prepare isolated repository test context", "- name: Run full root and bundle tests");
+  assert.match(workflow, /release:prepare-root-test-context/);
+  assert.match(workflow, /release:test-fresh-checkout/);
   assertBefore(workflow, "- name: Prepare isolated MCP test context", "- name: Run context runtime and MCP compatibility tests");
   assert.match(workflow, /release:prepare-mcp-test-context/);
   assert.match(workflow, /npm publish "\$\{\{ steps\.artifacts\.outputs\.root_tarball \}\}"/);
@@ -189,7 +199,58 @@ test("artifact helper fixes the bundle inventory and verifies local plus registr
   assert.match(helper, /install-registry/);
   assert.match(helper, /harness-registry/);
   assert.match(helper, /mcp-context/);
+  assert.match(helper, /root-context/);
   assert.match(helper, /load-ryu\.sh/);
+  assert.match(helper, /runInstalledProfileGate/);
+  assert.match(helper, /runNetworkDenied/);
+  assert.match(helper, /corepack@0\.34\.0/);
+  assert.match(helper, /prepare", "pnpm@11\.7\.0/);
+
+  // The validator is on the workflow's real helper path. Removing any one
+  // behavioral invocation from the driver's report must therefore fail the
+  // pre-publication gate, not merely a source-string check.
+  const complete = {
+    profileBooted: true,
+    pathUnableToSupplyCortex: true,
+    outboundNetworkDenied: true,
+    packageOwnedCli: "/isolated/profile/node_modules/@danielblomma/cortex-mcp/bin/cortex.mjs",
+    indexedRoots: { count: 2, isolated: true },
+    commands: { search: true, rules: true, related: true, impact: true },
+    negative: { timeout: true, cancellation: true, malformed: true, oversized: true },
+    discovery: { tools: [1, 2, 3, 4], skills: [1, 2, 3, 4, 5] },
+    disposal: { firstAgent: true, secondAgent: true, bundle: true },
+    webShutdown: true,
+    profileRemoval: true,
+  };
+  assert.doesNotThrow(() => assertFinalHarnessEvidence(complete));
+  const omissions = [
+    ["profileBooted"],
+    ["pathUnableToSupplyCortex"],
+    ["outboundNetworkDenied"],
+    ["indexedRoots", "count"],
+    ["indexedRoots", "isolated"],
+    ...["search", "rules", "related", "impact"].map((name) => ["commands", name]),
+    ...["timeout", "cancellation", "malformed", "oversized"].map((name) => ["negative", name]),
+    ...["firstAgent", "secondAgent", "bundle"].map((name) => ["disposal", name]),
+    ["webShutdown"],
+    ["profileRemoval"],
+  ];
+  for (const pathParts of omissions) {
+    const missing = structuredClone(complete);
+    let owner = missing;
+    for (const part of pathParts.slice(0, -1)) owner = owner[part];
+    delete owner[pathParts.at(-1)];
+    assert.throws(
+      () => assertFinalHarnessEvidence(missing),
+      /final Harness evidence omits/,
+      `removing ${pathParts.join(".")} must fail closed`,
+    );
+  }
+  for (const collection of ["tools", "skills"]) {
+    const missing = structuredClone(complete);
+    missing.discovery[collection].pop();
+    assert.throws(() => assertFinalHarnessEvidence(missing), /exact installed discovery/);
+  }
 });
 
 test("release documentation distinguishes shipped explicit V1 from unavailable V2", () => {

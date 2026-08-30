@@ -43,6 +43,7 @@ function run(command, args, options = {}) {
     env: options.env ?? process.env,
     shell: false,
     maxBuffer: 64 * 1024 * 1024,
+    ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
   });
   if (result.status !== 0) {
     const detail = (result.stderr || result.stdout || "no output").trim();
@@ -293,18 +294,25 @@ function installRegistryCommand(options) {
   ]);
 }
 
-function prepareMcpTestContext() {
-  const scaffold = path.join(REPO_ROOT, "scaffold");
-  const context = path.join(scaffold, ".context");
+function prepareTestContext(project, sourceRoot = path.join(REPO_ROOT, "scaffold")) {
+  const context = path.join(project, ".context");
   const runtime = path.join(context, "mcp");
   const scripts = path.join(context, "scripts");
   fs.rmSync(runtime, { recursive: true, force: true });
   fs.rmSync(scripts, { recursive: true, force: true });
-  fs.cpSync(path.join(scaffold, "mcp"), runtime, { recursive: true });
-  fs.cpSync(path.join(scaffold, "scripts"), scripts, { recursive: true });
-  run(path.join(scripts, "ingest.sh"), [], { cwd: scaffold });
-  run(path.join(scripts, "load-ryu.sh"), [], { cwd: scaffold });
-  process.stdout.write(`${JSON.stringify({ ok: true, project: scaffold, context: "lexical+graph" })}\n`);
+  fs.cpSync(path.join(sourceRoot, "mcp"), runtime, { recursive: true });
+  fs.cpSync(path.join(sourceRoot, "scripts"), scripts, { recursive: true });
+  run(path.join(scripts, "ingest.sh"), [], { cwd: project });
+  run(path.join(scripts, "load-ryu.sh"), [], { cwd: project });
+  process.stdout.write(`${JSON.stringify({ ok: true, project, context: "lexical+graph" })}\n`);
+}
+
+function prepareMcpTestContext() {
+  prepareTestContext(path.join(REPO_ROOT, "scaffold"));
+}
+
+function prepareRootTestContext() {
+  prepareTestContext(REPO_ROOT);
 }
 
 function harnessEnvironment(outputDirectory) {
@@ -313,7 +321,9 @@ function harnessEnvironment(outputDirectory) {
     ...process.env,
     HOME: path.join(outputDirectory, "home"),
     DSH_HOME: path.join(outputDirectory, "dsh-home"),
-    PATH: `${path.join(runtime, "node_modules", ".bin")}${path.delimiter}${process.env.PATH ?? ""}`,
+    COREPACK_HOME: path.join(outputDirectory, "corepack-home"),
+    npm_config_cache: path.join(outputDirectory, "empty-npm-cache"),
+    PATH: `${path.join(runtime, "corepack-shims")}${path.delimiter}${process.env.PATH ?? ""}`,
     DSH_TELEMETRY_DISABLED: "1",
   };
 }
@@ -353,6 +363,137 @@ function bindProfileToLocalRoot(outputDirectory, profileName, rootTarball) {
     `\noverrides:\n  ${JSON.stringify(ROOT_PACKAGE)}: ${JSON.stringify(rootTarball)}\n`,
     "utf8",
   );
+}
+
+function prepareArtifactIndexedRoot(project, installedRoot, cache, token, filename) {
+  fs.mkdirSync(path.join(project, "src"), { recursive: true });
+  fs.mkdirSync(path.join(project, ".context"), { recursive: true });
+  fs.writeFileSync(path.join(project, "README.md"), `# Release gate ${token}\n`, "utf8");
+  fs.writeFileSync(
+    path.join(project, "src", filename),
+    `export const releaseGateToken = ${JSON.stringify(token)};\n`,
+    "utf8",
+  );
+  fs.writeFileSync(
+    path.join(project, ".context", "config.yaml"),
+    "repo_id: cortex-release-artifact-gate\nsource_paths:\n  - src\n  - README.md\nruntime:\n  top_k: 5\n",
+    "utf8",
+  );
+  for (const name of ["ontology.cypher", "rules.yaml"]) {
+    fs.copyFileSync(
+      path.join(installedRoot, "scaffold", ".context", name),
+      path.join(project, ".context", name),
+    );
+  }
+  fs.cpSync(path.join(installedRoot, "scaffold", "mcp"), path.join(project, ".context", "mcp"), { recursive: true });
+  fs.cpSync(path.join(installedRoot, "scaffold", "scripts"), path.join(project, ".context", "scripts"), { recursive: true });
+  run("npm", ["ci", "--no-audit", "--no-fund", "--cache", cache], { cwd: path.join(project, ".context", "mcp") });
+  run("npm", ["ci", "--no-audit", "--no-fund", "--cache", cache], { cwd: path.join(project, ".context", "scripts", "parsers") });
+  run(path.join(project, ".context", "scripts", "ingest.sh"), [], { cwd: project });
+  run(path.join(project, ".context", "scripts", "load-ryu.sh"), [], { cwd: project });
+}
+
+function runNetworkDenied(command, args, options) {
+  const isolatedEnv = {
+    ...options.env,
+    PATH: "/nonexistent",
+    CORTEX_RELEASE_NETWORK_DENIED: "1",
+  };
+  if (process.platform === "darwin") {
+    return run(
+      "/usr/bin/sandbox-exec",
+      ["-p", "(version 1)(allow default)(deny network*)", command, ...args],
+      { ...options, env: isolatedEnv },
+    );
+  }
+  if (process.platform === "linux"
+    && fs.existsSync("/usr/bin/sudo")
+    && fs.existsSync("/usr/bin/unshare")
+    && fs.existsSync("/usr/bin/env")) {
+    const explicitEnvironment = [
+      `HOME=${isolatedEnv.HOME}`,
+      `DSH_HOME=${isolatedEnv.DSH_HOME}`,
+      `DSH_TELEMETRY_DISABLED=${isolatedEnv.DSH_TELEMETRY_DISABLED}`,
+      "CORTEX_RELEASE_NETWORK_DENIED=1",
+      "PATH=/nonexistent",
+    ];
+    return run(
+      "/usr/bin/sudo",
+      ["-n", "/usr/bin/unshare", "--net", "--", "/usr/bin/env", ...explicitEnvironment, command, ...args],
+      options,
+    );
+  }
+  fail(`no fail-closed outbound-network isolation is implemented for ${process.platform}`);
+}
+
+export function assertFinalHarnessEvidence(evidence) {
+  for (const [label, value] of [
+    ["installed profile boot", evidence.profileBooted],
+    ["PATH isolation", evidence.pathUnableToSupplyCortex],
+    ["outbound network denial", evidence.outboundNetworkDenied],
+    ["two indexed roots", evidence.indexedRoots?.count === 2],
+    ["root isolation", evidence.indexedRoots?.isolated],
+    ["real search", evidence.commands?.search],
+    ["real rules", evidence.commands?.rules],
+    ["real related", evidence.commands?.related],
+    ["real impact", evidence.commands?.impact],
+    ["timeout", evidence.negative?.timeout],
+    ["cancellation", evidence.negative?.cancellation],
+    ["malformed output", evidence.negative?.malformed],
+    ["oversized output", evidence.negative?.oversized],
+    ["first agent disposal", evidence.disposal?.firstAgent],
+    ["second agent disposal", evidence.disposal?.secondAgent],
+    ["bundle disposal", evidence.disposal?.bundle],
+    ["Web shutdown", evidence.webShutdown],
+    ["profile removal", evidence.profileRemoval],
+  ]) {
+    if (value !== true) fail(`final Harness evidence omits ${label}`);
+  }
+  if (evidence.discovery?.tools?.length !== 4 || evidence.discovery?.skills?.length !== 5) {
+    fail("final Harness evidence omits exact installed discovery");
+  }
+  if (!path.isAbsolute(evidence.packageOwnedCli ?? "")) fail("final Harness evidence omits package-owned CLI");
+}
+
+function installedProfileRoot(outputDirectory, profileName) {
+  return fs.realpathSync(path.join(
+    outputDirectory,
+    "dsh-home",
+    "profiles",
+    profileName,
+    "node_modules",
+    ...ROOT_PACKAGE.split("/"),
+  ));
+}
+
+function runInstalledProfileGate(outputDirectory, harnessCheckout, env, cache) {
+  const profileDir = path.join(outputDirectory, "dsh-home", "profiles", "headless");
+  const installedRoot = installedProfileRoot(outputDirectory, "headless");
+  const firstRoot = path.join(outputDirectory, "indexed-root-first");
+  const secondRoot = path.join(outputDirectory, "indexed-root-second");
+  prepareArtifactIndexedRoot(firstRoot, installedRoot, cache, "FIRST_ROOT_RELEASE_TOKEN", "first-root.mjs");
+  prepareArtifactIndexedRoot(secondRoot, installedRoot, cache, "SECOND_ROOT_RELEASE_TOKEN", "second-root.mjs");
+  const overlay = path.join(outputDirectory, "profile-gate.patch.yml");
+  const report = path.join(outputDirectory, "profile-gate-report.json");
+  fs.writeFileSync(
+    overlay,
+    "- id: headless-runner\n  disabled: true\n- id: cortex-context\n  config:\n    timeoutMs: 5000\n",
+    "utf8",
+  );
+  runNetworkDenied(
+    process.execPath,
+    [
+      path.join(REPO_ROOT, "scripts", "release-harness-profile-gate.mjs"),
+      "--harness-checkout", harnessCheckout,
+      "--profile-dir", profileDir,
+      "--first-root", firstRoot,
+      "--second-root", secondRoot,
+      "--overlay", overlay,
+      "--report", report,
+    ],
+    { cwd: harnessCheckout, env, timeout: 120_000 },
+  );
+  return readJson(report);
 }
 
 async function inspectPackedBundle(outputDirectory, profileName) {
@@ -477,7 +618,7 @@ async function harnessCommand(options, registryOnly = false) {
       "--no-fund",
       "--cache",
       cache,
-      "pnpm@11.7.0",
+      "corepack@0.34.0",
     ],
     { cwd: runtime },
   );
@@ -485,8 +626,14 @@ async function harnessCommand(options, registryOnly = false) {
   if (pinnedCommit !== "b150a551b8d465e31e418e1b2eaf5e79bbb7d28e") {
     fail(`Harness checkout is ${pinnedCommit}, expected the reviewed commit`);
   }
-  const pnpm = path.join(runtime, "node_modules", ".bin", "pnpm");
   const env = harnessEnvironment(outputDirectory);
+  const corepack = path.join(runtime, "node_modules", ".bin", "corepack");
+  const corepackShims = path.join(runtime, "corepack-shims");
+  fs.mkdirSync(corepackShims);
+  fs.mkdirSync(env.COREPACK_HOME);
+  run(corepack, ["enable", "--install-directory", corepackShims], { cwd: runtime, env });
+  run(corepack, ["prepare", "pnpm@11.7.0", "--activate"], { cwd: runtime, env });
+  const pnpm = path.join(corepackShims, "pnpm");
   run(pnpm, ["install", "--frozen-lockfile"], { cwd: harnessCheckout, env });
   run(pnpm, ["run", "build"], { cwd: harnessCheckout, env });
   const profile = (...args) => run(pnpm, ["dsh", ...args], { cwd: harnessCheckout, env });
@@ -499,6 +646,7 @@ async function harnessCommand(options, registryOnly = false) {
     assertCortexRows(config, 3);
     discovery = discovery ?? await inspectPackedBundle(outputDirectory, name);
   }
+  const profileGate = runInstalledProfileGate(outputDirectory, harnessCheckout, env, cache);
   profile("--profile", "headless", "--help");
   profile("--profile", "web", "--help");
   const web = await webSmoke(pnpm, ["dsh"], env, harnessCheckout);
@@ -506,7 +654,9 @@ async function harnessCommand(options, registryOnly = false) {
     profile("plugin", "--profile", name, "remove", BUNDLE_PACKAGE, ROOT_PACKAGE);
     assertCortexRows(profile("--profile", name, "--dump-config"), 0);
   }
-  process.stdout.write(`${JSON.stringify({ ok: true, version, profiles: 2, rowsPerProfile: 3, discovery, web }, null, 2)}\n`);
+  const finalEvidence = { ...profileGate, webShutdown: true, profileRemoval: true };
+  assertFinalHarnessEvidence(finalEvidence);
+  process.stdout.write(`${JSON.stringify({ ok: true, version, profiles: 2, rowsPerProfile: 3, discovery, profileGate: finalEvidence, web }, null, 2)}\n`);
 }
 
 function npmView(spec, field) {
@@ -557,11 +707,12 @@ export async function main(argv = process.argv.slice(2)) {
   if (command === "pack") return packCommand(options);
   if (command === "install") return installCommand(options);
   if (command === "install-registry") return installRegistryCommand(options);
+  if (command === "root-context") return prepareRootTestContext();
   if (command === "mcp-context") return prepareMcpTestContext();
   if (command === "harness") return harnessCommand(options);
   if (command === "harness-registry") return harnessCommand(options, true);
   if (command === "registry-state") return registryStateCommand(options);
-  fail(`expected command pack, install, install-registry, mcp-context, harness, harness-registry, or registry-state; got ${String(command)}`);
+  fail(`expected command pack, install, install-registry, root-context, mcp-context, harness, harness-registry, or registry-state; got ${String(command)}`);
 }
 
 const invokedAsScript = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
