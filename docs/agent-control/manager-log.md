@@ -6,6 +6,26 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-30 — WO-058 Stage 2A CLI reader accepted
+
+- WO-058 is accepted at feature commit `e4d47c4` and integrated into the
+  control branch as `287e26b`. It exposes only the four Packet 072 opt-in CLI
+  reads with schema version 1 and generator `maintained-analysis-cli-v1`.
+- The dual parser, separately persisted `0600` authority bundle, exact
+  `primary_subject`, unchanged Stage 1 replay, closed public errors, read
+  neutrality, and transaction identity checks satisfy the CLI/Contract/
+  Security boundary. The Packet-072 plan-byte change required only its exact
+  code-owned SHA update; no semantic rule or persistence behavior changed.
+- Final gates pass: focused runtime 8/8, root shim plus ownership 20/20,
+  oracle/native 19/19 each, MCP 615/615, root 81/81 + 400/400, TypeScript,
+  453-entry package with 414 managed paths, packed containment 42/42, and
+  Cortex 1,805/1,805. One combined review returned GO with zero accepted
+  findings after two heuristic root-shim suggestions were adjudicated against
+  the exact accepted `query-command.mjs` precedent.
+- MCP exposure, authority/observation and dogfood writers, generated Current
+  State/manager/handoff prose, all network/model/provider/database surfaces,
+  and WO-055 remain stopped pending separate decisions.
+
 ## 2026-08-30 — WO-058 Stage 2A CLI reader authorized
 
 - The user's “go on” authorizes the next ordered maintained-state gate. Packet
