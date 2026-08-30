@@ -13,25 +13,25 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      HARNESS_COMMIT: "b150a551b8d465e31e418e1b2eaf5e79bbb7d28e"
 
     steps:
-      - name: Verify immutable release tag ref
+      - name: Reject branch dispatches and non-strict tags
         env:
           GITHUB_REF_TYPE: ${{ github.ref_type }}
           TAG_NAME: ${{ github.ref_name }}
         run: |
-          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then
-            echo "Release publish requires an immutable tag ref"
-            exit 1
-          fi
+          test "${GITHUB_REF_TYPE}" = "tag"
           if ! [[ "${TAG_NAME}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-            echo "Release tag must use strict vX.Y.Z format"
+            echo "Release publish requires a strict immutable vX.Y.Z tag"
             exit 1
           fi
 
-      - name: Checkout
+      - name: Checkout immutable tag
         uses: actions/checkout@v6
         with:
+          ref: ${{ github.ref }}
           fetch-depth: 0
 
       - name: Setup Node
@@ -46,53 +46,236 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      - name: Verify tag and metadata versions
+      - name: Verify annotated tag and all metadata versions
+        id: version
         env:
-          GITHUB_REF_TYPE: ${{ github.ref_type }}
           TAG_NAME: ${{ github.ref_name }}
         run: |
-          if [ "${GITHUB_REF_TYPE}" != "tag" ] || ! [[ "${TAG_NAME}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-            echo "Release publish requires a strict immutable vX.Y.Z tag"
-            exit 1
-          fi
+          test "$(git cat-file -t "${TAG_NAME}")" = "tag"
+          test "$(git rev-list -n 1 "${TAG_NAME}")" = "$(git rev-parse HEAD)"
+          test -z "$(git status --porcelain)"
           TAG_VERSION="${TAG_NAME#v}"
-          PACKAGE_VERSION="$(node -p 'JSON.parse(require("fs").readFileSync("package.json","utf8")).version')"
-
-          if [ "${TAG_VERSION}" != "${PACKAGE_VERSION}" ]; then
-            echo "Tag version (${TAG_VERSION}) does not match package.json (${PACKAGE_VERSION})"
-            exit 1
-          fi
-
+          ROOT_VERSION="$(node -p 'require("./package.json").version')"
+          BUNDLE_VERSION="$(node -p 'require("./plugins/dsh-cortex/package.json").version')"
+          BUNDLE_DEPENDENCY="$(node -p 'require("./plugins/dsh-cortex/package.json").dependencies["@danielblomma/cortex-mcp"]')"
+          test "${TAG_VERSION}" = "${ROOT_VERSION}"
+          test "${TAG_VERSION}" = "${BUNDLE_VERSION}"
+          test "${TAG_VERSION}" = "${BUNDLE_DEPENDENCY}"
           node scripts/sync-release-version.mjs --check
+          echo "value=${TAG_VERSION}" >> "${GITHUB_OUTPUT}"
 
-      - name: Install parser dependencies
-        working-directory: scaffold/scripts/parsers
-        run: npm ci
-
-      - name: Install context runtime dependencies
-        working-directory: scaffold/mcp
-        run: npm ci
+      - name: Install five independently published dependency trees
+        run: |
+          npm ci
+          npm ci --prefix frontend
+          npm ci --prefix scaffold/mcp
+          npm ci --prefix scaffold/scripts/parsers
+          npm ci --prefix scripts/parsers
 
       - name: Build trusted context runtime
-        working-directory: scaffold/mcp
-        run: npm run build
+        run: npm --prefix scaffold/mcp run build
 
-      - name: Run root tests
+      - name: Prove the locked root integrity from the tagged artifact
+        id: seed
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
         run: |
-          npm test
+          SEED_DIR="${RUNNER_TEMP}/cortex-publish-seed"
+          mkdir -p "${SEED_DIR}"
+          npm pack --json --ignore-scripts --pack-destination "${SEED_DIR}" > "${SEED_DIR}/pack.json"
+          ROOT_FILENAME="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))[0].filename' "${SEED_DIR}/pack.json")"
+          ROOT_TARBALL="${SEED_DIR}/${ROOT_FILENAME}"
+          node scripts/sync-release-version.mjs --check --root-tarball "${ROOT_TARBALL}"
+          echo "root_tarball=${ROOT_TARBALL}" >> "${GITHUB_OUTPUT}"
+
+      - name: Install bundle dependencies from the exact local root artifact
+        env:
+          ROOT_TARBALL: ${{ steps.seed.outputs.root_tarball }}
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          npm --prefix plugins/dsh-cortex install --no-save --package-lock=false "${ROOT_TARBALL}"
+          test "$(node -p 'require("./plugins/dsh-cortex/node_modules/@danielblomma/cortex-mcp/package.json").version')" = "${RELEASE_VERSION}"
+
+      - name: Run focused release contract tests
+        env:
+          CORTEX_EXPECTED_RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: npm run release:test
+
+      - name: Run full root and bundle tests
+        env:
+          CORTEX_EXPECTED_RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: npm test
+
+      - name: Prepare isolated MCP test context
+        run: npm run release:prepare-mcp-test-context
 
       - name: Run context runtime and MCP compatibility tests
-        working-directory: scaffold/mcp
-        run: npm run test:ci
+        run: npm --prefix scaffold/mcp run test:ci
 
-      - name: Audit committed dependency trees
-        run: npm run audit:dependencies
+      - name: Audit all six committed dependency trees
+        run: |
+          npm run audit:dependencies
+          npm audit --package-lock-only --audit-level=low --prefix plugins/dsh-cortex
 
       - name: Validate packed filesystem containment
         run: npm run release:packed-containment
 
-      - name: Verify npm package contents
-        run: npm pack --dry-run
+      - name: Verify pinned DeepSeek Harness contract
+        run: |
+          HARNESS_CHECKOUT="${RUNNER_TEMP}/deepseek-harness"
+          git clone --filter=blob:none --no-checkout https://github.com/deepseek-ai/deepseek-harness.git "${HARNESS_CHECKOUT}"
+          git -C "${HARNESS_CHECKOUT}" checkout --detach "${HARNESS_COMMIT}"
+          node scripts/check-deepseek-harness-compatibility.mjs --checkout "${HARNESS_CHECKOUT}"
 
-      - name: Publish to npm
-        run: npm publish --access public
+      - name: Recreate and verify the reviewed dual artifacts
+        id: artifacts
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          ARTIFACT_DIR="${RUNNER_TEMP}/cortex-publish-artifacts"
+          node scripts/release-artifacts.mjs pack \
+            --output-dir "${ARTIFACT_DIR}" \
+            --expected-version "${RELEASE_VERSION}" \
+            --report "${ARTIFACT_DIR}/report.json"
+          ROOT_TARBALL="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).packages.root.first.tarball' "${ARTIFACT_DIR}/report.json")"
+          BUNDLE_TARBALL="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).packages.bundle.first.tarball' "${ARTIFACT_DIR}/report.json")"
+          ROOT_INTEGRITY="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).packages.root.first.integrity' "${ARTIFACT_DIR}/report.json")"
+          BUNDLE_INTEGRITY="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).packages.bundle.first.integrity' "${ARTIFACT_DIR}/report.json")"
+          echo "report=${ARTIFACT_DIR}/report.json" >> "${GITHUB_OUTPUT}"
+          echo "root_tarball=${ROOT_TARBALL}" >> "${GITHUB_OUTPUT}"
+          echo "bundle_tarball=${BUNDLE_TARBALL}" >> "${GITHUB_OUTPUT}"
+          echo "root_integrity=${ROOT_INTEGRITY}" >> "${GITHUB_OUTPUT}"
+          echo "bundle_integrity=${BUNDLE_INTEGRITY}" >> "${GITHUB_OUTPUT}"
+
+      - name: Install both reviewed artifacts with an empty cache
+        env:
+          ROOT_TARBALL: ${{ steps.artifacts.outputs.root_tarball }}
+          BUNDLE_TARBALL: ${{ steps.artifacts.outputs.bundle_tarball }}
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          node scripts/release-artifacts.mjs install \
+            --root-tarball "${ROOT_TARBALL}" \
+            --bundle-tarball "${BUNDLE_TARBALL}" \
+            --output-dir "${RUNNER_TEMP}/cortex-publish-install" \
+            --expected-version "${RELEASE_VERSION}"
+
+      - name: Run packed Harness headless and Web lifecycle
+        env:
+          ROOT_TARBALL: ${{ steps.artifacts.outputs.root_tarball }}
+          BUNDLE_TARBALL: ${{ steps.artifacts.outputs.bundle_tarball }}
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          node scripts/release-artifacts.mjs harness \
+            --harness-checkout "${RUNNER_TEMP}/deepseek-harness" \
+            --root-tarball "${ROOT_TARBALL}" \
+            --bundle-tarball "${BUNDLE_TARBALL}" \
+            --output-dir "${RUNNER_TEMP}/cortex-harness-lifecycle" \
+            --expected-version "${RELEASE_VERSION}"
+
+      - name: Inspect registry for safe immutable resume
+        id: registry
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+          ROOT_INTEGRITY: ${{ steps.artifacts.outputs.root_integrity }}
+          BUNDLE_INTEGRITY: ${{ steps.artifacts.outputs.bundle_integrity }}
+        run: |
+          ROOT_JSON="$(node scripts/release-artifacts.mjs registry-state \
+            --package-name @danielblomma/cortex-mcp \
+            --version "${RELEASE_VERSION}" \
+            --integrity "${ROOT_INTEGRITY}")"
+          BUNDLE_JSON="$(node scripts/release-artifacts.mjs registry-state \
+            --package-name @danielblomma/dsh-cortex \
+            --version "${RELEASE_VERSION}" \
+            --integrity "${BUNDLE_INTEGRITY}" \
+            --root-dependency "${RELEASE_VERSION}")"
+          ROOT_STATE="$(node -p 'JSON.parse(process.argv[1]).state' "${ROOT_JSON}")"
+          BUNDLE_STATE="$(node -p 'JSON.parse(process.argv[1]).state' "${BUNDLE_JSON}")"
+          if [ "${ROOT_STATE}" = "missing" ] && [ "${BUNDLE_STATE}" = "exact" ]; then
+            echo "Bundle exists without its exact root artifact"
+            exit 1
+          fi
+          echo "root_state=${ROOT_STATE}" >> "${GITHUB_OUTPUT}"
+          echo "bundle_state=${BUNDLE_STATE}" >> "${GITHUB_OUTPUT}"
+
+      - name: Publish exact root artifact first
+        if: steps.registry.outputs.root_state == 'missing'
+        run: npm publish "${{ steps.artifacts.outputs.root_tarball }}" --access public --provenance
+
+      - name: Verify exact root registry artifact before bundle publication
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+          ROOT_INTEGRITY: ${{ steps.artifacts.outputs.root_integrity }}
+        run: |
+          for attempt in $(seq 1 12); do
+            STATE_JSON="$(node scripts/release-artifacts.mjs registry-state \
+              --package-name @danielblomma/cortex-mcp \
+              --version "${RELEASE_VERSION}" \
+              --integrity "${ROOT_INTEGRITY}")"
+            if [ "$(node -p 'JSON.parse(process.argv[1]).state' "${STATE_JSON}")" = "exact" ]; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Exact root artifact was not visible within the bounded verification window"
+          exit 1
+
+      - name: Publish exact DeepSeek Harness bundle second
+        if: steps.registry.outputs.bundle_state == 'missing'
+        run: npm publish "${{ steps.artifacts.outputs.bundle_tarball }}" --access public --provenance
+
+      - name: Verify exact bundle registry artifact
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+          BUNDLE_INTEGRITY: ${{ steps.artifacts.outputs.bundle_integrity }}
+        run: |
+          for attempt in $(seq 1 12); do
+            STATE_JSON="$(node scripts/release-artifacts.mjs registry-state \
+              --package-name @danielblomma/dsh-cortex \
+              --version "${RELEASE_VERSION}" \
+              --integrity "${BUNDLE_INTEGRITY}" \
+              --root-dependency "${RELEASE_VERSION}")"
+            if [ "$(node -p 'JSON.parse(process.argv[1]).state' "${STATE_JSON}")" = "exact" ]; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Exact bundle artifact was not visible within the bounded verification window"
+          exit 1
+
+      - name: Run fresh registry-only dual-package smoke
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          node scripts/release-artifacts.mjs install-registry \
+            --output-dir "${RUNNER_TEMP}/cortex-registry-install" \
+            --expected-version "${RELEASE_VERSION}"
+          GLOBAL_PREFIX="${RUNNER_TEMP}/cortex-global"
+          GLOBAL_CACHE="${RUNNER_TEMP}/cortex-global-empty-cache"
+          npm install --global --prefix "${GLOBAL_PREFIX}" --cache "${GLOBAL_CACHE}" \
+            "@danielblomma/cortex-mcp@${RELEASE_VERSION}"
+          "${GLOBAL_PREFIX}/bin/cortex" --version | grep -F "${RELEASE_VERSION}"
+
+      - name: Run fresh registry-only Harness lifecycle smoke
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          node scripts/release-artifacts.mjs harness-registry \
+            --harness-checkout "${RUNNER_TEMP}/deepseek-harness" \
+            --output-dir "${RUNNER_TEMP}/cortex-registry-harness" \
+            --expected-version "${RELEASE_VERSION}"
+
+      - name: Record immutable release evidence
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+          REPORT: ${{ steps.artifacts.outputs.report }}
+        run: |
+          {
+            echo "## Cortex ${RELEASE_VERSION} dual-package publication"
+            echo "- run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "- tag: ${GITHUB_REF_NAME}"
+            echo "- commit: $(git rev-parse HEAD)"
+            echo "- tree: $(git rev-parse HEAD^{tree})"
+            echo '```json'
+            cat "${REPORT}"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"

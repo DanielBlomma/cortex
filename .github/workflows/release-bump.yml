@@ -6,12 +6,10 @@ on:
       release_type:
         description: "Semver bump type"
         required: true
-        default: patch
+        default: minor
         type: choice
         options:
-          - patch
           - minor
-          - major
 
 permissions:
   contents: write
@@ -20,17 +18,42 @@ permissions:
 jobs:
   bump:
     runs-on: ubuntu-latest
+    env:
+      BASE_VERSION: "2.5.2"
+      RELEASE_VERSION: "2.6.0"
+      RELEASE_TAG: "v2.6.0"
+      HARNESS_COMMIT: "b150a551b8d465e31e418e1b2eaf5e79bbb7d28e"
 
     steps:
-      - name: Checkout
+      - name: Reject non-main dispatch
+        env:
+          GITHUB_REF_TYPE: ${{ github.ref_type }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          RELEASE_TYPE: ${{ inputs.release_type }}
+        run: |
+          test "${GITHUB_REF_TYPE}" = "branch"
+          test "${GITHUB_REF_NAME}" = "main"
+          test "${RELEASE_TYPE}" = "minor"
+
+      - name: Checkout current main
         uses: actions/checkout@v6
         with:
+          ref: main
           fetch-depth: 0
 
-      - name: Validate branch
+      - name: Verify clean current main and unused tag
         run: |
-          if [ "${GITHUB_REF_NAME}" != "main" ]; then
-            echo "Release bumps must run from main. Current branch: ${GITHUB_REF_NAME}"
+          git fetch --no-tags origin main
+          test "$(git branch --show-current)" = "main"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+          test -z "$(git status --porcelain)"
+          test "$(node -p 'require("./package.json").version')" = "${BASE_VERSION}"
+          if git rev-parse --verify --quiet "refs/tags/${RELEASE_TAG}"; then
+            echo "Local release tag already exists: ${RELEASE_TAG}"
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "Remote release tag already exists: ${RELEASE_TAG}"
             exit 1
           fi
 
@@ -38,6 +61,8 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -49,53 +74,146 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Bump npm package version
-        run: npm version "${{ inputs.release_type }}" --no-git-tag-version
-
-      - name: Sync release metadata
+      - name: Install all committed dependency trees
         run: |
-          node scripts/sync-release-version.mjs
-          node scripts/sync-release-version.mjs --check
-
-      - name: Install parser dependencies
-        run: npm ci --prefix scaffold/scripts/parsers
-
-      - name: Install context runtime dependencies
-        working-directory: scaffold/mcp
-        run: npm ci
+          npm ci
+          npm ci --prefix frontend
+          npm ci --prefix scaffold/mcp
+          npm ci --prefix scaffold/scripts/parsers
+          npm ci --prefix scripts/parsers
+          npm ci --prefix plugins/dsh-cortex
 
       - name: Build trusted context runtime
-        working-directory: scaffold/mcp
-        run: npm run build
+        run: npm --prefix scaffold/mcp run build
 
-      - name: Validate root tests
+      - name: Create exact 2.6.0 metadata and root artifact lock
+        id: seed
         run: |
-          npm test
+          npm version minor --no-git-tag-version
+          test "$(node -p 'require("./package.json").version')" = "${RELEASE_VERSION}"
+          SEED_DIR="${RUNNER_TEMP}/cortex-release-seed"
+          mkdir -p "${SEED_DIR}"
+          npm pack --json --ignore-scripts --pack-destination "${SEED_DIR}" > "${SEED_DIR}/pack.json"
+          ROOT_FILENAME="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))[0].filename' "${SEED_DIR}/pack.json")"
+          ROOT_TARBALL="${SEED_DIR}/${ROOT_FILENAME}"
+          node scripts/sync-release-version.mjs --root-tarball "${ROOT_TARBALL}"
+          node scripts/sync-release-version.mjs --check --root-tarball "${ROOT_TARBALL}"
+          echo "root_tarball=${ROOT_TARBALL}" >> "${GITHUB_OUTPUT}"
 
-      - name: Validate context runtime and MCP compatibility tests
-        working-directory: scaffold/mcp
-        run: npm run test:ci
+      - name: Verify complete metadata mutation set
+        run: |
+          ACTUAL="${RUNNER_TEMP}/release-metadata.actual"
+          EXPECTED="${RUNNER_TEMP}/release-metadata.expected"
+          git diff --name-only | LC_ALL=C sort > "${ACTUAL}"
+          printf '%s\n' \
+            .claude-plugin/marketplace.json \
+            package-lock.json \
+            package.json \
+            plugins/cortex/.claude-plugin/plugin.json \
+            plugins/cortex/.codex-plugin/plugin.json \
+            plugins/dsh-cortex/package-lock.json \
+            plugins/dsh-cortex/package.json \
+            server.json | LC_ALL=C sort > "${EXPECTED}"
+          diff -u "${EXPECTED}" "${ACTUAL}"
 
-      - name: Audit committed dependency trees
-        run: npm run audit:dependencies
+      - name: Bind bundle tests to the unpublished reviewed root artifact
+        env:
+          ROOT_TARBALL: ${{ steps.seed.outputs.root_tarball }}
+        run: |
+          npm --prefix plugins/dsh-cortex install --no-save --package-lock=false "${ROOT_TARBALL}"
+          test "$(node -p 'require("./plugins/dsh-cortex/node_modules/@danielblomma/cortex-mcp/package.json").version')" = "${RELEASE_VERSION}"
+
+      - name: Run focused release contract tests
+        env:
+          CORTEX_EXPECTED_RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
+        run: npm run release:test
+
+      - name: Run full root and bundle tests
+        env:
+          CORTEX_EXPECTED_RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
+        run: npm test
+
+      - name: Prepare isolated MCP test context
+        run: npm run release:prepare-mcp-test-context
+
+      - name: Run context runtime and MCP compatibility tests
+        run: npm --prefix scaffold/mcp run test:ci
+
+      - name: Audit all six committed dependency trees
+        run: |
+          npm run audit:dependencies
+          npm audit --package-lock-only --audit-level=low --prefix plugins/dsh-cortex
 
       - name: Validate packed filesystem containment
         run: npm run release:packed-containment
 
-      - name: Validate release package
+      - name: Verify pinned DeepSeek Harness contract
+        run: |
+          HARNESS_CHECKOUT="${RUNNER_TEMP}/deepseek-harness"
+          git clone --filter=blob:none --no-checkout https://github.com/deepseek-ai/deepseek-harness.git "${HARNESS_CHECKOUT}"
+          git -C "${HARNESS_CHECKOUT}" checkout --detach "${HARNESS_COMMIT}"
+          node scripts/check-deepseek-harness-compatibility.mjs --checkout "${HARNESS_CHECKOUT}"
+
+      - name: Create and verify duplicate dual-package artifacts
+        id: artifacts
+        run: |
+          ARTIFACT_DIR="${RUNNER_TEMP}/cortex-release-artifacts"
+          node scripts/release-artifacts.mjs pack \
+            --output-dir "${ARTIFACT_DIR}" \
+            --expected-version "${RELEASE_VERSION}" \
+            --report "${ARTIFACT_DIR}/report.json"
+          ROOT_TARBALL="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).packages.root.first.tarball' "${ARTIFACT_DIR}/report.json")"
+          BUNDLE_TARBALL="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).packages.bundle.first.tarball' "${ARTIFACT_DIR}/report.json")"
+          BUNDLE_INTEGRITY="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).packages.bundle.first.integrity' "${ARTIFACT_DIR}/report.json")"
+          echo "root_tarball=${ROOT_TARBALL}" >> "${GITHUB_OUTPUT}"
+          echo "bundle_tarball=${BUNDLE_TARBALL}" >> "${GITHUB_OUTPUT}"
+          echo "bundle_integrity=${BUNDLE_INTEGRITY}" >> "${GITHUB_OUTPUT}"
+
+      - name: Install both unpublished artifacts with an empty cache
+        env:
+          ROOT_TARBALL: ${{ steps.artifacts.outputs.root_tarball }}
+          BUNDLE_TARBALL: ${{ steps.artifacts.outputs.bundle_tarball }}
+        run: |
+          node scripts/release-artifacts.mjs install \
+            --root-tarball "${ROOT_TARBALL}" \
+            --bundle-tarball "${BUNDLE_TARBALL}" \
+            --output-dir "${RUNNER_TEMP}/cortex-release-install" \
+            --expected-version "${RELEASE_VERSION}"
+
+      - name: Run packed Harness headless and Web lifecycle
+        env:
+          ROOT_TARBALL: ${{ steps.artifacts.outputs.root_tarball }}
+          BUNDLE_TARBALL: ${{ steps.artifacts.outputs.bundle_tarball }}
+        run: |
+          node scripts/release-artifacts.mjs harness \
+            --harness-checkout "${RUNNER_TEMP}/deepseek-harness" \
+            --root-tarball "${ROOT_TARBALL}" \
+            --bundle-tarball "${BUNDLE_TARBALL}" \
+            --output-dir "${RUNNER_TEMP}/cortex-harness-lifecycle" \
+            --expected-version "${RELEASE_VERSION}"
+
+      - name: Require registry-only bundle install to be unavailable
+        env:
+          BUNDLE_INTEGRITY: ${{ steps.artifacts.outputs.bundle_integrity }}
+        run: |
+          STATE="$(node scripts/release-artifacts.mjs registry-state \
+            --package-name @danielblomma/dsh-cortex \
+            --version "${RELEASE_VERSION}" \
+            --integrity "${BUNDLE_INTEGRITY}" \
+            --root-dependency "${RELEASE_VERSION}")"
+          test "$(node -p 'JSON.parse(process.argv[1]).state' "${STATE}")" = "missing"
+
+      - name: Verify diff, secrets, versions, and runtime boundary
         run: |
           npm run release:check-version-sync
-          npm pack --dry-run
+          git diff --check
+          if git diff | grep -E '(npm_[A-Za-z0-9]{36}|gh[pousr]_[A-Za-z0-9]{20,}|_authToken|NODE_AUTH_TOKEN|/private/tmp/|/tmp/cortex-release)'; then
+            echo "Release diff contains a secret or disposable path"
+            exit 1
+          fi
+          test -z "$(git diff --name-only -- plugins/dsh-cortex/provider.mjs plugins/dsh-cortex/protocol.mjs plugins/dsh-cortex/tools.mjs plugins/dsh-cortex/skills.mjs plugins/dsh-cortex/skills)"
 
-      - name: Read release version
-        id: version
-        run: |
-          RELEASE_VERSION="$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version")"
-          echo "value=${RELEASE_VERSION}" >> "$GITHUB_OUTPUT"
-
-      - name: Commit and tag release
-        env:
-          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+      - name: Stage only the complete release metadata set
         run: |
           git add \
             package.json \
@@ -104,24 +222,33 @@ jobs:
             mcp-registry-submission.json \
             plugins/cortex/.claude-plugin/plugin.json \
             plugins/cortex/.codex-plugin/plugin.json \
+            plugins/dsh-cortex/package.json \
+            plugins/dsh-cortex/package-lock.json \
             .claude-plugin/marketplace.json
-          if git diff --cached --quiet; then
-            echo "No release metadata changes to commit."
-            exit 1
-          fi
+          test -z "$(git diff --name-only)"
+          ACTUAL="${RUNNER_TEMP}/release-staged.actual"
+          EXPECTED="${RUNNER_TEMP}/release-staged.expected"
+          git diff --cached --name-only | LC_ALL=C sort > "${ACTUAL}"
+          printf '%s\n' \
+            .claude-plugin/marketplace.json \
+            package-lock.json \
+            package.json \
+            plugins/cortex/.claude-plugin/plugin.json \
+            plugins/cortex/.codex-plugin/plugin.json \
+            plugins/dsh-cortex/package-lock.json \
+            plugins/dsh-cortex/package.json \
+            server.json | LC_ALL=C sort > "${EXPECTED}"
+          diff -u "${EXPECTED}" "${ACTUAL}"
 
-          git commit -m "release: v${RELEASE_VERSION}"
-          git tag -a "v${RELEASE_VERSION}" -m "release: v${RELEASE_VERSION}"
-          git push origin "HEAD:${GITHUB_REF_NAME}" --follow-tags
-
-      - name: Trigger release publish workflow
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+      - name: Commit and create immutable release tag
         run: |
-          curl --fail-with-body -L \
-            -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/release-publish.yml/dispatches" \
-            -d "{\"ref\":\"v${RELEASE_VERSION}\"}"
+          git commit -m "release: ${RELEASE_TAG}"
+          git tag -a "${RELEASE_TAG}" -m "release: ${RELEASE_TAG}"
+
+      - name: Atomically push release commit and tag
+        run: git push --atomic origin "HEAD:main" "refs/tags/${RELEASE_TAG}"
+
+      - name: Trigger publish from the immutable tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run release-publish.yml --ref "${RELEASE_TAG}"

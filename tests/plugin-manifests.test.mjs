@@ -30,6 +30,7 @@ test("claude and codex plugin manifests exist and share the release version", ()
 
 test("DeepSeek Harness bundle pins the reviewed session-scoped runtime", () => {
   const bundle = readJson("plugins/dsh-cortex/package.json");
+  const bundleLock = readJson("plugins/dsh-cortex/package-lock.json");
   assert.equal(bundle.name, "@danielblomma/dsh-cortex");
   assert.equal(bundle.version, version);
   assert.equal(bundle.dsh.bundle.patch, "./cordis.patch.yml");
@@ -54,6 +55,18 @@ test("DeepSeek Harness bundle pins the reviewed session-scoped runtime", () => {
     assert.equal(bundle.dependencies[name], "0.1.1-rc.2", `${name} must use the reviewed Harness pin`);
   }
   assert.equal(bundle.dependencies[packageJson.name], version);
+  assert.equal(bundleLock.name, bundle.name);
+  assert.equal(bundleLock.version, version);
+  assert.equal(bundleLock.packages[""].name, bundle.name);
+  assert.equal(bundleLock.packages[""].version, version);
+  assert.equal(bundleLock.packages[""].dependencies[packageJson.name], version);
+  const lockedRoot = bundleLock.packages[`node_modules/${packageJson.name}`];
+  assert.equal(lockedRoot.version, version);
+  assert.equal(
+    lockedRoot.resolved,
+    `https://registry.npmjs.org/${packageJson.name}/-/cortex-mcp-${version}.tgz`,
+  );
+  assert.match(lockedRoot.integrity, /^sha512-[A-Za-z0-9+/]+={0,2}$/);
   const patch = readText("plugins/dsh-cortex/cordis.patch.yml");
   assert.match(patch, /@danielblomma\/dsh-cortex\/provider/);
   assert.match(patch, /@danielblomma\/dsh-cortex\/tools/);
@@ -76,14 +89,12 @@ test("MCP registry submission matches the package runtime contract", () => {
 });
 
 for (const [label, relative, rootStep] of [
-  ["release bump", ".github/workflows/release-bump.yml", "Validate root tests"],
-  ["release publish", ".github/workflows/release-publish.yml", "Run root tests"],
+  ["release bump", ".github/workflows/release-bump.yml", "Run full root and bundle tests"],
+  ["release publish", ".github/workflows/release-publish.yml", "Run full root and bundle tests"],
 ]) {
   test(`${label} builds the trusted runtime before root security tests`, () => {
     const workflow = readText(relative);
-    const installIndex = workflow.indexOf(
-      "- name: Install context runtime dependencies",
-    );
+    const installIndex = workflow.indexOf("npm ci --prefix scaffold/mcp");
     const buildIndex = workflow.indexOf("- name: Build trusted context runtime");
     const rootTestIndex = workflow.indexOf(`- name: ${rootStep}`);
     assert.ok(installIndex >= 0, `${label} must install MCP dependencies`);
@@ -112,15 +123,15 @@ test("session hook is wired for startup, resume, clear, and compact", () => {
 
 test("release publish rejects branch dispatches and non-semver tags before checkout", () => {
   const workflow = readText(".github/workflows/release-publish.yml");
-  const guardIndex = workflow.indexOf("- name: Verify immutable release tag ref");
+  const guardIndex = workflow.indexOf("- name: Reject branch dispatches and non-strict tags");
   const checkoutIndex = workflow.indexOf("- name: Checkout");
   assert.ok(guardIndex >= 0 && guardIndex < checkoutIndex, "release ref guard must run before checkout");
   assert.match(workflow, /GITHUB_REF_TYPE: \$\{\{ github\.ref_type \}\}/);
-  assert.match(workflow, /GITHUB_REF_TYPE\}" != "tag"/);
+  assert.match(workflow, /test "\$\{GITHUB_REF_TYPE\}" = "tag"/);
   assert.match(workflow, /\^v\(0\|\[1-9\]\[0-9\]\*\)\\\.\(0\|\[1-9\]\[0-9\]\*\)\\\.\(0\|\[1-9\]\[0-9\]\*\)\$/);
   assert.ok(
-    workflow.indexOf('if [ "${TAG_VERSION}" != "${PACKAGE_VERSION}" ]') < workflow.indexOf("- name: Install parser dependencies"),
-    "tag/package equality must be checked before install and publish steps"
+    workflow.indexOf('test "${TAG_VERSION}" = "${ROOT_VERSION}"') < workflow.indexOf("npm ci --prefix scaffold/mcp"),
+    "tag/package equality must be checked before install and publish steps",
   );
 });
 
