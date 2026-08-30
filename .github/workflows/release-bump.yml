@@ -64,6 +64,34 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           package-manager-cache: false
 
+      - name: Install and verify supported npm CLI
+        run: |
+          npm install --global npm@11.19.1
+          test "$(npm --version)" = "11.19.1"
+
+      - name: Verify npm publication identity before mutation
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "The npm publication credential is not configured"
+            exit 1
+          fi
+          set -o pipefail
+          if ! npm whoami --registry=https://registry.npmjs.org/ 2>/dev/null | \
+            env -u NODE_AUTH_TOKEN node -e '
+              let value = "";
+              process.stdin.setEncoding("utf8");
+              process.stdin.on("data", (chunk) => { value += chunk; });
+              process.stdin.on("end", () => {
+                if (value !== "danielblomma\n") process.exitCode = 1;
+              });
+            '
+          then
+            echo "The npm publication credential did not authenticate"
+            exit 1
+          fi
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:

@@ -41,6 +41,11 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           package-manager-cache: false
 
+      - name: Install and verify supported npm CLI
+        run: |
+          npm install --global npm@11.19.1
+          test "$(npm --version)" = "11.19.1"
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
@@ -230,7 +235,14 @@ jobs:
 
       - name: Publish exact DeepSeek Harness bundle second
         if: steps.registry.outputs.bundle_state == 'missing'
-        run: npm publish "${{ steps.artifacts.outputs.bundle_tarball }}" --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "The npm bootstrap credential is not configured"
+            exit 1
+          fi
+          npm publish "${{ steps.artifacts.outputs.bundle_tarball }}" --access public --provenance
 
       - name: Verify exact bundle registry artifact
         env:

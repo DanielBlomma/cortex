@@ -22,6 +22,103 @@ function assertBefore(source, earlier, later, message) {
   assert.ok(earlierIndex < laterIndex, message ?? `${earlier} must precede ${later}`);
 }
 
+const supportedNpmVersion = "11.19.1";
+const npmSetupStepName = "Install and verify supported npm CLI";
+const bumpCredentialStepName = "Verify npm publication identity before mutation";
+const bundlePublishStepName = "Publish exact DeepSeek Harness bundle second";
+
+function stepBlock(source, name) {
+  const marker = `      - name: ${name}`;
+  const start = source.indexOf(marker);
+  assert.ok(start >= 0, `missing step ${name}`);
+  const next = source.indexOf("\n      - name: ", start + marker.length);
+  return source.slice(start, next < 0 ? source.length : next);
+}
+
+function swapStepNames(source, first, second) {
+  const placeholder = "__CORTEX_RELEASE_STEP_SWAP__";
+  return source
+    .replace(`- name: ${first}`, `- name: ${placeholder}`)
+    .replace(`- name: ${second}`, `- name: ${first}`)
+    .replace(`- name: ${placeholder}`, `- name: ${second}`);
+}
+
+function validateSupportedNpmSetup(workflow, beforeStepName) {
+  const setup = stepBlock(workflow, npmSetupStepName);
+  assert.match(setup, new RegExp(`npm install --global npm@${supportedNpmVersion.replaceAll(".", "\\.")}`));
+  assert.match(setup, new RegExp(`test "\\$\\(npm --version\\)" = "${supportedNpmVersion.replaceAll(".", "\\.")}"`));
+  const [major, minor, patch] = supportedNpmVersion.split(".").map(Number);
+  assert.ok(major === 11 && (minor > 5 || (minor === 5 && patch >= 1)));
+  assertBefore(workflow, "- name: Setup Node", `- name: ${npmSetupStepName}`);
+  assertBefore(workflow, `- name: ${npmSetupStepName}`, `- name: ${beforeStepName}`);
+}
+
+function validateStepScopedToken(workflow, allowedStepName) {
+  const allowed = stepBlock(workflow, allowedStepName);
+  const withoutAllowed = workflow.replace(allowed, "");
+  assert.doesNotMatch(
+    withoutAllowed,
+    /secrets\.NPM_TOKEN|^\s+(?:NODE_AUTH_TOKEN|NPM_TOKEN):/m,
+    "npm credential must not escape its single authorized step",
+  );
+  assert.match(
+    allowed,
+    /env:\n          NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_TOKEN \}\}/,
+  );
+  assert.doesNotMatch(allowed, /\b(?:echo|printf)\b[^\n]*(?:NODE_AUTH_TOKEN|NPM_TOKEN)/i);
+  assert.doesNotMatch(allowed, /\bset\s+(?:-x|-o\s+xtrace)\b/);
+  assert.doesNotMatch(allowed, /^\s*(?:env|printenv)\s*(?:$|[>|])/m);
+  assert.doesNotMatch(allowed, /npm config (?:get|list|ls)/i);
+  assert.doesNotMatch(allowed, /GITHUB_(?:OUTPUT|STEP_SUMMARY)|actions\/(?:cache|upload-artifact)/);
+  assert.doesNotMatch(
+    allowed,
+    /^\s*(?:npm|node|gh|git|curl)\b[^\n]*(?:NODE_AUTH_TOKEN|NPM_TOKEN)/m,
+    "npm credential must not be passed as a command argument",
+  );
+}
+
+function validateBumpCredentialGate(workflow) {
+  validateSupportedNpmSetup(workflow, bumpCredentialStepName);
+  validateStepScopedToken(workflow, bumpCredentialStepName);
+  const gate = stepBlock(workflow, bumpCredentialStepName);
+  assert.match(gate, /if \[ -z "\$\{NODE_AUTH_TOKEN:-\}" \]; then/);
+  assert.match(gate, /npm whoami --registry=https:\/\/registry\.npmjs\.org\//);
+  assert.match(gate, /value !== "danielblomma\\n"/);
+  assert.match(gate, /env -u NODE_AUTH_TOKEN node/);
+  for (const mutationStep of [
+    "Install all committed dependency trees",
+    "Create exact 2.6.0 metadata and root artifact lock",
+    "Stage only the complete release metadata set",
+    "Commit and create immutable release tag",
+  ]) {
+    assertBefore(workflow, `- name: ${bumpCredentialStepName}`, `- name: ${mutationStep}`);
+  }
+  assertBefore(workflow, `- name: ${bumpCredentialStepName}`, "npm version minor");
+  assertBefore(workflow, `- name: ${bumpCredentialStepName}`, "sync-release-version.mjs --root-tarball");
+  assertBefore(workflow, `- name: ${bumpCredentialStepName}`, "git add ");
+  assertBefore(workflow, `- name: ${bumpCredentialStepName}`, "git commit -m");
+  assertBefore(workflow, `- name: ${bumpCredentialStepName}`, "git tag -a");
+}
+
+function validatePublishAuthentication(workflow) {
+  assert.match(workflow, /permissions:\n  contents: read\n  id-token: write/);
+  assert.match(workflow, /jobs:\n  publish:\n    runs-on: ubuntu-latest/);
+  validateSupportedNpmSetup(workflow, "Verify annotated tag and all metadata versions");
+
+  const rootPublish = stepBlock(workflow, "Publish exact root artifact first");
+  assert.match(rootPublish, /if: steps\.registry\.outputs\.root_state == 'missing'/);
+  assert.match(rootPublish, /--access public --provenance/);
+  assert.doesNotMatch(rootPublish, /NPM_TOKEN|NODE_AUTH_TOKEN|secrets\./);
+
+  const bundlePublish = stepBlock(workflow, bundlePublishStepName);
+  validateStepScopedToken(workflow, bundlePublishStepName);
+  assert.match(bundlePublish, /if: steps\.registry\.outputs\.bundle_state == 'missing'/);
+  assert.match(bundlePublish, /if \[ -z "\$\{NODE_AUTH_TOKEN:-\}" \]; then/);
+  assert.match(bundlePublish, /--access public --provenance/);
+  assertBefore(workflow, "- name: Inspect registry for safe immutable resume", `- name: ${bundlePublishStepName}`);
+  assertBefore(workflow, "- name: Verify exact root registry artifact before bundle publication", `- name: ${bundlePublishStepName}`);
+}
+
 const synchronizedFiles = [
   "package.json",
   "package-lock.json",
@@ -67,10 +164,12 @@ function validateBumpWorkflow(workflow) {
   assertBefore(workflow, "- name: Prepare isolated MCP test context", "- name: Run context runtime and MCP compatibility tests");
   assert.match(workflow, /release:prepare-mcp-test-context/);
   assert.match(workflow, /git push --atomic origin "HEAD:main" "refs\/tags\/\$\{RELEASE_TAG\}"/);
+  validateBumpCredentialGate(workflow);
 }
 
 function validatePublishWorkflow(workflow) {
   assertBefore(workflow, "- name: Reject branch dispatches and non-strict tags", "- name: Checkout immutable tag");
+  assert.match(workflow, /test "\$\{GITHUB_REF_TYPE\}" = "tag"/);
   assert.match(workflow, /\^v\(0\|\[1-9\]\[0-9\]\*\)\\\.\(0\|\[1-9\]\[0-9\]\*\)\\\.\(0\|\[1-9\]\[0-9\]\*\)\$/);
   assertBefore(workflow, 'test "${TAG_VERSION}" = "${BUNDLE_DEPENDENCY}"', "- name: Install five independently published dependency trees");
   for (const gate of [
@@ -94,6 +193,10 @@ function validatePublishWorkflow(workflow) {
   assert.match(workflow, /if: steps\.registry\.outputs\.root_state == 'missing'/);
   assert.match(workflow, /if: steps\.registry\.outputs\.bundle_state == 'missing'/);
   assert.match(workflow, /release-artifacts\.mjs registry-state/);
+  const registry = stepBlock(workflow, "Inspect registry for safe immutable resume");
+  assert.match(registry, /--package-name @danielblomma\/cortex-mcp[\s\S]*?--integrity "\$\{ROOT_INTEGRITY\}"/);
+  assert.match(registry, /--package-name @danielblomma\/dsh-cortex[\s\S]*?--integrity "\$\{BUNDLE_INTEGRITY\}"[\s\S]*?--root-dependency "\$\{RELEASE_VERSION\}"/);
+  assert.match(registry, /"\$\{ROOT_STATE\}" = "missing"[\s\S]*?"\$\{BUNDLE_STATE\}" = "exact"/);
   assert.match(workflow, /Run full root and bundle tests[\s\S]*?CORTEX_EXPECTED_RELEASE_VERSION: \$\{\{ steps\.version\.outputs\.value \}\}[\s\S]*?run: npm test/);
   assertBefore(workflow, "- name: Prepare isolated repository test context", "- name: Run full root and bundle tests");
   assert.match(workflow, /release:prepare-root-test-context/);
@@ -103,6 +206,7 @@ function validatePublishWorkflow(workflow) {
   assert.match(workflow, /npm publish "\$\{\{ steps\.artifacts\.outputs\.root_tarball \}\}"/);
   assert.match(workflow, /npm publish "\$\{\{ steps\.artifacts\.outputs\.bundle_tarball \}\}"/);
   assert.doesNotMatch(workflow, /@latest/);
+  validatePublishAuthentication(workflow);
 }
 
 test("committed candidate keeps every root and bundle version at 2.5.2", () => {
@@ -162,6 +266,63 @@ test("release bump regression validator rejects omitted bundle lock staging", ()
   assert.throws(() => validateBumpWorkflow(workflow), /omits synchronized file/);
 });
 
+test("release workflows reject absent, unsupported, or late npm setup", () => {
+  const bump = readText(".github/workflows/release-bump.yml");
+  const publish = readText(".github/workflows/release-publish.yml");
+  const setupMarker = `- name: ${npmSetupStepName}`;
+  for (const [candidate, validator] of [
+    [bump.replace(setupMarker, "- name: omitted npm setup"), validateBumpWorkflow],
+    [bump.replaceAll(supportedNpmVersion, "11.5.0"), validateBumpWorkflow],
+    [swapStepNames(bump, npmSetupStepName, bumpCredentialStepName), validateBumpWorkflow],
+    [publish.replace(setupMarker, "- name: omitted npm setup"), validatePublishWorkflow],
+    [publish.replaceAll(supportedNpmVersion, "10.9.8"), validatePublishWorkflow],
+  ]) {
+    assert.throws(() => validator(candidate));
+  }
+});
+
+test("release bump credential gate rejects auth and ordering mutations", () => {
+  const workflow = readText(".github/workflows/release-bump.yml");
+  const gateMarker = `- name: ${bumpCredentialStepName}`;
+  const mutations = [
+    workflow.replace(gateMarker, "- name: omitted credential gate"),
+    workflow.replace('if [ -z "${NODE_AUTH_TOKEN:-}" ]; then', "if false; then"),
+    workflow.replace('value !== "danielblomma\\n"', 'value !== "another-owner\\n"'),
+    workflow.replace("npm whoami --registry=https://registry.npmjs.org/", "npm whoami"),
+    swapStepNames(
+      workflow,
+      bumpCredentialStepName,
+      "Create exact 2.6.0 metadata and root artifact lock",
+    ),
+  ];
+  for (const invalid of mutations) {
+    assert.throws(() => validateBumpWorkflow(invalid));
+  }
+});
+
+test("release workflows reject broadened or observable npm credentials", () => {
+  const bump = readText(".github/workflows/release-bump.yml");
+  const publish = readText(".github/workflows/release-publish.yml");
+  const invalid = [
+    [bump.replace("    env:\n      BASE_VERSION", "    env:\n      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}\n      BASE_VERSION"), validateBumpWorkflow],
+    [bump.replace("- name: Run focused release contract tests", "- name: Run focused release contract tests\n        env:\n          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}"), validateBumpWorkflow],
+    [bump.replace("          set -o pipefail", '          echo "${NODE_AUTH_TOKEN}"\n          set -o pipefail'), validateBumpWorkflow],
+    [bump.replace("          set -o pipefail", '          printf "%s" "${NODE_AUTH_TOKEN}"\n          set -o pipefail'), validateBumpWorkflow],
+    [bump.replace("          set -o pipefail", "          set -x\n          set -o pipefail"), validateBumpWorkflow],
+    [bump.replace("          set -o pipefail", "          printenv\n          set -o pipefail"), validateBumpWorkflow],
+    [bump.replace("          set -o pipefail", "          npm config list\n          set -o pipefail"), validateBumpWorkflow],
+    [bump.replace("          set -o pipefail", '          npm whoami "${NODE_AUTH_TOKEN}"\n          set -o pipefail'), validateBumpWorkflow],
+    [publish.replace("    env:\n      HARNESS_COMMIT", "    env:\n      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}\n      HARNESS_COMMIT"), validatePublishWorkflow],
+    [publish.replace("          npm publish \"${{ steps.artifacts.outputs.bundle_tarball }}\"", '          echo "${NODE_AUTH_TOKEN}" >> "${GITHUB_OUTPUT}"\n          npm publish "${{ steps.artifacts.outputs.bundle_tarball }}"'), validatePublishWorkflow],
+    [publish.replace("          npm publish \"${{ steps.artifacts.outputs.bundle_tarball }}\"", '          echo "${NODE_AUTH_TOKEN}" >> "${GITHUB_STEP_SUMMARY}"\n          npm publish "${{ steps.artifacts.outputs.bundle_tarball }}"'), validatePublishWorkflow],
+    [publish.replace("          npm publish \"${{ steps.artifacts.outputs.bundle_tarball }}\"", "          uses: actions/cache@v4\n          npm publish \"${{ steps.artifacts.outputs.bundle_tarball }}\""), validatePublishWorkflow],
+    [publish.replace("          npm publish \"${{ steps.artifacts.outputs.bundle_tarball }}\"", "          uses: actions/upload-artifact@v4\n          npm publish \"${{ steps.artifacts.outputs.bundle_tarball }}\""), validatePublishWorkflow],
+  ];
+  for (const [candidate, validator] of invalid) {
+    assert.throws(() => validator(candidate));
+  }
+});
+
 test("release publish is tag-only, root-first, exact-artifact, and resumable", () => {
   validatePublishWorkflow(readText(".github/workflows/release-publish.yml"));
 });
@@ -174,6 +335,27 @@ test("release publish regression validator rejects bundle-before-root verificati
     .replace(bundlePublish, rootVerify)
     .replace("- name: deferred root verification", bundlePublish);
   assert.throws(() => validatePublishWorkflow(invalid), /must precede/);
+});
+
+test("release publish rejects OIDC, provenance, runner, fallback, and resume mutations", () => {
+  const workflow = readText(".github/workflows/release-publish.yml");
+  const mutations = [
+    workflow.replace("id-token: write", "id-token: none"),
+    workflow.replace("runs-on: ubuntu-latest", "runs-on: self-hosted"),
+    workflow.replace('npm publish "${{ steps.artifacts.outputs.root_tarball }}" --access public --provenance', 'npm publish "${{ steps.artifacts.outputs.root_tarball }}" --access public'),
+    workflow.replace('npm publish "${{ steps.artifacts.outputs.bundle_tarball }}" --access public --provenance', 'npm publish "${{ steps.artifacts.outputs.bundle_tarball }}" --access public'),
+    workflow.replace("      - name: Publish exact root artifact first\n", "      - name: Publish exact root artifact first\n        env:\n          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}\n"),
+    workflow.replace("          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}", "          BOOTSTRAP_DISABLED: true"),
+    workflow.replace("if: steps.registry.outputs.bundle_state == 'missing'", "if: always()"),
+    workflow.replace('--integrity "${ROOT_INTEGRITY}"', '--integrity "unchecked"'),
+    workflow.replace('test "${GITHUB_REF_TYPE}" = "tag"', 'test "${GITHUB_REF_TYPE}" = "branch"'),
+    workflow.replace("^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$", "^v.*$"),
+    workflow.replace('test "${TAG_VERSION}" = "${BUNDLE_DEPENDENCY}"', "true # mutable dependency accepted"),
+    workflow.replace("@danielblomma/dsh-cortex", "@danielblomma/dsh-cortex@latest"),
+  ];
+  for (const invalid of mutations) {
+    assert.throws(() => validatePublishWorkflow(invalid));
+  }
 });
 
 test("artifact helper fixes the bundle inventory and verifies local plus registry installs", () => {

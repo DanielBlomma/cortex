@@ -4,6 +4,11 @@
   "description": "Session-scoped Cortex context retrieval for DeepSeek Harness",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DanielBlomma/cortex.git",
+    "directory": "plugins/dsh-cortex"
+  },
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
   },

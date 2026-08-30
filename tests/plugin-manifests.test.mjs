@@ -18,6 +18,42 @@ function readText(relative) {
 
 const packageJson = readJson("package.json");
 const version = packageJson.version;
+const rootPackageName = "@danielblomma/cortex-mcp";
+const bundleRepositoryUrl = "https://github.com/DanielBlomma/cortex.git";
+const publicRoot252Integrity =
+  "sha512-S7gfyBiTcGretAPp+S8oQBg3JW1nuADfR337YTdgDq/Qe6ssN6CEBe2jRkLAFc12tdlHdAviKmMJxqlPHpqcOw==";
+
+function validateBundleReleaseMetadata(bundle, bundleLock, rootPackage) {
+  assert.equal(rootPackage.name, rootPackageName);
+  assert.deepEqual(bundle.repository, {
+    type: "git",
+    url: bundleRepositoryUrl,
+    directory: "plugins/dsh-cortex",
+  });
+  assert.equal(bundle.name, "@danielblomma/dsh-cortex");
+  assert.equal(bundle.version, rootPackage.version);
+  assert.equal(bundle.dependencies[rootPackageName], rootPackage.version);
+  assert.equal(bundleLock.name, bundle.name);
+  assert.equal(bundleLock.version, rootPackage.version);
+  assert.equal(bundleLock.packages[""].name, bundle.name);
+  assert.equal(bundleLock.packages[""].version, rootPackage.version);
+  assert.equal(
+    bundleLock.packages[""].dependencies[rootPackageName],
+    rootPackage.version,
+  );
+  const lockedRoot = bundleLock.packages[`node_modules/${rootPackageName}`];
+  assert.ok(lockedRoot, `bundle lock must contain exact ${rootPackageName} identity`);
+  assert.equal(lockedRoot.version, rootPackage.version);
+  assert.equal(
+    lockedRoot.resolved,
+    `https://registry.npmjs.org/${rootPackageName}/-/cortex-mcp-${rootPackage.version}.tgz`,
+  );
+  if (rootPackage.version === "2.5.2") {
+    assert.equal(lockedRoot.integrity, publicRoot252Integrity);
+  } else {
+    assert.match(lockedRoot.integrity, /^sha512-[A-Za-z0-9+/]+={0,2}$/);
+  }
+}
 
 test("claude and codex plugin manifests exist and share the release version", () => {
   const claude = readJson("plugins/cortex/.claude-plugin/plugin.json");
@@ -31,8 +67,7 @@ test("claude and codex plugin manifests exist and share the release version", ()
 test("DeepSeek Harness bundle pins the reviewed session-scoped runtime", () => {
   const bundle = readJson("plugins/dsh-cortex/package.json");
   const bundleLock = readJson("plugins/dsh-cortex/package-lock.json");
-  assert.equal(bundle.name, "@danielblomma/dsh-cortex");
-  assert.equal(bundle.version, version);
+  validateBundleReleaseMetadata(bundle, bundleLock, packageJson);
   assert.equal(bundle.dsh.bundle.patch, "./cordis.patch.yml");
   assert.deepEqual(bundle.engines, { node: "^22.19.0 || >=24.0.0" });
   for (const name of [
@@ -54,24 +89,51 @@ test("DeepSeek Harness bundle pins the reviewed session-scoped runtime", () => {
   ]) {
     assert.equal(bundle.dependencies[name], "0.1.1-rc.2", `${name} must use the reviewed Harness pin`);
   }
-  assert.equal(bundle.dependencies[packageJson.name], version);
-  assert.equal(bundleLock.name, bundle.name);
-  assert.equal(bundleLock.version, version);
-  assert.equal(bundleLock.packages[""].name, bundle.name);
-  assert.equal(bundleLock.packages[""].version, version);
-  assert.equal(bundleLock.packages[""].dependencies[packageJson.name], version);
-  const lockedRoot = bundleLock.packages[`node_modules/${packageJson.name}`];
-  assert.equal(lockedRoot.version, version);
-  assert.equal(
-    lockedRoot.resolved,
-    `https://registry.npmjs.org/${packageJson.name}/-/cortex-mcp-${version}.tgz`,
-  );
-  assert.match(lockedRoot.integrity, /^sha512-[A-Za-z0-9+/]+={0,2}$/);
   const patch = readText("plugins/dsh-cortex/cordis.patch.yml");
   assert.match(patch, /@danielblomma\/dsh-cortex\/provider/);
   assert.match(patch, /@danielblomma\/dsh-cortex\/tools/);
   assert.match(patch, /@danielblomma\/dsh-cortex\/skills/);
   assert.doesNotMatch(patch, /mcp-client|process\.cwd|projectRoot|project-root/);
+});
+
+test("bundle release metadata rejects public lock and repository identity mutations", () => {
+  const bundle = readJson("plugins/dsh-cortex/package.json");
+  const bundleLock = readJson("plugins/dsh-cortex/package-lock.json");
+  if (version !== "2.5.2") return;
+
+  const mutations = [
+    (candidateBundle, candidateLock) => {
+      candidateLock.packages[`node_modules/${rootPackageName}`].integrity =
+        "sha512-d78my/y0aChTO09LWpT0JfgcMKBAPOCxgzOj3bp+nuBawasFont8OJRncs6L9xevgJh/GphQd+iSoYEcz5TIFw==";
+    },
+    (candidateBundle, candidateLock) => {
+      candidateLock.packages[`node_modules/${rootPackageName}`].resolved =
+        "https://registry.npmjs.org/@danielblomma/cortex-mcp/-/cortex-mcp-2.5.1.tgz";
+    },
+    (candidateBundle, candidateLock) => {
+      candidateLock.packages[`node_modules/${rootPackageName}`].version = "2.5.1";
+    },
+    (candidateBundle, candidateLock) => {
+      candidateLock.packages["node_modules/@danielblomma/not-cortex"] =
+        candidateLock.packages[`node_modules/${rootPackageName}`];
+      delete candidateLock.packages[`node_modules/${rootPackageName}`];
+    },
+    (candidateBundle) => {
+      delete candidateBundle.repository;
+    },
+    (candidateBundle) => {
+      candidateBundle.repository.url = "https://github.com/danielblomma/cortex.git";
+    },
+  ];
+
+  for (const mutate of mutations) {
+    const candidateBundle = structuredClone(bundle);
+    const candidateLock = structuredClone(bundleLock);
+    mutate(candidateBundle, candidateLock);
+    assert.throws(() =>
+      validateBundleReleaseMetadata(candidateBundle, candidateLock, packageJson),
+    );
+  }
 });
 
 test("marketplace entry lists the cortex plugin at the release version", () => {
