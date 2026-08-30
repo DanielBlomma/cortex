@@ -1,0 +1,769 @@
+{
+  "schema_version": 1,
+  "rule_ids": [
+    "rule.accepted.v1",
+    "rule.blocked.v1",
+    "rule.every_required_binding_viable.v1",
+    "rule.every_required_review_go.v1",
+    "rule.evidence_trusted.v1",
+    "rule.required_reviews_go.v1",
+    "rule.review_ready.v1",
+    "rule.task_binding_viable.v1",
+    "rule.work_order_inputs_viable.v1"
+  ],
+  "authority_manifest": {
+    "schema_version": 1,
+    "claims": [
+      {
+        "observation_id": "obs:101378a76ff31c5c8115fb198fa8cd2bc365c505f37b93096a50aec9835b3e6e",
+        "claim_sha256": "101378a76ff31c5c8115fb198fa8cd2bc365c505f37b93096a50aec9835b3e6e"
+      },
+      {
+        "observation_id": "obs:19931d5233d8680bbe29d8cda7226744477c487e5cabe0ddf5422fe0de6d9c64",
+        "claim_sha256": "19931d5233d8680bbe29d8cda7226744477c487e5cabe0ddf5422fe0de6d9c64"
+      },
+      {
+        "observation_id": "obs:1b61ed4d3a024257b84a3e44772331c5ccfd940df2f03867e7bbbd230e879a11",
+        "claim_sha256": "1b61ed4d3a024257b84a3e44772331c5ccfd940df2f03867e7bbbd230e879a11"
+      },
+      {
+        "observation_id": "obs:222e092e50a759b28f341ca91006e9cb8dbedc2a88c5ba12367e7864daa489a5",
+        "claim_sha256": "222e092e50a759b28f341ca91006e9cb8dbedc2a88c5ba12367e7864daa489a5"
+      },
+      {
+        "observation_id": "obs:2ad413a3c87110b710a589901ba4304b320768e2f4df3b0c1b439feb2d0a0948",
+        "claim_sha256": "2ad413a3c87110b710a589901ba4304b320768e2f4df3b0c1b439feb2d0a0948"
+      },
+      {
+        "observation_id": "obs:3211dc017748472d61be1ea6a3a5319175223abf39dcd2bae98b4f04d5cd091a",
+        "claim_sha256": "3211dc017748472d61be1ea6a3a5319175223abf39dcd2bae98b4f04d5cd091a"
+      },
+      {
+        "observation_id": "obs:3e85f7545fc8a9f9ade5d1c1a6fe36b2fdfa9e9f836f66db9428395562d9db01",
+        "claim_sha256": "3e85f7545fc8a9f9ade5d1c1a6fe36b2fdfa9e9f836f66db9428395562d9db01"
+      },
+      {
+        "observation_id": "obs:44905c2d5cd280856acb90dfff078b7450933edb955e48aa53a1f21ca70107df",
+        "claim_sha256": "44905c2d5cd280856acb90dfff078b7450933edb955e48aa53a1f21ca70107df"
+      },
+      {
+        "observation_id": "obs:553b5ac13c461c9fa8a1e9cbc9083199b633c77b8d60f3a2cb98a4a0db0d934e",
+        "claim_sha256": "553b5ac13c461c9fa8a1e9cbc9083199b633c77b8d60f3a2cb98a4a0db0d934e"
+      },
+      {
+        "observation_id": "obs:683a6445bf28f6fcbe72090538c840308933455db2b2b0b79106f3e965ea2204",
+        "claim_sha256": "683a6445bf28f6fcbe72090538c840308933455db2b2b0b79106f3e965ea2204"
+      },
+      {
+        "observation_id": "obs:6f5362b5bc4dac914b4988380f3776ba9b16896795d9520702fdf20468dda962",
+        "claim_sha256": "6f5362b5bc4dac914b4988380f3776ba9b16896795d9520702fdf20468dda962"
+      },
+      {
+        "observation_id": "obs:724b0a589fa1a141700eaaeaad581a8249c5de1d8e3bbe1af5c3b1f41537bb8d",
+        "claim_sha256": "724b0a589fa1a141700eaaeaad581a8249c5de1d8e3bbe1af5c3b1f41537bb8d"
+      },
+      {
+        "observation_id": "obs:739173d784500261b40fc25d201814a3c44035afef9c9b778b57750d41fe5f7c",
+        "claim_sha256": "739173d784500261b40fc25d201814a3c44035afef9c9b778b57750d41fe5f7c"
+      },
+      {
+        "observation_id": "obs:749dff500c587d9eeb44bcb5f1b5fb8dad134764503a3bf7d8d5a0a8697770c3",
+        "claim_sha256": "749dff500c587d9eeb44bcb5f1b5fb8dad134764503a3bf7d8d5a0a8697770c3"
+      },
+      {
+        "observation_id": "obs:7cb2e0332634c56b1565de8dafdeb22fe7d9c61f14d1ab9cf618a6c24a32a6b0",
+        "claim_sha256": "7cb2e0332634c56b1565de8dafdeb22fe7d9c61f14d1ab9cf618a6c24a32a6b0"
+      },
+      {
+        "observation_id": "obs:7d4420add9eae037e0842f1fb6d9ec840afb041bf7b757c351e74c3f01eb8e0a",
+        "claim_sha256": "7d4420add9eae037e0842f1fb6d9ec840afb041bf7b757c351e74c3f01eb8e0a"
+      },
+      {
+        "observation_id": "obs:937f664c4b418d42f48ed4fb4750cbe5175f1f35155ddf4b998dcdf245f4e26b",
+        "claim_sha256": "937f664c4b418d42f48ed4fb4750cbe5175f1f35155ddf4b998dcdf245f4e26b"
+      },
+      {
+        "observation_id": "obs:c51d1c4fc1dc76951bbd56a257eec2390c7a42845538957c69b0041106ffdb76",
+        "claim_sha256": "c51d1c4fc1dc76951bbd56a257eec2390c7a42845538957c69b0041106ffdb76"
+      },
+      {
+        "observation_id": "obs:c95bbcb67bfef40ba01ddc378e638115d37cb3ee1dab1ef2b735067783401f18",
+        "claim_sha256": "c95bbcb67bfef40ba01ddc378e638115d37cb3ee1dab1ef2b735067783401f18"
+      },
+      {
+        "observation_id": "obs:d02532ff47880759b9ce6854c8fd3e212232692a9e6d9d82cb1129f755ea7799",
+        "claim_sha256": "d02532ff47880759b9ce6854c8fd3e212232692a9e6d9d82cb1129f755ea7799"
+      },
+      {
+        "observation_id": "obs:d534bdf5d796303afcecf163be6a425dd1e70e8eaa97a5dcab8a595ae7533460",
+        "claim_sha256": "d534bdf5d796303afcecf163be6a425dd1e70e8eaa97a5dcab8a595ae7533460"
+      },
+      {
+        "observation_id": "obs:d679dc5073557ddfe7784da045130d75e7b8a4b3275a69086e7d14efe02683ce",
+        "claim_sha256": "d679dc5073557ddfe7784da045130d75e7b8a4b3275a69086e7d14efe02683ce"
+      },
+      {
+        "observation_id": "obs:dfde39dcb2e0f32431d0becfa275d92a0c07b0b61fd5db4c8a9637c3dc9c3154",
+        "claim_sha256": "dfde39dcb2e0f32431d0becfa275d92a0c07b0b61fd5db4c8a9637c3dc9c3154"
+      },
+      {
+        "observation_id": "obs:f133a9875aaf9f66b0ae3909951361b0471f6161b106d51f7694ff42589d6d18",
+        "claim_sha256": "f133a9875aaf9f66b0ae3909951361b0471f6161b106d51f7694ff42589d6d18"
+      },
+      {
+        "observation_id": "obs:f38c0161ff4d5f9b0734b33ede30c4c3dcf1e8ff7c05a0dac7b8ef2394374024",
+        "claim_sha256": "f38c0161ff4d5f9b0734b33ede30c4c3dcf1e8ff7c05a0dac7b8ef2394374024"
+      },
+      {
+        "observation_id": "obs:f4215d2ffce43c707cf8972b49a7fe552a2cd1a0c56e9d018cb332173fb0f9c6",
+        "claim_sha256": "f4215d2ffce43c707cf8972b49a7fe552a2cd1a0c56e9d018cb332173fb0f9c6"
+      }
+    ],
+    "manifest_sha256": "85f6ccd86c792261e4e8217b6cb1a17b98866115ab7744990e78c4c6a64dc5ba"
+  },
+  "observations": [
+    {
+      "schema_version": 1,
+      "subject": "wo055a-sql-002",
+      "predicate": "binding_exact",
+      "object": [
+        "40732b420c0015f3fbb443011faa6b29437f0c1497e439ae291821ff7f1ad336",
+        "5c00293a2de843a571b35fbad5808f84d1f1ac74",
+        "4363f0e401e612bda286bd89042f5614d3143d60",
+        null,
+        "6e823be2a3d88e96e494e1555282c922be08e64f6cde0fe2f3e21b7cd1f9c240",
+        null
+      ],
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:00Z",
+      "authority": "artifact",
+      "source": {
+        "path": "docs/agent-control/context-packets/067-wo055a-sql-bridge-fail-closed-closure.md",
+        "sha256": "c9d87796396cd61a5b18faeabc724e7b7c379af71bacc1b02a01411a163b581a",
+        "selector": "sql-binding"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:f4215d2ffce43c707cf8972b49a7fe552a2cd1a0c56e9d018cb332173fb0f9c6",
+      "payload_sha256": "f4215d2ffce43c707cf8972b49a7fe552a2cd1a0c56e9d018cb332173fb0f9c6"
+    },
+    {
+      "schema_version": 1,
+      "subject": "wo055a-sql-002",
+      "predicate": "replay_deterministic",
+      "object": [
+        "01411a2df8c78f9a50da0acd7887a9520e53c885af125c96959ccadcbd6a32c7",
+        2,
+        62,
+        64,
+        21,
+        null,
+        "6e823be2a3d88e96e494e1555282c922be08e64f6cde0fe2f3e21b7cd1f9c240",
+        null
+      ],
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:01Z",
+      "authority": "tool",
+      "source": {
+        "path": "docs/agent-control/context-packets/067-wo055a-sql-bridge-fail-closed-closure.md",
+        "sha256": "c9d87796396cd61a5b18faeabc724e7b7c379af71bacc1b02a01411a163b581a",
+        "selector": "sql-replay"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:937f664c4b418d42f48ed4fb4750cbe5175f1f35155ddf4b998dcdf245f4e26b",
+      "payload_sha256": "937f664c4b418d42f48ed4fb4750cbe5175f1f35155ddf4b998dcdf245f4e26b"
+    },
+    {
+      "schema_version": 1,
+      "subject": "wo055a-sql-002",
+      "predicate": "distinct_semantic_owners",
+      "object": [
+        "01411a2df8c78f9a50da0acd7887a9520e53c885af125c96959ccadcbd6a32c7",
+        "6e823be2a3d88e96e494e1555282c922be08e64f6cde0fe2f3e21b7cd1f9c240",
+        "owner-v4:7be096f16d0546afc19f80ae79712863b96bfbbed73169954d3d2fd509390b32",
+        "owner-v4:f9a392621b0f2931a244adbb4a9f8e86cadce9a5e462b4d9195425128358d4c8"
+      ],
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:02Z",
+      "authority": "reviewer",
+      "source": {
+        "path": "docs/agent-control/context-packets/067-wo055a-sql-bridge-fail-closed-closure.md",
+        "sha256": "c9d87796396cd61a5b18faeabc724e7b7c379af71bacc1b02a01411a163b581a",
+        "selector": "sql-owners"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:6f5362b5bc4dac914b4988380f3776ba9b16896795d9520702fdf20468dda962",
+      "payload_sha256": "6f5362b5bc4dac914b4988380f3776ba9b16896795d9520702fdf20468dda962"
+    },
+    {
+      "schema_version": 1,
+      "subject": "wo055a-sql-002",
+      "predicate": "contamination_clear",
+      "object": [
+        "01411a2df8c78f9a50da0acd7887a9520e53c885af125c96959ccadcbd6a32c7",
+        "40732b420c0015f3fbb443011faa6b29437f0c1497e439ae291821ff7f1ad336",
+        true
+      ],
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:03Z",
+      "authority": "reviewer",
+      "source": {
+        "path": "docs/agent-control/context-packets/067-wo055a-sql-bridge-fail-closed-closure.md",
+        "sha256": "c9d87796396cd61a5b18faeabc724e7b7c379af71bacc1b02a01411a163b581a",
+        "selector": "sql-contamination"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:2ad413a3c87110b710a589901ba4304b320768e2f4df3b0c1b439feb2d0a0948",
+      "payload_sha256": "2ad413a3c87110b710a589901ba4304b320768e2f4df3b0c1b439feb2d0a0948"
+    },
+    {
+      "schema_version": 1,
+      "subject": "wo055a-typescript-002",
+      "predicate": "binding_exact",
+      "object": [
+        "06a227c99135fd8406da48660f76f989f73eb54aad49cacabcbdece5c17c04a5",
+        "972968eba6c796e00d59c455243e5f958c3ba052",
+        "541df519ff7a14fe1b4889b929764c259a01c116",
+        "f232498158bb3e2fc9299e24e21a59d97401abd5ea610bff63e1d903a44256f6",
+        "628948a48fe1cdfe234f5ef592589417bb455cc6fefb27bd7e5bb013e0dc6ab3",
+        "f2f09aec63932a12784a62b302e7082f04b47385bb00b3efafc2919928f6e6d2"
+      ],
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:04Z",
+      "authority": "artifact",
+      "source": {
+        "path": "docs/agent-control/context-packets/069-wo055a-typescript-reselection-receipt-remediation.md",
+        "sha256": "56072fb86f0368947e6fb6ca9b6de49b7a4b1c94f333a1972ec09446f94ad375",
+        "selector": "typescript-binding"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:683a6445bf28f6fcbe72090538c840308933455db2b2b0b79106f3e965ea2204",
+      "payload_sha256": "683a6445bf28f6fcbe72090538c840308933455db2b2b0b79106f3e965ea2204"
+    },
+    {
+      "schema_version": 1,
+      "subject": "wo055a-typescript-002",
+      "predicate": "replay_deterministic",
+      "object": [
+        "a57ec9170a8cb5bb3c34d105b93eb7f8f526a2bf511424ab2c6272b8e4782610",
+        1,
+        23,
+        26,
+        21,
+        0,
+        "628948a48fe1cdfe234f5ef592589417bb455cc6fefb27bd7e5bb013e0dc6ab3",
+        "f2f09aec63932a12784a62b302e7082f04b47385bb00b3efafc2919928f6e6d2"
+      ],
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:05Z",
+      "authority": "tool",
+      "source": {
+        "path": "docs/agent-control/context-packets/069-wo055a-typescript-reselection-receipt-remediation.md",
+        "sha256": "56072fb86f0368947e6fb6ca9b6de49b7a4b1c94f333a1972ec09446f94ad375",
+        "selector": "typescript-replay"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:d534bdf5d796303afcecf163be6a425dd1e70e8eaa97a5dcab8a595ae7533460",
+      "payload_sha256": "d534bdf5d796303afcecf163be6a425dd1e70e8eaa97a5dcab8a595ae7533460"
+    },
+    {
+      "schema_version": 1,
+      "subject": "wo055a-typescript-002",
+      "predicate": "distinct_semantic_owners",
+      "object": [
+        "a57ec9170a8cb5bb3c34d105b93eb7f8f526a2bf511424ab2c6272b8e4782610",
+        "628948a48fe1cdfe234f5ef592589417bb455cc6fefb27bd7e5bb013e0dc6ab3",
+        "owner-v4:afa858d77518cc8ab5fab63174a22d39c1f1a883e2c22f3e3056f543732ca619",
+        "owner-v4:cf44fee89e26fe3313dfbe1c6264367992daa48ad01931da96f570d7b2da6e0c"
+      ],
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:06Z",
+      "authority": "reviewer",
+      "source": {
+        "path": "docs/agent-control/context-packets/069-wo055a-typescript-reselection-receipt-remediation.md",
+        "sha256": "56072fb86f0368947e6fb6ca9b6de49b7a4b1c94f333a1972ec09446f94ad375",
+        "selector": "typescript-owners"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:f133a9875aaf9f66b0ae3909951361b0471f6161b106d51f7694ff42589d6d18",
+      "payload_sha256": "f133a9875aaf9f66b0ae3909951361b0471f6161b106d51f7694ff42589d6d18"
+    },
+    {
+      "schema_version": 1,
+      "subject": "wo055a-typescript-002",
+      "predicate": "contamination_clear",
+      "object": [
+        "a57ec9170a8cb5bb3c34d105b93eb7f8f526a2bf511424ab2c6272b8e4782610",
+        "06a227c99135fd8406da48660f76f989f73eb54aad49cacabcbdece5c17c04a5",
+        true
+      ],
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:07Z",
+      "authority": "reviewer",
+      "source": {
+        "path": "docs/agent-control/context-packets/069-wo055a-typescript-reselection-receipt-remediation.md",
+        "sha256": "56072fb86f0368947e6fb6ca9b6de49b7a4b1c94f333a1972ec09446f94ad375",
+        "selector": "typescript-contamination"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:1b61ed4d3a024257b84a3e44772331c5ccfd940df2f03867e7bbbd230e879a11",
+      "payload_sha256": "1b61ed4d3a024257b84a3e44772331c5ccfd940df2f03867e7bbbd230e879a11"
+    },
+    {
+      "schema_version": 1,
+      "subject": "WO-055A",
+      "predicate": "required_binding_set_exact",
+      "object": [
+        "wo055a-binding-03",
+        "wo055a-binding-04",
+        "wo055a-binding-05",
+        "wo055a-binding-06",
+        "wo055a-binding-07",
+        "wo055a-binding-08",
+        "wo055a-binding-09",
+        "wo055a-binding-10",
+        "wo055a-binding-11",
+        "wo055a-binding-12",
+        "wo055a-sql-002",
+        "wo055a-typescript-002",
+        "wo055a-vb6-binding",
+        "wo055a-vbnet-binding"
+      ],
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:08Z",
+      "authority": "manager",
+      "source": {
+        "path": "docs/agent-control/context-packets/070-maintained-analysis-state-spike.md",
+        "sha256": "fc0673eabbbed9a881bd94a8fcd701b1b6f8e2986c098023a32daea4b5d256e7",
+        "selector": "required-bindings"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:3e85f7545fc8a9f9ade5d1c1a6fe36b2fdfa9e9f836f66db9428395562d9db01",
+      "payload_sha256": "3e85f7545fc8a9f9ade5d1c1a6fe36b2fdfa9e9f836f66db9428395562d9db01"
+    },
+    {
+      "schema_version": 1,
+      "subject": "WO-055A",
+      "predicate": "receipt_schema_closed",
+      "object": false,
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:09Z",
+      "authority": "reviewer",
+      "source": {
+        "path": "docs/agent-control/context-packets/070-maintained-analysis-state-spike.md",
+        "sha256": "fc0673eabbbed9a881bd94a8fcd701b1b6f8e2986c098023a32daea4b5d256e7",
+        "selector": "open-receipt-schema"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:dfde39dcb2e0f32431d0becfa275d92a0c07b0b61fd5db4c8a9637c3dc9c3154",
+      "payload_sha256": "dfde39dcb2e0f32431d0becfa275d92a0c07b0b61fd5db4c8a9637c3dc9c3154"
+    },
+    {
+      "schema_version": 1,
+      "subject": "WO-055A",
+      "predicate": "receipt_externally_anchored",
+      "object": false,
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:10Z",
+      "authority": "reviewer",
+      "source": {
+        "path": "docs/agent-control/context-packets/070-maintained-analysis-state-spike.md",
+        "sha256": "fc0673eabbbed9a881bd94a8fcd701b1b6f8e2986c098023a32daea4b5d256e7",
+        "selector": "self-rehashed-evidence"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:44905c2d5cd280856acb90dfff078b7450933edb955e48aa53a1f21ca70107df",
+      "payload_sha256": "44905c2d5cd280856acb90dfff078b7450933edb955e48aa53a1f21ca70107df"
+    },
+    {
+      "schema_version": 1,
+      "subject": "WO-055A",
+      "predicate": "negative_probes_observed",
+      "object": true,
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:11Z",
+      "authority": "reviewer",
+      "source": {
+        "path": "docs/agent-control/context-packets/070-maintained-analysis-state-spike.md",
+        "sha256": "fc0673eabbbed9a881bd94a8fcd701b1b6f8e2986c098023a32daea4b5d256e7",
+        "selector": "physical-probes-observed"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:222e092e50a759b28f341ca91006e9cb8dbedc2a88c5ba12367e7864daa489a5",
+      "payload_sha256": "222e092e50a759b28f341ca91006e9cb8dbedc2a88c5ba12367e7864daa489a5"
+    },
+    {
+      "schema_version": 1,
+      "subject": "WO-055A",
+      "predicate": "required_review_set_exact",
+      "object": [
+        "review:packet069-contract",
+        "review:packet069-security",
+        "review:packet069-validation"
+      ],
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:12Z",
+      "authority": "manager",
+      "source": {
+        "path": "docs/agent-control/context-packets/070-maintained-analysis-state-spike.md",
+        "sha256": "fc0673eabbbed9a881bd94a8fcd701b1b6f8e2986c098023a32daea4b5d256e7",
+        "selector": "required-reviews"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:749dff500c587d9eeb44bcb5f1b5fb8dad134764503a3bf7d8d5a0a8697770c3",
+      "payload_sha256": "749dff500c587d9eeb44bcb5f1b5fb8dad134764503a3bf7d8d5a0a8697770c3"
+    },
+    {
+      "schema_version": 1,
+      "subject": "review:packet069-contract",
+      "predicate": "review_go",
+      "object": false,
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:13Z",
+      "authority": "reviewer",
+      "source": {
+        "path": "docs/agent-control/context-packets/070-maintained-analysis-state-spike.md",
+        "sha256": "fc0673eabbbed9a881bd94a8fcd701b1b6f8e2986c098023a32daea4b5d256e7",
+        "selector": "contract-no-go"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:3211dc017748472d61be1ea6a3a5319175223abf39dcd2bae98b4f04d5cd091a",
+      "payload_sha256": "3211dc017748472d61be1ea6a3a5319175223abf39dcd2bae98b4f04d5cd091a"
+    },
+    {
+      "schema_version": 1,
+      "subject": "review:packet069-security",
+      "predicate": "review_go",
+      "object": false,
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:14Z",
+      "authority": "reviewer",
+      "source": {
+        "path": "docs/agent-control/context-packets/070-maintained-analysis-state-spike.md",
+        "sha256": "fc0673eabbbed9a881bd94a8fcd701b1b6f8e2986c098023a32daea4b5d256e7",
+        "selector": "security-no-go"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:19931d5233d8680bbe29d8cda7226744477c487e5cabe0ddf5422fe0de6d9c64",
+      "payload_sha256": "19931d5233d8680bbe29d8cda7226744477c487e5cabe0ddf5422fe0de6d9c64"
+    },
+    {
+      "schema_version": 1,
+      "subject": "review:packet069-validation",
+      "predicate": "review_go",
+      "object": false,
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:15Z",
+      "authority": "reviewer",
+      "source": {
+        "path": "docs/agent-control/context-packets/070-maintained-analysis-state-spike.md",
+        "sha256": "fc0673eabbbed9a881bd94a8fcd701b1b6f8e2986c098023a32daea4b5d256e7",
+        "selector": "validation-no-go"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:7d4420add9eae037e0842f1fb6d9ec840afb041bf7b757c351e74c3f01eb8e0a",
+      "payload_sha256": "7d4420add9eae037e0842f1fb6d9ec840afb041bf7b757c351e74c3f01eb8e0a"
+    },
+    {
+      "schema_version": 1,
+      "subject": "WO-055A",
+      "predicate": "human_approval",
+      "object": false,
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:16Z",
+      "authority": "manager",
+      "source": {
+        "path": "docs/agent-control/context-packets/070-maintained-analysis-state-spike.md",
+        "sha256": "fc0673eabbbed9a881bd94a8fcd701b1b6f8e2986c098023a32daea4b5d256e7",
+        "selector": "approval-absent"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:d02532ff47880759b9ce6854c8fd3e212232692a9e6d9d82cb1129f755ea7799",
+      "payload_sha256": "d02532ff47880759b9ce6854c8fd3e212232692a9e6d9d82cb1129f755ea7799"
+    },
+    {
+      "schema_version": 1,
+      "subject": "WO-055A",
+      "predicate": "blocker_active",
+      "object": "forged_receipt_accepted",
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:17Z",
+      "authority": "reviewer",
+      "source": {
+        "path": "docs/agent-control/context-packets/070-maintained-analysis-state-spike.md",
+        "sha256": "fc0673eabbbed9a881bd94a8fcd701b1b6f8e2986c098023a32daea4b5d256e7",
+        "selector": "forged-receipts"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:101378a76ff31c5c8115fb198fa8cd2bc365c505f37b93096a50aec9835b3e6e",
+      "payload_sha256": "101378a76ff31c5c8115fb198fa8cd2bc365c505f37b93096a50aec9835b3e6e"
+    },
+    {
+      "schema_version": 1,
+      "subject": "WO-055A",
+      "predicate": "blocker_active",
+      "object": "receipt_not_observed_execution",
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:18Z",
+      "authority": "reviewer",
+      "source": {
+        "path": "docs/agent-control/context-packets/070-maintained-analysis-state-spike.md",
+        "sha256": "fc0673eabbbed9a881bd94a8fcd701b1b6f8e2986c098023a32daea4b5d256e7",
+        "selector": "preconstructed-execution"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:553b5ac13c461c9fa8a1e9cbc9083199b633c77b8d60f3a2cb98a4a0db0d934e",
+      "payload_sha256": "553b5ac13c461c9fa8a1e9cbc9083199b633c77b8d60f3a2cb98a4a0db0d934e"
+    },
+    {
+      "schema_version": 1,
+      "subject": "WO-055A",
+      "predicate": "blocker_active",
+      "object": "synthetic_negative_results",
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:19Z",
+      "authority": "reviewer",
+      "source": {
+        "path": "docs/agent-control/context-packets/070-maintained-analysis-state-spike.md",
+        "sha256": "fc0673eabbbed9a881bd94a8fcd701b1b6f8e2986c098023a32daea4b5d256e7",
+        "selector": "synthetic-results"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:7cb2e0332634c56b1565de8dafdeb22fe7d9c61f14d1ab9cf618a6c24a32a6b0",
+      "payload_sha256": "7cb2e0332634c56b1565de8dafdeb22fe7d9c61f14d1ab9cf618a6c24a32a6b0"
+    },
+    {
+      "schema_version": 1,
+      "subject": "WO-055A",
+      "predicate": "blocker_active",
+      "object": "open_receipt_schema",
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:20Z",
+      "authority": "reviewer",
+      "source": {
+        "path": "docs/agent-control/context-packets/070-maintained-analysis-state-spike.md",
+        "sha256": "fc0673eabbbed9a881bd94a8fcd701b1b6f8e2986c098023a32daea4b5d256e7",
+        "selector": "open-schema"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:c95bbcb67bfef40ba01ddc378e638115d37cb3ee1dab1ef2b735067783401f18",
+      "payload_sha256": "c95bbcb67bfef40ba01ddc378e638115d37cb3ee1dab1ef2b735067783401f18"
+    },
+    {
+      "schema_version": 1,
+      "subject": "WO-055A",
+      "predicate": "blocker_active",
+      "object": "malformed_control_hash",
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:21Z",
+      "authority": "reviewer",
+      "source": {
+        "path": "docs/agent-control/context-packets/070-maintained-analysis-state-spike.md",
+        "sha256": "fc0673eabbbed9a881bd94a8fcd701b1b6f8e2986c098023a32daea4b5d256e7",
+        "selector": "malformed-control"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:f38c0161ff4d5f9b0734b33ede30c4c3dcf1e8ff7c05a0dac7b8ef2394374024",
+      "payload_sha256": "f38c0161ff4d5f9b0734b33ede30c4c3dcf1e8ff7c05a0dac7b8ef2394374024"
+    },
+    {
+      "schema_version": 1,
+      "subject": "WO-055A",
+      "predicate": "blocker_active",
+      "object": "generator_incompatible",
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:22Z",
+      "authority": "manager",
+      "source": {
+        "path": "docs/agent-control/context-packets/070-maintained-analysis-state-spike.md",
+        "sha256": "fc0673eabbbed9a881bd94a8fcd701b1b6f8e2986c098023a32daea4b5d256e7",
+        "selector": "compatibility-false"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:739173d784500261b40fc25d201814a3c44035afef9c9b778b57750d41fe5f7c",
+      "payload_sha256": "739173d784500261b40fc25d201814a3c44035afef9c9b778b57750d41fe5f7c"
+    },
+    {
+      "schema_version": 1,
+      "subject": "WO-055A",
+      "predicate": "generator_compatible",
+      "object": false,
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:23Z",
+      "authority": "artifact",
+      "source": {
+        "path": "docs/agent-control/context-packets/070-maintained-analysis-state-spike.md",
+        "sha256": "fc0673eabbbed9a881bd94a8fcd701b1b6f8e2986c098023a32daea4b5d256e7",
+        "selector": "compatibility-record"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:c51d1c4fc1dc76951bbd56a257eec2390c7a42845538957c69b0041106ffdb76",
+      "payload_sha256": "c51d1c4fc1dc76951bbd56a257eec2390c7a42845538957c69b0041106ffdb76"
+    },
+    {
+      "schema_version": 1,
+      "subject": "WO-055A",
+      "predicate": "control_replay_digest_shape_valid",
+      "object": false,
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:24Z",
+      "authority": "artifact",
+      "source": {
+        "path": "docs/agent-control/context-packets/069-wo055a-typescript-reselection-receipt-remediation.md",
+        "sha256": "56072fb86f0368947e6fb6ca9b6de49b7a4b1c94f333a1972ec09446f94ad375",
+        "selector": "frozen-digest-shape"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [],
+      "id": "obs:d679dc5073557ddfe7784da045130d75e7b8a4b3275a69086e7d14efe02683ce",
+      "payload_sha256": "d679dc5073557ddfe7784da045130d75e7b8a4b3275a69086e7d14efe02683ce"
+    },
+    {
+      "schema_version": 1,
+      "subject": "WO-055A",
+      "predicate": "control_replay_digest_shape_valid",
+      "object": true,
+      "operation": "assert",
+      "observed_at": "2026-08-30T08:00:25Z",
+      "authority": "reviewer",
+      "source": {
+        "path": "docs/agent-control/context-packets/070-maintained-analysis-state-spike.md",
+        "sha256": "fc0673eabbbed9a881bd94a8fcd701b1b6f8e2986c098023a32daea4b5d256e7",
+        "selector": "corrected-digest-observation"
+      },
+      "scope": {
+        "repository": "cortex",
+        "work_order": "WO-055A",
+        "phase": "availability"
+      },
+      "supersedes": [
+        "obs:d679dc5073557ddfe7784da045130d75e7b8a4b3275a69086e7d14efe02683ce"
+      ],
+      "id": "obs:724b0a589fa1a141700eaaeaad581a8249c5de1d8e3bbe1af5c3b1f41537bb8d",
+      "payload_sha256": "724b0a589fa1a141700eaaeaad581a8249c5de1d8e3bbe1af5c3b1f41537bb8d"
+    }
+  ]
+}
