@@ -106,7 +106,8 @@ function installFixtureV1(target) {
 
 test("package ownership manifest explicitly covers canonical scaffold sources", () => {
   const manifest = loadCurrentOwnershipManifest(PROJECT_ROOT);
-  const previousManifest = loadOwnershipManifest(PROJECT_ROOT, 1);
+  const previousManifest = loadOwnershipManifest(PROJECT_ROOT, 2);
+  const v1Manifest = loadOwnershipManifest(PROJECT_ROOT, 1);
   const targets = new Set(
     expandManagedFiles(manifest).map((entry) => entry.target),
   );
@@ -129,13 +130,13 @@ test("package ownership manifest explicitly covers canonical scaffold sources", 
   ];
 
   assert.equal(manifest.schemaVersion, 1);
-  assert.equal(manifest.manifestVersion, 2);
+  assert.equal(manifest.manifestVersion, 3);
   assert.deepEqual(manifest.preStateBaselines, ["v2.4.1"]);
   assert.equal(targets.has(DIALECT_RUNTIME_TARGET), true);
   assert.equal(
     targets.size,
-    expandManagedFiles(previousManifest).length + 1,
-    "v2 must add exactly one managed target",
+    expandManagedFiles(previousManifest).length + 13,
+    "v3 must add exactly the maintained-analysis-state surface",
   );
   const currentScriptsRoot = manifest.managedRoots.find(
     (root) => root.source === "scripts" && root.target === ".context/scripts",
@@ -151,6 +152,33 @@ test("package ownership manifest explicitly covers canonical scaffold sources", 
   const rawV2 = JSON.parse(
     fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "ownership", "v2.json"), "utf8"),
   );
+  const rawV3 = JSON.parse(
+    fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "ownership", "v3.json"), "utf8"),
+  );
+  const v3Targets = new Set(expandManagedFiles(validateOwnershipManifest(rawV3, 3)).map((entry) => entry.target));
+  const v2Targets = new Set(expandManagedFiles(previousManifest).map((entry) => entry.target));
+  const newTargets = [...v3Targets].filter((target) => !v2Targets.has(target)).sort();
+  assert.deepEqual(newTargets, [
+    ".context/mcp/dist/core/analysis-state/engine.js",
+    ".context/mcp/dist/core/analysis-state/queries.js",
+    ".context/mcp/dist/core/analysis-state/schemas.js",
+    ".context/mcp/dist/core/analysis-state/store.js",
+    ".context/mcp/dist/core/workflow/analysis-state-adapter.js",
+    ".context/mcp/src/core/analysis-state/engine.ts",
+    ".context/mcp/src/core/analysis-state/queries.ts",
+    ".context/mcp/src/core/analysis-state/schemas.ts",
+    ".context/mcp/src/core/analysis-state/store.ts",
+    ".context/mcp/src/core/workflow/analysis-state-adapter.ts",
+    ".context/mcp/tests/analysis-state-engine.test.mjs",
+    ".context/mcp/tests/analysis-state-store.test.mjs",
+    ".context/mcp/tests/analysis-state-workflow-adapter.test.mjs",
+  ]);
+  const reconstructedV2 = structuredClone(rawV3);
+  reconstructedV2.manifestVersion = 2;
+  reconstructedV2.managedRoots[0].files = reconstructedV2.managedRoots[0].files.filter(
+    (file) => !newTargets.includes(`.context/mcp/${typeof file === "string" ? file : file.target}`),
+  );
+  assert.deepEqual(reconstructedV2, rawV2, "v3 may differ from v2 only by the 13 owned files");
   assert.deepEqual(
     rawV2.managedRoots.find((root) => root.source === "scripts/lib"),
     {
@@ -160,7 +188,7 @@ test("package ownership manifest explicitly covers canonical scaffold sources", 
     },
   );
   assert.equal(
-    expandLegacyFiles(manifest).some(
+    expandLegacyFiles(previousManifest).some(
       (entry) => entry.target === "scripts/lib/dialect-observation-contract.mjs",
     ),
     false,
@@ -188,11 +216,10 @@ test("package ownership manifest explicitly covers canonical scaffold sources", 
   );
   assert.deepEqual(
     reconstructedV1,
-    JSON.parse(
-      fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "ownership", "v1.json"), "utf8"),
-    ),
+    JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "scaffold", "ownership", "v1.json"), "utf8")),
     "v2 may differ from v1 only by its version and the runtime target",
   );
+  assert.equal(expandManagedFiles(v1Manifest).length + 1, expandManagedFiles(previousManifest).length);
   for (const file of canonicalIngestFiles) {
     assert.equal(
       targets.has(`.context/scripts/lib/ingest/${file}`),
@@ -226,7 +253,7 @@ test("package ownership manifest explicitly covers canonical scaffold sources", 
   assert.equal(packageJson.files.includes("scaffold/ownership"), true);
 });
 
-test("clean install and v1-to-v2 force upgrade install the packaged runtime fingerprint", () => {
+test("clean install and historical force upgrade install the packaged runtime fingerprint", () => {
   const cleanTarget = makeTarget("cortex-scaffold-runtime-clean-");
   const upgradeTarget = makeTarget("cortex-scaffold-runtime-upgrade-");
   const expectedBytes = fs.readFileSync(DIALECT_RUNTIME_SOURCE);
@@ -237,7 +264,7 @@ test("clean install and v1-to-v2 force upgrade install the packaged runtime fing
       fs.readFileSync(targetPath(cleanTarget, DIALECT_RUNTIME_TARGET)),
       expectedBytes,
     );
-    assert.equal(readInstalledState(cleanTarget).manifestVersion, 2);
+    assert.equal(readInstalledState(cleanTarget).manifestVersion, 3);
     assert.equal(
       readInstalledState(cleanTarget).fileHashes[DIALECT_RUNTIME_TARGET],
       expectedHash,
@@ -255,7 +282,7 @@ test("clean install and v1-to-v2 force upgrade install the packaged runtime fing
       fs.readFileSync(targetPath(upgradeTarget, DIALECT_RUNTIME_TARGET)),
       expectedBytes,
     );
-    assert.equal(readInstalledState(upgradeTarget).manifestVersion, 2);
+    assert.equal(readInstalledState(upgradeTarget).manifestVersion, 3);
     assert.equal(
       readInstalledState(upgradeTarget).fileHashes[DIALECT_RUNTIME_TARGET],
       expectedHash,
@@ -607,7 +634,7 @@ test("the hash-pinned 2.4.1 scaffold upgrades before installed state exists", ()
         "utf8",
       ),
     );
-    assert.equal(readInstalledState(target).manifestVersion, 2);
+    assert.equal(readInstalledState(target).manifestVersion, 3);
     assert.deepEqual(
       fs.readFileSync(targetPath(target, DIALECT_RUNTIME_TARGET)),
       fs.readFileSync(DIALECT_RUNTIME_SOURCE),
@@ -909,7 +936,7 @@ test("project init persists ownership and force preserves unknown and protected 
     );
     const state = readInstalledState(target);
     assert.equal(state.schemaVersion, 1);
-    assert.equal(state.manifestVersion, 2);
+    assert.equal(state.manifestVersion, 3);
     assert.equal(
       state.fileHashes[DIALECT_RUNTIME_TARGET],
       crypto.createHash("sha256").update(fs.readFileSync(DIALECT_RUNTIME_SOURCE)).digest("hex"),

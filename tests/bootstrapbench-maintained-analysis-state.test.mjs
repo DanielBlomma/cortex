@@ -6,19 +6,28 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import {
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(HERE, "..");
+const STAGE0_ENGINE_PATH = path.join(REPO_ROOT, "benchmark/bootstrapbench/maintained-analysis-state.mjs");
+const NATIVE_ENGINE_PATH = path.join(REPO_ROOT, "scaffold/mcp/dist/core/analysis-state/engine.js");
+const USE_NATIVE_ENGINE = process.env.CORTEX_ANALYSIS_ENGINE === "native";
+const stage0Engine = await import(STAGE0_ENGINE_PATH);
+const selectedEngine = USE_NATIVE_ENGINE ? await import(NATIVE_ENGINE_PATH) : stage0Engine;
+const {
   REGISTERED_RULE_IDS,
-  SOURCE_AUTHORITIES,
   bindingIdentitySha256,
   canonicalJson,
   createAuthorityManifest,
   createObservation,
-  evaluateAnalysisState,
-} from "../benchmark/bootstrapbench/maintained-analysis-state.mjs";
-
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(HERE, "..");
-const ENGINE_PATH = path.join(REPO_ROOT, "benchmark/bootstrapbench/maintained-analysis-state.mjs");
+} = selectedEngine;
+const { SOURCE_AUTHORITIES } = stage0Engine;
+const SOURCE_AUTHORITY_REGISTRY = USE_NATIVE_ENGINE
+  ? selectedEngine.createSourceAuthorityRegistry(SOURCE_AUTHORITIES)
+  : null;
+const evaluateAnalysisState = (analysisInput, authorityManifest) => USE_NATIVE_ENGINE
+  ? selectedEngine.evaluateAnalysisState(analysisInput, authorityManifest, SOURCE_AUTHORITY_REGISTRY)
+  : selectedEngine.evaluateAnalysisState(analysisInput, authorityManifest);
+const ENGINE_PATH = USE_NATIVE_ENGINE ? NATIVE_ENGINE_PATH : STAGE0_ENGINE_PATH;
 const FIXTURE_PATH = path.join(REPO_ROOT, "benchmark/bootstrapbench/fixtures/maintained-analysis-state/wo055-v1.json");
 const PLAN_PATH = "docs/superpowers/plans/2026-08-30-maintained-analysis-state.md";
 const PLAN_SHA256 = "a9a262421e12c2aa3b5f321dfd8c79d2774b568de4e4b9e00a5a58381f5b92ac";
@@ -367,7 +376,11 @@ test("shuffled orders and two fresh processes reproduce facts, proofs, changes, 
     assert.equal(canonicalJson(shuffled.changesSince(0)), baselineChanges);
   }
 
-  const program = `import fs from "node:fs"; import { evaluateAnalysisState, canonicalJson } from ${JSON.stringify(ENGINE_PATH)}; const fixture = JSON.parse(fs.readFileSync(${JSON.stringify(FIXTURE_PATH)}, "utf8")); const input = { schema_version: fixture.schema_version, rule_ids: fixture.rule_ids, observations: fixture.observations }; const state = evaluateAnalysisState(input, fixture.authority_manifest); process.stdout.write(canonicalJson({ snapshot_bytes: state.snapshotBytes, changes: state.changesSince(0), why: state.why(state.query("wo055a-sql-002", "task_binding_viable")[0].id) }));`;
+  const sourceAuthorityArgument = USE_NATIVE_ENGINE
+    ? `, createSourceAuthorityRegistry(${JSON.stringify(SOURCE_AUTHORITIES)})`
+    : "";
+  const sourceAuthorityImport = USE_NATIVE_ENGINE ? ", createSourceAuthorityRegistry" : "";
+  const program = `import fs from "node:fs"; import { evaluateAnalysisState, canonicalJson${sourceAuthorityImport} } from ${JSON.stringify(ENGINE_PATH)}; const fixture = JSON.parse(fs.readFileSync(${JSON.stringify(FIXTURE_PATH)}, "utf8")); const input = { schema_version: fixture.schema_version, rule_ids: fixture.rule_ids, observations: fixture.observations }; const state = evaluateAnalysisState(input, fixture.authority_manifest${sourceAuthorityArgument}); process.stdout.write(canonicalJson({ snapshot_bytes: state.snapshotBytes, changes: state.changesSince(0), why: state.why(state.query("wo055a-sql-002", "task_binding_viable")[0].id) }));`;
   const outputs = [1, 2].map(() => spawnSync(process.execPath, ["--input-type=module", "-e", program], { cwd: REPO_ROOT, encoding: "utf8" }));
   for (const result of outputs) assert.equal(result.status, 0, result.stderr);
   assert.equal(outputs[0].stdout, outputs[1].stdout);

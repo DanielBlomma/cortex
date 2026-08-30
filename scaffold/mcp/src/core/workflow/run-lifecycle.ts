@@ -14,6 +14,10 @@ import {
   type StageStatus,
   type WorkflowDefinition,
 } from "./schemas.js";
+import {
+  assertWorkflowAnalysisAgreement,
+  type WorkflowAnalysisGate,
+} from "./analysis-state-adapter.js";
 
 /**
  * Lifecycle helpers for one workflow run. The harness composes envelopes
@@ -87,6 +91,8 @@ export type AdvanceStageOptions = {
   validatorsPassed?: string[];
   /** Process override; required when validators_passed doesn't cover stage.validators. */
   override?: StageOverride;
+  /** Optional, explicit maintained-state gate. Absent keeps legacy behavior exact. */
+  analysisGate?: WorkflowAnalysisGate;
   now?: () => Date;
 };
 
@@ -166,14 +172,6 @@ export function advanceStage(options: AdvanceStageOptions): RunState {
       : {}),
     written_at: options.frontmatter.written_at ?? completedAt,
   });
-  writeStageArtifact(
-    options.cwd,
-    options.taskId,
-    options.artifactName,
-    frontmatter,
-    options.body,
-  );
-
   const nextStage = workflow.stages[stageIndex + 1] ?? null;
 
   const updatedStages: StageRecord[] = state.stages.map((record) => {
@@ -207,6 +205,16 @@ export function advanceStage(options: AdvanceStageOptions): RunState {
   };
 
   const validated = runStateSchema.parse(next);
+  // Check the proposed outcome before writing either artifact or state so a
+  // disagreement leaves the existing workflow bytes untouched.
+  assertWorkflowAnalysisAgreement(validated.outcome, options.analysisGate);
+  writeStageArtifact(
+    options.cwd,
+    options.taskId,
+    options.artifactName,
+    frontmatter,
+    options.body,
+  );
   writeRunState(options.cwd, validated);
   return validated;
 }
