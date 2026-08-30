@@ -25,9 +25,9 @@ const REPO_ROOT = path.resolve(HERE, "../..");
 const BRIDGE_MODULE_PATH = fileURLToPath(import.meta.url);
 
 export const DEFAULT_STAGE1_PATHS = Object.freeze({
-  frozen_input: path.join(REPO_ROOT, "benchmark/bootstrapbench/results/wo047-two-pass-stage1/frozen-fixture-v1.json"),
-  retrieval_packets: path.join(REPO_ROOT, "benchmark/bootstrapbench/results/wo047-two-pass-stage1/retrieval-packets-v1.json"),
-  offline_acceptance: path.join(REPO_ROOT, "benchmark/bootstrapbench/results/wo047-two-pass-stage1/offline-score-v1.json"),
+  frozen_input: path.join(REPO_ROOT, "benchmark/bootstrapbench/fixtures/wo047-two-pass-stage1/frozen-fixture-v1.json"),
+  retrieval_packets: path.join(REPO_ROOT, "benchmark/bootstrapbench/fixtures/wo047-two-pass-stage1/retrieval-packets-v1.json"),
+  offline_acceptance: path.join(REPO_ROOT, "benchmark/bootstrapbench/fixtures/wo047-two-pass-stage1/offline-score-v1.json"),
   retrieval_contract: path.join(REPO_ROOT, "benchmark/bootstrapbench/wo047-two-pass-contract-v1.json"),
   renderer_module: path.join(REPO_ROOT, "benchmark/bootstrapbench/wo047-two-pass-subsystem.mjs")
 });
@@ -49,7 +49,7 @@ export const FROZEN_STAGE1_IDENTITIES = Object.freeze({
     payload_sha256: "7963d340a07c817c1d41fcd0b860ebdb0afe97a1271fb6e2ea7e0f46eed50abf"
   }),
   renderer_module: Object.freeze({
-    file_sha256: "6970be751dc0afe307fcd5add6e2dced465d12257101d45d63bce6d7c92ae980",
+    file_sha256: "e5f315a2def57d9793e12e60aecb8b05c5b1c0faecf8982b8732d495ed453847",
     export_name: "renderUntrustedRetrievalPacket",
     function_source_sha256: "0f803cc04d3dc469e800545621ba326484515bd539ed6d20a651ccfb090f6a2d",
     function_source_utf8_bytes: 10483

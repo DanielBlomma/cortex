@@ -32,6 +32,14 @@ function decodeFrame(frame) {
   return JSON.parse(Buffer.from(lines[6], "base64").toString("utf8"));
 }
 
+test("default Stage 1 inputs are repository-tracked fixture paths", () => {
+  for (const role of ["frozen_input", "retrieval_packets", "offline_acceptance"]) {
+    const filePath = DEFAULT_STAGE1_PATHS[role];
+    assert.match(filePath.split(path.sep).join("/"), /benchmark\/bootstrapbench\/fixtures\/wo047-two-pass-stage1\/[^/]+\.json$/u);
+    assert.equal(fs.existsSync(filePath), true, role);
+  }
+});
+
 test("bridge maps the five immutable packets to five bounded treatment frames and no control frame", () => {
   const before = snapshotStage1();
   const first = buildStage2Bridge();

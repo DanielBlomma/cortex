@@ -18,6 +18,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../..");
 export const DEFAULT_CONTRACT_PATH = path.join(HERE, "wo047-two-pass-contract-v1.json");
 export const EXPECTED_CONTRACT_FILE_SHA256 = "bc79202564c1545e20a8fa9725f48c5d181e291958dc80381e43f4344d60e172";
+const LEGACY_FROZEN_FIXTURE_PATH = "benchmark/bootstrapbench/results/wo047-two-pass-stage1/frozen-fixture-v1.json";
+const TRACKED_FROZEN_FIXTURE_PATH = "benchmark/bootstrapbench/fixtures/wo047-two-pass-stage1/frozen-fixture-v1.json";
+export const DEFAULT_FROZEN_FIXTURE_PATH = path.resolve(REPO_ROOT, TRACKED_FROZEN_FIXTURE_PATH);
 
 const FROZEN_PARAMETERS = Object.freeze({
   definition_limit: 12,
@@ -149,6 +152,9 @@ function readJsonl(filePath) {
 }
 
 function resolveRepoPath(candidate) {
+  if (!path.isAbsolute(candidate) && candidate === LEGACY_FROZEN_FIXTURE_PATH) {
+    return path.resolve(REPO_ROOT, TRACKED_FROZEN_FIXTURE_PATH);
+  }
   return path.isAbsolute(candidate) ? candidate : path.resolve(REPO_ROOT, candidate);
 }
 

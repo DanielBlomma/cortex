@@ -42,7 +42,7 @@ export const FROZEN_WO048_IDENTITIES = Object.freeze({
   }),
   retrieval_contract: Object.freeze({ file_sha256: EXPECTED_CONTRACT_FILE_SHA256 }),
   wo047_core: Object.freeze({
-    file_sha256: "6970be751dc0afe307fcd5add6e2dced465d12257101d45d63bce6d7c92ae980",
+    file_sha256: "e5f315a2def57d9793e12e60aecb8b05c5b1c0faecf8982b8732d495ed453847",
     retrieve_export: "retrieveTask",
     retrieve_function_source_sha256: "4b5c379e1de3300859d903516be2c3a4783619cd359e99f7a760a8fd4749935d",
     retrieve_function_source_utf8_bytes: 3222,
