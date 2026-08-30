@@ -6,6 +6,23 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-30 — WO-058 Stage 2A CLI reader authorized
+
+- The user's “go on” authorizes the next ordered maintained-state gate. Packet
+  072 assigns only four explicitly invoked CLI read operations. MCP exposure,
+  an authority/observation writer, generated Current State prose, dogfood
+  mutation, and WO-055 remain stopped.
+- The Stage 2 plan had two ambiguities that may not cross the production trust
+  boundary: a reader cannot self-derive the authority registry from the log it
+  is validating, and a lowercase storage task ID cannot be assumed to equal an
+  analysis subject. WO-058 therefore requires a separate contained and
+  hash-bound `analysis-authority.json` with an exact `primary_subject`, then
+  reuses the accepted Stage 1 replay path without writes or recovery.
+- WO-058 is assigned on `feature/wo058-analysis-state-cli` in
+  `/Users/danielnilsson/GIT/cortex-wo058-analysis-state-cli`. Per the context
+  window rule, implementation begins in a fresh Packet-072-only session and
+  receives one combined CLI/Contract/Security/Validation review.
+
 ## 2026-08-30 — WO-057 maintained-state Stage 1 accepted
 
 - WO-057 is accepted at feature commit `180b122` and integrated into the
