@@ -25,6 +25,20 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
   multiple supports, contradictions, and bounded `why`/`why_not`/changes.
   One combined Contract/Validation review is required. Production persistence,
   CLI/MCP, dependencies, and WO-055 resumption require later decisions.
+- WO-056 Stage 0 is accepted at feature commit `667fb56`. The frozen fixture
+  derives exactly the SQL-002 and TypeScript-002 task bindings while retaining
+  six blockers and deriving no whole-WO readiness or acceptance. Focused tests
+  pass 19/19, including 100 shuffled orders and two fresh processes; the one
+  combined Contract/Validation reviewer passed 15/15 independent adversarial
+  probes and returned GO with zero findings. The proportional suite passes
+  90/98; the exact eight failures are the pre-existing missing WO-047 result
+  fixtures and no WO-056 or other proportional test fails.
+- Acceptance closes only the benchmark proof. The evaluator maintains the
+  consequences of observations admitted through its separately supplied,
+  claim-bound authority manifest; it does not prove source content from a path
+  and hash alone. A production ingestion adapter, persistence, CLI/MCP surface,
+  WO-055 resumption, and any Stage 1 work remain unapproved pending an explicit
+  product decision.
 
 ## 2026-08-29 — Packet 068 TypeScript reselection authorized
 
