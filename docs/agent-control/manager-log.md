@@ -8,6 +8,18 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
 ## 2026-08-30 — WO-055 receipt loop stopped; maintained-state Stage 0 assigned
 
+- After Stage 0 acceptance, the user explicitly instructed “fixa och gå
+  vidare”. WO-057 therefore owns one ordered production-boundary work order:
+  first replace the accidental dependency on ignored local WO-047 results with
+  byte-identical tracked fixtures and prove the proportional gate at 98/98;
+  only then implement local maintained-state persistence and a default-off
+  workflow adapter. Packet 071 authorizes Stage 1, not Stage 2 or WO-055.
+- WO-057 receives one combined Core/Contract/Security/Validation review after
+  both phases. Fixture repair does not create another review panel. Production
+  work must retain Stage 0 semantics, claim-bound observation admission,
+  accepted filesystem containment, disabled-path compatibility, and zero new
+  network/model/dependency authority.
+
 - Packet 069's physical race/link/drift helpers ran, but Contract, Security,
   and Validation reviews all returned NO-GO. The final validator accepted
   canonically rehashed forged request/denial/negative/runtime evidence; the
