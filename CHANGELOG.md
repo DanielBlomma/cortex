@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.6.0 — 2026-08-30
+
+### Added
+
+- Added the opt-in `@danielblomma/dsh-cortex` package for the pinned DeepSeek
+  Harness `0.1.1-rc.2` release. It exposes the four explicit, agent-scoped
+  `cortex_search`, `cortex_related`, `cortex_impact`, and `cortex_rules` tools
+  plus five synchronized canonical Cortex behavior skills.
+- Bound every invocation to its owning agent workspace and the package-owned
+  local Cortex CLI. Cancellation, timeout, malformed output, and output-size
+  handling are bounded; installing the bundle does not initialize, update, or
+  watch a repository.
+
+### Install and remove
+
+- Add Cortex to a named Harness profile with
+  `dsh plugin --profile web add @danielblomma/dsh-cortex` and remove it with
+  `dsh plugin --profile web remove @danielblomma/dsh-cortex`.
+- Retrieval remains explicit and user-controlled. Proactive V2 retrieval is
+  not included in 2.6.0 and remains planned/experimental.
+
 ## 2.5.1 — 2026-08-20
 
 ### Changed

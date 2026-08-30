@@ -98,15 +98,27 @@ Project configuration and rules are preserved. See
 The normal Cortex workflow uses the CLI. If a client explicitly requires MCP,
 run `cortex connect`.
 
-## DeepSeek Harness integration (planned)
+## DeepSeek Harness integration
 
-An installable Cortex integration for DeepSeek Harness is planned, but is not
-available yet. Stage 0 verified the upstream APIs and found that the official
-MCP bridge cannot safely isolate concurrent Web workspaces. The selected V1
-candidate instead binds a native Cortex provider and its tools to each Harness
-agent workspace. Local implementation and validation are complete; independent
-final acceptance and explicit release authorization are still pending. See the
-[V1-to-V2 integration plan](docs/superpowers/plans/2026-08-25-deepseek-harness-integration.md).
+Cortex supports DeepSeek Harness through the V1 explicit tools and skills
+integration. The initially supported Harness version is `0.1.1-rc.2`. Install
+the bundle into a named profile with:
+
+```bash
+dsh plugin --profile web add @danielblomma/dsh-cortex
+```
+
+The bundle provides four agent-scoped tools (`cortex_search`,
+`cortex_related`, `cortex_impact`, and `cortex_rules`) and five Cortex behavior
+skills (`change-impact`, `context-review`, `pattern-review`, `repo-research`,
+and `using-cortex`). Retrieval is local, repository-scoped, explicit, and
+user-controlled. The integration does not automatically initialize, update,
+or watch a repository.
+
+V2 proactive/assistive retrieval remains planned and experimental; it is not
+available in Cortex 2.6.0. See the
+[V1-to-V2 integration plan](docs/superpowers/plans/2026-08-25-deepseek-harness-integration.md)
+for details.
 
 ## Links
 

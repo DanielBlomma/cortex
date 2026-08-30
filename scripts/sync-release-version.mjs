@@ -4,9 +4,34 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  npmIntegrityForFile,
+  readPackedManifest,
+  registryTarballUrl,
+} from "./release-artifacts.mjs";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
-const checkMode = process.argv.includes("--check");
+
+function parseArgs(argv) {
+  let checkMode = false;
+  let rootTarball;
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === "--check") {
+      checkMode = true;
+      continue;
+    }
+    if (arg === "--root-tarball") {
+      rootTarball = argv[index + 1];
+      if (!rootTarball) throw new Error("--root-tarball requires a path");
+      index += 1;
+      continue;
+    }
+    throw new Error(`Unknown option: ${arg}`);
+  }
+  return { checkMode, rootTarball };
+}
 
 function readJson(relativePath) {
   const absolutePath = path.join(repoRoot, relativePath);
@@ -67,6 +92,61 @@ function syncDshCortexPackage(pluginPackage, version, packageName) {
   return next;
 }
 
+export function syncDshCortexLock(
+  packageLock,
+  version,
+  bundleName,
+  rootPackage,
+  rootArtifact,
+) {
+  const next = structuredClone(packageLock);
+  const rootPackageName = rootPackage.name;
+  const installedPath = `node_modules/${rootPackageName}`;
+  const lockRoot = next.packages?.[""];
+  const installedRoot = next.packages?.[installedPath];
+  if (!lockRoot || !installedRoot) {
+    throw new Error(
+      `Invalid plugins/dsh-cortex/package-lock.json: missing root or ${installedPath}`,
+    );
+  }
+  if (!lockRoot.dependencies || typeof lockRoot.dependencies !== "object") {
+    throw new Error(
+      "Invalid plugins/dsh-cortex/package-lock.json: missing root dependencies",
+    );
+  }
+  if (!Object.hasOwn(lockRoot.dependencies, rootPackageName)) {
+    throw new Error(
+      `plugins/dsh-cortex/package-lock.json is missing ${rootPackageName}`,
+    );
+  }
+  if (!rootArtifact && installedRoot.version !== version) {
+    throw new Error(
+      `A --root-tarball for ${rootPackageName}@${version} is required to replace the locked artifact integrity`,
+    );
+  }
+  if (
+    !rootArtifact &&
+    !/^sha512-[A-Za-z0-9+/]+={0,2}$/.test(installedRoot.integrity ?? "")
+  ) {
+    throw new Error(
+      `Invalid plugins/dsh-cortex/package-lock.json integrity for ${rootPackageName}`,
+    );
+  }
+
+  next.name = bundleName;
+  next.version = version;
+  lockRoot.name = bundleName;
+  lockRoot.version = version;
+  lockRoot.dependencies[rootPackageName] = version;
+  installedRoot.version = version;
+  installedRoot.resolved = registryTarballUrl(rootPackageName, version);
+  installedRoot.integrity = rootArtifact?.integrity ?? installedRoot.integrity;
+  installedRoot.license = rootPackage.license;
+  installedRoot.bin = structuredClone(rootPackage.bin);
+  installedRoot.engines = structuredClone(rootPackage.engines);
+  return next;
+}
+
 function syncMarketplace(marketplace, version) {
   const next = structuredClone(marketplace);
   if (!Array.isArray(next.plugins)) {
@@ -94,6 +174,7 @@ function syncMcpRegistrySubmission(submission, nodeEngine, packageName) {
 
 function syncPackageLock(packageLock, version, packageName) {
   const next = structuredClone(packageLock);
+  next.name = packageName;
   next.version = version;
   if (
     !next.packages ||
@@ -102,10 +183,8 @@ function syncPackageLock(packageLock, version, packageName) {
   ) {
     throw new Error("Invalid package-lock.json: missing root package entry");
   }
+  next.packages[""].name = packageName;
   next.packages[""].version = version;
-  if (next.packages[""].name && next.packages[""].name !== packageName) {
-    throw new Error("package-lock.json root package name does not match package.json");
-  }
   return next;
 }
 
@@ -114,6 +193,7 @@ function isEqualJson(a, b) {
 }
 
 function main() {
+  const { checkMode, rootTarball } = parseArgs(process.argv.slice(2));
   const packageJson = readJson("package.json");
   const version = String(packageJson.version ?? "").trim();
   const packageName = String(packageJson.name ?? "").trim();
@@ -127,6 +207,27 @@ function main() {
   }
   if (!nodeEngine) {
     throw new Error("Missing package.json engines.node");
+  }
+
+  let rootArtifact = null;
+  if (rootTarball) {
+    const absoluteTarball = path.resolve(rootTarball);
+    const packedManifest = readPackedManifest(absoluteTarball);
+    if (packedManifest.name !== packageName || packedManifest.version !== version) {
+      throw new Error(
+        `Root tarball must contain ${packageName}@${version}, got ${String(packedManifest.name)}@${String(packedManifest.version)}`,
+      );
+    }
+    rootArtifact = {
+      path: absoluteTarball,
+      integrity: npmIntegrityForFile(absoluteTarball),
+    };
+  }
+
+  const dshPackage = readJson("plugins/dsh-cortex/package.json");
+  const dshPackageName = String(dshPackage.name ?? "").trim();
+  if (!dshPackageName) {
+    throw new Error("Missing plugins/dsh-cortex/package.json name");
   }
 
   const syncPlan = [
@@ -162,30 +263,37 @@ function main() {
       transform: (value) => syncDshCortexPackage(value, version, packageName)
     },
     {
+      path: "plugins/dsh-cortex/package-lock.json",
+      required: true,
+      transform: (value) =>
+        syncDshCortexLock(
+          value,
+          version,
+          dshPackageName,
+          packageJson,
+          rootArtifact,
+        )
+    },
+    {
       path: ".claude-plugin/marketplace.json",
       required: false,
       transform: (value) => syncMarketplace(value, version)
     }
   ];
 
-  const driftedFiles = [];
-  const updatedFiles = [];
-
+  const evaluatedPlan = [];
   for (const item of syncPlan) {
     const current = item.required ? readJson(item.path) : readJsonIfExists(item.path);
     if (current === null) {
       continue;
     }
     const next = item.transform(current);
-    if (!isEqualJson(current, next)) {
-      if (checkMode) {
-        driftedFiles.push(item.path);
-      } else {
-        writeJson(item.path, next);
-        updatedFiles.push(item.path);
-      }
-    }
+    evaluatedPlan.push({ ...item, current, next });
   }
+
+  const driftedFiles = evaluatedPlan
+    .filter(({ current, next }) => !isEqualJson(current, next))
+    .map(({ path: itemPath }) => itemPath);
 
   if (checkMode) {
     if (driftedFiles.length > 0) {
@@ -197,6 +305,11 @@ function main() {
     return;
   }
 
+  for (const item of evaluatedPlan) {
+    if (!isEqualJson(item.current, item.next)) writeJson(item.path, item.next);
+  }
+  const updatedFiles = driftedFiles;
+
   if (updatedFiles.length > 0) {
     console.log(`[release] synchronized version ${version} in: ${updatedFiles.join(", ")}`);
   } else {
@@ -204,4 +317,6 @@ function main() {
   }
 }
 
-main();
+const invokedAsScript = process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (invokedAsScript) main();
