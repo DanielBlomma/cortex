@@ -46,7 +46,7 @@ export const SOURCE_AUTHORITIES = Object.freeze({
     authorities: Object.freeze(["artifact", "manager", "reviewer", "tool"]),
   }),
   "docs/superpowers/plans/2026-08-30-maintained-analysis-state.md": Object.freeze({
-    sha256: "a9a262421e12c2aa3b5f321dfd8c79d2774b568de4e4b9e00a5a58381f5b92ac",
+    sha256: "bcc4d4e1bbde3381be1c0f3cb955445f26e5d3ebfdbbc22dafdccb8c165cad31",
     authorities: Object.freeze(["test"]),
   }),
 });

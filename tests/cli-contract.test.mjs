@@ -103,6 +103,7 @@ test("CLI help inventories the public top-level command surface", () => {
     "hooks",
     "telemetry",
     "stage",
+    "workflow",
     "mcp",
     "version",
     "help",

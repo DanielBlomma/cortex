@@ -18,6 +18,7 @@ import {
 import { runRunCommand } from "./run-command.mjs";
 import { runStageCommandShim } from "./stage-command.mjs";
 import { runTelemetryCommand } from "./telemetry-command.mjs";
+import { runWorkflowCommandShim } from "./workflow-command.mjs";
 
 const COMMAND_HANDLERS = new Map([
   ["init", runInitCommand],
@@ -30,6 +31,7 @@ const COMMAND_HANDLERS = new Map([
   ["enterprise", runEnterpriseCommand],
   ["run", runRunCommand],
   ["stage", runStageCommandShim],
+  ["workflow", runWorkflowCommandShim],
 ]);
 
 export async function runCli(argv = process.argv.slice(2)) {

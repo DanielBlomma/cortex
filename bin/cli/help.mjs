@@ -74,6 +74,10 @@ export function printHelp() {
   console.log(helpRow("stage envelope --task-id <id> [--stage <name>]", "Compose stage prompt envelope"));
   console.log(helpRow("stage advance --task-id <id> --stage <name> --body-file <path>", "Write artifact, advance run"));
   console.log(helpRow("stage run --task-id <id> -- <command>", "Exec a command with CORTEX_ACTIVE_TASK_ID set"));
+  console.log(helpRow("workflow state <task-id> [--json]", "Read opt-in maintained analysis state"));
+  console.log(helpRow("workflow why <task-id> <fact-id> [--json]", "Explain one active analysis fact"));
+  console.log(helpRow("workflow why-not <task-id> <predicate> [--json]", "Explain a missing fact for the bound subject"));
+  console.log(helpRow("workflow changes <task-id> --since <epoch> [--json]", "Show maintained-state changes"));
 
   console.log(helpSection("MISC"));
   console.log(helpRow("mcp", "Run the MCP stdio server for the current project"));
