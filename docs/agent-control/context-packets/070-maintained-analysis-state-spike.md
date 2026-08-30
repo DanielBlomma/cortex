@@ -71,8 +71,18 @@ telemetry, solution, gold, treatment, recurrence, score, or reveal access.
 - Accepted ingest: 2 documents, 62 chunks, 64 relations, 21 graph inputs.
 - Index SHA-256
   `6e823be2a3d88e96e494e1555282c922be08e64f6cde0fe2f3e21b7cd1f9c240`.
-- Two distinct semantic owners and zero selected collisions are established by
-  Packet 067. SQL-002 remains a viable task binding.
+- Frozen non-private selection record SHA-256
+  `7360aebb9743de74c59b794ae69142a9c1dc25300ea632a805c54b392635ea26`.
+- Semantic owners
+  `owner-v4:7be096f16d0546afc19f80ae79712863b96bfbbed73169954d3d2fd509390b32`
+  at
+  `location-v3:7fa2097013445c98aae348c4eb7a5035627a551b862970767155ec1d4e4c8a51`
+  and
+  `owner-v4:f9a392621b0f2931a244adbb4a9f8e86cadce9a5e462b4d9195425128358d4c8`
+  at
+  `location-v3:c2471b68d8e80e6bfe432dcf2cc98534245b60d8fa86bf2ae48af73da19dbc8a`.
+- Two distinct semantic owners and zero selected collisions are established.
+  SQL-002 remains a viable task binding.
 
 ### TypeScript-002
 
@@ -129,6 +139,29 @@ schemas exactly. The spike may use plain JavaScript and Node built-ins only.
 - Identical logical inputs produce byte-identical output regardless of input
   order or process. Wall-clock generation time is excluded from hashed state.
 - No arbitrary rule parser or user-supplied executable rule.
+
+### Stage 0 observation-admission boundary
+
+The evaluator maintains consequences of admitted observations; it does not
+claim that a path/hash alone proves what a source says. Stage 0 therefore uses
+a separate closed authority manifest as trusted benchmark input:
+
+- every admissible assertion/retraction is bound by exact canonical claim
+  digest to observation ID, predicate, tuple/object, operation, source path,
+  exact source SHA-256, selector, authority, and scope;
+- the evaluator receives the manifest separately from the observation list and
+  rejects observations absent from it or differing in any bound field;
+- the manifest has a canonical SHA-256 frozen by the focused test and reported
+  for review; changing a claim and rehashing only the observation must fail;
+- the manifest may cite only this packet, the accepted plan, Packets 067-069,
+  or the exact non-private SQL selection record named above;
+- authority/predicate policy remains code-owned and rejects derived-only
+  predicates as base observations; and
+- a future production version requires a separately reviewed trusted ingestion
+  adapter. Stage 0 does not generalize the fixture manifest into product trust.
+
+The reviewer verifies manifest claims against the named sources. The manifest
+is the benchmark trust boundary, not self-attesting receipt evidence.
 
 ## Minimum Rule Set
 
