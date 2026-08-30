@@ -6,6 +6,24 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-30 — WO-059 default-off MCP read exposure authorized
+
+- The user's “go on” after WO-058 acceptance authorizes the next ordered gate:
+  default-off MCP exposure of the already accepted read contract. Packet 073
+  assigns exactly four `context.analysis_*` tools and exact opt-in
+  `CORTEX_MAINTAINED_ANALYSIS_MCP=1`.
+- Community mode without the exact flag must have the byte/structure-identical
+  accepted tool inventory. Enabled tools return the same schema-1,
+  `maintained-analysis-cli-v1` envelopes as CLI through one shared query runner
+  and must convert framework/input/domain errors to the closed contract.
+- WO-059 is assigned on `feature/wo059-maintained-analysis-mcp` in
+  `/Users/danielnilsson/GIT/cortex-wo059-maintained-analysis-mcp`. Per the
+  context-window rule, implementation starts in a fresh Packet-073-only
+  session and receives one combined MCP/Contract/Security/Validation review.
+- Writers, dogfood, generated Current State/manager/handoff prose, enterprise
+  Harness changes, new dependencies, model/network authority, and WO-055 remain
+  stopped.
+
 ## 2026-08-30 — WO-058 Stage 2A CLI reader accepted
 
 - WO-058 is accepted at feature commit `e4d47c4` and integrated into the
