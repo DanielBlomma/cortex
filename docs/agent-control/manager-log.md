@@ -6,6 +6,28 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-30 — WO-057 maintained-state Stage 1 accepted
+
+- WO-057 is accepted at feature commit `180b122` and integrated into the
+  control branch as Phase A `609639b` plus Stage 1 `9d9df80`. The three
+  canonical WO-047 artifacts are now byte-exact tracked fixtures; the clean
+  proportional selection passes 99/99, including its new hermetic-path
+  assertion.
+- The native default-off capability preserves the accepted evaluator semantics
+  at oracle/native 19/19 each and persists only the four Packet 071 files under
+  `.agents/<task-id>/analysis/`. Append, replay, manifest-last publication,
+  containment, exited-writer recovery, authority/ruleset drift, tamper,
+  contradiction, and disabled-path compatibility fail closed as specified.
+- Final gates pass: store 8/8, MCP 607/607 with zero skips, root 81/81 +
+  400/400, ownership 17/17, TypeScript build, and the 446-entry stable package
+  inventory. One combined Core/Contract/Security/Validation review returned
+  GO. Cortex is updated at 1,780/1,780 semantic entities.
+- The mechanical production evaluator retains a bounded `@ts-nocheck` risk;
+  schemas and consumers remain typed and the shared 19-case conformance suite
+  guards semantic drift. No CLI/MCP operation, product ingestion, dependency,
+  model/network authority, private WO-055 data, Stage 2 work, or WO-055 resume
+  was authorized. Both remain stopped pending a new explicit decision.
+
 ## 2026-08-30 — WO-055 receipt loop stopped; maintained-state Stage 0 assigned
 
 - After Stage 0 acceptance, the user explicitly instructed “fixa och gå
