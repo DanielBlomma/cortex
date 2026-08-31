@@ -6,6 +6,25 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-31 — WO-062 Git-anchored initial provisioning authorized
+
+- WO-061 is accepted at feature `42fc33e`, integrated as `0f71d0c`, and
+  recorded at control `4fa2ec6`. The internal Current State contract is now
+  frozen, but no trustworthy generation 1 can yet be created by production.
+- The user's “go on” and the canonical auto-advance rule authorize the next
+  prerequisite gate, not dogfood. Packet 076 assigns one internal provisioner
+  whose sole trust root is a closed seed and complete evidence set tracked and
+  unchanged at one exact Git HEAD.
+- The candidate must be built and trusted-read in a private same-filesystem
+  staging root before one atomic task-directory rename. Caller observations,
+  policy, manifests, hashes, prose, output paths, and recovery policy are not
+  accepted.
+- WO-062 is assigned on
+  `feature/wo062-maintained-analysis-bootstrap` in
+  `/Users/danielnilsson/GIT/cortex-wo062-maintained-analysis-bootstrap`.
+  Public writing/rendering, manager/handoff replacement, workflow
+  auto-emission, dogfood, and WO-055 remain stopped.
+
 ## 2026-08-31 — WO-061 canonical Current State projection accepted
 
 - WO-061 is accepted at feature commit `42fc33e` and integrated into the
