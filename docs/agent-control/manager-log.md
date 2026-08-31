@@ -6,6 +6,22 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-31 — WO-060 trusted append transaction authorized
+
+- WO-059 is accepted at feature `4235a36` and integrated as `9c4aa5e`. Exact
+  default-off registration, CLI/MCP envelope parity, sanitized SDK failures,
+  independent authority, and read neutrality passed the full acceptance gate.
+- The user's “go on” authorizes the next ordered gate, not dogfood. Packet 074
+  assigns an internal CAS-bound single-observation append and explicit recovery
+  transaction over an already provisioned trusted state.
+- The writer must preserve the trusted primary subject and source-authority
+  registry, rotate only a derived authority manifest, and make every mixed
+  authority/store crash state fail closed until explicit writer recovery.
+- WO-060 is assigned on `feature/wo060-maintained-analysis-writer` in
+  `/Users/danielnilsson/GIT/cortex-wo060-maintained-analysis-writer`. CLI/MCP
+  writing, bootstrap authority, automatic workflow emission, dogfood,
+  generated Current State/manager/handoff prose, and WO-055 remain stopped.
+
 ## 2026-08-30 — WO-059 default-off MCP read exposure authorized
 
 - The user's “go on” after WO-058 acceptance authorizes the next ordered gate:
