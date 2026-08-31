@@ -14,13 +14,13 @@ const PREVIOUS_RELEASE_COMMIT = "736becf34d929ea0bef88adbe476a584a1f081e9";
 const PREVIOUS_RELEASE_SHA1 = "995ddb990eedf26f833be5f511a2cf45b9671d6a";
 const PREVIOUS_RELEASE_INTEGRITY =
   "sha512-lRt7yCLMp+yGNOnya60rlZog6qEDjScbz6TTk4k6l6JoWQzm+gV6umTfHaYs5SjoBqYia9EERHcxVLUeYANdlQ==";
-const EXPECTED_ENTRY_COUNT = 461;
-const EXPECTED_MODE_COUNTS = new Map([[0o644, 440], [0o755, 21]]);
-const EXPECTED_INVENTORY_SHA256 = "764e5eeb0e57e6df6e0ad70cc513c6b20e8d4b1b99b342af989921d408bb790e";
+const EXPECTED_ENTRY_COUNT = 465;
+const EXPECTED_MODE_COUNTS = new Map([[0o644, 444], [0o755, 21]]);
+const EXPECTED_INVENTORY_SHA256 = "b57403ef4d5f9e59946eaf130e361f55114e378ab4da3a4918cf1c1207811a1e";
 const EXPECTED_RUNTIME_OWNERSHIP_COUNT = 96;
-const EXPECTED_MANAGED_OWNERSHIP_COUNT = 420;
-const EXPECTED_CHANGED_MANAGED_COUNT = 107;
-const EXPECTED_NEW_MANAGED_COUNT = 40;
+const EXPECTED_MANAGED_OWNERSHIP_COUNT = 423;
+const EXPECTED_CHANGED_MANAGED_COUNT = 110;
+const EXPECTED_NEW_MANAGED_COUNT = 43;
 const OWNERSHIP_V1_SHA256 = "b3b97387f541e718ac3b27f677e00cf815cb9bd600b1305391891685f03423ff";
 const BUILD_MARKER = path.join(REPO_ROOT, "scaffold", "mcp", "dist", ".cortex-build-hash");
 const REQUIRED_CONTAINMENT_UPGRADE_PATHS = [
@@ -41,6 +41,9 @@ const REQUIRED_CONTAINMENT_UPGRADE_PATHS = [
   "scaffold/mcp/dist/core/analysis-state/current-state.js",
   "scaffold/mcp/src/core/analysis-state/current-state.ts",
   "scaffold/mcp/tests/analysis-state-current-state.test.mjs",
+  "scaffold/mcp/dist/core/analysis-state/provisioning.js",
+  "scaffold/mcp/src/core/analysis-state/provisioning.ts",
+  "scaffold/mcp/tests/analysis-state-provisioning.test.mjs",
   "scaffold/scripts/lib/ingest/chunks.mjs",
   "scaffold/scripts/lib/ingest/config.mjs",
   "scaffold/scripts/lib/ingest/files.mjs",
@@ -129,8 +132,8 @@ function installedOwnership(packageRoot) {
       "utf8",
     ),
   );
-  assert.equal(pointer.manifestVersion, 6);
-  assert.equal(manifest.manifestVersion, 6);
+  assert.equal(pointer.manifestVersion, 7);
+  assert.equal(manifest.manifestVersion, 7);
   const paths = manifest.managedRoots.flatMap((root) =>
     root.files.map((file) => path.posix.join(
       root.target,
@@ -221,6 +224,7 @@ function verifyPackInventory(pack) {
     "scaffold/ownership/v2.json",
     "scaffold/ownership/v5.json",
     "scaffold/ownership/v6.json",
+    "scaffold/ownership/v7.json",
     "scaffold/ownership/v3.json",
     "scaffold/ownership/v4.json",
     "bin/cli/workflow-command.mjs",
@@ -239,6 +243,9 @@ function verifyPackInventory(pack) {
     "scaffold/mcp/dist/core/analysis-state/current-state.js",
     "scaffold/mcp/src/core/analysis-state/current-state.ts",
     "scaffold/mcp/tests/analysis-state-current-state.test.mjs",
+    "scaffold/mcp/dist/core/analysis-state/provisioning.js",
+    "scaffold/mcp/src/core/analysis-state/provisioning.ts",
+    "scaffold/mcp/tests/analysis-state-provisioning.test.mjs",
     "scaffold/scripts/lib/dialect-observation-contract.mjs",
   ]) {
     assert.equal(
@@ -405,7 +412,7 @@ function verifyForcedUpgrade(packageRoot, sandbox, npmCache) {
     fs.readFileSync(path.join(project, ".context", "scaffold-state.json"), "utf8"),
   );
   assert.equal(state.schemaVersion, 1);
-  assert.equal(state.manifestVersion, 6);
+  assert.equal(state.manifestVersion, 7);
   for (const entry of changedFiles) {
     const targetPath = path.join(project, ...entry.targetIdentity.split("/"));
     const candidatePath = path.join(packageRoot, ...entry.sourcePath.split("/"));
