@@ -44,6 +44,12 @@ function swapStepNames(source, first, second) {
     .replace(`- name: ${placeholder}`, `- name: ${second}`);
 }
 
+function replaceInStep(source, name, from, to) {
+  const block = stepBlock(source, name);
+  assert.ok(block.includes(from), `missing ${from} in step ${name}`);
+  return source.replace(block, block.replace(from, to));
+}
+
 function insertWorkflowStep(source, beforeStepName, name, commands) {
   const marker = `      - name: ${beforeStepName}`;
   assert.ok(source.includes(marker), `missing insertion point ${beforeStepName}`);
@@ -94,6 +100,31 @@ function validateNoBundleRegistryActions(workflow) {
   );
 }
 
+function validateFreshCheckoutGate(workflow, expectedVersionMapping) {
+  const stepName = "Run executable fresh-checkout regression";
+  const gate = stepBlock(workflow, stepName);
+  const mapping = `          CORTEX_EXPECTED_RELEASE_VERSION: ${expectedVersionMapping}`;
+  assert.equal(
+    gate.split(mapping).length - 1,
+    1,
+    "fresh-checkout gate must contain one exact expected-version mapping",
+  );
+  assertBefore(gate, "        env:\n", mapping);
+  assertBefore(gate, mapping, "        run: |");
+  assert.match(gate, /git clean -fdx \.context scaffold\/\.context/);
+  assert.match(gate, /git restore \.context scaffold\/\.context/);
+  assert.match(gate, /^\s+npm run release:test-fresh-checkout\s*$/m);
+  assert.doesNotMatch(
+    gate,
+    /^\s*(?:export\s+)?CORTEX_EXPECTED_RELEASE_VERSION=/m,
+    "fresh-checkout expected version must not bypass the step env mapping",
+  );
+  assert.doesNotMatch(gate, /^\s+npm test\s*$/m, "fresh-checkout gate must not dump an unbounded direct root test");
+  assert.doesNotMatch(gate, /continue-on-error:|\|\|\s*true|set \+e|if:\s*always\(\)/, "fresh-checkout gate must fail closed");
+  assertBefore(workflow, "- name: Run context runtime and MCP compatibility tests", `- name: ${stepName}`);
+  assertBefore(workflow, `- name: ${stepName}`, "- name: Audit all six committed dependency trees");
+}
+
 function validatePublishAuthentication(workflow) {
   assert.match(workflow, /permissions:\n  contents: read\n  id-token: write/);
   assert.match(workflow, /jobs:\n  publish:\n    runs-on: ubuntu-latest/);
@@ -121,6 +152,7 @@ const synchronizedFiles = [
 
 function validateBumpWorkflow(workflow) {
   validateNoBundleRegistryActions(workflow);
+  validateFreshCheckoutGate(workflow, "${{ env.RELEASE_VERSION }}");
   assertBefore(workflow, "- name: Reject non-main dispatch", "- name: Checkout current main");
   assert.match(workflow, /BASE_VERSION: "2\.5\.2"/);
   assert.match(workflow, /RELEASE_VERSION: "2\.6\.0"/);
@@ -166,6 +198,7 @@ function validateBumpWorkflow(workflow) {
 
 function validatePublishWorkflow(workflow) {
   validateNoBundleRegistryActions(workflow);
+  validateFreshCheckoutGate(workflow, "${{ steps.version.outputs.value }}");
   assertBefore(workflow, "- name: Reject branch dispatches and non-strict tags", "- name: Checkout immutable tag");
   assert.match(workflow, /test "\$\{GITHUB_REF_TYPE\}" = "tag"/);
   assert.match(workflow, /\^v\(0\|\[1-9\]\[0-9\]\*\)\\\.\(0\|\[1-9\]\[0-9\]\*\)\\\.\(0\|\[1-9\]\[0-9\]\*\)\$/);
@@ -287,7 +320,36 @@ test("bundle lock synchronization requires and records the exact new root artifa
 });
 
 test("release bump encodes exact synchronized staging and all pre-tag gates", () => {
-  validateBumpWorkflow(readText(".github/workflows/release-bump.yml"));
+  const bump = readText(".github/workflows/release-bump.yml");
+  validateBumpWorkflow(bump);
+  for (const [workflow, validator, mapping] of [
+    [bump, validateBumpWorkflow, "${{ env.RELEASE_VERSION }}"],
+    [readText(".github/workflows/release-publish.yml"), validatePublishWorkflow, "${{ steps.version.outputs.value }}"],
+  ]) {
+    const mappingBlock = `        env:\n          CORTEX_EXPECTED_RELEASE_VERSION: ${mapping}\n`;
+    const freshCheckoutStep = "Run executable fresh-checkout regression";
+    const mutations = [
+      ["removed helper", workflow.replace("- name: Run executable fresh-checkout regression", "- name: Removed fresh-checkout regression")],
+      ["unbounded replacement", workflow.replace("npm run release:test-fresh-checkout", "npm test")],
+      ["fail-open bypass", workflow.replace("npm run release:test-fresh-checkout", "npm run release:test-fresh-checkout || true")],
+      ["late helper", swapStepNames(workflow, "Run executable fresh-checkout regression", "Audit all six committed dependency trees")],
+      ["missing mapping", replaceInStep(workflow, freshCheckoutStep, mappingBlock, "")],
+      ["drifted mapping", replaceInStep(workflow, freshCheckoutStep, mapping, "${{ env.BASE_VERSION }}")],
+      ["inline mapping bypass", replaceInStep(
+        replaceInStep(workflow, freshCheckoutStep, mappingBlock, ""),
+        freshCheckoutStep,
+        "          npm run release:test-fresh-checkout",
+        `          CORTEX_EXPECTED_RELEASE_VERSION=${mapping} npm run release:test-fresh-checkout`,
+      )],
+      ["mapping after helper", replaceInStep(workflow, freshCheckoutStep,
+        "          npm run release:test-fresh-checkout",
+        `          npm run release:test-fresh-checkout\n          CORTEX_EXPECTED_RELEASE_VERSION: ${mapping}`,
+      )],
+    ];
+    for (const [name, invalid] of mutations) {
+      assert.throws(() => validator(invalid), undefined, `${name} mutation must fail closed`);
+    }
+  }
 });
 
 test("release bump regression validator rejects omitted bundle lock staging", () => {
