@@ -75,6 +75,15 @@ function run(command, args, options = {}) {
   });
 }
 
+function removeFixtureRoot(fixtureRoot) {
+  fs.rmSync(fixtureRoot, {
+    recursive: true,
+    force: true,
+    maxRetries: 5,
+    retryDelay: 100
+  });
+}
+
 function parseJsonl(filePath) {
   if (!fs.existsSync(filePath)) {
     return [];
@@ -278,7 +287,7 @@ export function useValue() {
     const toThingEdges = useValueEdges.filter((rel) => thingIds.has(rel.to));
     assert("calls relation fans out to both matching chunk ids", toThingEdges.length === 2);
   } finally {
-    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    removeFixtureRoot(fixtureRoot);
   }
 }
 
@@ -387,7 +396,7 @@ ranking:
       })
     );
   } finally {
-    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    removeFixtureRoot(fixtureRoot);
   }
 }
 
@@ -483,7 +492,7 @@ ranking:
       })
     );
   } finally {
-    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    removeFixtureRoot(fixtureRoot);
   }
 }
 
@@ -587,7 +596,7 @@ ranking:
       Number(windowChunks[2]?.start_line) === Number(windowChunks[1]?.end_line)
     );
   } finally {
-    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    removeFixtureRoot(fixtureRoot);
   }
 }
 
@@ -715,7 +724,7 @@ ranking:
       preservedChunks.every((chunk) => chunk.source_of_truth === true)
     );
   } finally {
-    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    removeFixtureRoot(fixtureRoot);
   }
 }
 
@@ -849,7 +858,7 @@ ranking:
       libModule?.exported_symbols === "alpha, beta"
     );
   } finally {
-    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    removeFixtureRoot(fixtureRoot);
   }
 }
 
@@ -972,7 +981,7 @@ ranking:
       )
     );
   } finally {
-    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    removeFixtureRoot(fixtureRoot);
   }
 }
 
@@ -1189,7 +1198,7 @@ End Module
     assert("incremental ingest keeps USES_RESOURCE_KEY relation to unchanged resx chunk", hasResourceKey());
     assert("incremental ingest keeps USES_SETTING_KEY relation to unchanged settings chunk", hasSettingKey());
   } finally {
-    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    removeFixtureRoot(fixtureRoot);
   }
 }
 
@@ -1431,7 +1440,7 @@ export class C extends Base {}
       imports.some((edge) => edge.from === "chunk:src/sample.ts:C:8-8" && edge.to === "file:src/Base.ts")
     );
   } finally {
-    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    removeFixtureRoot(fixtureRoot);
   }
 }
 
@@ -1546,7 +1555,7 @@ export class C implements Dep {}
       imports.some((edge) => edge.from === "chunk:src/sample.ts:C:7-7" && edge.to === "file:src/dep.ts")
     );
   } finally {
-    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    removeFixtureRoot(fixtureRoot);
   }
 }
 
@@ -1618,7 +1627,7 @@ export function run<T>(value: T): T {
       !imports.some((edge) => edge.from === "chunk:src/sample.ts:run:3-5" && edge.to === "file:src/dep.ts")
     );
   } finally {
-    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    removeFixtureRoot(fixtureRoot);
   }
 }
 
@@ -1697,7 +1706,7 @@ export function run() {
       imports.some((edge) => edge.from === "chunk:src/server.ts:run:3-5" && edge.to === "file:src/graph.ts")
     );
   } finally {
-    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    removeFixtureRoot(fixtureRoot);
   }
 }
 
@@ -1769,7 +1778,7 @@ export function run() {
       !imports.some((edge) => edge.from.startsWith("chunk:src/server.ts:run:") && edge.to === "file:src/graph.json")
     );
   } finally {
-    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    removeFixtureRoot(fixtureRoot);
   }
 }
 
@@ -1841,7 +1850,7 @@ export function run() {
       imports.some((edge) => edge.from.startsWith("chunk:src/sample.js:run:") && edge.to === "file:src/dep.js")
     );
   } finally {
-    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    removeFixtureRoot(fixtureRoot);
   }
 }
 
@@ -1921,7 +1930,7 @@ ranking:
       imports.some((edge) => edge.from === "chunk:src/sample.ts:MainChunk:10-14" && edge.to === "file:src/pkg/index.ts")
     );
   } finally {
-    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    removeFixtureRoot(fixtureRoot);
   }
 }
 
@@ -1987,7 +1996,7 @@ function testStatusReportsSemanticSearchReadiness() {
       readyEmbeddingsOutput.includes("[status] semantic_search=embedding+lexical (ready)")
     );
   } finally {
-    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    removeFixtureRoot(fixtureRoot);
   }
 }
 
