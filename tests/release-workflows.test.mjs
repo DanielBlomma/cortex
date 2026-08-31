@@ -26,6 +26,7 @@ const supportedNpmVersion = "11.19.1";
 const npmSetupStepName = "Install and verify supported npm CLI";
 const rootPublishStepName = "Publish exact reviewed root artifact";
 const rootRegistryStepName = "Inspect exact root registry state for safe immutable resume";
+const bundlePackageName = "@danielblomma/dsh-cortex";
 
 function stepBlock(source, name) {
   const marker = `      - name: ${name}`;
@@ -43,6 +44,16 @@ function swapStepNames(source, first, second) {
     .replace(`- name: ${placeholder}`, `- name: ${second}`);
 }
 
+function insertWorkflowStep(source, beforeStepName, name, commands) {
+  const marker = `      - name: ${beforeStepName}`;
+  assert.ok(source.includes(marker), `missing insertion point ${beforeStepName}`);
+  const commandBlock = commands.map((command) => `          ${command}`).join("\n");
+  return source.replace(
+    marker,
+    `      - name: ${name}\n        run: |\n${commandBlock}\n\n${marker}`,
+  );
+}
+
 function validateSupportedNpmSetup(workflow, beforeStepName) {
   const setup = stepBlock(workflow, npmSetupStepName);
   assert.match(setup, new RegExp(`npm install --global npm@${supportedNpmVersion.replaceAll(".", "\\.")}`));
@@ -58,6 +69,28 @@ function validateNoNpmCredentials(workflow) {
     workflow,
     /NPM_TOKEN|NODE_AUTH_TOKEN|npm\s+whoami|_authToken|npm\s+(?:login|adduser)|token fallback/i,
     "release workflows must use root trusted publishing without token or login paths",
+  );
+}
+
+function validateNoBundleRegistryActions(workflow) {
+  const bundleIdentity = /@danielblomma\/dsh-cortex|\bBUNDLE_(?:PACKAGE|TARBALL|INTEGRITY|STATE)\b|bundle[_-]tarball/i;
+  for (const block of workflow.split(/(?=^      - name: )/m)) {
+    if (!bundleIdentity.test(block)) continue;
+    assert.doesNotMatch(
+      block,
+      /\bnpm(?:\s|$)/i,
+      "release workflows must not run npm registry or package operations for the bundle",
+    );
+    assert.doesNotMatch(
+      block,
+      /release-artifacts\.mjs\s+(?:registry-state|install-registry|harness-registry)\b/i,
+      "release workflows must not run bundle registry helpers",
+    );
+  }
+  assert.doesNotMatch(
+    workflow,
+    /release-artifacts\.mjs\s+(?:install-registry|harness-registry)\b/i,
+    "release workflows must not restore bundle registry installation or Harness paths",
   );
 }
 
@@ -87,6 +120,7 @@ const synchronizedFiles = [
 ];
 
 function validateBumpWorkflow(workflow) {
+  validateNoBundleRegistryActions(workflow);
   assertBefore(workflow, "- name: Reject non-main dispatch", "- name: Checkout current main");
   assert.match(workflow, /BASE_VERSION: "2\.5\.2"/);
   assert.match(workflow, /RELEASE_VERSION: "2\.6\.0"/);
@@ -126,10 +160,12 @@ function validateBumpWorkflow(workflow) {
   assert.match(workflow, /git push --atomic origin "HEAD:main" "refs\/tags\/\$\{RELEASE_TAG\}"/);
   validateSupportedNpmSetup(workflow, "Create exact 2.6.0 metadata and root artifact lock");
   validateNoNpmCredentials(workflow);
+  assert.doesNotMatch(workflow, /\bnpm publish\b/i, "release bump must not publish any artifact");
   assert.doesNotMatch(workflow, /release-artifacts\.mjs registry-state/);
 }
 
 function validatePublishWorkflow(workflow) {
+  validateNoBundleRegistryActions(workflow);
   assertBefore(workflow, "- name: Reject branch dispatches and non-strict tags", "- name: Checkout immutable tag");
   assert.match(workflow, /test "\$\{GITHUB_REF_TYPE\}" = "tag"/);
   assert.match(workflow, /\^v\(0\|\[1-9\]\[0-9\]\*\)\\\.\(0\|\[1-9\]\[0-9\]\*\)\\\.\(0\|\[1-9\]\[0-9\]\*\)\$/);
@@ -198,6 +234,11 @@ function validateReleaseDocumentation(readme, changelog) {
   assert.doesNotMatch(combined, /dsh plugin[^\n]*@danielblomma\/dsh-cortex/i);
   assert.doesNotMatch(combined, /npm (?:install|i|uninstall|remove)[^\n]*@danielblomma\/dsh-cortex/i);
   assert.doesNotMatch(combined, /(?:publicly|registry)[ -]available[^\n]*dsh-cortex|dsh-cortex[^\n]*(?:publicly|registry)[ -]available/i);
+  assert.doesNotMatch(
+    combined,
+    /@danielblomma\/dsh-cortex[^\n.!?]*(?:available\s+(?:from|on|via|through)\s+(?:the\s+)?npm|published\s+(?:to|on|via|through)\s+(?:the\s+)?npm)|(?:available\s+(?:from|on|via|through)\s+(?:the\s+)?npm|published\s+(?:to|on|via|through)\s+(?:the\s+)?npm)[^\n.!?]*@danielblomma\/dsh-cortex/i,
+    "release documentation must not claim that the bundle is available or published on npm",
+  );
 }
 
 test("committed candidate keeps every root and bundle version at 2.5.2", () => {
@@ -328,8 +369,34 @@ test("release publish rejects OIDC, provenance, runner, tag, version, and resume
   }
 });
 
-test("release publish rejects bundle registry, publication, install, Harness, and summary mutations", () => {
+test("release workflows reject bundle registry, publication, install, Harness, and summary mutations", () => {
+  const bump = readText(".github/workflows/release-bump.yml");
   const workflow = readText(".github/workflows/release-publish.yml");
+  const directCommands = [
+    [`npm view ${bundlePackageName}@2.6.0 version`],
+    [`npm publish ${bundlePackageName} --access public --provenance`],
+    [
+      `npm view ${bundlePackageName}@2.6.0 version`,
+      `npm publish ${bundlePackageName} --access public --provenance`,
+    ],
+  ];
+  for (const [source, validator] of [
+    [bump, validateBumpWorkflow],
+    [workflow, validatePublishWorkflow],
+  ]) {
+    for (const commands of directCommands) {
+      const invalid = insertWorkflowStep(
+        source,
+        "Setup .NET",
+        "Illicit package operation mutation",
+        commands,
+      );
+      assert.throws(
+        () => validator(invalid),
+        /must not (?:run npm registry or package operations for the bundle|publish any artifact)/,
+      );
+    }
+  }
   const registryCommand = "          ROOT_JSON=\"$(node scripts/release-artifacts.mjs registry-state";
   const publishCommand = '        run: npm publish "${{ steps.artifacts.outputs.root_tarball }}" --access public --provenance';
   const smokeCommand = '          npm install --global --prefix "${GLOBAL_PREFIX}" --cache "${GLOBAL_CACHE}" \\';
@@ -440,6 +507,8 @@ test("release documentation rejects bundle commands and availability drift", () 
     [readme, changelog.replace("Separate npm bundle", "npm install @danielblomma/dsh-cortex\n\nSeparate npm bundle")],
     [readme.replace("deferred and currently unavailable", "publicly available"), changelog],
     [readme, changelog.replace("deferred and currently\n  unavailable", "available from the registry")],
+    [`${readme}\n\nThe \`${bundlePackageName}\` package is available from npm.`, changelog],
+    [readme, `${changelog}\n\nThe \`${bundlePackageName}\` package is published on npm.`],
     [readme.replace("not\nincluded in Cortex 2.6.0", "included in Cortex 2.6.0"), changelog],
   ];
   for (const [candidateReadme, candidateChangelog] of mutations) {
