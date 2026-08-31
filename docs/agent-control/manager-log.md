@@ -6,6 +6,27 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-31 — WO-061 canonical Current State projection accepted
+
+- WO-061 is accepted at feature commit `42fc33e` and integrated into the
+  control branch as `0f71d0c`. The sole internal operation
+  `renderTrustedAnalysisCurrentState` reads exactly one already trusted
+  generation and returns fixed decisions, every active blocker and
+  contradiction, bounded proof references, canonical Markdown, and its exact
+  SHA-256.
+- The frozen one-blocker Markdown binds to
+  `c7109b52e4d8b4002aa9cfb15cc0f0e4cf21329b4e61ad6efbb7eca0ee2f15ca`.
+  Fresh-process and repeated reads are byte-identical and leave the complete
+  `.agents` byte and filesystem identity snapshot unchanged.
+- Final evidence is focused 5/5, combined maintained-state 37/37,
+  oracle/native 19/19 each, MCP 632/632 with zero skips, root 81/81 +
+  400/400, ownership 17/17, and the 461-entry packed containment gate.
+  Combined Core/Contract/Security/Validation review returned GO with zero
+  findings and conflicts.
+- Initial authority provisioning, production manager/handoff replacement,
+  public rendering/writing, workflow auto-emission, dogfood, and WO-055 remain
+  stopped. WO-061 acceptance alone grants none of those authorities.
+
 ## 2026-08-31 — WO-061 canonical Current State projection authorized
 
 - WO-060 is accepted at feature `bf02c7e`, integrated as `7b97b9d`, and
