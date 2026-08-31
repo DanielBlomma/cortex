@@ -22,6 +22,8 @@ const SUBJECT_RE = /^(?:WO|wo|review|task|fixture|test)[A-Za-z0-9:-]{1,119}$/;
 const OBSERVATION_ID_RE = /^obs:[0-9a-f]{64}$/;
 const SHA256_RE = /^[0-9a-f]{64}$/;
 const AUTHORITY_FILE = "analysis-authority.json";
+const TRANSACTION_INTENT_FILE = ".analysis-append.intent.json";
+const TRANSACTION_STAGE_FILE = ".analysis-authority.next";
 const AUTHORITY_MODE = 0o600;
 const MAX_AUTHORITY_BYTES = 512 * 1024;
 
@@ -244,7 +246,7 @@ function validateAuthorityManifest(raw: unknown): AuthorityManifest {
   return { schema_version: 1, claims, manifest_sha256: raw.manifest_sha256 };
 }
 
-function parseAuthorityBundle(text: string, taskId: string): AnalysisAuthorityBundle {
+export function parseAnalysisAuthorityBundle(text: string, taskId: string): AnalysisAuthorityBundle {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -287,6 +289,41 @@ function parseAuthorityBundle(text: string, taskId: string): AnalysisAuthorityBu
   return Object.freeze({ ...payload, bundle_sha256: raw.bundle_sha256 });
 }
 
+export function createAnalysisAuthorityBundle(
+  input: Omit<AnalysisAuthorityBundle, "bundle_sha256">,
+): AnalysisAuthorityBundle {
+  const payload = {
+    schema_version: input.schema_version,
+    repository: input.repository,
+    task_id: input.task_id,
+    primary_subject: input.primary_subject,
+    authority_manifest: input.authority_manifest,
+    source_authorities: input.source_authorities,
+  };
+  return parseAnalysisAuthorityBundle(
+    `${canonicalJson({ ...payload, bundle_sha256: sha256Canonical(payload) })}\n`,
+    input.task_id,
+  );
+}
+
+export function renderAnalysisAuthorityBundle(bundle: AnalysisAuthorityBundle): string {
+  return `${canonicalJson(bundle)}\n`;
+}
+
+function assertNoAnalysisTransaction(taskDir: string): void {
+  for (const name of [TRANSACTION_INTENT_FILE, TRANSACTION_STAGE_FILE]) {
+    try {
+      fs.lstatSync(path.join(taskDir, name));
+      queryError("STATE_UNTRUSTED", "maintained analysis transaction is incomplete");
+    } catch (error) {
+      if (error instanceof AnalysisQueryError) throw error;
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        queryError("STATE_UNTRUSTED", "maintained analysis transaction could not be bound");
+      }
+    }
+  }
+}
+
 export function readTrustedAnalysisState(options: TrustedAnalysisReadOptions): TrustedAnalysisState {
   if (!TASK_ID_RE.test(options.taskId)) queryError("AUTHORITY_INVALID", "task ID is invalid");
   const resolved = path.resolve(options.cwd);
@@ -298,9 +335,10 @@ export function readTrustedAnalysisState(options: TrustedAnalysisReadOptions): T
   }
   if (projectRoot !== resolved) queryError("STATE_UNTRUSTED", "project root identity is not canonical");
 
+  assertNoAnalysisTransaction(path.join(projectRoot, ".agents", options.taskId));
   const transaction = bindTransaction(projectRoot, options.taskId);
   const authorityIdentity = transaction.at(-1)!;
-  const authority = parseAuthorityBundle(readAuthorityBytes(authorityIdentity), options.taskId);
+  const authority = parseAnalysisAuthorityBundle(readAuthorityBytes(authorityIdentity), options.taskId);
   options.hooks?.afterAuthorityRead?.();
 
   let persisted: PersistedAnalysisState | null;
@@ -322,3 +360,5 @@ export function readTrustedAnalysisState(options: TrustedAnalysisReadOptions): T
 
 export const ANALYSIS_AUTHORITY_FILE = AUTHORITY_FILE;
 export const ANALYSIS_AUTHORITY_MAX_BYTES = MAX_AUTHORITY_BYTES;
+export const ANALYSIS_TRANSACTION_INTENT_FILE = TRANSACTION_INTENT_FILE;
+export const ANALYSIS_TRANSACTION_STAGE_FILE = TRANSACTION_STAGE_FILE;
