@@ -6,6 +6,26 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-31 — WO-060 trusted append transaction accepted
+
+- WO-060 is accepted at feature commit `bf02c7e` and integrated into the
+  control branch as `7b97b9d`. It adds only the internal
+  `appendTrustedAnalysisObservation` and
+  `recoverTrustedAnalysisObservation` boundary over an already trusted state.
+- Generation and authority-bundle CAS, the fixed trusted registry/primary
+  subject, canonical hash-bound intent, exact staged authority bytes, and
+  manifest-last Stage 1 publication produce either exact old state or an
+  explicitly recovered exact new generation. Ordinary reads fail closed while
+  intent/stage exists.
+- The combined review strengthened root/`.agents`/task inode checks before
+  every mutation and normalized a transient coordinator-close race. Final
+  evidence is focused 8/8 plus race stress 10/10, oracle/native 19/19 each,
+  MCP 627/627, root 81/81 + 400/400, ownership 17/17, package 457/417, packed
+  containment 42/42, and Cortex semantic coverage 1,842/1,842.
+- Bootstrap authority, CLI/MCP writing, automatic workflow emission, dogfood,
+  generated Current State/manager/handoff prose, and WO-055 remain stopped.
+  No next maintained-state gate is authorized by this acceptance.
+
 ## 2026-08-31 — WO-060 trusted append transaction authorized
 
 - WO-059 is accepted at feature `4235a36` and integrated as `9c4aa5e`. Exact
