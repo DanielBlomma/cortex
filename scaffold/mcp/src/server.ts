@@ -1,6 +1,17 @@
+import path from "node:path";
+
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import {
+  createWorkflowAnalysisErrorEnvelope,
+  parseWorkflowAnalysisArgs,
+  runWorkflowAnalysisQuery,
+  serializeWorkflowAnalysisEnvelope,
+  type WorkflowAnalysisEnvelope,
+  type WorkflowAnalysisInput,
+} from "./cli/workflow-analysis.js";
+import { REGISTERED_PREDICATES } from "./core/analysis-state/engine.js";
 import { reloadContextGraph } from "./graph.js";
 import { runContextRules } from "./rules.js";
 import { runContextImpact, runContextRelated, runContextSearch } from "./search.js";
@@ -137,6 +148,35 @@ const ReloadInput = z.object({
   force: z.boolean().default(true)
 });
 
+const AnalysisTaskId = z.string().regex(/^[a-z0-9][a-z0-9-]{0,78}[a-z0-9]$/u);
+const AnalysisFactId = z.string().regex(/^(?:base:obs|fact):[0-9a-f]{64}$/u);
+const AnalysisPredicate = z.enum(REGISTERED_PREDICATES as [string, ...string[]]);
+const AnalysisSince = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+
+function closedMcpInputSchema<T extends z.ZodRawShape>(shape: T): z.ZodObject<T, "strict"> {
+  const schema = z.object(shape).strict();
+  const safeParseAsync = schema.safeParseAsync.bind(schema);
+  schema.safeParseAsync = (async (input: unknown, params?: z.ParseParams) => {
+    const result = await safeParseAsync(input, params);
+    // McpServer otherwise returns its own raw Zod diagnostic before invoking
+    // the handler. Preserve the strict object for the advertised JSON Schema,
+    // but hand rejected input to our closed manual parser and public envelope.
+    return result.success ? result : { success: true, data: input };
+  }) as typeof schema.safeParseAsync;
+  return schema;
+}
+
+const AnalysisStateInput = closedMcpInputSchema({ task_id: AnalysisTaskId });
+const AnalysisWhyInput = closedMcpInputSchema({ task_id: AnalysisTaskId, fact_id: AnalysisFactId });
+const AnalysisWhyNotInput = closedMcpInputSchema({ task_id: AnalysisTaskId, predicate: AnalysisPredicate });
+const AnalysisChangesInput = closedMcpInputSchema({ task_id: AnalysisTaskId, since: AnalysisSince });
+
+type MaintainedAnalysisToolName =
+  | "context.analysis_state"
+  | "context.analysis_why"
+  | "context.analysis_why_not"
+  | "context.analysis_changes";
+
 function buildToolResult(data: ToolPayload) {
   return {
     content: [
@@ -146,6 +186,14 @@ function buildToolResult(data: ToolPayload) {
       }
     ],
     structuredContent: data
+  };
+}
+
+function buildWorkflowAnalysisToolResult(envelope: WorkflowAnalysisEnvelope) {
+  return {
+    content: [{ type: "text" as const, text: serializeWorkflowAnalysisEnvelope(envelope, true) }],
+    structuredContent: envelope as unknown as ToolPayload,
+    isError: !envelope.ok,
   };
 }
 
@@ -258,6 +306,125 @@ async function executeInstrumentedTool(
   }
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function hasExactKeys(input: Record<string, unknown>, keys: string[]): boolean {
+  const actual = Object.keys(input).sort();
+  const expected = [...keys].sort();
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+}
+
+function parseMaintainedAnalysisInput(
+  toolName: MaintainedAnalysisToolName,
+  rawInput: unknown,
+): WorkflowAnalysisInput | undefined {
+  if (!isPlainObject(rawInput)) return undefined;
+  let args: string[];
+  if (toolName === "context.analysis_state") {
+    if (!hasExactKeys(rawInput, ["task_id"]) || typeof rawInput.task_id !== "string") return undefined;
+    args = ["state", rawInput.task_id];
+  } else if (toolName === "context.analysis_why") {
+    if (
+      !hasExactKeys(rawInput, ["task_id", "fact_id"]) ||
+      typeof rawInput.task_id !== "string" ||
+      typeof rawInput.fact_id !== "string"
+    ) return undefined;
+    args = ["why", rawInput.task_id, rawInput.fact_id];
+  } else if (toolName === "context.analysis_why_not") {
+    if (
+      !hasExactKeys(rawInput, ["task_id", "predicate"]) ||
+      typeof rawInput.task_id !== "string" ||
+      typeof rawInput.predicate !== "string"
+    ) return undefined;
+    args = ["why-not", rawInput.task_id, rawInput.predicate];
+  } else {
+    if (
+      !hasExactKeys(rawInput, ["task_id", "since"]) ||
+      typeof rawInput.task_id !== "string" ||
+      typeof rawInput.since !== "number"
+    ) return undefined;
+    args = ["changes", rawInput.task_id, "--since", String(rawInput.since)];
+  }
+  try {
+    return parseWorkflowAnalysisArgs(args).input;
+  } catch {
+    return undefined;
+  }
+}
+
+function publicMcpInput(input: WorkflowAnalysisInput): ToolPayload {
+  const { operation: _operation, ...publicInput } = input;
+  return publicInput;
+}
+
+async function executeMaintainedAnalysisTool(
+  toolName: MaintainedAnalysisToolName,
+  rawInput: unknown,
+) {
+  const input = parseMaintainedAnalysisInput(toolName, rawInput);
+  const instrumentedInput = input ? publicMcpInput(input) : {};
+  const startedAt = Date.now();
+  const startedAtIso = notifyToolStart(toolName, instrumentedInput);
+  const envelope = input
+    ? runWorkflowAnalysisQuery(
+        input,
+        path.resolve(process.env.CORTEX_PROJECT_ROOT?.trim() || process.cwd()),
+      )
+    : createWorkflowAnalysisErrorEnvelope("INVALID_ARGS");
+  const durationMs = Date.now() - startedAt;
+  if (envelope.ok) {
+    notifyToolCall(toolName, instrumentedInput, envelope as unknown as ToolPayload, durationMs, startedAtIso);
+  } else {
+    notifyToolError(
+      toolName,
+      instrumentedInput,
+      new Error(envelope.error?.message ?? "Maintained analysis query failed"),
+      durationMs,
+      startedAtIso,
+    );
+  }
+  return buildWorkflowAnalysisToolResult(envelope);
+}
+
+function registerMaintainedAnalysisTools(server: McpServer): void {
+  server.registerTool(
+    "context.analysis_state",
+    {
+      description: "Read the trusted maintained analysis state for a task.",
+      inputSchema: AnalysisStateInput,
+    },
+    async (input) => executeMaintainedAnalysisTool("context.analysis_state", input),
+  );
+  server.registerTool(
+    "context.analysis_why",
+    {
+      description: "Explain a fact in trusted maintained analysis state.",
+      inputSchema: AnalysisWhyInput,
+    },
+    async (input) => executeMaintainedAnalysisTool("context.analysis_why", input),
+  );
+  server.registerTool(
+    "context.analysis_why_not",
+    {
+      description: "Explain why a predicate is absent from trusted maintained analysis state.",
+      inputSchema: AnalysisWhyNotInput,
+    },
+    async (input) => executeMaintainedAnalysisTool("context.analysis_why_not", input),
+  );
+  server.registerTool(
+    "context.analysis_changes",
+    {
+      description: "Read trusted maintained analysis changes since an epoch.",
+      inputSchema: AnalysisChangesInput,
+    },
+    async (input) => executeMaintainedAnalysisTool("context.analysis_changes", input),
+  );
+}
+
 function registerTools(server: McpServer): void {
   server.registerTool(
     "context.search",
@@ -322,6 +489,10 @@ function registerTools(server: McpServer): void {
       return reloadContextGraph(parsed.force);
     })
   );
+
+  if (process.env.CORTEX_MAINTAINED_ANALYSIS_MCP === "1") {
+    registerMaintainedAnalysisTools(server);
+  }
 
   // Note: cortex.workflow.* tools (the Cortex Harness) are enterprise-only
   // and registered by enterprise/index.ts::register() once the license has

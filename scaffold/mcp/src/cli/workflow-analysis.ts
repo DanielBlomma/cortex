@@ -44,7 +44,7 @@ export type WorkflowAnalysisErrorCode =
   | "AUTHORITY_INVALID"
   | "STATE_UNTRUSTED";
 
-type WorkflowEnvelope = {
+export type WorkflowAnalysisEnvelope = {
   ok: boolean;
   command: "workflow";
   schema_version: 1;
@@ -200,7 +200,7 @@ function execute(input: WorkflowAnalysisInput, trusted: TrustedAnalysisState): C
   }
 }
 
-function successEnvelope(input: WorkflowAnalysisInput, data: CanonicalValue): WorkflowEnvelope {
+function successEnvelope(input: WorkflowAnalysisInput, data: CanonicalValue): WorkflowAnalysisEnvelope {
   return {
     ok: true,
     command: "workflow",
@@ -211,7 +211,10 @@ function successEnvelope(input: WorkflowAnalysisInput, data: CanonicalValue): Wo
   };
 }
 
-function errorEnvelope(code: WorkflowAnalysisErrorCode, input?: WorkflowAnalysisInput): WorkflowEnvelope {
+export function createWorkflowAnalysisErrorEnvelope(
+  code: WorkflowAnalysisErrorCode,
+  input?: WorkflowAnalysisInput,
+): WorkflowAnalysisEnvelope {
   return {
     ok: false,
     command: "workflow",
@@ -222,7 +225,10 @@ function errorEnvelope(code: WorkflowAnalysisErrorCode, input?: WorkflowAnalysis
   };
 }
 
-function serializeBounded(envelope: WorkflowEnvelope, pretty: boolean): string {
+export function serializeWorkflowAnalysisEnvelope(
+  envelope: WorkflowAnalysisEnvelope,
+  pretty: boolean,
+): string {
   const serialized = `${JSON.stringify(envelope, null, pretty ? 2 : undefined)}\n`;
   if (Buffer.byteLength(serialized, "utf8") > LIMITS.rendered_bytes) {
     throw new WorkflowAnalysisCliError("STATE_UNTRUSTED");
@@ -236,33 +242,45 @@ function mapError(error: unknown): WorkflowAnalysisCliError {
   return new WorkflowAnalysisCliError("STATE_UNTRUSTED");
 }
 
+export function runWorkflowAnalysisQuery(
+  input: WorkflowAnalysisInput,
+  cwd: string,
+): WorkflowAnalysisEnvelope {
+  try {
+    const trusted = readTrustedAnalysisState({ cwd, taskId: input.task_id });
+    const envelope = successEnvelope(input, execute(input, trusted));
+    serializeWorkflowAnalysisEnvelope(envelope, true);
+    return envelope;
+  } catch (error) {
+    return createWorkflowAnalysisErrorEnvelope(mapError(error).code, input);
+  }
+}
+
 export async function runWorkflowAnalysisCommand(args: string[]): Promise<void> {
   let parsed: ParsedWorkflowAnalysisArgs;
   try {
     parsed = parseWorkflowAnalysisArgs(args);
   } catch {
     if (args.includes("--json")) {
-      process.stdout.write(serializeBounded(errorEnvelope("INVALID_ARGS"), true));
+      process.stdout.write(serializeWorkflowAnalysisEnvelope(createWorkflowAnalysisErrorEnvelope("INVALID_ARGS"), true));
       process.exitCode = 1;
       return;
     }
     throw new Error(publicMessage("INVALID_ARGS"));
   }
 
-  try {
-    const cwd = path.resolve(process.env.CORTEX_PROJECT_ROOT?.trim() || process.cwd());
-    const trusted = readTrustedAnalysisState({ cwd, taskId: parsed.input.task_id });
-    const envelope = successEnvelope(parsed.input, execute(parsed.input, trusted));
-    process.stdout.write(serializeBounded(envelope, parsed.json));
-  } catch (error) {
-    const mapped = mapError(error);
-    if (parsed.json) {
-      process.stdout.write(serializeBounded(errorEnvelope(mapped.code, parsed.input), true));
-      process.exitCode = 1;
-      return;
-    }
-    throw new Error(mapped.message);
+  const cwd = path.resolve(process.env.CORTEX_PROJECT_ROOT?.trim() || process.cwd());
+  const envelope = runWorkflowAnalysisQuery(parsed.input, cwd);
+  if (envelope.ok) {
+    process.stdout.write(serializeWorkflowAnalysisEnvelope(envelope, parsed.json));
+    return;
   }
+  if (parsed.json) {
+    process.stdout.write(serializeWorkflowAnalysisEnvelope(envelope, true));
+    process.exitCode = 1;
+    return;
+  }
+  throw new Error(envelope.error?.message ?? publicMessage("STATE_UNTRUSTED"));
 }
 
 export const WORKFLOW_ANALYSIS_SCHEMA_VERSION = SCHEMA_VERSION;

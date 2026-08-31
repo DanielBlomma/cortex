@@ -19,7 +19,7 @@ const EXPECTED_MODE_COUNTS = new Map([[0o644, 432], [0o755, 21]]);
 const EXPECTED_INVENTORY_SHA256 = "347bbc878e3f4d46d4daed0ad0d384f580aefff7ec7a91c824b06a82cbf8b912";
 const EXPECTED_RUNTIME_OWNERSHIP_COUNT = 96;
 const EXPECTED_MANAGED_OWNERSHIP_COUNT = 414;
-const EXPECTED_CHANGED_MANAGED_COUNT = 99;
+const EXPECTED_CHANGED_MANAGED_COUNT = 101;
 const EXPECTED_NEW_MANAGED_COUNT = 34;
 const OWNERSHIP_V1_SHA256 = "b3b97387f541e718ac3b27f677e00cf815cb9bd600b1305391891685f03423ff";
 const BUILD_MARKER = path.join(REPO_ROOT, "scaffold", "mcp", "dist", ".cortex-build-hash");
@@ -29,8 +29,10 @@ const REQUIRED_CONTAINMENT_UPGRADE_PATHS = [
   "scaffold/scripts/ingest.mjs",
   "scaffold/scripts/lib/dialect-observation-contract.mjs",
   "scaffold/mcp/dist/cli/workflow-analysis.js",
+  "scaffold/mcp/dist/server.js",
   "scaffold/mcp/dist/core/analysis-state/query-reader.js",
   "scaffold/mcp/src/cli/workflow-analysis.ts",
+  "scaffold/mcp/src/server.ts",
   "scaffold/mcp/src/core/analysis-state/query-reader.ts",
   "scaffold/mcp/tests/analysis-state-cli.test.mjs",
   "scaffold/scripts/lib/ingest/chunks.mjs",
