@@ -57,8 +57,8 @@ const mcpOutput = run("npm", ["--prefix", "scaffold/mcp", "run", "test:ci"]);
 if (!/81 passed, 0 failed/.test(rootOutput)) {
   fail("context regression suite did not report 81/81");
 }
-if (!/^# tests 411$/m.test(rootOutput)) {
-  fail("root node:test suite did not report 411/411");
+if (!/^# tests 417$/m.test(rootOutput)) {
+  fail("root node:test suite did not report 417/417");
 }
 if (!/^# tests 6$/m.test(rootOutput)) {
   fail("DeepSeek Harness bundle suite did not report 6/6");
@@ -68,7 +68,7 @@ if (!/^ℹ tests 426$/m.test(mcpOutput)) fail("MCP compatibility suite did not r
 process.stdout.write(`${JSON.stringify({
   ok: true,
   context: "81/81",
-  root: "411/411",
+  root: "417/417",
   deepseekHarnessBundle: "6/6",
   mcp: "426/426",
 })}\n`);

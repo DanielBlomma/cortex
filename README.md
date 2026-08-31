@@ -101,12 +101,9 @@ run `cortex connect`.
 ## DeepSeek Harness integration
 
 Cortex supports DeepSeek Harness through the V1 explicit tools and skills
-integration. The initially supported Harness version is `0.1.1-rc.2`. Install
-the bundle into a named profile with:
-
-```bash
-dsh plugin --profile web add @danielblomma/dsh-cortex
-```
+integration. Cortex 2.6.0 contains and validates the integration source against
+the pinned Harness `0.1.1-rc.2` release. Separate npm bundle distribution is
+deferred and currently unavailable.
 
 The bundle provides four agent-scoped tools (`cortex_search`,
 `cortex_related`, `cortex_impact`, and `cortex_rules`) and five Cortex behavior
@@ -116,7 +113,7 @@ user-controlled. The integration does not automatically initialize, update,
 or watch a repository.
 
 V2 proactive/assistive retrieval remains planned and experimental; it is not
-available in Cortex 2.6.0. See the
+included in Cortex 2.6.0. See the
 [V1-to-V2 integration plan](docs/superpowers/plans/2026-08-25-deepseek-harness-integration.md)
 for details.
 

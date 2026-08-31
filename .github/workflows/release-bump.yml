@@ -69,29 +69,6 @@ jobs:
           npm install --global npm@11.19.1
           test "$(npm --version)" = "11.19.1"
 
-      - name: Verify npm publication identity before mutation
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "The npm publication credential is not configured"
-            exit 1
-          fi
-          set -o pipefail
-          if ! npm whoami --registry=https://registry.npmjs.org/ 2>/dev/null | \
-            env -u NODE_AUTH_TOKEN node -e '
-              let value = "";
-              process.stdin.setEncoding("utf8");
-              process.stdin.on("data", (chunk) => { value += chunk; });
-              process.stdin.on("end", () => {
-                if (value !== "danielblomma\n") process.exitCode = 1;
-              });
-            '
-          then
-            echo "The npm publication credential did not authenticate"
-            exit 1
-          fi
-
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
@@ -144,7 +121,7 @@ jobs:
             server.json | LC_ALL=C sort > "${EXPECTED}"
           diff -u "${EXPECTED}" "${ACTUAL}"
 
-      - name: Bind bundle tests to the unpublished reviewed root artifact
+      - name: Bind bundle tests to the reviewed local root artifact
         env:
           ROOT_TARBALL: ${{ steps.seed.outputs.root_tarball }}
         run: |
@@ -191,7 +168,7 @@ jobs:
           git -C "${HARNESS_CHECKOUT}" checkout --detach "${HARNESS_COMMIT}"
           node scripts/check-deepseek-harness-compatibility.mjs --checkout "${HARNESS_CHECKOUT}"
 
-      - name: Create and verify duplicate dual-package artifacts
+      - name: Create and verify duplicate local root and bundle artifacts
         id: artifacts
         run: |
           ARTIFACT_DIR="${RUNNER_TEMP}/cortex-release-artifacts"
@@ -201,12 +178,10 @@ jobs:
             --report "${ARTIFACT_DIR}/report.json"
           ROOT_TARBALL="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).packages.root.first.tarball' "${ARTIFACT_DIR}/report.json")"
           BUNDLE_TARBALL="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).packages.bundle.first.tarball' "${ARTIFACT_DIR}/report.json")"
-          BUNDLE_INTEGRITY="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).packages.bundle.first.integrity' "${ARTIFACT_DIR}/report.json")"
           echo "root_tarball=${ROOT_TARBALL}" >> "${GITHUB_OUTPUT}"
           echo "bundle_tarball=${BUNDLE_TARBALL}" >> "${GITHUB_OUTPUT}"
-          echo "bundle_integrity=${BUNDLE_INTEGRITY}" >> "${GITHUB_OUTPUT}"
 
-      - name: Install both unpublished artifacts with an empty cache
+      - name: Install both local artifacts with an empty cache
         env:
           ROOT_TARBALL: ${{ steps.artifacts.outputs.root_tarball }}
           BUNDLE_TARBALL: ${{ steps.artifacts.outputs.bundle_tarball }}
@@ -229,22 +204,11 @@ jobs:
             --output-dir "${RUNNER_TEMP}/cortex-harness-lifecycle" \
             --expected-version "${RELEASE_VERSION}"
 
-      - name: Require registry-only bundle install to be unavailable
-        env:
-          BUNDLE_INTEGRITY: ${{ steps.artifacts.outputs.bundle_integrity }}
-        run: |
-          STATE="$(node scripts/release-artifacts.mjs registry-state \
-            --package-name @danielblomma/dsh-cortex \
-            --version "${RELEASE_VERSION}" \
-            --integrity "${BUNDLE_INTEGRITY}" \
-            --root-dependency "${RELEASE_VERSION}")"
-          test "$(node -p 'JSON.parse(process.argv[1]).state' "${STATE}")" = "missing"
-
       - name: Verify diff, secrets, versions, and runtime boundary
         run: |
           npm run release:check-version-sync
           git diff --check
-          if git diff | grep -E '(npm_[A-Za-z0-9]{36}|gh[pousr]_[A-Za-z0-9]{20,}|_authToken|NODE_AUTH_TOKEN|/private/tmp/|/tmp/cortex-release)'; then
+          if git diff | grep -E '(npm_[A-Za-z0-9]{36}|gh[pousr]_[A-Za-z0-9]{20,}|/private/tmp/|/tmp/cortex-release)'; then
             echo "Release diff contains a secret or disposable path"
             exit 1
           fi
@@ -256,7 +220,6 @@ jobs:
             package.json \
             package-lock.json \
             server.json \
-            mcp-registry-submission.json \
             plugins/cortex/.claude-plugin/plugin.json \
             plugins/cortex/.codex-plugin/plugin.json \
             plugins/dsh-cortex/package.json \
