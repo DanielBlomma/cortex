@@ -5,7 +5,6 @@ import { spawnSync } from "node:child_process";
 
 import {
   atomicWriteText,
-  ensureSecureManagedDirectory,
   fsyncDirectory,
 } from "../../progressiveIndexing.js";
 import {
@@ -156,6 +155,16 @@ type GitContext = {
   oidLength: number;
   headOid: string;
   treeOid: string;
+};
+
+type ProvisioningAgentsParentBinding = {
+  path: string;
+  dev: bigint;
+  ino: bigint;
+  mode: bigint;
+  uid: bigint;
+  gid: bigint;
+  created: boolean;
 };
 
 type ClosedSeed = {
@@ -654,10 +663,11 @@ function expectedReceipt(prepared: PreparedProvision, trusted: TrustedAnalysisSt
   return makeReceipt(receiptPayload(prepared, trusted));
 }
 
-function verifyExactTarget(root: string, prepared: PreparedProvision): TrackedAnalysisProvisioningResult {
+function verifyExactTarget(prepared: PreparedProvision): TrackedAnalysisProvisioningResult {
+  const root = prepared.git.root;
   const agentsDirectory = path.join(root, ".agents");
   const taskDirectory = path.join(agentsDirectory, prepared.seed.taskId);
-  assertPrivateDirectory(agentsDirectory);
+  const agentsBinding = bindExistingProvisioningAgentsParent(prepared.git, false);
   assertExactTaskInventory(taskDirectory);
   let trusted: TrustedAnalysisState;
   try { trusted = readTrustedAnalysisState({ cwd: root, taskId: prepared.seed.taskId }); } catch { provisioningError("PROVISIONING_CONFLICT", "existing task is not the exact trusted target"); }
@@ -675,6 +685,7 @@ function verifyExactTarget(root: string, prepared: PreparedProvision): TrackedAn
     trusted.persisted.manifest.generation !== 1
   ) provisioningError("PROVISIONING_CONFLICT", "existing task does not match the tracked seed");
   assertGitUnchanged(prepared);
+  assertProvisioningAgentsParentUnchanged(prepared.git, agentsBinding);
   return resultFor(receipt, "already_provisioned");
 }
 
@@ -842,6 +853,87 @@ function assertPrivateDirectory(directory: string): void {
   }
 }
 
+function targetEntryExists(target: string): boolean {
+  try {
+    fs.lstatSync(target);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    provisioningError("PROVISIONING_UNTRUSTED", "managed target availability is unsafe");
+  }
+}
+
+function bindExistingProvisioningAgentsParent(
+  git: GitContext,
+  created: boolean,
+): ProvisioningAgentsParentBinding {
+  const agentsDirectory = path.join(git.root, ".agents");
+  try {
+    if (path.dirname(agentsDirectory) !== git.root || fs.realpathSync(git.root) !== git.root) {
+      provisioningError("PROVISIONING_UNTRUSTED", "managed parent location is unsafe");
+    }
+    const root = fs.lstatSync(git.root, { bigint: true });
+    if (
+      !root.isDirectory() || root.isSymbolicLink() || root.dev !== git.rootDev ||
+      root.ino !== git.rootIno || root.mode !== git.rootMode
+    ) provisioningError("PROVISIONING_UNTRUSTED", "managed parent root changed");
+
+    const parent = fs.lstatSync(agentsDirectory, { bigint: true });
+    const processUid = typeof process.getuid === "function" ? BigInt(process.getuid()) : null;
+    if (
+      !parent.isDirectory() || parent.isSymbolicLink() ||
+      fs.realpathSync(agentsDirectory) !== agentsDirectory || parent.dev !== root.dev ||
+      parent.uid !== root.uid || (processUid !== null && parent.uid !== processUid) ||
+      (parent.mode & 0o022n) !== 0n ||
+      (created && (parent.mode & 0o777n) !== BigInt(DIRECTORY_MODE))
+    ) provisioningError("PROVISIONING_UNTRUSTED", "managed parent policy is unsafe");
+    return {
+      path: agentsDirectory,
+      dev: parent.dev,
+      ino: parent.ino,
+      mode: parent.mode,
+      uid: parent.uid,
+      gid: parent.gid,
+      created,
+    };
+  } catch (error) {
+    if (error instanceof AnalysisProvisioningError) throw error;
+    provisioningError("PROVISIONING_UNTRUSTED", "managed parent binding failed safely");
+  }
+}
+
+function ensureProvisioningAgentsParent(git: GitContext): ProvisioningAgentsParentBinding {
+  const agentsDirectory = path.join(git.root, ".agents");
+  let created = false;
+  try {
+    fs.lstatSync(agentsDirectory);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      provisioningError("PROVISIONING_UNTRUSTED", "managed parent availability is unsafe");
+    }
+    try {
+      fs.mkdirSync(agentsDirectory, { mode: DIRECTORY_MODE });
+      created = true;
+    } catch (creationError) {
+      if ((creationError as NodeJS.ErrnoException).code !== "EEXIST") {
+        provisioningError("PROVISIONING_UNTRUSTED", "managed parent creation failed safely");
+      }
+    }
+  }
+  return bindExistingProvisioningAgentsParent(git, created);
+}
+
+function assertProvisioningAgentsParentUnchanged(
+  git: GitContext,
+  expected: ProvisioningAgentsParentBinding,
+): void {
+  const current = bindExistingProvisioningAgentsParent(git, expected.created);
+  if (
+    current.path !== expected.path || current.dev !== expected.dev || current.ino !== expected.ino ||
+    current.mode !== expected.mode || current.uid !== expected.uid || current.gid !== expected.gid
+  ) provisioningError("PROVISIONING_UNTRUSTED", "managed parent changed during publication");
+}
+
 function assertExactTaskInventory(taskDirectory: string): void {
   assertPrivateDirectory(taskDirectory);
   const entries = fs.readdirSync(taskDirectory).sort();
@@ -893,9 +985,9 @@ function provisionNew(
   let renamed = false;
   try {
     options.hooks?.afterStageOwner?.();
-    if (fs.existsSync(targetTask)) {
+    if (targetEntryExists(targetTask)) {
       removeOwnedStage(stageRoot, prepared.seed.taskId, token);
-      return verifyExactTarget(prepared.git.root, prepared);
+      return verifyExactTarget(prepared);
     }
     maybeFail(options.hooks, "owner");
     const authority = createAnalysisAuthorityBundle({
@@ -929,26 +1021,25 @@ function provisionNew(
     }
     maybeFail(options.hooks, "validation");
     assertGitUnchanged(prepared);
-    ensureSecureManagedDirectory(prepared.git.root, targetAgents);
-    assertPrivateDirectory(targetAgents);
-    const agentsIdentity = fs.lstatSync(targetAgents, { bigint: true });
-    if (fs.existsSync(targetTask)) {
+    const agentsIdentity = ensureProvisioningAgentsParent(prepared.git);
+    if (targetEntryExists(targetTask)) {
       removeOwnedStage(stageRoot, prepared.seed.taskId, token);
-      return verifyExactTarget(prepared.git.root, prepared);
+      return verifyExactTarget(prepared);
     }
     maybeFail(options.hooks, "before_rename");
     options.hooks?.beforeRename?.();
+    assertProvisioningAgentsParentUnchanged(prepared.git, agentsIdentity);
+    if (targetEntryExists(targetTask)) {
+      removeOwnedStage(stageRoot, prepared.seed.taskId, token);
+      return verifyExactTarget(prepared);
+    }
     if (!publishTaskDirectoryNoReplace(stageTask, targetAgents, targetTask)) {
       removeOwnedStage(stageRoot, prepared.seed.taskId, token);
-      return verifyExactTarget(prepared.git.root, prepared);
+      return verifyExactTarget(prepared);
     }
     renamed = true;
     fsyncDirectory(targetAgents);
-    const currentAgentsIdentity = fs.lstatSync(targetAgents, { bigint: true });
-    if (
-      currentAgentsIdentity.dev !== agentsIdentity.dev || currentAgentsIdentity.ino !== agentsIdentity.ino ||
-      currentAgentsIdentity.mode !== agentsIdentity.mode
-    ) provisioningError("PROVISIONING_UNTRUSTED", "managed root changed during publication");
+    assertProvisioningAgentsParentUnchanged(prepared.git, agentsIdentity);
     assertExactTaskInventory(targetTask);
     const published = readTrustedAnalysisState({ cwd: prepared.git.root, taskId: prepared.seed.taskId });
     const publishedReceipt = parseReceipt(path.join(targetTask, RECEIPT_FILE));
@@ -978,7 +1069,7 @@ export function provisionTrackedAnalysisState(options: TrackedAnalysisProvisioni
     options.hooks?.afterGitBinding?.();
     assertGitUnchanged(prepared);
     const targetTask = path.join(git.root, ".agents", prepared.seed.taskId);
-    if (fs.existsSync(targetTask)) return verifyExactTarget(git.root, prepared);
+    if (targetEntryExists(targetTask)) return verifyExactTarget(prepared);
     const result = provisionNew(prepared, options);
     return result;
   } catch (error) {

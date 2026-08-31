@@ -110,8 +110,19 @@ function makeRepository(options = {}) {
   if (options.mutateClosedSeed) seed = options.mutateClosedSeed(structuredClone(seed));
   writeCanonical(path.join(root, SEED_PATH), seed);
   const addPaths = options.untrackedSeed ? [SOURCE_PATH] : [SOURCE_PATH, SEED_PATH];
+  if (options.sharedAgentsMode !== undefined) {
+    const skillPath = path.join(root, ".agents/skills/fixture/SKILL.md");
+    fs.mkdirSync(path.dirname(skillPath), { recursive: true, mode: 0o755 });
+    fs.writeFileSync(skillPath, "# Fixture skill\n", { mode: 0o644 });
+    fs.writeFileSync(path.join(root, ".agents/foreign.txt"), "foreign sibling\n", { mode: 0o640 });
+    fs.symlinkSync("fixture/SKILL.md", path.join(root, ".agents/skills/current"));
+    addPaths.push(".agents/skills/fixture/SKILL.md", ".agents/skills/current", ".agents/foreign.txt");
+  }
   runGit(root, ["add", "--", ...addPaths]);
   runGit(root, ["commit", "-qm", "fixture"]);
+  if (options.sharedAgentsMode !== undefined) {
+    fs.chmodSync(path.join(root, ".agents"), options.sharedAgentsMode);
+  }
   return { root, sourceBytes, head: runGit(root, ["rev-parse", "HEAD"]), tree: runGit(root, ["rev-parse", "HEAD^{tree}"]) };
 }
 
@@ -130,6 +141,89 @@ function taskPath(root, name = "") {
 
 function stagePath(root) {
   return path.join(root, `.analysis-provision-${TASK_ID}`);
+}
+
+function snapshotForeignAgents(root, agents = path.join(root, ".agents")) {
+  const records = [];
+  const walk = (directory) => {
+    for (const name of fs.readdirSync(directory).sort()) {
+      if (directory === agents && name === TASK_ID) continue;
+      const absolute = path.join(directory, name);
+      const relative = path.relative(agents, absolute).split(path.sep).join("/");
+      const stat = fs.lstatSync(absolute, { bigint: true });
+      const common = {
+        path: relative,
+        mode: Number(stat.mode & 0o777n),
+        dev: stat.dev.toString(10),
+        ino: stat.ino.toString(10),
+        nlink: stat.nlink.toString(10),
+      };
+      if (stat.isDirectory() && !stat.isSymbolicLink()) {
+        records.push({ ...common, type: "directory" });
+        walk(absolute);
+      } else if (stat.isFile() && !stat.isSymbolicLink()) {
+        records.push({ ...common, type: "file", bytes_sha256: hashBytes(fs.readFileSync(absolute)) });
+      } else if (stat.isSymbolicLink()) {
+        records.push({ ...common, type: "symlink", target: fs.readlinkSync(absolute) });
+      } else {
+        records.push({ ...common, type: "other" });
+      }
+    }
+  };
+  walk(agents);
+  return records;
+}
+
+function snapshotTask(root) {
+  const task = taskPath(root);
+  const records = [];
+  const walk = (directory) => {
+    for (const name of fs.readdirSync(directory).sort()) {
+      const absolute = path.join(directory, name);
+      const relative = path.relative(task, absolute).split(path.sep).join("/");
+      const stat = fs.lstatSync(absolute);
+      if (stat.isDirectory() && !stat.isSymbolicLink()) {
+        records.push({ path: relative, type: "directory", mode: stat.mode & 0o777, ino: stat.ino });
+        walk(absolute);
+      } else {
+        records.push({
+          path: relative,
+          type: stat.isFile() && !stat.isSymbolicLink() ? "file" : "other",
+          mode: stat.mode & 0o777,
+          ino: stat.ino,
+          nlink: stat.nlink,
+          bytes_sha256: stat.isFile() ? hashBytes(fs.readFileSync(absolute)) : null,
+        });
+      }
+    }
+  };
+  walk(task);
+  return records;
+}
+
+function assertPrivateTaskInventory(root) {
+  const records = snapshotTask(root);
+  assert.deepEqual(records.map(({ path: relative, type }) => [relative, type]), [
+    ["analysis", "directory"],
+    ["analysis/changes.jsonl", "file"],
+    ["analysis/manifest.json", "file"],
+    ["analysis/observations.jsonl", "file"],
+    ["analysis/snapshot.json", "file"],
+    ["analysis-authority.json", "file"],
+    [ANALYSIS_PROVISIONING_RECEIPT_FILE, "file"],
+  ]);
+  for (const record of records) {
+    assert.equal(record.mode, record.type === "directory" ? 0o700 : 0o600, record.path);
+    if (record.type === "file") assert.equal(record.nlink, 1, record.path);
+  }
+}
+
+function assertOnlyProvisionedTaskIsUntracked(root) {
+  const lines = runGit(root, ["status", "--porcelain=v1", "--untracked-files=all"])
+    .split("\n")
+    .filter(Boolean);
+  assert.equal(lines.length, 6);
+  assert.ok(lines.every((line) => line.startsWith(`?? .agents/${TASK_ID}/`)), lines.join("\n"));
 }
 
 function assertFixedError(action, code) {
@@ -151,6 +245,7 @@ test("tracked generation 1 is atomic, trusted, queryable, projected, and retry e
   assert.equal(created.generation, 1);
   assert.equal(created.observation_count, 1);
   assert.equal(fs.existsSync(stagePath(root)), false);
+  assert.equal(fs.lstatSync(path.join(root, ".agents")).mode & 0o777, 0o700);
 
   const trusted = readTrustedAnalysisState({ cwd: root, taskId: TASK_ID });
   assert.equal(trusted.persisted.manifest.snapshot_sha256, created.snapshot_sha256);
@@ -169,6 +264,99 @@ test("tracked generation 1 is atomic, trusted, queryable, projected, and retry e
   const retried = provision(root);
   assert.deepEqual(retried, { ...created, outcome: "already_provisioned" });
   for (const [name, bytes] of managedBefore) assert.ok(fs.readFileSync(taskPath(root, `analysis/${name}`)).equals(bytes));
+});
+
+test("tracked shared agents siblings stay exact through trusted provisioning and retry", () => {
+  const { root, head, tree } = makeRepository({ sharedAgentsMode: 0o755 });
+  const agentsPath = path.join(root, ".agents");
+  const parentBefore = fs.lstatSync(agentsPath);
+  const siblingsBefore = snapshotForeignAgents(root);
+  assert.equal(runGit(root, ["status", "--porcelain=v1", "--untracked-files=all"]), "");
+
+  const created = provision(root);
+  assert.equal(created.outcome, "created");
+  assert.equal(created.head_oid, head);
+  assert.equal(created.tree_oid, tree);
+  assert.equal(created.head_oid, "dceffa0adc413de99c8a40ecb8b0fdca3f6a4945");
+  assert.equal(created.tree_oid, "e2223dbe6c9ad9924fbbcaf82c526d51da3f7aca");
+  assert.equal(created.seed_blob_oid, "5da785c0f38dd093a698043b0e9ceff7b1792521");
+  assert.equal(created.snapshot_sha256, "e6ed1bb9784cae39ce901cc7f927b6d629cbf30d0096e05c7736633ff3dbeeea");
+  assert.equal(fs.lstatSync(agentsPath).ino, parentBefore.ino);
+  assert.equal(fs.lstatSync(agentsPath).mode & 0o777, 0o755);
+  assert.deepEqual(snapshotForeignAgents(root), siblingsBefore);
+  assertPrivateTaskInventory(root);
+  assertOnlyProvisionedTaskIsUntracked(root);
+
+  const trusted = readTrustedAnalysisState({ cwd: root, taskId: TASK_ID });
+  assert.equal(queryAnalysisState(trusted.persisted.state, SUBJECT, "human_approval").length, 1);
+  assert.equal(renderTrustedAnalysisCurrentState({ enabled: true, cwd: root, taskId: TASK_ID }).snapshot_sha256, created.snapshot_sha256);
+  const taskBeforeRetry = snapshotTask(root);
+  const retried = provision(root);
+  assert.deepEqual(retried, { ...created, outcome: "already_provisioned" });
+  assert.deepEqual(snapshotTask(root), taskBeforeRetry);
+  assert.deepEqual(snapshotForeignAgents(root), siblingsBefore);
+  assert.equal(fs.lstatSync(agentsPath).ino, parentBefore.ino);
+  assert.equal(fs.lstatSync(agentsPath).mode & 0o777, 0o755);
+  assertOnlyProvisionedTaskIsUntracked(root);
+});
+
+test("safe owner-controlled shared parent modes are retained without chmod", () => {
+  for (const mode of [0o700, 0o711, 0o750, 0o755]) {
+    const { root } = makeRepository({ sharedAgentsMode: mode });
+    const parentBefore = fs.lstatSync(path.join(root, ".agents"));
+    const siblingsBefore = snapshotForeignAgents(root);
+    assert.equal(provision(root).outcome, "created", mode.toString(8));
+    const parentAfter = fs.lstatSync(path.join(root, ".agents"));
+    assert.equal(parentAfter.ino, parentBefore.ino, mode.toString(8));
+    assert.equal(parentAfter.mode & 0o777, mode, mode.toString(8));
+    assert.deepEqual(snapshotForeignAgents(root), siblingsBefore, mode.toString(8));
+    assertPrivateTaskInventory(root);
+  }
+});
+
+test("group or world writable shared parents fail closed without sibling mutation", () => {
+  for (const mode of [0o720, 0o730, 0o770, 0o775, 0o777]) {
+    const { root } = makeRepository({ sharedAgentsMode: mode });
+    const parentBefore = fs.lstatSync(path.join(root, ".agents"));
+    const siblingsBefore = snapshotForeignAgents(root);
+    assertFixedError(() => provision(root), "PROVISIONING_UNTRUSTED");
+    const parentAfter = fs.lstatSync(path.join(root, ".agents"));
+    assert.equal(parentAfter.ino, parentBefore.ino, mode.toString(8));
+    assert.equal(parentAfter.mode & 0o777, mode, mode.toString(8));
+    assert.deepEqual(snapshotForeignAgents(root), siblingsBefore, mode.toString(8));
+    assert.equal(fs.existsSync(taskPath(root)), false, mode.toString(8));
+    assert.equal(fs.existsSync(stagePath(root)), false, mode.toString(8));
+    assert.equal(runGit(root, ["status", "--porcelain=v1", "--untracked-files=all"]), "");
+  }
+});
+
+test("symlink, file, and unexpected portable parent ownership fail closed", (context) => {
+  const linked = makeRepository({ sharedAgentsMode: 0o755 });
+  const linkedAgents = path.join(linked.root, ".agents");
+  const foreignAgents = `${linkedAgents}-foreign`;
+  fs.renameSync(linkedAgents, foreignAgents);
+  fs.symlinkSync(foreignAgents, linkedAgents);
+  const foreignBefore = snapshotForeignAgents(linked.root, foreignAgents);
+  assertFixedError(() => provision(linked.root), "PROVISIONING_UNTRUSTED");
+  assert.deepEqual(snapshotForeignAgents(linked.root, foreignAgents), foreignBefore);
+  assert.equal(fs.existsSync(taskPath(linked.root)), false);
+
+  const fileParent = makeRepository();
+  fs.writeFileSync(path.join(fileParent.root, ".agents"), "foreign\n", { mode: 0o600 });
+  const fileBefore = fs.readFileSync(path.join(fileParent.root, ".agents"));
+  assertFixedError(() => provision(fileParent.root), "PROVISIONING_UNTRUSTED");
+  assert.ok(fs.readFileSync(path.join(fileParent.root, ".agents")).equals(fileBefore));
+
+  if (typeof process.getuid !== "function" || process.getuid() !== 0) {
+    context.diagnostic("owner mismatch case requires a privileged portable chown and was not exercised");
+    return;
+  }
+  const wrongOwner = makeRepository({ sharedAgentsMode: 0o755 });
+  fs.chownSync(path.join(wrongOwner.root, ".agents"), 1, fs.lstatSync(path.join(wrongOwner.root, ".agents")).gid);
+  const siblingsBefore = snapshotForeignAgents(wrongOwner.root);
+  assertFixedError(() => provision(wrongOwner.root), "PROVISIONING_UNTRUSTED");
+  assert.deepEqual(snapshotForeignAgents(wrongOwner.root), siblingsBefore);
+  assert.equal(fs.existsSync(taskPath(wrongOwner.root)), false);
 });
 
 test("two independent repositories with the same commit produce identical managed bytes and bindings", () => {
@@ -348,6 +536,117 @@ test("alternates, replacement refs, inherited Git overrides, and identity races 
   }), "PROVISIONING_CONFLICT");
   assert.equal(fs.lstatSync(taskPath(targetRace.root)).ino, foreignIdentity.ino);
   assert.deepEqual(fs.readdirSync(taskPath(targetRace.root)), []);
+});
+
+test("shared parent failure and competing target paths preserve every foreign sibling", () => {
+  const failed = makeRepository({ sharedAgentsMode: 0o755 });
+  const failedParent = fs.lstatSync(path.join(failed.root, ".agents"));
+  const failedSiblings = snapshotForeignAgents(failed.root);
+  assertFixedError(() => provision(failed.root, { failAfter: "validation" }), "PROVISIONING_UNTRUSTED");
+  assert.equal(fs.existsSync(taskPath(failed.root)), false);
+  assert.equal(fs.existsSync(stagePath(failed.root)), false);
+  assert.equal(fs.lstatSync(path.join(failed.root, ".agents")).ino, failedParent.ino);
+  assert.equal(fs.lstatSync(path.join(failed.root, ".agents")).mode & 0o777, 0o755);
+  assert.deepEqual(snapshotForeignAgents(failed.root), failedSiblings);
+  assert.equal(runGit(failed.root, ["status", "--porcelain=v1", "--untracked-files=all"]), "");
+
+  const competing = makeRepository({ sharedAgentsMode: 0o755 });
+  const competingSiblings = snapshotForeignAgents(competing.root);
+  let targetBefore;
+  assertFixedError(() => provision(competing.root, {
+    beforeRename: () => {
+      fs.mkdirSync(taskPath(competing.root), { mode: 0o700 });
+      targetBefore = fs.lstatSync(taskPath(competing.root));
+    },
+  }), "PROVISIONING_CONFLICT");
+  assert.equal(fs.lstatSync(taskPath(competing.root)).ino, targetBefore.ino);
+  assert.deepEqual(fs.readdirSync(taskPath(competing.root)), []);
+  assert.deepEqual(snapshotForeignAgents(competing.root), competingSiblings);
+  assert.equal(fs.lstatSync(path.join(competing.root, ".agents")).mode & 0o777, 0o755);
+
+  const afterRename = makeRepository({ sharedAgentsMode: 0o755 });
+  const afterRenameSiblings = snapshotForeignAgents(afterRename.root);
+  assertFixedError(() => provision(afterRename.root, { failAfter: "after_rename" }), "PROVISIONING_UNTRUSTED");
+  assertPrivateTaskInventory(afterRename.root);
+  assert.deepEqual(snapshotForeignAgents(afterRename.root), afterRenameSiblings);
+  assert.equal(provision(afterRename.root).outcome, "already_provisioned");
+  assert.deepEqual(snapshotForeignAgents(afterRename.root), afterRenameSiblings);
+});
+
+test("shared parent mode and identity races fail closed before and after publication", () => {
+  const beforeMode = makeRepository({ sharedAgentsMode: 0o755 });
+  const beforeModeSiblings = snapshotForeignAgents(beforeMode.root);
+  assertFixedError(() => provision(beforeMode.root, {
+    beforeRename: () => fs.chmodSync(path.join(beforeMode.root, ".agents"), 0o775),
+  }), "PROVISIONING_UNTRUSTED");
+  assert.equal(fs.existsSync(taskPath(beforeMode.root)), false);
+  assert.equal(fs.lstatSync(path.join(beforeMode.root, ".agents")).mode & 0o777, 0o775);
+  assert.deepEqual(snapshotForeignAgents(beforeMode.root), beforeModeSiblings);
+
+  const beforeIdentity = makeRepository({ sharedAgentsMode: 0o755 });
+  const beforeIdentityAgents = path.join(beforeIdentity.root, ".agents");
+  const beforeIdentityMoved = `${beforeIdentityAgents}-moved`;
+  const beforeIdentitySiblings = snapshotForeignAgents(beforeIdentity.root);
+  assertFixedError(() => provision(beforeIdentity.root, {
+    beforeRename: () => {
+      fs.renameSync(beforeIdentityAgents, beforeIdentityMoved);
+      fs.mkdirSync(beforeIdentityAgents, { mode: 0o755 });
+    },
+  }), "PROVISIONING_UNTRUSTED");
+  assert.equal(fs.existsSync(taskPath(beforeIdentity.root)), false);
+  fs.rmdirSync(beforeIdentityAgents);
+  fs.renameSync(beforeIdentityMoved, beforeIdentityAgents);
+  assert.deepEqual(snapshotForeignAgents(beforeIdentity.root), beforeIdentitySiblings);
+
+  const afterMode = makeRepository({ sharedAgentsMode: 0o755 });
+  const afterModeSiblings = snapshotForeignAgents(afterMode.root);
+  const originalFsyncForMode = fs.fsyncSync;
+  let changedMode = false;
+  fs.fsyncSync = (descriptor) => {
+    if (!changedMode && fs.existsSync(taskPath(afterMode.root))) {
+      fs.chmodSync(path.join(afterMode.root, ".agents"), 0o775);
+      changedMode = true;
+    }
+    return originalFsyncForMode(descriptor);
+  };
+  try {
+    assertFixedError(() => provision(afterMode.root), "PROVISIONING_UNTRUSTED");
+  } finally {
+    fs.fsyncSync = originalFsyncForMode;
+  }
+  assert.equal(changedMode, true);
+  assertPrivateTaskInventory(afterMode.root);
+  assert.deepEqual(snapshotForeignAgents(afterMode.root), afterModeSiblings);
+  assert.equal(fs.lstatSync(path.join(afterMode.root, ".agents")).mode & 0o777, 0o775);
+  fs.chmodSync(path.join(afterMode.root, ".agents"), 0o755);
+  assert.equal(provision(afterMode.root).outcome, "already_provisioned");
+
+  const afterIdentity = makeRepository({ sharedAgentsMode: 0o755 });
+  const afterIdentityAgents = path.join(afterIdentity.root, ".agents");
+  const afterIdentityMoved = `${afterIdentityAgents}-moved`;
+  const afterIdentitySiblings = snapshotForeignAgents(afterIdentity.root);
+  const originalFsyncForIdentity = fs.fsyncSync;
+  let changedIdentity = false;
+  fs.fsyncSync = (descriptor) => {
+    if (!changedIdentity && fs.existsSync(taskPath(afterIdentity.root))) {
+      fs.renameSync(afterIdentityAgents, afterIdentityMoved);
+      fs.mkdirSync(afterIdentityAgents, { mode: 0o755 });
+      changedIdentity = true;
+    }
+    return originalFsyncForIdentity(descriptor);
+  };
+  try {
+    assertFixedError(() => provision(afterIdentity.root), "PROVISIONING_UNTRUSTED");
+  } finally {
+    fs.fsyncSync = originalFsyncForIdentity;
+  }
+  assert.equal(changedIdentity, true);
+  assert.equal(fs.existsSync(taskPath(afterIdentity.root)), false);
+  fs.rmdirSync(afterIdentityAgents);
+  fs.renameSync(afterIdentityMoved, afterIdentityAgents);
+  assertPrivateTaskInventory(afterIdentity.root);
+  assert.deepEqual(snapshotForeignAgents(afterIdentity.root), afterIdentitySiblings);
+  assert.equal(provision(afterIdentity.root).outcome, "already_provisioned");
 });
 
 test("every injected boundary is retry safe and preserves atomic visibility", () => {
