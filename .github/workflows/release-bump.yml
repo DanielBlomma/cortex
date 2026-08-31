@@ -148,6 +148,8 @@ jobs:
         run: npm --prefix scaffold/mcp run test:ci
 
       - name: Run executable fresh-checkout regression
+        env:
+          CORTEX_EXPECTED_RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
         run: |
           git clean -fdx .context scaffold/.context
           git restore .context scaffold/.context
