@@ -32,8 +32,9 @@ still fail closed.
 - This live check proves a compatibility gap and the already accepted engine;
   it is not an upstream VS Code quality assessment or production dogfood.
 - Create branch `feature/wo063-shared-agents-parent` in a separate worktree
-  from control integration `98301f8` and start in a fresh session using only
-  this packet and the direct references below.
+  from the control authorization commit containing this packet (whose parent
+  includes integration `98301f8`) and start in a fresh session using only this
+  packet and the direct references below.
 
 ## Work Profile
 
