@@ -684,6 +684,44 @@ test("final publication gap cannot redirect the task through a replacement paren
   assert.equal(provision(fixture.root).outcome, "already_provisioned");
 });
 
+test("no-clobber fallback retains the originally bound parent identity", () => {
+  const fixture = makeRepository({ sharedAgentsMode: 0o755 });
+  const replacement = makeRepository({ sharedAgentsMode: 0o755 });
+  assert.equal(provision(replacement.root).outcome, "created");
+  const agents = path.join(fixture.root, ".agents");
+  const movedAgents = `${agents}-moved`;
+  const replacementAgents = path.join(replacement.root, ".agents");
+  const fixtureSiblings = snapshotForeignAgents(fixture.root);
+  const stagedTask = path.join(stagePath(fixture.root), ".agents", TASK_ID);
+  const originalLstat = fs.lstatSync;
+  let replaced = false;
+  fs.lstatSync = (target, options) => {
+    if (!replaced && target === stagedTask && process.cwd() === agents) {
+      fs.mkdirSync(taskPath(fixture.root), { mode: 0o700 });
+      fs.renameSync(agents, movedAgents);
+      fs.renameSync(replacementAgents, agents);
+      replaced = true;
+    }
+    return originalLstat(target, options);
+  };
+  try {
+    assertFixedError(() => provision(fixture.root), "PROVISIONING_UNTRUSTED");
+  } finally {
+    fs.lstatSync = originalLstat;
+  }
+  assert.equal(replaced, true);
+  assert.equal(fs.existsSync(stagePath(fixture.root)), false);
+  assertPrivateTaskInventory(fixture.root);
+  assert.deepEqual(snapshotForeignAgents(fixture.root, movedAgents), fixtureSiblings);
+
+  fs.renameSync(agents, replacementAgents);
+  fs.rmdirSync(path.join(movedAgents, TASK_ID));
+  fs.renameSync(movedAgents, agents);
+  assert.deepEqual(snapshotForeignAgents(fixture.root), fixtureSiblings);
+  assert.equal(fs.existsSync(taskPath(fixture.root)), false);
+  assert.equal(provision(fixture.root).outcome, "created");
+});
+
 test("every injected boundary is retry safe and preserves atomic visibility", () => {
   const beforeRename = ["owner", "observations", "snapshot", "changes", "store", "authority", "receipt", "candidate_fsync", "validation", "before_rename"];
   for (const point of beforeRename) {

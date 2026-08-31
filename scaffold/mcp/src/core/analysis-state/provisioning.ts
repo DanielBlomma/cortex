@@ -663,11 +663,20 @@ function expectedReceipt(prepared: PreparedProvision, trusted: TrustedAnalysisSt
   return makeReceipt(receiptPayload(prepared, trusted));
 }
 
-function verifyExactTarget(prepared: PreparedProvision): TrackedAnalysisProvisioningResult {
+function verifyExactTarget(
+  prepared: PreparedProvision,
+  requiredAgentsBinding?: ProvisioningAgentsParentBinding,
+): TrackedAnalysisProvisioningResult {
   const root = prepared.git.root;
   const agentsDirectory = path.join(root, ".agents");
   const taskDirectory = path.join(agentsDirectory, prepared.seed.taskId);
-  const agentsBinding = bindExistingProvisioningAgentsParent(prepared.git, false);
+  let agentsBinding: ProvisioningAgentsParentBinding;
+  if (requiredAgentsBinding) {
+    assertProvisioningAgentsParentUnchanged(prepared.git, requiredAgentsBinding);
+    agentsBinding = requiredAgentsBinding;
+  } else {
+    agentsBinding = bindExistingProvisioningAgentsParent(prepared.git, false);
+  }
   assertExactTaskInventory(taskDirectory);
   let trusted: TrustedAnalysisState;
   try { trusted = readTrustedAnalysisState({ cwd: root, taskId: prepared.seed.taskId }); } catch { provisioningError("PROVISIONING_CONFLICT", "existing task is not the exact trusted target"); }
@@ -1071,18 +1080,18 @@ function provisionNew(
     const agentsIdentity = ensureProvisioningAgentsParent(prepared.git);
     if (targetEntryExists(targetTask)) {
       removeOwnedStage(stageRoot, prepared.seed.taskId, token);
-      return verifyExactTarget(prepared);
+      return verifyExactTarget(prepared, agentsIdentity);
     }
     maybeFail(options.hooks, "before_rename");
     options.hooks?.beforeRename?.();
     assertProvisioningAgentsParentUnchanged(prepared.git, agentsIdentity);
     if (targetEntryExists(targetTask)) {
       removeOwnedStage(stageRoot, prepared.seed.taskId, token);
-      return verifyExactTarget(prepared);
+      return verifyExactTarget(prepared, agentsIdentity);
     }
     if (!publishTaskDirectoryNoReplace(stageTask, targetTask, agentsIdentity)) {
       removeOwnedStage(stageRoot, prepared.seed.taskId, token);
-      return verifyExactTarget(prepared);
+      return verifyExactTarget(prepared, agentsIdentity);
     }
     renamed = true;
     assertProvisioningAgentsParentUnchanged(prepared.git, agentsIdentity);
