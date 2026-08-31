@@ -6,6 +6,24 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-31 — WO-061 canonical Current State projection authorized
+
+- WO-060 is accepted at feature `bf02c7e`, integrated as `7b97b9d`, and
+  recorded at control `4d3f273`. Its internal transaction can extend an
+  already trusted state but intentionally cannot create initial authority.
+- The user's “go on” authorizes the next ordered Stage 2 gate. Packet 075
+  assigns only a deterministic internal projection of the trusted primary
+  subject, decision predicates, blockers, contradictions, and bounded proof
+  references into canonical Markdown plus an exact hash.
+- The projector must call `readTrustedAnalysisState`, distinguish not
+  derivable from false, perform no write or repair, and leave CLI/MCP
+  inventories and every filesystem identity unchanged.
+- WO-061 is assigned on
+  `feature/wo061-maintained-analysis-current-state` in
+  `/Users/danielnilsson/GIT/cortex-wo061-maintained-analysis-current-state`.
+  Bootstrap authority, production manager/handoff mutation, public rendering
+  or writing, workflow auto-emission, dogfood, and WO-055 remain stopped.
+
 ## 2026-08-31 — WO-060 trusted append transaction accepted
 
 - WO-060 is accepted at feature commit `bf02c7e` and integrated into the
