@@ -949,29 +949,76 @@ function assertExactTaskInventory(taskDirectory: string): void {
   }
 }
 
-function publishTaskDirectoryNoReplace(stageTask: string, targetAgents: string, targetTask: string): boolean {
+function assertOpenedAgentsParentMatches(
+  descriptor: number,
+  expected: ProvisioningAgentsParentBinding,
+): void {
+  const current = fs.fstatSync(descriptor, { bigint: true });
+  if (
+    !current.isDirectory() || current.isSymbolicLink() || current.dev !== expected.dev ||
+    current.ino !== expected.ino || current.mode !== expected.mode ||
+    current.uid !== expected.uid || current.gid !== expected.gid
+  ) provisioningError("PROVISIONING_UNTRUSTED", "managed parent changed during publication");
+}
+
+function fsyncOpenedDirectory(descriptor: number): void {
+  try {
+    fs.fsyncSync(descriptor);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (!["EINVAL", "ENOTSUP", "EISDIR", "EPERM"].includes(code ?? "")) throw error;
+  }
+}
+
+function publishTaskDirectoryNoReplace(
+  stageTask: string,
+  targetTask: string,
+  targetBinding: ProvisioningAgentsParentBinding,
+): boolean {
   const source = fs.lstatSync(stageTask, { bigint: true });
   if (!source.isDirectory() || source.isSymbolicLink()) {
     provisioningError("PROVISIONING_UNTRUSTED", "candidate task directory changed");
   }
-  const result = spawnSync("/bin/mv", ["-n", stageTask, targetAgents], {
-    encoding: null,
-    maxBuffer: 64 * 1024,
-    timeout: 15_000,
-    stdio: ["ignore", "pipe", "pipe"],
-    env: { PATH: "/usr/bin:/bin", LC_ALL: "C" },
-  });
-  if (result.error || result.signal || result.status !== 0 || (result.stdout?.length ?? 0) > 64 * 1024 || (result.stderr?.length ?? 0) > 64 * 1024) {
-    provisioningError("PROVISIONING_UNTRUSTED", "atomic task publication failed safely");
+  const openFlags = fs.constants.O_RDONLY | (fs.constants.O_DIRECTORY ?? 0) | (fs.constants.O_NOFOLLOW ?? 0);
+  let targetParentDescriptor: number | undefined;
+  const originalWorkingDirectory = process.cwd();
+  try {
+    process.chdir(targetBinding.path);
+    targetParentDescriptor = fs.openSync(".", openFlags);
+    assertOpenedAgentsParentMatches(targetParentDescriptor, targetBinding);
+    const currentSource = fs.lstatSync(stageTask, { bigint: true });
+    if (
+      !currentSource.isDirectory() || currentSource.isSymbolicLink() ||
+      currentSource.dev !== source.dev || currentSource.ino !== source.ino || currentSource.mode !== source.mode
+    ) provisioningError("PROVISIONING_UNTRUSTED", "candidate task directory changed");
+
+    const result = spawnSync("/bin/mv", ["-n", stageTask, "."], {
+      encoding: null,
+      maxBuffer: 64 * 1024,
+      timeout: 15_000,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { PATH: "/usr/bin:/bin", LC_ALL: "C" },
+    });
+    if (result.error || result.signal || result.status !== 0 || (result.stdout?.length ?? 0) > 64 * 1024 || (result.stderr?.length ?? 0) > 64 * 1024) {
+      provisioningError("PROVISIONING_UNTRUSTED", "atomic task publication failed safely");
+    }
+    if (targetEntryExists(stageTask)) return false;
+    let target: fs.BigIntStats;
+    try { target = fs.lstatSync(path.basename(targetTask), { bigint: true }); } catch { provisioningError("PROVISIONING_UNTRUSTED", "published task is unavailable"); }
+    if (
+      !target.isDirectory() || target.isSymbolicLink() ||
+      target.dev !== source.dev || target.ino !== source.ino || target.mode !== source.mode
+    ) provisioningError("PROVISIONING_UNTRUSTED", "published task identity changed");
+    fsyncOpenedDirectory(targetParentDescriptor);
+    assertOpenedAgentsParentMatches(targetParentDescriptor, targetBinding);
+    return true;
+  } catch (error) {
+    if (error instanceof AnalysisProvisioningError) throw error;
+    return provisioningError("PROVISIONING_UNTRUSTED", "atomic task publication failed safely");
+  } finally {
+    if (targetParentDescriptor !== undefined) fs.closeSync(targetParentDescriptor);
+    process.chdir(originalWorkingDirectory);
   }
-  if (fs.existsSync(stageTask)) return false;
-  let target: fs.BigIntStats;
-  try { target = fs.lstatSync(targetTask, { bigint: true }); } catch { provisioningError("PROVISIONING_UNTRUSTED", "published task is unavailable"); }
-  if (
-    !target.isDirectory() || target.isSymbolicLink() ||
-    target.dev !== source.dev || target.ino !== source.ino || target.mode !== source.mode
-  ) provisioningError("PROVISIONING_UNTRUSTED", "published task identity changed");
-  return true;
 }
 
 function provisionNew(
@@ -1033,12 +1080,11 @@ function provisionNew(
       removeOwnedStage(stageRoot, prepared.seed.taskId, token);
       return verifyExactTarget(prepared);
     }
-    if (!publishTaskDirectoryNoReplace(stageTask, targetAgents, targetTask)) {
+    if (!publishTaskDirectoryNoReplace(stageTask, targetTask, agentsIdentity)) {
       removeOwnedStage(stageRoot, prepared.seed.taskId, token);
       return verifyExactTarget(prepared);
     }
     renamed = true;
-    fsyncDirectory(targetAgents);
     assertProvisioningAgentsParentUnchanged(prepared.git, agentsIdentity);
     assertExactTaskInventory(targetTask);
     const published = readTrustedAnalysisState({ cwd: prepared.git.root, taskId: prepared.seed.taskId });

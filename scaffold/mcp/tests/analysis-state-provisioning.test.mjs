@@ -143,6 +143,17 @@ function stagePath(root) {
   return path.join(root, `.analysis-provision-${TASK_ID}`);
 }
 
+function snapshotAgentsParent(root) {
+  const stat = fs.lstatSync(path.join(root, ".agents"), { bigint: true });
+  return {
+    dev: stat.dev.toString(10),
+    ino: stat.ino.toString(10),
+    mode: Number(stat.mode & 0o777n),
+    uid: stat.uid.toString(10),
+    gid: stat.gid.toString(10),
+  };
+}
+
 function snapshotForeignAgents(root, agents = path.join(root, ".agents")) {
   const records = [];
   const walk = (directory) => {
@@ -268,8 +279,7 @@ test("tracked generation 1 is atomic, trusted, queryable, projected, and retry e
 
 test("tracked shared agents siblings stay exact through trusted provisioning and retry", () => {
   const { root, head, tree } = makeRepository({ sharedAgentsMode: 0o755 });
-  const agentsPath = path.join(root, ".agents");
-  const parentBefore = fs.lstatSync(agentsPath);
+  const parentBefore = snapshotAgentsParent(root);
   const siblingsBefore = snapshotForeignAgents(root);
   assert.equal(runGit(root, ["status", "--porcelain=v1", "--untracked-files=all"]), "");
 
@@ -281,8 +291,7 @@ test("tracked shared agents siblings stay exact through trusted provisioning and
   assert.equal(created.tree_oid, "e2223dbe6c9ad9924fbbcaf82c526d51da3f7aca");
   assert.equal(created.seed_blob_oid, "5da785c0f38dd093a698043b0e9ceff7b1792521");
   assert.equal(created.snapshot_sha256, "e6ed1bb9784cae39ce901cc7f927b6d629cbf30d0096e05c7736633ff3dbeeea");
-  assert.equal(fs.lstatSync(agentsPath).ino, parentBefore.ino);
-  assert.equal(fs.lstatSync(agentsPath).mode & 0o777, 0o755);
+  assert.deepEqual(snapshotAgentsParent(root), parentBefore);
   assert.deepEqual(snapshotForeignAgents(root), siblingsBefore);
   assertPrivateTaskInventory(root);
   assertOnlyProvisionedTaskIsUntracked(root);
@@ -295,20 +304,17 @@ test("tracked shared agents siblings stay exact through trusted provisioning and
   assert.deepEqual(retried, { ...created, outcome: "already_provisioned" });
   assert.deepEqual(snapshotTask(root), taskBeforeRetry);
   assert.deepEqual(snapshotForeignAgents(root), siblingsBefore);
-  assert.equal(fs.lstatSync(agentsPath).ino, parentBefore.ino);
-  assert.equal(fs.lstatSync(agentsPath).mode & 0o777, 0o755);
+  assert.deepEqual(snapshotAgentsParent(root), parentBefore);
   assertOnlyProvisionedTaskIsUntracked(root);
 });
 
 test("safe owner-controlled shared parent modes are retained without chmod", () => {
   for (const mode of [0o700, 0o711, 0o750, 0o755]) {
     const { root } = makeRepository({ sharedAgentsMode: mode });
-    const parentBefore = fs.lstatSync(path.join(root, ".agents"));
+    const parentBefore = snapshotAgentsParent(root);
     const siblingsBefore = snapshotForeignAgents(root);
     assert.equal(provision(root).outcome, "created", mode.toString(8));
-    const parentAfter = fs.lstatSync(path.join(root, ".agents"));
-    assert.equal(parentAfter.ino, parentBefore.ino, mode.toString(8));
-    assert.equal(parentAfter.mode & 0o777, mode, mode.toString(8));
+    assert.deepEqual(snapshotAgentsParent(root), parentBefore, mode.toString(8));
     assert.deepEqual(snapshotForeignAgents(root), siblingsBefore, mode.toString(8));
     assertPrivateTaskInventory(root);
   }
@@ -317,12 +323,10 @@ test("safe owner-controlled shared parent modes are retained without chmod", () 
 test("group or world writable shared parents fail closed without sibling mutation", () => {
   for (const mode of [0o720, 0o730, 0o770, 0o775, 0o777]) {
     const { root } = makeRepository({ sharedAgentsMode: mode });
-    const parentBefore = fs.lstatSync(path.join(root, ".agents"));
+    const parentBefore = snapshotAgentsParent(root);
     const siblingsBefore = snapshotForeignAgents(root);
     assertFixedError(() => provision(root), "PROVISIONING_UNTRUSTED");
-    const parentAfter = fs.lstatSync(path.join(root, ".agents"));
-    assert.equal(parentAfter.ino, parentBefore.ino, mode.toString(8));
-    assert.equal(parentAfter.mode & 0o777, mode, mode.toString(8));
+    assert.deepEqual(snapshotAgentsParent(root), parentBefore, mode.toString(8));
     assert.deepEqual(snapshotForeignAgents(root), siblingsBefore, mode.toString(8));
     assert.equal(fs.existsSync(taskPath(root)), false, mode.toString(8));
     assert.equal(fs.existsSync(stagePath(root)), false, mode.toString(8));
@@ -540,13 +544,12 @@ test("alternates, replacement refs, inherited Git overrides, and identity races 
 
 test("shared parent failure and competing target paths preserve every foreign sibling", () => {
   const failed = makeRepository({ sharedAgentsMode: 0o755 });
-  const failedParent = fs.lstatSync(path.join(failed.root, ".agents"));
+  const failedParent = snapshotAgentsParent(failed.root);
   const failedSiblings = snapshotForeignAgents(failed.root);
   assertFixedError(() => provision(failed.root, { failAfter: "validation" }), "PROVISIONING_UNTRUSTED");
   assert.equal(fs.existsSync(taskPath(failed.root)), false);
   assert.equal(fs.existsSync(stagePath(failed.root)), false);
-  assert.equal(fs.lstatSync(path.join(failed.root, ".agents")).ino, failedParent.ino);
-  assert.equal(fs.lstatSync(path.join(failed.root, ".agents")).mode & 0o777, 0o755);
+  assert.deepEqual(snapshotAgentsParent(failed.root), failedParent);
   assert.deepEqual(snapshotForeignAgents(failed.root), failedSiblings);
   assert.equal(runGit(failed.root, ["status", "--porcelain=v1", "--untracked-files=all"]), "");
 
@@ -649,6 +652,38 @@ test("shared parent mode and identity races fail closed before and after publica
   assert.equal(provision(afterIdentity.root).outcome, "already_provisioned");
 });
 
+test("final publication gap cannot redirect the task through a replacement parent symlink", () => {
+  const fixture = makeRepository({ sharedAgentsMode: 0o755 });
+  const agents = path.join(fixture.root, ".agents");
+  const movedAgents = `${agents}-moved`;
+  const externalAgents = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "cortex-provision-external-")));
+  const siblingsBefore = snapshotForeignAgents(fixture.root);
+  const originalOpen = fs.openSync;
+  let replaced = false;
+  fs.openSync = (target, flags, mode) => {
+    if (!replaced && target === "." && process.cwd() === agents) {
+      fs.renameSync(agents, movedAgents);
+      fs.symlinkSync(externalAgents, agents);
+      replaced = true;
+    }
+    return originalOpen(target, flags, mode);
+  };
+  try {
+    assertFixedError(() => provision(fixture.root), "PROVISIONING_UNTRUSTED");
+  } finally {
+    fs.openSync = originalOpen;
+  }
+  assert.equal(replaced, true);
+  assert.equal(fs.existsSync(path.join(externalAgents, TASK_ID)), false);
+  assert.deepEqual(fs.readdirSync(externalAgents), []);
+  assert.equal(fs.existsSync(stagePath(fixture.root)), false);
+  fs.unlinkSync(agents);
+  fs.renameSync(movedAgents, agents);
+  assert.deepEqual(snapshotForeignAgents(fixture.root), siblingsBefore);
+  assertPrivateTaskInventory(fixture.root);
+  assert.equal(provision(fixture.root).outcome, "already_provisioned");
+});
+
 test("every injected boundary is retry safe and preserves atomic visibility", () => {
   const beforeRename = ["owner", "observations", "snapshot", "changes", "store", "authority", "receipt", "candidate_fsync", "validation", "before_rename"];
   for (const point of beforeRename) {
@@ -667,10 +702,20 @@ test("every injected boundary is retry safe and preserves atomic visibility", ()
 });
 
 test("concurrent fresh processes yield one created and one exact already-provisioned result", async () => {
-  const { root } = makeRepository();
+  const { root } = makeRepository({ sharedAgentsMode: 0o755 });
+  const siblingsBefore = snapshotForeignAgents(root);
+  const parentBefore = snapshotAgentsParent(root);
+  const startPath = path.join(root, ".concurrency-start");
+  const readyPaths = [path.join(root, ".concurrency-ready-1"), path.join(root, ".concurrency-ready-2")];
   const program = `
+    import fs from "node:fs";
     import { provisionTrackedAnalysisState } from ${JSON.stringify(PROVISIONING_URL)};
     try {
+      fs.writeFileSync(process.argv[2], "ready\\n", { flag: "wx" });
+      const signal = new Int32Array(new SharedArrayBuffer(4));
+      const deadline = Date.now() + 15000;
+      while (!fs.existsSync(process.argv[3]) && Date.now() < deadline) Atomics.wait(signal, 0, 0, 10);
+      if (!fs.existsSync(process.argv[3])) throw new Error("concurrency rendezvous timed out");
       const value = provisionTrackedAnalysisState({ enabled: true, cwd: process.argv[1], seedPath: ${JSON.stringify(SEED_PATH)} });
       process.stdout.write(JSON.stringify(value));
     } catch (error) {
@@ -678,8 +723,8 @@ test("concurrent fresh processes yield one created and one exact already-provisi
       process.exitCode = 1;
     }
   `;
-  const run = () => new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ["--input-type=module", "-e", program, root], { stdio: ["ignore", "pipe", "pipe"] });
+  const run = (readyPath) => new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ["--input-type=module", "-e", program, root, readyPath, startPath], { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8").on("data", (value) => { stdout += value; });
@@ -687,9 +732,21 @@ test("concurrent fresh processes yield one created and one exact already-provisi
     child.on("error", reject);
     child.on("close", (code) => code === 0 ? resolve(JSON.parse(stdout)) : reject(new Error(stderr)));
   });
-  const results = await Promise.all([run(), run()]);
+  const runs = readyPaths.map((readyPath) => run(readyPath));
+  const deadline = Date.now() + 15_000;
+  while (!readyPaths.every((readyPath) => fs.existsSync(readyPath)) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.ok(readyPaths.every((readyPath) => fs.existsSync(readyPath)), "both children reached the rendezvous");
+  fs.writeFileSync(startPath, "start\n", { flag: "wx" });
+  const results = await Promise.all(runs);
   assert.deepEqual(results.map((item) => item.outcome).sort(), ["already_provisioned", "created"]);
   assert.deepEqual({ ...results[0], outcome: "same" }, { ...results[1], outcome: "same" });
+  assert.deepEqual(snapshotForeignAgents(root), siblingsBefore);
+  assert.deepEqual(snapshotAgentsParent(root), parentBefore);
+  assertPrivateTaskInventory(root);
+  for (const rendezvousPath of [...readyPaths, startPath]) fs.unlinkSync(rendezvousPath);
+  assertOnlyProvisionedTaskIsUntracked(root);
 });
 
 test("exited-owner staging is reclaimed only with an exact private inventory", () => {
