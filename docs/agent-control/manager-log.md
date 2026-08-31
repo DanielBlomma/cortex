@@ -6,6 +6,45 @@ staging status. Do not rely on chat memory for acceptance or merge decisions.
 Rotation rule: at each day rollover (or at ~150 lines), move the previous
 day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
+## 2026-08-31 — WO-063 shared `.agents` compatibility authorized
+
+- WO-062 is accepted at feature `769396a` and integrated as `98301f8`. The
+  user then authorized WO-063 after a real isolated clone of
+  `microsoft/vscode` exposed one bounded compatibility gap: upstream already
+  tracks `.agents/skills` under a physical mode-`0755` `.agents` directory,
+  while the initial provisioner requires the parent itself to be `0700`.
+- The same VS Code clone succeeded after a local parent-mode adjustment:
+  generation 1 contained 11 base observations, all five Current State
+  decisions were derivable, blockers and contradictions were empty, and an
+  exact retry returned byte-identical `already_provisioned`. This validates
+  the engine and isolates the failure to parent-directory policy; it is not a
+  quality assessment of VS Code or authorization for product dogfood.
+- Packet 077 assigns only safe compatibility with an existing physical,
+  stable, non-group/world-writable `.agents` namespace. The provisioned
+  `.agents/<task-id>` and every managed file remain private, and existing
+  sibling bytes, modes, identities, and Git state may not be mutated.
+- WO-063 must begin in a new Packet-077-only session and a separate feature
+  worktree from this control state. Seed automation, public provisioning,
+  production Current State mutation, workflow auto-emission, broader dogfood,
+  and WO-055 remain stopped.
+
+## 2026-08-31 — WO-062 Git-anchored initial provisioning accepted
+
+- WO-062 is accepted at feature `769396a` and integrated into the control line
+  as `98301f8`. The internal literal-opt-in operation creates one generation-1
+  maintained-analysis state from an exact-HEAD tracked closed seed/evidence
+  set through private staging and atomic no-clobber task publication.
+- Final evidence is focused provisioning 11/11, maintained-analysis chain
+  48/48, MCP 643/643 with zero skips, Stage 0 oracle 19/19, native 3/3, root
+  context 81/81 plus Node 400/400, ownership 17/17, and packed containment
+  42/42 with 465 entries. Cortex repo-diff review reported zero findings and
+  zero conflicts.
+- The accepted frozen fixture binds HEAD `6db2aa4`, tree `15dc781`, seed blob
+  `5da785c`, generation 1, one observation, and snapshot
+  `e6ed1bb9784cae39ce901cc7f927b6d629cbf30d0096e05c7736633ff3dbeeea`.
+  Public writing/rendering, production document mutation, workflow
+  auto-emission, dogfood, and WO-055 remain stopped.
+
 ## 2026-08-31 — WO-062 Git-anchored initial provisioning authorized
 
 - WO-061 is accepted at feature `42fc33e`, integrated as `0f71d0c`, and
