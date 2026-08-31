@@ -393,7 +393,7 @@ function prepareArtifactIndexedRoot(project, installedRoot, cache, token, filena
   run(path.join(project, ".context", "scripts", "load-ryu.sh"), [], { cwd: project });
 }
 
-function runNetworkDenied(command, args, options) {
+export function runNetworkDenied(command, args, options) {
   const isolatedEnv = {
     ...options.env,
     PATH: "/nonexistent",
@@ -409,7 +409,13 @@ function runNetworkDenied(command, args, options) {
   if (process.platform === "linux"
     && fs.existsSync("/usr/bin/sudo")
     && fs.existsSync("/usr/bin/unshare")
+    && fs.existsSync("/usr/bin/setpriv")
     && fs.existsSync("/usr/bin/env")) {
+    const uid = process.getuid?.();
+    const gid = process.getgid?.();
+    if (!Number.isSafeInteger(uid) || !Number.isSafeInteger(gid) || uid <= 0 || gid <= 0) {
+      fail("Linux outbound-network isolation requires a non-root numeric caller identity");
+    }
     const explicitEnvironment = [
       `HOME=${isolatedEnv.HOME}`,
       `DSH_HOME=${isolatedEnv.DSH_HOME}`,
@@ -419,7 +425,22 @@ function runNetworkDenied(command, args, options) {
     ];
     return run(
       "/usr/bin/sudo",
-      ["-n", "/usr/bin/unshare", "--net", "--", "/usr/bin/env", ...explicitEnvironment, command, ...args],
+      [
+        "-n",
+        "/usr/bin/unshare",
+        "--net",
+        "--",
+        "/usr/bin/setpriv",
+        `--reuid=${uid}`,
+        `--regid=${gid}`,
+        "--clear-groups",
+        "--no-new-privs",
+        "--bounding-set=-all",
+        "/usr/bin/env",
+        ...explicitEnvironment,
+        command,
+        ...args,
+      ],
       options,
     );
   }
