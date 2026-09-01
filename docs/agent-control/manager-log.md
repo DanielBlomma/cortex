@@ -8,6 +8,11 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
 ## Current State (2026-09-01)
 
+- The user authorized pushing the accepted WO-063 integration and running the
+  next minor Version Bump. Merge `ed399e1` is pushed to `origin/main`. The
+  release workflow is being advanced from the consumed `2.5.2`→`2.6.0`
+  contract to the exact `2.6.0`→`2.7.0` contract; its dispatch creates and
+  atomically pushes the immutable tag and then triggers tag-bound publication.
 - `origin/main` at `5852422` contains the published Cortex 2.6.0 release and
   the separately published DeepSeek Harness V1 bundle.
 - Accepted WO-063 feature `32d1f7d` is validated for local integration after

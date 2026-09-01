@@ -19,9 +19,9 @@ jobs:
   bump:
     runs-on: ubuntu-latest
     env:
-      BASE_VERSION: "2.5.2"
-      RELEASE_VERSION: "2.6.0"
-      RELEASE_TAG: "v2.6.0"
+      BASE_VERSION: "2.6.0"
+      RELEASE_VERSION: "2.7.0"
+      RELEASE_TAG: "v2.7.0"
 
     steps:
       - name: Reject non-main dispatch
@@ -73,7 +73,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Create exact 2.6.0 metadata and root artifact lock
+      - name: Create exact 2.7.0 metadata and root artifact lock
         id: seed
         run: |
           npm version minor --no-git-tag-version
