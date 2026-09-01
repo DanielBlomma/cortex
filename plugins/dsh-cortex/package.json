@@ -1,6 +1,6 @@
 {
   "name": "@danielblomma/dsh-cortex",
-  "version": "2.5.2",
+  "version": "2.6.0",
   "description": "Session-scoped Cortex context retrieval for DeepSeek Harness",
   "type": "module",
   "license": "MIT",
@@ -37,7 +37,7 @@
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
-    "@danielblomma/cortex-mcp": "2.5.2",
+    "@danielblomma/cortex-mcp": "2.6.0",
     "@deepseek-ai/cordis": "4.0.1",
     "@deepseek-ai/dsh-agent": "0.1.1-rc.2",
     "@deepseek-ai/dsh-attachment": "0.1.1-rc.2",
