@@ -8,21 +8,18 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 
 ## Current State (2026-09-01)
 
-- The user authorized pushing the accepted WO-063 integration and running the
-  next minor Version Bump. Merge `ed399e1` is pushed to `origin/main`. The
-  release workflow is being advanced from the consumed `2.5.2`→`2.6.0`
-  contract to the exact `2.6.0`→`2.7.0` contract; its dispatch creates and
-  atomically pushes the immutable tag and then triggers tag-bound publication.
-- `origin/main` at `5852422` contains the published Cortex 2.6.0 release and
-  the separately published DeepSeek Harness V1 bundle.
-- Accepted WO-063 feature `32d1f7d` is validated for local integration after
-  the release. New root tests are 110/110, focused provisioning is 19/19, the
+- The user authorized pushing accepted WO-063 and running the next minor
+  Version Bump. Merge `ed399e1` and preparation `77f956b` were pushed; Release
+  Bump run `33473668384` created release commit/tag `cd7e414`/`v2.7.0`, and
+  Publish run `33473686535` published and registry-verified both
+  `@danielblomma/cortex-mcp@2.7.0` and `@danielblomma/dsh-cortex@2.7.0`.
+- Accepted WO-063 feature `32d1f7d` is integrated and released. New root tests
+  are 110/110, focused provisioning is 19/19, the
   DSH bundle is 6/6, and the 465-entry packed containment gate is green with
   423 managed and 96 runtime ownership entries. The only full-suite failures
   are ten release-contract assertions already present on byte-identical
   `origin/main` inputs and the bounded review command refusing this 171-file
-  in-progress diff; no push, publication, or additional work order is
-  authorized.
+  in-progress diff. No additional work order is authorized.
 - The diverged histories independently allocated WO-056 through WO-058. The
   current registry qualifies the release sequence as WO-DSH-056 through
   WO-DSH-058 while historical packets, reports, and commits keep their
