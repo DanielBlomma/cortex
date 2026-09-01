@@ -9,23 +9,36 @@
  * parse and cache per module instance), so a worker amortizes that cost over
  * its lifetime.
  */
-import { parseCode } from "../../parsers/javascript.mjs";
+import * as javascriptParser from "../../parsers/javascript.mjs";
 
-const parseJavaScriptCode = parseCode;
+const parseJavaScriptCode = javascriptParser.parseCode;
+const parseJavaScriptCodeWithDialect = javascriptParser.parseCodeWithDialectObservations ?? null;
 let parseVbNetCode = null;
+let parseVbNetCodeWithDialect = null;
 let parseCSharpCode = null;
+let parseCSharpCodeWithDialect = null;
 let parseCSharpProjectImpl = null;
+let parseCSharpProjectWithDialectImpl = null;
 let parseCppCode = null;
+let parseCppCodeWithDialect = null;
 let parseConfigCode = null;
 let parseResourcesCode = null;
 let parseSqlCode = null;
+let parseSqlCodeWithDialect = null;
 let parseRustCode = null;
+let parseRustCodeWithDialect = null;
 let parsePythonCode = null;
+let parsePythonCodeWithDialect = null;
 let parseGoCode = null;
+let parseGoCodeWithDialect = null;
 let parseJavaCode = null;
+let parseJavaCodeWithDialect = null;
 let parseRubyCode = null;
+let parseRubyCodeWithDialect = null;
 let parseBashCode = null;
+let parseBashCodeWithDialect = null;
 let parseVb6Code = null;
+let parseVb6CodeWithDialect = null;
 let parseMarkdownCode = null;
 let isVbNetParserAvailable = () => false;
 let isCSharpParserAvailableImpl = () => false;
@@ -65,6 +78,7 @@ export async function loadParsers() {
   const loaders = [
     import("../../parsers/vbnet.mjs").then((module) => {
       parseVbNetCode = module.parseCode;
+      parseVbNetCodeWithDialect = module.parseCodeWithDialectObservations ?? null;
       isVbNetParserAvailable =
         typeof module.isVbNetParserAvailable === "function"
           ? module.isVbNetParserAvailable
@@ -72,7 +86,9 @@ export async function loadParsers() {
     }),
     import("../../parsers/csharp.mjs").then((module) => {
       parseCSharpCode = module.parseCode;
+      parseCSharpCodeWithDialect = module.parseCodeWithDialectObservations ?? null;
       parseCSharpProjectImpl = module.parseProject ?? null;
+      parseCSharpProjectWithDialectImpl = module.parseProjectWithDialectObservations ?? null;
       getCSharpParserRuntimeImpl =
         typeof module.getCSharpParserRuntime === "function"
           ? module.getCSharpParserRuntime
@@ -84,6 +100,7 @@ export async function loadParsers() {
     }),
     import("../../parsers/cpp-dispatch.mjs").then((module) => {
       parseCppCode = module.parseCode;
+      parseCppCodeWithDialect = module.parseCodeWithDialectObservations ?? null;
       isCppParserAvailable =
         typeof module.isCppParserAvailable === "function"
           ? module.isCppParserAvailable
@@ -97,27 +114,35 @@ export async function loadParsers() {
     }),
     import("../../parsers/sql.mjs").then((module) => {
       parseSqlCode = module.parseCode;
+      parseSqlCodeWithDialect = module.parseCodeWithDialectObservations ?? null;
     }),
     import("../../parsers/rust-dispatch.mjs").then((module) => {
       parseRustCode = module.parseCode;
+      parseRustCodeWithDialect = module.parseCodeWithDialectObservations ?? null;
     }),
     import("../../parsers/python-treesitter.mjs").then((module) => {
       parsePythonCode = module.parseCode;
+      parsePythonCodeWithDialect = module.parseCodeWithDialectObservations ?? null;
     }),
     import("../../parsers/go-treesitter.mjs").then((module) => {
       parseGoCode = module.parseCode;
+      parseGoCodeWithDialect = module.parseCodeWithDialectObservations ?? null;
     }),
     import("../../parsers/java-treesitter.mjs").then((module) => {
       parseJavaCode = module.parseCode;
+      parseJavaCodeWithDialect = module.parseCodeWithDialectObservations ?? null;
     }),
     import("../../parsers/ruby-treesitter.mjs").then((module) => {
       parseRubyCode = module.parseCode;
+      parseRubyCodeWithDialect = module.parseCodeWithDialectObservations ?? null;
     }),
     import("../../parsers/bash-treesitter.mjs").then((module) => {
       parseBashCode = module.parseCode;
+      parseBashCodeWithDialect = module.parseCodeWithDialectObservations ?? null;
     }),
     import("../../parsers/vb6.mjs").then((module) => {
       parseVb6Code = module.parseCode;
+      parseVb6CodeWithDialect = module.parseCodeWithDialectObservations ?? null;
     }),
     import("../../parsers/markdown.mjs").then((module) => {
       parseMarkdownCode = module.parseCode;
@@ -129,19 +154,20 @@ export async function loadParsers() {
 }
 
 const CHUNK_PARSERS = new Map([
-  [".js", { language: "javascript", parse: parseJavaScriptCode }],
-  [".jsx", { language: "jsx", parse: parseJavaScriptCode }],
-  [".mjs", { language: "javascript", parse: parseJavaScriptCode }],
-  [".cjs", { language: "javascript", parse: parseJavaScriptCode }],
-  [".ts", { language: "typescript", parse: parseJavaScriptCode }],
-  [".tsx", { language: "tsx", parse: parseJavaScriptCode }],
-  [".mts", { language: "typescript", parse: parseJavaScriptCode }],
-  [".cts", { language: "typescript", parse: parseJavaScriptCode }],
+  [".js", { language: "javascript", parse: parseJavaScriptCode, parseWithDialect: parseJavaScriptCodeWithDialect }],
+  [".jsx", { language: "jsx", parse: parseJavaScriptCode, parseWithDialect: parseJavaScriptCodeWithDialect }],
+  [".mjs", { language: "javascript", parse: parseJavaScriptCode, parseWithDialect: parseJavaScriptCodeWithDialect }],
+  [".cjs", { language: "javascript", parse: parseJavaScriptCode, parseWithDialect: parseJavaScriptCodeWithDialect }],
+  [".ts", { language: "typescript", parse: parseJavaScriptCode, parseWithDialect: parseJavaScriptCodeWithDialect }],
+  [".tsx", { language: "tsx", parse: parseJavaScriptCode, parseWithDialect: parseJavaScriptCodeWithDialect }],
+  [".mts", { language: "typescript", parse: parseJavaScriptCode, parseWithDialect: parseJavaScriptCodeWithDialect }],
+  [".cts", { language: "typescript", parse: parseJavaScriptCode, parseWithDialect: parseJavaScriptCodeWithDialect }],
   [
     ".vb",
     {
       language: "vbnet",
       parse: (...args) => parseVbNetCode(...args),
+      parseWithDialect: (...args) => parseVbNetCodeWithDialect(...args),
       isAvailable: () => typeof parseVbNetCode === "function" && isVbNetParserAvailable()
     }
   ],
@@ -150,6 +176,7 @@ const CHUNK_PARSERS = new Map([
     {
       language: "csharp",
       parse: (...args) => parseCSharpCode(...args),
+      parseWithDialect: (...args) => parseCSharpCodeWithDialect(...args),
       isAvailable: () => typeof parseCSharpCode === "function" && isCSharpParserAvailableImpl()
     }
   ],
@@ -158,6 +185,7 @@ const CHUNK_PARSERS = new Map([
     {
       language: "sql",
       parse: (...args) => parseSqlCode(...args),
+      parseWithDialect: (...args) => parseSqlCodeWithDialect(...args),
       isAvailable: () => typeof parseSqlCode === "function"
     }
   ],
@@ -206,6 +234,7 @@ const CHUNK_PARSERS = new Map([
     {
       language: "c",
       parse: (...args) => parseCppCode(...args),
+      parseWithDialect: (...args) => parseCppCodeWithDialect(...args),
       isAvailable: () => typeof parseCppCode === "function" && isCppParserAvailable()
     }
   ],
@@ -214,6 +243,7 @@ const CHUNK_PARSERS = new Map([
     {
       language: "c",
       parse: (...args) => parseCppCode(...args),
+      parseWithDialect: (...args) => parseCppCodeWithDialect(...args),
       isAvailable: () => typeof parseCppCode === "function" && isCppParserAvailable()
     }
   ],
@@ -222,6 +252,7 @@ const CHUNK_PARSERS = new Map([
     {
       language: "cpp",
       parse: (...args) => parseCppCode(...args),
+      parseWithDialect: (...args) => parseCppCodeWithDialect(...args),
       isAvailable: () => typeof parseCppCode === "function" && isCppParserAvailable()
     }
   ],
@@ -230,6 +261,7 @@ const CHUNK_PARSERS = new Map([
     {
       language: "cpp",
       parse: (...args) => parseCppCode(...args),
+      parseWithDialect: (...args) => parseCppCodeWithDialect(...args),
       isAvailable: () => typeof parseCppCode === "function" && isCppParserAvailable()
     }
   ],
@@ -238,6 +270,7 @@ const CHUNK_PARSERS = new Map([
     {
       language: "cpp",
       parse: (...args) => parseCppCode(...args),
+      parseWithDialect: (...args) => parseCppCodeWithDialect(...args),
       isAvailable: () => typeof parseCppCode === "function" && isCppParserAvailable()
     }
   ],
@@ -246,6 +279,7 @@ const CHUNK_PARSERS = new Map([
     {
       language: "cpp",
       parse: (...args) => parseCppCode(...args),
+      parseWithDialect: (...args) => parseCppCodeWithDialect(...args),
       isAvailable: () => typeof parseCppCode === "function" && isCppParserAvailable()
     }
   ],
@@ -254,6 +288,7 @@ const CHUNK_PARSERS = new Map([
     {
       language: "rust",
       parse: (...args) => parseRustCode(...args),
+      parseWithDialect: (...args) => parseRustCodeWithDialect(...args),
       isAvailable: () => typeof parseRustCode === "function"
     }
   ],
@@ -262,6 +297,7 @@ const CHUNK_PARSERS = new Map([
     {
       language: "python",
       parse: (...args) => parsePythonCode(...args),
+      parseWithDialect: (...args) => parsePythonCodeWithDialect(...args),
       isAvailable: () => typeof parsePythonCode === "function"
     }
   ],
@@ -270,6 +306,7 @@ const CHUNK_PARSERS = new Map([
     {
       language: "go",
       parse: (...args) => parseGoCode(...args),
+      parseWithDialect: (...args) => parseGoCodeWithDialect(...args),
       isAvailable: () => typeof parseGoCode === "function"
     }
   ],
@@ -278,6 +315,7 @@ const CHUNK_PARSERS = new Map([
     {
       language: "java",
       parse: (...args) => parseJavaCode(...args),
+      parseWithDialect: (...args) => parseJavaCodeWithDialect(...args),
       isAvailable: () => typeof parseJavaCode === "function"
     }
   ],
@@ -286,6 +324,7 @@ const CHUNK_PARSERS = new Map([
     {
       language: "ruby",
       parse: (...args) => parseRubyCode(...args),
+      parseWithDialect: (...args) => parseRubyCodeWithDialect(...args),
       isAvailable: () => typeof parseRubyCode === "function"
     }
   ],
@@ -294,6 +333,7 @@ const CHUNK_PARSERS = new Map([
     {
       language: "bash",
       parse: (...args) => parseBashCode(...args),
+      parseWithDialect: (...args) => parseBashCodeWithDialect(...args),
       isAvailable: () => typeof parseBashCode === "function"
     }
   ],
@@ -302,6 +342,7 @@ const CHUNK_PARSERS = new Map([
     {
       language: "bash",
       parse: (...args) => parseBashCode(...args),
+      parseWithDialect: (...args) => parseBashCodeWithDialect(...args),
       isAvailable: () => typeof parseBashCode === "function"
     }
   ],
@@ -310,6 +351,7 @@ const CHUNK_PARSERS = new Map([
     {
       language: "bash",
       parse: (...args) => parseBashCode(...args),
+      parseWithDialect: (...args) => parseBashCodeWithDialect(...args),
       isAvailable: () => typeof parseBashCode === "function"
     }
   ],
@@ -318,6 +360,7 @@ const CHUNK_PARSERS = new Map([
     {
       language: "vb6",
       parse: (...args) => parseVb6Code(...args),
+      parseWithDialect: (...args) => parseVb6CodeWithDialect(...args),
       isAvailable: () => typeof parseVb6Code === "function"
     }
   ],
@@ -326,6 +369,7 @@ const CHUNK_PARSERS = new Map([
     {
       language: "vb6",
       parse: (...args) => parseVb6Code(...args),
+      parseWithDialect: (...args) => parseVb6CodeWithDialect(...args),
       isAvailable: () => typeof parseVb6Code === "function"
     }
   ],
@@ -334,6 +378,7 @@ const CHUNK_PARSERS = new Map([
     {
       language: "vb6",
       parse: (...args) => parseVb6Code(...args),
+      parseWithDialect: (...args) => parseVb6CodeWithDialect(...args),
       isAvailable: () => typeof parseVb6Code === "function"
     }
   ],
@@ -342,6 +387,7 @@ const CHUNK_PARSERS = new Map([
     {
       language: "vb6",
       parse: (...args) => parseVb6Code(...args),
+      parseWithDialect: (...args) => parseVb6CodeWithDialect(...args),
       isAvailable: () => typeof parseVb6Code === "function"
     }
   ]
@@ -368,8 +414,19 @@ export function parseCSharpProject(inputs) {
   return parseCSharpProjectImpl(inputs);
 }
 
+export function parseCSharpProjectWithDialectObservations(inputs) {
+  if (typeof parseCSharpProjectWithDialectImpl !== "function") {
+    return null;
+  }
+  return parseCSharpProjectWithDialectImpl(inputs);
+}
+
 export function hasCSharpProjectParser() {
   return typeof parseCSharpProjectImpl === "function";
+}
+
+export function hasCSharpProjectDialectParser() {
+  return typeof parseCSharpProjectWithDialectImpl === "function";
 }
 
 // Parse a single file with the registered parser for its extension. Used by
@@ -384,4 +441,15 @@ export async function parseFileContent(ext, content, filePath) {
     return null;
   }
   return { language: parser.language, result: await parser.parse(content, filePath, parser.language) };
+}
+
+export async function parseFileContentWithDialectObservations(ext, content, filePath) {
+  const parser = getChunkParserForExtension(ext);
+  if (!parser || typeof parser.parseWithDialect !== "function") {
+    return null;
+  }
+  return {
+    language: parser.language,
+    result: await parser.parseWithDialect(content, filePath, parser.language)
+  };
 }

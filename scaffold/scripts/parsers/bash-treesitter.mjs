@@ -37,9 +37,14 @@ import {
   loadGrammar,
   bodyOf,
   collectErrors,
+  commonTreeSitterDialectFacts,
   parseSource,
-  runQuery
+  prepareDialectAdapterInput,
+  runQuery,
+  treeSitterDialectObservationEnvelope,
+  treeSitterUnavailableTransport
 } from "./tree-sitter/base.mjs";
+import { createDialectObservationTransport } from "../lib/dialect-observation-contract.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -194,9 +199,13 @@ function buildFunctionChunk(node, imports, language) {
 }
 
 export async function parseCode(code, filePath, language = "bash") {
+  return (await parseInternal(code, filePath, language)).parserResult;
+}
+
+async function parseInternal(code, filePath, language) {
   await ensureLanguage();
   const { tree, reason } = parseSource(BASH_LANG, code);
-  if (!tree) return { chunks: [], errors: [{ message: reason }] };
+  if (!tree) return { tree: null, parserResult: { chunks: [], errors: [{ message: reason }] } };
   const root = tree.rootNode;
   const imports = collectImports(root);
 
@@ -217,7 +226,44 @@ export async function parseCode(code, filePath, language = "bash") {
     return true;
   });
 
-  return { chunks: deduped, errors: collectErrors(tree) };
+  return { tree, parserResult: { chunks: deduped, errors: collectErrors(tree) } };
+}
+
+export async function parseCodeWithDialectObservations(code, repositoryPath, language = "bash") {
+  const metadata = prepareDialectAdapterInput(code, repositoryPath, language, ["bash"]);
+  let parsed;
+  try {
+    parsed = await parseInternal(code, repositoryPath, language);
+  } catch {
+    return treeSitterUnavailableTransport(metadata.oversized ? "oversized" : "unavailable");
+  }
+  const { tree, parserResult } = parsed;
+  const observationEnvelope = treeSitterDialectObservationEnvelope({
+    code,
+    repositoryPath,
+    family: metadata.family,
+    syntaxMode: metadata.syntaxMode,
+    rootNode: tree?.rootNode ?? null,
+    parserResult,
+    classifyNode: classifyDialectNode
+  });
+  return createDialectObservationTransport(parserResult, observationEnvelope);
+}
+
+function classifyDialectNode(node) {
+  const facts = node.type === "list" ? [] : commonTreeSitterDialectFacts(node);
+  if (["variable_assignment", "declaration_command"].includes(node.type)) facts.push({ category: "data_representation", kind: "state", form: "declaration" });
+  if (node.type === "list" && hasChildType(node, "||")) {
+    facts.push({ category: "error_flow", kind: "handler", form: "statement" });
+  }
+  return facts;
+}
+
+function hasChildType(node, type) {
+  for (let index = 0; index < node.childCount; index += 1) {
+    if (node.child(index)?.type === type) return true;
+  }
+  return false;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

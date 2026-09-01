@@ -1,0 +1,545 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wo047_two_pass_stage1_frozen_fixture",
+  "fixture_id": "wo047-stage1-five-heldout-v1",
+  "created_at": "2026-08-22T05:46:56Z",
+  "reviewer_identity": "/root/wo047_fixture_review",
+  "verdict": "GO",
+  "source_bindings": {
+    "wo045_stage2_proposal": {
+      "path": "benchmark/bootstrapbench/results/wo045-role-grounded-stage1/stage2-proposal-v1.json",
+      "file_sha256": "abf1d8d854816f112043c3a446ca46181ac89539a2d01a07e1386de4c7a5286b",
+      "payload_sha256": "db86a9e6a78f7e6aab1676e2b953336ecd219d27a4acc990f005b6a2544e0f47"
+    },
+    "wo045_task_binding": {
+      "path": "benchmark/bootstrapbench/results/wo045-role-grounded-stage2/frozen-task-input-bindings-v1.json",
+      "file_sha256": "423a790a09bddb1a94764ab617591185f303f1e59652e51ecfddee14de46442d",
+      "task_count": 12,
+      "commit_objects_verified": true
+    },
+    "task_data": {
+      "logical_path": "AgentStackBench/data/full.parquet",
+      "file_sha256": "2f56535bdc73eb8a68bf4ebb49789d8e9cd4f219ea60df6290b85278aee61ca8"
+    },
+    "task_csv": {
+      "logical_path": "AgentStackBench/data/cortex_wo045_stage2.csv",
+      "file_sha256": "02e92939add579a6e1cad4223d519e55fd254ae12bdd8a06d02efedda67fdbd4"
+    },
+    "wo045_v10c_packet_set": {
+      "logical_path": "AgentStackBench/results/run_suites/wo045-frozen-inputs-v10c/packet-set-v10c.json",
+      "file_sha256": "ff363512c2097c2d746601109b1317f5a6798261e1bc704a6face576daf12c4a",
+      "payload_sha256": "82ff9b3cece1011d13d0493d6700a99007f1c2b6f367eef49d78f24dec7fcf15",
+      "planner_calls": 0,
+      "solution_agent_calls": 0
+    },
+    "source_csv_files": [
+      {
+        "path": "data/Multi.csv",
+        "sha256": "ed2930e315fbe99b3d3fbeba37f473b381b9faa5db97e1aa40602245280e63ee"
+      },
+      {
+        "path": "data/Poly.csv",
+        "sha256": "5a3cb6629e3ec8af7c3a7736ce88fa48f831e7d83e25e9c88e4c5f0317af19f5"
+      },
+      {
+        "path": "data/Pro.csv",
+        "sha256": "7bb63921056116fd2c6d06ceced00050fc73a13b49008fa55579940699cd7591"
+      },
+      {
+        "path": "data/Verified.csv",
+        "sha256": "3d1c8b68871c038a713621c233073448fe9dedfe0f4b9b8a05f9fe7eb9849411"
+      }
+    ]
+  },
+  "selection_contract": {
+    "source_pool_count": 12,
+    "eligibility_rule": "Exclude every task with any prior non-empty solution-model response before hashing or selection.",
+    "excluded_before_sampling": true,
+    "seed": "WO-047-stage1-fixture-v1",
+    "digest_preimage": "UTF-8(seed + NUL + instance_id)",
+    "digest_algorithm": "SHA-256",
+    "ordering": "ascending lowercase hexadecimal digest; instance_id ascending only for an impossible digest tie",
+    "selection_rule": "Take the first five eligible tasks after ordering.",
+    "selected_task_count": 5,
+    "full_12_task_digest_audit": [
+      {
+        "digest": "1479bd39b619a5ff5987fe2c44cf0a6f55e501db54f8e321421e35af72f7ad47",
+        "task_id": "Multi-SWE-Bench__java__maintenance__bugfix__747c7f60",
+        "eligible": false,
+        "selected": false,
+        "exclusion_reason": "discarded V9 treatment invocation has a non-empty raw-response.json"
+      },
+      {
+        "digest": "4ab92317ca8c66bfdc8476241c18865026e0a890e40ec02ee3615df1b9af4ced",
+        "task_id": "Multi-SWE-Bench__rust__maintenance__bugfix__37f525d2",
+        "eligible": true,
+        "selected": true
+      },
+      {
+        "digest": "583dd6e3e781ee3b85ca3750a87132a62965dff3996418ee6b550205eba15dcf",
+        "task_id": "SWE-Bench-Pro__python__maintenance__bugfix__512d556b",
+        "eligible": true,
+        "selected": true
+      },
+      {
+        "digest": "5b2e67e4793100dfb2e95fc1d463348279ca51aac20a37383273820012f42dac",
+        "task_id": "SWE-Bench-Pro__javascript__maintenance__bugfix__09eb0d6d",
+        "eligible": true,
+        "selected": true
+      },
+      {
+        "digest": "80c7baa886bf49638e524db3ce0c3869cf15e990369ac7bcc816d80e174ff4ae",
+        "task_id": "Multi-SWE-Bench__c__maintenance__bugfix__5dc9809e",
+        "eligible": false,
+        "selected": false,
+        "exclusion_reason": "discarded V9 control invocation has a non-empty raw-response.json"
+      },
+      {
+        "digest": "8967d6b49e10b666b1860dbb7f23028c4f8cddbfaa9ad86be9911b849a6ce12a",
+        "task_id": "SWE-PolyBench__python__maintenance__bugfix__8c189fda",
+        "eligible": true,
+        "selected": true
+      },
+      {
+        "digest": "ac2d475bc6f6e34f31dc8bef92a27d796209afc8da58fdeb943ada7b324c534f",
+        "task_id": "SWE-Bench-Verified__python__maintenance__bugfix__e09a2d75",
+        "eligible": true,
+        "selected": true
+      },
+      {
+        "digest": "b919220e4a1d5343e48c12b989329b8b7a85c674e6ed781f5d6cf81f7a920995",
+        "task_id": "SWE-PolyBench__typescript__maintenance__bugfix__4f3cb6be",
+        "eligible": true,
+        "selected": false
+      },
+      {
+        "digest": "c3131f0b2ebe9643c3458910a6ecb3f84c15cb368d66acf227fa825e1fe1b9d2",
+        "task_id": "SWE-PolyBench__javascript__maintenance__bugfix__10ab7842",
+        "eligible": true,
+        "selected": false
+      },
+      {
+        "digest": "c7effb8d0d62b4c84d08bd9ade7bde9f7b47f2398bf76991c74b65a64bf6e810",
+        "task_id": "SWE-Bench-Verified__python__maintenance__bugfix__27320d49",
+        "eligible": true,
+        "selected": false
+      },
+      {
+        "digest": "d14f5fcb8c17ed8c85eb1186276782501b1672875ab7f446835510594b7d2483",
+        "task_id": "SWE-Bench-Verified__python__maintenance__bugfix__ac705f35",
+        "eligible": true,
+        "selected": false
+      },
+      {
+        "digest": "d9fea3c115b98311f532056f9b17b17a476176c01d512b5a23b0e27d4b3d5e91",
+        "task_id": "SWE-Bench-Pro__go__maintenance__bugfix__720b4d92",
+        "eligible": true,
+        "selected": false
+      }
+    ]
+  },
+  "judgment_contract": {
+    "primary_runtime_definition": "A frozen-base production source file that directly owns steady-state behavior required by the issue, including an owner-side state/query helper or an original definition whose relocation or narrowing is itself part of the real fix.",
+    "excluded_from_primary": [
+      "tests and fixtures",
+      "documentation and changelog",
+      "localization and resource data",
+      "public schemas and view templates",
+      "dependency or theme bumps",
+      "generic support callees",
+      "one-time upgrade or migration lifecycle"
+    ],
+    "nonprimary_surfaces_remain_diagnostics": true,
+    "primary_runtime_file_count": 10,
+    "every_issue_has_primary_owner": true,
+    "judgments_derived_from_candidate_output": false
+  },
+  "tasks": [
+    {
+      "task_id": "Multi-SWE-Bench__rust__maintenance__bugfix__37f525d2",
+      "original_issue_id": "clap-rs__clap-3421",
+      "bench": "Multi",
+      "language": "rust",
+      "repo": "clap-rs/clap",
+      "base_commit": "15f01789d2a6b8952a01a8a3881b94aed4a44f4c",
+      "repository_root_tree_git_oid": "5c72402d50e752bcc2ed3922e207ca79ae589d25",
+      "index_sha256": "6edc7d12ca63277b7190091d6aa23ddb0d6604a01367d3db4e0b24af7d89d65c",
+      "row_canonical_sha256": "a89929b07a569a36feaec8c2669adf54ed7a4dc9170bbc704f6b2d26bcca9e6c",
+      "csv_row_canonical_sha256": "8e8343d19053a041cb9c1b376b0919baa31d0549960fc0b510d88c992fa776f3",
+      "issue": {
+        "bytes": 355,
+        "sha256": "26a44c9053e357436c04f213dc62466fc60ee9e296ed126be3942b2e734ddcc1"
+      },
+      "gold_context": {
+        "bytes": 593,
+        "sha256": "eb1b484f63c70fb45a8a7bd9e8ce699537a49e9106ebab9b602432cf56f3a728"
+      },
+      "gold_patch": {
+        "bytes": 1072,
+        "sha256": "cc68e019b5276d4853f36beaf87f380125bd76aeaec6a72789011d5104f416ee"
+      },
+      "test_patch": {
+        "bytes": 789,
+        "sha256": "6b02ad6455a9cbe0fae6aba3f9113c5738b7e5fb456c25612579b20f64eaf7f2"
+      },
+      "query_packet_matches_issue_bytes": true,
+      "primary_runtime_files": [
+        {
+          "path": "src/parse/arg_matcher.rs",
+          "base_git_blob_oid": "f454b931c0a047dc8f842b64036e156dfe933ebc",
+          "base_bytes": 7442,
+          "base_sha256": "84fddfa6a958bd92251a8c5f5127c9a21918842feb7397b791056da8504d31d3",
+          "symbols": [
+            "ArgMatcher::is_empty",
+            "ArgMatcher::arg_names",
+            "ArgMatcher::check_explicit"
+          ],
+          "rationale": "Owns the distinction between stored/defaulted matches and explicitly supplied user values used by the policy."
+        },
+        {
+          "path": "src/parse/validator.rs",
+          "base_git_blob_oid": "c0763bea7c1dc86de47de0ce9041563618049341",
+          "base_bytes": 23752,
+          "base_sha256": "b0bc44d25a5c478b2ea55e932452bf8fbe650b9f3b3cc386c1e6f08f3a2fc0d6",
+          "symbols": [
+            "Validator::validate"
+          ],
+          "rationale": "Owns the ArgsRequiredElseHelp decision and currently treats default-injected matches as user input."
+        }
+      ],
+      "mechanism_rubric": {
+        "rubric_id": "clap-explicit-args-v1",
+        "close_requires": [
+          "Determine whether any argument was explicitly supplied by the user rather than whether the matcher contains defaulted values.",
+          "When zero explicit values and no subcommand are present under ArgsRequiredElseHelp, return the display-help missing-argument/subcommand error.",
+          "Preserve normal behavior when an explicit argument or subcommand is present."
+        ],
+        "accepted_equivalence": "An equivalent explicit-presence traversal is accepted; matcher.is_empty alone is not.",
+        "regression_surface": [
+          "tests/builder/app_settings.rs::arg_required_else_help_with_default"
+        ]
+      }
+    },
+    {
+      "task_id": "SWE-Bench-Pro__python__maintenance__bugfix__512d556b",
+      "original_issue_id": "instance_ansible__ansible-fb144c44144f8bd3542e71f5db62b6d322c7bd85-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+      "bench": "Pro",
+      "language": "python",
+      "repo": "ansible/ansible",
+      "base_commit": "662d34b9a7a1b3ab1d4847eeaef201a005826aef",
+      "repository_root_tree_git_oid": "37d7a38f4b0e98069a0750e0948598cf35c50b3f",
+      "index_sha256": "a66cb101d0066ba7aa0fd924d752f1b98f41519732b5d6fd3b3299f222be90a8",
+      "row_canonical_sha256": "8478cb02a7c7412eb9a3e86902d7ed72428137c1a6c6214c7b0311724ad35361",
+      "csv_row_canonical_sha256": "bc156baf9bc5f7d7ebf4213b16c905cb70d0f8cdc265c82e37cb4876ad2e252d",
+      "issue": {
+        "bytes": 1785,
+        "sha256": "e31c19210cde641da9c0ea19dcc8f7965221cbe7458aa26ed84716f6571f9f83"
+      },
+      "gold_context": {
+        "bytes": 4691,
+        "sha256": "d9d5a23cc348a0449d102080208ffde39cda66e8063e9006f2591f12caa58ab0"
+      },
+      "gold_patch": {
+        "bytes": 7214,
+        "sha256": "48352900e5d983ac3237ca4e7f55febf05af98124f9f731ac633b0cb9c4fde67"
+      },
+      "test_patch": {
+        "bytes": 1682,
+        "sha256": "9843a27588da87c8d4081d74727af59e98749cbcaa72207e8b57d5f0f1def2bd"
+      },
+      "query_packet_matches_issue_bytes": true,
+      "primary_runtime_files": [
+        {
+          "path": "lib/ansible/cli/__init__.py",
+          "base_git_blob_oid": "c1c66cb9758c7468cbac90c3590783aadd1ca780",
+          "base_bytes": 21624,
+          "base_sha256": "a3fcc2ca586c9c3e6880344d4c5e48540588172dbce85e71c5cde5bbd4833adb",
+          "symbols": [
+            "CLI.tty_ify"
+          ],
+          "rationale": "Is the pre-fix generic owner whose broad macro substitution must be removed or narrowed."
+        },
+        {
+          "path": "lib/ansible/cli/doc.py",
+          "base_git_blob_oid": "d20dc6d88a5c54bc2ad96f97fec2bfa11620d7e8",
+          "base_bytes": 31703,
+          "base_sha256": "aefb722cdef887538440e8e0a001ace5d643d7527251803237c9356cd0934422",
+          "symbols": [
+            "DocCLI.tty_ify",
+            "DocCLI._ITALIC",
+            "DocCLI._BOLD",
+            "DocCLI._MODULE",
+            "DocCLI._LINK",
+            "DocCLI._URL",
+            "DocCLI._REF",
+            "DocCLI._CONST",
+            "DocCLI._RULER"
+          ],
+          "rationale": "Is the ansible-doc-specific owner for terminal rendering and the correct scope for the macro grammar."
+        }
+      ],
+      "mechanism_rubric": {
+        "rubric_id": "ansible-doc-macros-v1",
+        "close_requires": [
+          "Scope terminal documentation macro rendering to DocCLI rather than applying it as generic base CLI behavior.",
+          "Render L(text,URL), R(text,ref), and HORIZONTALLINE as the issue specifies, alongside the existing visible M/B/C/I/U forms.",
+          "Require a macro token boundary so ordinary words such as IBM(parenthesized text) remain unchanged.",
+          "Apply all supported substitutions across a line containing multiple tokens."
+        ],
+        "accepted_equivalence": "A non-regex parser is accepted if token boundaries, scope, and exact visible results match.",
+        "regression_surface": [
+          "test/units/cli/test_doc.py"
+        ]
+      }
+    },
+    {
+      "task_id": "SWE-Bench-Pro__javascript__maintenance__bugfix__09eb0d6d",
+      "original_issue_id": "instance_NodeBB__NodeBB-a5afad27e52fd336163063ba40dcadc80233ae10-vd59a5728dfc977f44533186ace531248c2917516",
+      "bench": "Pro",
+      "language": "javascript",
+      "repo": "NodeBB/NodeBB",
+      "base_commit": "7800016f2f1b89d2d3cfea6a7da7c77096b7b927",
+      "repository_root_tree_git_oid": "565bab20fd4a6742ba8fe31bb95df6689fe3d827",
+      "index_sha256": "07e49cdd1aca7c95238aa2221675317322162647f79e82ef3298cc26c9d5a471",
+      "row_canonical_sha256": "c4a2d20d429cc91e3367c2e8af9e4150ec4140c9fc8e2e792f9cf285464399a8",
+      "csv_row_canonical_sha256": "55365c55197ceb9e56b19f4bc1efc12ce5565131ffd74e43f3f36686f2c6a1e3",
+      "issue": {
+        "bytes": 1657,
+        "sha256": "22cc2a57970823545dce5a76d72f5ecffd2c3d857f3a2fce6d1b7a054bccc47e"
+      },
+      "gold_context": {
+        "bytes": 27070,
+        "sha256": "49dab0425493151529ab1283f4726c7ea9b563fa32554b1ece2fe8d507f23167"
+      },
+      "gold_patch": {
+        "bytes": 15718,
+        "sha256": "0b6dbbb77ff0ea448e347b078084f4041bd6dac33d6f76c078834409c09fe59b"
+      },
+      "test_patch": {
+        "bytes": 3566,
+        "sha256": "d28f479417a84428b9941e95387f096296a47288d173ae23f04b3a6997c46195"
+      },
+      "query_packet_matches_issue_bytes": true,
+      "primary_runtime_files": [
+        {
+          "path": "public/src/client/account/settings.js",
+          "base_git_blob_oid": "0c079d5030c235c30087a20bdaa0ee8d2f981061",
+          "base_bytes": 4672,
+          "base_sha256": "763ad0458a274a6b1c9689547e271b551ce58afbabbe7fddd29f5dbb856a44d1",
+          "symbols": [
+            "AccountSettings.init",
+            "loadSettings",
+            "handleChatAllowDenyList"
+          ],
+          "rationale": "Owns account-side allow/deny list editing, duplicate protection, deletion, and serialization."
+        },
+        {
+          "path": "src/controllers/accounts/settings.js",
+          "base_git_blob_oid": "a5ab46e3da828d869aea37ec95d4a80ddf49ee55",
+          "base_bytes": 7943,
+          "base_sha256": "b65866a7e107acbf3d0d9c620faefe0e3e22d49b1726f429766208a71cc69d63",
+          "symbols": [
+            "settingsController.get",
+            "getChatAllowDenyList"
+          ],
+          "rationale": "Owns hydration of stored UID lists into the account settings model used to manage them."
+        },
+        {
+          "path": "src/messaging/index.js",
+          "base_git_blob_oid": "0c8bd0eded0ebdca6afae2484ca92e4bf7d1dc33",
+          "base_bytes": 14023,
+          "base_sha256": "26c86d28603020a32884a0de59194922d8134adaced6ab05716fd164be9d73a9",
+          "symbols": [
+            "Messaging.canMessageUser"
+          ],
+          "rationale": "Owns authoritative server-side chat permission enforcement."
+        },
+        {
+          "path": "src/user/settings.js",
+          "base_git_blob_oid": "5390f37580dad1c77785404f2e9490fe72e8bad9",
+          "base_bytes": 7575,
+          "base_sha256": "838cc2d4ac9a8f6bd0af25a47200b8a630f9b1e6bdfd660ba1bb7893ed1d2742",
+          "symbols": [
+            "User.getSettings",
+            "onSettingsLoaded",
+            "User.saveSettings",
+            "parseJSONSetting"
+          ],
+          "rationale": "Owns defaults, safe parsing, string normalization, and persistence of the new chat settings."
+        }
+      ],
+      "mechanism_rubric": {
+        "rubric_id": "nodebb-chat-lists-v1",
+        "close_requires": [
+          "Replace the follow-coupled restrictChat behavior with disableIncomingChats plus explicit string-UID allow and deny lists with safe empty defaults.",
+          "Enforce permissions in Messaging.canMessageUser server-side: existing blocks remain blocked; administrators and global moderators are exempt from the new list restrictions; disable blocks all other senders; a non-empty allow list restricts to members; deny blocks members and therefore wins when a sender is in both lists; restricted attempts use [[error:chat-restricted]].",
+          "Load, display, edit, remove, and serialize both lists through the account settings controller/client flow.",
+          "Provide an idempotent upgrade path that seeds the new allow list from followed users for legacy restrictChat accounts."
+        ],
+        "accepted_equivalence": "Equivalent storage encoding and UI structure are accepted if normalized UID semantics, precedence, server authority, management, and migration behavior all hold.",
+        "diagnostic_surfaces": [
+          "public/src/modules/autocomplete.js",
+          "src/upgrades/4.3.0/chat_allow_list.js",
+          "public/openapi/components/schemas/SettingsObj.yaml",
+          "src/views/admin/settings/user.tpl",
+          "test/messaging.js",
+          "test/upgrades/4.3.0/chat_allow_list.js"
+        ]
+      }
+    },
+    {
+      "task_id": "SWE-PolyBench__python__maintenance__bugfix__8c189fda",
+      "original_issue_id": "keras-team__keras-18553",
+      "bench": "Poly",
+      "language": "python",
+      "repo": "keras-team/keras",
+      "base_commit": "c8a5a8969a8712a9a1939937ce34158e04cfc09d",
+      "repository_root_tree_git_oid": "ef7282bd7a2f3d9174e56cbe774fca065bbb182b",
+      "index_sha256": "cc3dbf0e1d59fae9a99e36f2b88059ec60d69d949046807ce7cc029de63d23fc",
+      "row_canonical_sha256": "1da1ba9010bec35c63715c4572eae8ae8999fef622ac971c92145668608a030d",
+      "csv_row_canonical_sha256": "8437fe37a084e7c1e9a6b0a9906a290ce65719dc316638a60f0a24a99443f112",
+      "issue": {
+        "bytes": 791,
+        "sha256": "1ec24c6ab25f30583953d084f2d9f57d494acfcf8cb5c39a1c7ed1a467011b35"
+      },
+      "gold_context": {
+        "bytes": 18272,
+        "sha256": "f8aa74d51c0e3389e128292284bfbfbd3e499476a14878f7e70cadb243e6aae4"
+      },
+      "gold_patch": {
+        "bytes": 3652,
+        "sha256": "516bd1966b9d808dea8873d5a93194ca5905ee9358f928cfcfab23439de77072"
+      },
+      "test_patch": {
+        "bytes": 5761,
+        "sha256": "263a6bce61a2d99e3844d393b4ed7c602d2e6d1eaab7d7277a071c67efb01728"
+      },
+      "query_packet_matches_issue_bytes": true,
+      "primary_runtime_files": [
+        {
+          "path": "keras/ops/nn.py",
+          "base_git_blob_oid": "7d3e3a13a3ffe86fbe43086dab126bb44e0cb568",
+          "base_bytes": 51716,
+          "base_sha256": "ea9551493454fea4c7fee2e0ceaa9f96745a8c7ff950fd02d2a0ac34e0ced81b",
+          "symbols": [
+            "MaxPool",
+            "max_pool",
+            "AveragePool",
+            "average_pool",
+            "Conv",
+            "conv",
+            "DepthwiseConv",
+            "depthwise_conv",
+            "SeparableConv",
+            "separable_conv",
+            "ConvTranspose",
+            "conv_transpose"
+          ],
+          "rationale": "Owns public eager and symbolic neural-network operation entry points and their stored padding passed to every backend."
+        }
+      ],
+      "mechanism_rubric": {
+        "rubric_id": "keras-padding-normalization-v1",
+        "close_requires": [
+          "Normalize padding case before backend dispatch for eager calls and before symbolic shape inference or Operation storage.",
+          "Apply the normalization consistently to pooling, convolution, depthwise convolution, separable convolution, and transpose convolution families rather than special-casing only torch depthwise convolution.",
+          "Preserve SAME and VALID shape behavior for lowercase and uppercase inputs across backends."
+        ],
+        "accepted_equivalence": "A shared normalizer is accepted instead of inline lowercasing if both eager and symbolic paths receive canonical lowercase padding.",
+        "regression_surface": [
+          "keras/ops/nn_test.py"
+        ]
+      }
+    },
+    {
+      "task_id": "SWE-Bench-Verified__python__maintenance__bugfix__e09a2d75",
+      "original_issue_id": "sympy__sympy-13551",
+      "bench": "Verified",
+      "language": "python",
+      "repo": "sympy/sympy",
+      "base_commit": "9476425b9e34363c2d9ac38e9f04aa75ae54a775",
+      "repository_root_tree_git_oid": "324b7e97844ef21f1a874da466c89566daf3ac82",
+      "index_sha256": "1d6d2d6af3c14792f980d6377bff2df527f01040360e10a5e1250f36699aa3fe",
+      "row_canonical_sha256": "5706bb6db19b2b6465ec754e412092f5fcb09f11727c3f864f07e896eb473a09",
+      "csv_row_canonical_sha256": "45360577f44c4672ef29a5f3a397dfd0f556d66db77656e388c39c6b38274d39",
+      "issue": {
+        "bytes": 499,
+        "sha256": "9ab38d31087d297db60978aeca658666788926a0235df297346836b93872311f"
+      },
+      "gold_context": {
+        "bytes": 8151,
+        "sha256": "5a6e14c5a8bf2b75fb8bb6d30f4f1a3db16d6a616c6e7eb313bdcdf7efb9dc62"
+      },
+      "gold_patch": {
+        "bytes": 680,
+        "sha256": "32bbca94cff004717045216a61aefb429526fb9980791035ade98a08c25d31ed"
+      },
+      "test_patch": {
+        "bytes": 601,
+        "sha256": "a8b92414e519b390ce0e9b30415b3ed0a13a7ef8d65bc22159edbf526349cc52"
+      },
+      "query_packet_matches_issue_bytes": true,
+      "primary_runtime_files": [
+        {
+          "path": "sympy/concrete/products.py",
+          "base_git_blob_oid": "66aafde2d60b5e351649bbad365f54b1c80fdb94",
+          "base_bytes": 15452,
+          "base_sha256": "dc67feefa42423031abece64087ad2eb02d1e91ebb55f561a222537e5c22c5e7",
+          "symbols": [
+            "Product._eval_product"
+          ],
+          "rationale": "Owns evaluation of additive product terms and the incorrect fallback that distributes product over addition."
+        }
+      ],
+      "mechanism_rubric": {
+        "rubric_id": "sympy-additive-product-v1",
+        "close_requires": [
+          "Do not evaluate a non-factorable additive product by summing separate products of its addends.",
+          "Preserve the complete multiplicative expression with an equivalent exp(Sum(log(term), limits)) representation or another mathematically equivalent unevaluated product form.",
+          "The reported finite substitution n=2 evaluates exactly to 15/2 without regressing ordinary factorable product handling."
+        ],
+        "accepted_equivalence": "A direct q-product or another exact symbolic representation is accepted if it preserves the product and the regression value.",
+        "regression_surface": [
+          "sympy/concrete/tests/test_products.py::test_issue_13546"
+        ]
+      }
+    }
+  ],
+  "held_out_and_contamination_audit": {
+    "held_out_from_wo045_role_tuning": true,
+    "wo045_tuning_repos_excluded_by_source_proposal": [
+      "danielblomma/cortex",
+      "sharkdp/bat",
+      "angular/angular",
+      "vuejs/core",
+      "pytest-dev/pytest",
+      "flipt-io/flipt"
+    ],
+    "discarded_v9_provider_model_calls": 2,
+    "discarded_v9_nonempty_response_tasks": [
+      "Multi-SWE-Bench__c__maintenance__bugfix__5dc9809e",
+      "Multi-SWE-Bench__java__maintenance__bugfix__747c7f60"
+    ],
+    "selected_tasks_with_prior_solution_model_call": 0,
+    "v10y_provider_model_calls": 0,
+    "v10y_nonempty_raw_responses": 0,
+    "v10y_nonempty_final_outputs": 0,
+    "v10y_predictions": 0,
+    "cumulative_historical_provider_model_calls": 2,
+    "cumulative_calls_source": "discarded V9 only",
+    "wo047_reviewer_planner_calls": 0,
+    "wo047_reviewer_solution_model_calls": 0,
+    "wo047_candidate_output_inspected": false,
+    "wo047_named_file_absence_checked_at": "2026-08-22T05:43:01Z",
+    "gold_and_mechanism_visibility": "evaluation-only; unavailable to retrieval and solution agents",
+    "required_firewall": "Do not expose selected IDs, primary judgments, gold patches, test patches, or mechanism rubrics to WO-047 implementation, retrieval, or solution agents before scoring."
+  },
+  "acceptance_denominators": {
+    "held_out_issue_count": 5,
+    "primary_runtime_file_count": 10,
+    "minimum_primary_runtime_files_retrieved": 7,
+    "zero_owner_issues_allowed": 0,
+    "treatment_mechanism_close_required": 4
+  },
+  "fixture_payload_sha256": "89651b34fefed1a9ea2f06cf04f589c6fdeca1dac1f21c8165301b21cef71afa"
+}

@@ -3,6 +3,8 @@ import path from "node:path";
 import crypto from "node:crypto";
 
 export const PRIOR_CACHE_IDENTITIES = Object.freeze([
+  ".context/cache/manifest.json",
+  ".context/cache/dialect-observations.v1.jsonl",
   ".context/cache/entities.file.jsonl",
   ".context/cache/entities.adr.jsonl",
   ".context/cache/entities.chunk.jsonl",
@@ -13,6 +15,7 @@ export const PRIOR_CACHE_IDENTITIES = Object.freeze([
 ]);
 
 export const INGEST_JSONL_OUTPUT_IDENTITIES = Object.freeze([
+  ".context/cache/dialect-observations.v1.jsonl",
   ".context/cache/documents.jsonl",
   ".context/cache/entities.file.jsonl",
   ".context/cache/entities.adr.jsonl",
@@ -66,6 +69,7 @@ export const INGEST_TSV_OUTPUT_IDENTITIES = Object.freeze([
 ]);
 
 export const INGEST_MANIFEST_OUTPUT_IDENTITY = ".context/cache/manifest.json";
+export const DIALECT_OBSERVATION_OUTPUT_IDENTITY = ".context/cache/dialect-observations.v1.jsonl";
 export const INGEST_OUTPUT_IDENTITIES = Object.freeze([
   ...INGEST_JSONL_OUTPUT_IDENTITIES,
   ...INGEST_TSV_OUTPUT_IDENTITIES,
@@ -814,7 +818,7 @@ function createBoundaryFromEstablishedAnchor(projectAnchor, initialDetails = PRO
       .filter((record) => record !== null);
   }
 
-  function preflightPriorCache() {
+  function preflightPriorCache({ testHooks = {} } = {}) {
     const options = {
       code: "CORTEX_FS_CACHE",
       phase: "discovery",
@@ -829,7 +833,17 @@ function createBoundaryFromEstablishedAnchor(projectAnchor, initialDetails = PRO
       snapshotOf(inspectKnownPath(".context/cache", cacheOptions))
     );
     for (const identity of PRIOR_CACHE_IDENTITIES) {
-      snapshots.set(identity, snapshotOf(inspectKnownPath(identity, options)));
+      const inspected = inspectKnownPath(identity, options);
+      if (inspected.exists && inspected.stats.nlink !== 1n) {
+        policyError(pathDetails(
+          "CORTEX_FS_CACHE",
+          "discovery",
+          "cache_path",
+          identity,
+          "path_replaced"
+        ));
+      }
+      snapshots.set(identity, snapshotOf(inspected));
     }
 
     function assertCompleteSnapshot() {
@@ -840,6 +854,72 @@ function createBoundaryFromEstablishedAnchor(projectAnchor, initialDetails = PRO
     }
 
     return Object.freeze({
+      readText(identity, maxBytes = Number.MAX_SAFE_INTEGER) {
+        if (!PRIOR_CACHE_IDENTITY_SET.has(identity) ||
+            !Number.isSafeInteger(maxBytes) || maxBytes < 0) {
+          policyError(pathDetails(
+            "CORTEX_FS_CACHE",
+            "discovery",
+            "cache_path",
+            typeof identity === "string" ? identity : String(identity ?? ""),
+            "invalid_syntax"
+          ));
+        }
+        assertCompleteSnapshot();
+        const inspected = inspectKnownPath(identity, options);
+        if (!inspected.exists) return null;
+        if (inspected.stats.size > BigInt(maxBytes)) {
+          throw new RangeError(`prior cache exceeds byte cap: ${identity}`);
+        }
+        const details = pathDetails(
+          "CORTEX_FS_CACHE",
+          "discovery",
+          "cache_path",
+          identity,
+          "path_replaced"
+        );
+        assertProjectAnchor(details);
+        testHooks.beforeReadTextOpen?.(identity, inspected.absolutePath);
+        let descriptor;
+        try {
+          descriptor = fs.openSync(
+            inspected.absolutePath,
+            fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0)
+          );
+        } catch (error) {
+          denyFilesystemError(error, details, {
+            missingReason: "path_replaced",
+            notDirectoryReason: "path_replaced"
+          });
+        }
+        try {
+          const before = fs.fstatSync(descriptor, { bigint: true });
+          if (!before.isFile() || before.nlink !== 1n ||
+              !snapshotsEqual(snapshotOf({ exists: true, stats: before }), snapshots.get(identity))) {
+            policyError(details);
+          }
+          if (before.size > BigInt(maxBytes)) {
+            throw new RangeError(`prior cache exceeds byte cap: ${identity}`);
+          }
+          const text = fs.readFileSync(descriptor, "utf8");
+          const after = fs.fstatSync(descriptor, { bigint: true });
+          if (before.dev !== after.dev || before.ino !== after.ino ||
+              before.ctimeNs !== after.ctimeNs || before.size !== after.size) {
+            policyError(details);
+          }
+          assertProjectAnchor(details);
+          assertCompleteSnapshot();
+          return text;
+        } catch (error) {
+          if (isFilesystemPolicyError(error) || error instanceof RangeError) throw error;
+          denyFilesystemError(error, details, {
+            missingReason: "path_replaced",
+            notDirectoryReason: "path_replaced"
+          });
+        } finally {
+          fs.closeSync(descriptor);
+        }
+      },
       read(identity) {
         if (!PRIOR_CACHE_IDENTITY_SET.has(identity)) {
           policyError(pathDetails(

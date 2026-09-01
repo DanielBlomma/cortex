@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import {
+  DEFAULT_FROZEN_FIXTURE_PATH,
   MODEL_FACING_LIMITS,
   buildStage1Artifacts,
   canonicalJson,
@@ -80,6 +81,10 @@ function decodeRenderedPacket(rendered) {
 
 test("frozen evaluation contract validates exact 5/10 denominators and zero-call boundary", () => {
   const fixture = loadAndValidateFixture(CONTRACT);
+  assert.equal(
+    CONTRACT.fixture.path,
+    "benchmark/bootstrapbench/results/wo047-two-pass-stage1/frozen-fixture-v1.json"
+  );
   assert.equal(fixture.file_sha256, "af51a243ec396869f3348645de1faea59310e5eaac2547817480b769dac3148d");
   assert.equal(fixture.payload_sha256, "89651b34fefed1a9ea2f06cf04f589c6fdeca1dac1f21c8165301b21cef71afa");
   assert.equal(fixture.fixture.tasks.length, 5);
@@ -487,7 +492,7 @@ test("default-off renderer frames injection-looking source as inert data and rej
 test("fixture byte tampering is rejected before retrieval", () => {
   const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "wo047-fixture-tamper-"));
   try {
-    const originalPath = path.resolve(CONTRACT.fixture.path);
+    const originalPath = DEFAULT_FROZEN_FIXTURE_PATH;
     const tamperedPath = path.join(temporaryRoot, "fixture.json");
     const bytes = fs.readFileSync(originalPath, "utf8");
     fs.writeFileSync(tamperedPath, bytes.replace('"verdict": "GO"', '"verdict": "NO-GO"'));

@@ -1,9 +1,36 @@
 import { runContextRules } from "../rules.js";
 import { runPatternEvidence } from "../patternEvidence.js";
+import {
+  CONVENTION_LIMITS,
+  formatConventionPublicText,
+  runConventions,
+  sanitizeConventionPublicError,
+  sanitizeConventionPublicInput,
+  serializeConventionPublicError,
+  serializeConventionPublicResponse,
+} from "../conventions.js";
+import {
+  formatGuidancePublicText,
+  runGuidance,
+  sanitizeGuidancePublicError,
+  sanitizeGuidancePublicInput,
+  serializeGuidancePublicError,
+  serializeGuidancePublicResponse,
+} from "../guidance.js";
+import {
+  formatReviewPublicText,
+  runDiffReview,
+  sanitizeReviewPublicError,
+  serializeReviewPublicError,
+  serializeReviewPublicResponse,
+} from "../review.js";
 import { runContextImpact, runContextRelated, runContextSearch } from "../search.js";
 import type {
+  ConventionsParams,
+  GuidanceParams,
   ImpactParams,
   PatternEvidenceParams,
+  ReviewParams,
   RelatedParams,
   RelationType,
   RulesParams,
@@ -31,7 +58,7 @@ type JsonEnvelope = {
   };
 };
 
-const QUERY_COMMANDS = new Set(["search", "related", "impact", "rules", "explain", "pattern-evidence"]);
+const QUERY_COMMANDS = new Set(["search", "related", "impact", "rules", "explain", "pattern-evidence", "conventions", "guidance", "review"]);
 
 const ENTITY_ID_PREFIXES = [
   "file:",
@@ -70,10 +97,42 @@ export async function runQueryCommand(args: string[]): Promise<void> {
         return await runExplain(rest);
       case "pattern-evidence":
         return await runPatternEvidenceCommand(rest);
+      case "conventions":
+        return await runConventionsCommand(rest);
+      case "guidance":
+        return await runGuidanceCommand(rest);
+      case "review":
+        return await runReviewCommand(rest);
       default:
         throw new Error(`Unknown query command: ${command}`);
     }
   } catch (error) {
+    if (command === "conventions") {
+      const input = conventionPublicInputFromArgs(rest);
+      if (json) {
+        process.stdout.write(serializeConventionPublicError(input, error));
+        process.exitCode = 1;
+        return;
+      }
+      throw new Error(sanitizeConventionPublicError(error));
+    }
+    if (command === "guidance") {
+      const input = guidancePublicInputFromArgs(rest);
+      if (json) {
+        process.stdout.write(serializeGuidancePublicError(input, error));
+        process.exitCode = 1;
+        return;
+      }
+      throw new Error(sanitizeGuidancePublicError(error));
+    }
+    if (command === "review") {
+      if (json) {
+        process.stdout.write(serializeReviewPublicError(error));
+        process.exitCode = 1;
+        return;
+      }
+      throw new Error(sanitizeReviewPublicError(error));
+    }
     if (!json) {
       throw error;
     }
@@ -98,6 +157,9 @@ function printHelp(): void {
     "  cortex rules [--scope <scope>] [--include-inactive] [--json]",
     "  cortex explain <query-or-entity-id> [--top-k <n>] [--json]",
     "  cortex pattern-evidence <file-path|entity-id> [--query <text>] [--top-k <n>] [--json]",
+    "  cortex conventions <file-path|entity-id> [--json]  # bounded active repo-local profiles",
+    "  cortex guidance <file-path|entity-id> --task <text> [--json]  # bounded additive pre-coding context",
+    "  cortex review --diff [--json]  # deterministic local review of the HEAD candidate",
     "",
     "These commands read the local Cortex graph and emit MCP-equivalent data with --json.",
   ];
@@ -209,6 +271,84 @@ function positionalText(rest: string[], label: string): string {
     throw new Error(`${label} is required`);
   }
   return value;
+}
+
+function boundedPositionalText(rest: string[], label: string, max: number): string {
+  let length = 0;
+  for (const item of rest) {
+    length += item.length + (length === 0 ? 0 : 1);
+    if (length > max) throw new Error(`Convention ${label} exceeds the version-1 input limit`);
+  }
+  return positionalText(rest, label);
+}
+
+function conventionPublicInputFromArgs(args: string[]): ConventionsParams {
+  try {
+    const { flags, rest } = parseArgs(args);
+    const target = optionalString(flags, "target") ?? boundedPositionalText(
+      rest,
+      "target",
+      Math.max(CONVENTION_LIMITS.max_path_chars, CONVENTION_LIMITS.max_identifier_chars),
+    );
+    return sanitizeConventionPublicInput({ target });
+  } catch {
+    return sanitizeConventionPublicInput(undefined);
+  }
+}
+
+function parseGuidanceArgs(args: string[]): { input: GuidanceParams; json: boolean } {
+  let target: string | undefined;
+  let task: string | undefined;
+  let json = false;
+  const seen = new Set<string>();
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--json") {
+      if (seen.has("json")) throw new Error("Guidance arguments contain an unknown or repeated flag");
+      seen.add("json");
+      json = true;
+      continue;
+    }
+    if (arg === "--task") {
+      const name = arg.slice(2);
+      if (seen.has(name)) throw new Error("Guidance arguments contain an unknown or repeated flag");
+      const next = args[index + 1];
+      if (next === undefined || next.startsWith("--")) throw new Error("Guidance argument flag is missing its value");
+      seen.add(name);
+      task = next;
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--")) throw new Error("Guidance arguments contain an unknown or repeated flag");
+    if (target !== undefined) throw new Error("Guidance requires exactly one target and one --task value");
+    target = arg;
+  }
+  if (target === undefined || task === undefined) throw new Error("Guidance requires exactly one target and one --task value");
+  return { input: { target, task }, json };
+}
+
+function guidancePublicInputFromArgs(args: string[]): unknown {
+  try {
+    return parseGuidanceArgs(args).input;
+  } catch {
+    return sanitizeGuidancePublicInput(undefined);
+  }
+}
+
+export function parseReviewArgs(args: string[]): { input: ReviewParams; json: boolean } {
+  let diff = false;
+  let json = false;
+  const seen = new Set<string>();
+  for (const arg of args) {
+    if (arg !== "--diff" && arg !== "--json") throw new Error("Review arguments contain an unknown or repeated flag");
+    const name = arg.slice(2);
+    if (seen.has(name)) throw new Error("Review arguments contain an unknown or repeated flag");
+    seen.add(name);
+    if (name === "diff") diff = true;
+    if (name === "json") json = true;
+  }
+  if (!diff) throw new Error("Review requires exactly --diff");
+  return { input: { diff: true }, json };
 }
 
 function emitJson(value: JsonEnvelope): void {
@@ -486,4 +626,38 @@ async function runPatternEvidenceCommand(args: string[]): Promise<void> {
     const evidence = Array.isArray(tier.evidence) ? tier.evidence : [];
     process.stdout.write(`- ${String(tier.name ?? "")}: ${evidence.length}\n`);
   }
+}
+
+async function runConventionsCommand(args: string[]): Promise<void> {
+  const { flags, rest } = parseArgs(args);
+  const input: ConventionsParams = {
+    target: optionalString(flags, "target") ?? boundedPositionalText(
+      rest,
+      "target",
+      Math.max(CONVENTION_LIMITS.max_path_chars, CONVENTION_LIMITS.max_identifier_chars),
+    ),
+  };
+  const data = await runConventions(input);
+  if (isFlagEnabled(flags, "json")) {
+    process.stdout.write(serializeConventionPublicResponse(input, data));
+    return;
+  }
+
+  process.stdout.write(formatConventionPublicText(data));
+}
+
+async function runGuidanceCommand(args: string[]): Promise<void> {
+  const { input, json } = parseGuidanceArgs(args);
+  const data = await runGuidance(input);
+  if (json) {
+    process.stdout.write(serializeGuidancePublicResponse(input, data));
+    return;
+  }
+  process.stdout.write(formatGuidancePublicText(data));
+}
+
+async function runReviewCommand(args: string[]): Promise<void> {
+  const { input, json } = parseReviewArgs(args);
+  const data = await runDiffReview(input);
+  process.stdout.write(json ? serializeReviewPublicResponse(input, data) : formatReviewPublicText(data));
 }

@@ -35,9 +35,14 @@ import {
   loadGrammar,
   bodyOf,
   collectErrors,
+  commonTreeSitterDialectFacts,
   parseSource,
-  runQuery
+  prepareDialectAdapterInput,
+  runQuery,
+  treeSitterDialectObservationEnvelope,
+  treeSitterUnavailableTransport
 } from "./tree-sitter/base.mjs";
+import { createDialectObservationTransport } from "../lib/dialect-observation-contract.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -231,9 +236,13 @@ function buildMethodChunk(node, imports, language, isSingleton) {
 }
 
 export async function parseCode(code, filePath, language = "ruby") {
+  return (await parseInternal(code, filePath, language)).parserResult;
+}
+
+async function parseInternal(code, filePath, language) {
   await ensureLanguage();
   const { tree, reason } = parseSource(RUBY_LANG, code);
-  if (!tree) return { chunks: [], errors: [{ message: reason }] };
+  if (!tree) return { tree: null, parserResult: { chunks: [], errors: [{ message: reason }] } };
   const root = tree.rootNode;
   const imports = collectImports(root);
 
@@ -259,7 +268,38 @@ export async function parseCode(code, filePath, language = "ruby") {
     return true;
   });
 
-  return { chunks: deduped, errors: collectErrors(tree) };
+  return { tree, parserResult: { chunks: deduped, errors: collectErrors(tree) } };
+}
+
+export async function parseCodeWithDialectObservations(code, repositoryPath, language = "ruby") {
+  const metadata = prepareDialectAdapterInput(code, repositoryPath, language, ["ruby"]);
+  let parsed;
+  try {
+    parsed = await parseInternal(code, repositoryPath, language);
+  } catch {
+    return treeSitterUnavailableTransport(metadata.oversized ? "oversized" : "unavailable");
+  }
+  const { tree, parserResult } = parsed;
+  const observationEnvelope = treeSitterDialectObservationEnvelope({
+    code,
+    repositoryPath,
+    family: metadata.family,
+    syntaxMode: metadata.syntaxMode,
+    rootNode: tree?.rootNode ?? null,
+    parserResult,
+    classifyNode: classifyDialectNode
+  });
+  return createDialectObservationTransport(parserResult, observationEnvelope);
+}
+
+function classifyDialectNode(node) {
+  const facts = commonTreeSitterDialectFacts(node);
+  if (["if", "unless", "case"].includes(node.type)) facts.push({ category: "control_flow", kind: "branch", form: "statement" });
+  if (["while", "until", "for"].includes(node.type)) facts.push({ category: "control_flow", kind: "loop", form: "statement" });
+  if (["instance_variable", "class_variable"].includes(node.type) && node.parent?.type === "assignment") {
+    facts.push({ category: "data_representation", kind: "field", form: "declaration" });
+  }
+  return facts;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

@@ -15,6 +15,17 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import {
+  DIALECT_LIMITS,
+  canonicalDialectLanguageSpecificShape,
+  canonicalDialectNormalizedShape,
+  canonicalRepositoryPath,
+  canonicalizeDialectObservations,
+  createDialectObservationTransport,
+  dialectFamilyForMode,
+  exactKeys,
+  stableDialectObservationId
+} from "../lib/dialect-observation-contract.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -195,16 +206,74 @@ export function ensureCSharpParserPublished() {
 }
 
 export function parseCode(code, filePath, language = "csharp") {
+  return runCSharpParser(code, filePath, language).parserResult;
+}
+
+export function parseCodeWithDialectObservations(code, repositoryPath, language = "csharp") {
+  const metadata = prepareDialectInput(code, repositoryPath, language);
+  const run = runCSharpParser(code, repositoryPath, language, true, !metadata.oversized);
+  if (metadata.oversized) {
+    return createRoslynTransport(
+      run.parserResult,
+      statusEnvelope("oversized", "source exceeds dialect observation byte cap")
+    );
+  }
+  if (!run.parsed) {
+    return createRoslynTransport(
+      run.parserResult,
+      statusEnvelope("unavailable", run.observationFailure)
+    );
+  }
+
+  let dialectPayload;
+  try {
+    dialectPayload = validateRoslynPayload(run.parsed);
+  } catch {
+    return createRoslynTransport(
+      run.parserResult,
+      statusEnvelope("unavailable", "Roslyn parser returned invalid dialect observation data")
+    );
+  }
+
+  if (run.parserResult.errors.length > 0) {
+    return createRoslynTransport(
+      run.parserResult,
+      statusEnvelope("malformed", "native parser reported syntax errors")
+    );
+  }
+
+  try {
+    return createRoslynTransport(
+      run.parserResult,
+      roslynObservationEnvelope(code, repositoryPath, metadata, dialectPayload)
+    );
+  } catch {
+    return createRoslynTransport(
+      run.parserResult,
+      statusEnvelope("unavailable", "Roslyn parser returned invalid dialect observation data")
+    );
+  }
+}
+
+function runCSharpParser(code, filePath, language, boundedFailures = false, includeDialect = false) {
   const runtime = getCSharpParserRuntime();
   if (!runtime.available) {
-    return { chunks: [], errors: [] };
+    return {
+      parserResult: { chunks: [], errors: [] },
+      parsed: null,
+      observationFailure: "selected Roslyn backend is unavailable"
+    };
   }
 
   const published = ensureCSharpParserPublished();
   if (!published.ok) {
     return {
-      chunks: [],
-      errors: [{ message: `C# parser publish failed: ${published.reason}` }]
+      parserResult: {
+        chunks: [],
+        errors: [{ message: parserFailureMessage(`C# parser publish failed: ${published.reason}`, boundedFailures) }]
+      },
+      parsed: null,
+      observationFailure: "Roslyn parser publish failed"
     };
   }
 
@@ -216,6 +285,7 @@ export function parseCode(code, filePath, language = "csharp") {
     "--language",
     language
   ];
+  if (includeDialect) args.push("--dialect");
 
   const result = spawnSync(runtime.command, args, {
     input: code,
@@ -226,34 +296,209 @@ export function parseCode(code, filePath, language = "csharp") {
 
   if (result.error || result.status !== 0) {
     return {
-      chunks: [],
-      errors: [
-        {
-          message:
-            result.error?.message ||
-            result.stderr?.trim() ||
-            `C# parser failed with exit code ${result.status ?? "unknown"}`
-        }
-      ]
+      parserResult: {
+        chunks: [],
+        errors: [
+          {
+            message: parserFailureMessage(
+              result.error?.message ||
+              result.stderr?.trim() ||
+              `C# parser failed with exit code ${result.status ?? "unknown"}`,
+              boundedFailures
+            )
+          }
+        ]
+      },
+      parsed: null,
+      observationFailure: "Roslyn parser subprocess failed"
     };
   }
 
   try {
     const parsed = JSON.parse(result.stdout);
-    return {
+    const parserResult = boundedSuccessfulParserResult({
       chunks: Array.isArray(parsed.chunks) ? parsed.chunks : [],
       errors: Array.isArray(parsed.errors) ? parsed.errors : []
+    }, boundedFailures);
+    return {
+      parserResult,
+      parsed,
+      observationFailure: null
     };
   } catch (error) {
     return {
-      chunks: [],
-      errors: [
-        {
-          message: `C# parser returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`
-        }
-      ]
+      parserResult: {
+        chunks: [],
+        errors: [
+          {
+            message: parserFailureMessage(
+              `C# parser returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
+              boundedFailures
+            )
+          }
+        ]
+      },
+      parsed: null,
+      observationFailure: "Roslyn parser returned invalid JSON"
     };
   }
+}
+
+function parserFailureMessage(message, bounded) {
+  if (!bounded) return message;
+  return [...String(message)].slice(0, DIALECT_LIMITS.max_diagnostic_chars).join("");
+}
+
+function boundedSuccessfulParserResult(parserResult, bounded) {
+  if (!bounded) return parserResult;
+  return {
+    chunks: parserResult.chunks,
+    errors: parserResult.errors.map((error) => {
+      if (!error || typeof error !== "object" || Array.isArray(error) ||
+          typeof error.message !== "string") return error;
+      return { ...error, message: parserFailureMessage(error.message, true) };
+    })
+  };
+}
+
+function createRoslynTransport(parserResult, envelope) {
+  try {
+    return createDialectObservationTransport(parserResult, envelope);
+  } catch {
+    return createDialectObservationTransport(
+      { chunks: [], errors: [{ message: "Roslyn parser result exceeded composite transport contract" }] },
+      statusEnvelope("unavailable", "Roslyn parser returned invalid composite transport data")
+    );
+  }
+}
+
+function prepareDialectInput(code, repositoryPath, language) {
+  if (typeof code !== "string") throw new TypeError("Dialect adapter: code must be a string");
+  canonicalRepositoryPath(repositoryPath);
+  if (typeof language !== "string") throw new TypeError("Dialect adapter: language must be a string");
+  const separator = repositoryPath.lastIndexOf("/");
+  const dot = repositoryPath.lastIndexOf(".");
+  const syntaxMode = dot > separator ? repositoryPath.slice(dot) : "";
+  const family = dialectFamilyForMode(syntaxMode);
+  const mode = family?.modes.find((entry) => entry.extension === syntaxMode);
+  if (!family || family.family !== "csharp" || mode?.registry_language !== language) {
+    throw new TypeError(`Dialect adapter: unsupported parser mode ${language}/${syntaxMode || "<none>"}`);
+  }
+  return {
+    family: family.family,
+    syntaxMode,
+    parserBackend: "roslyn",
+    oversized: Buffer.byteLength(code) > DIALECT_LIMITS.max_source_bytes
+  };
+}
+
+function validateRoslynPayload(parsed) {
+  exactKeys(parsed, ["chunks", "dialect", "errors"], "Roslyn parser response");
+  if (!Array.isArray(parsed.chunks) || !Array.isArray(parsed.errors)) {
+    throw new TypeError("Roslyn parser response arrays are invalid");
+  }
+  exactKeys(parsed.dialect, ["candidates", "observedCount"], "Roslyn dialect payload");
+  if (!Array.isArray(parsed.dialect.candidates) ||
+      !Number.isSafeInteger(parsed.dialect.observedCount) ||
+      parsed.dialect.observedCount < 0 ||
+      parsed.dialect.observedCount > DIALECT_LIMITS.max_omission_count ||
+      parsed.dialect.candidates.length > DIALECT_LIMITS.max_observations_per_file + 1 ||
+      parsed.dialect.candidates.length > parsed.dialect.observedCount) {
+    throw new TypeError("Roslyn dialect payload is invalid");
+  }
+  if (parsed.dialect.observedCount <= DIALECT_LIMITS.max_observations_per_file &&
+      parsed.dialect.candidates.length !== parsed.dialect.observedCount) {
+    throw new TypeError("Roslyn dialect payload is incomplete");
+  }
+  for (const candidate of parsed.dialect.candidates) {
+    exactKeys(candidate, [
+      "category", "endOffset", "form", "kind", "ordinal", "startOffset", "syntaxKind"
+    ], "Roslyn dialect candidate");
+    if (!Number.isSafeInteger(candidate.startOffset) ||
+        !Number.isSafeInteger(candidate.endOffset) ||
+        candidate.startOffset < 0 || candidate.endOffset <= candidate.startOffset ||
+        typeof candidate.category !== "string" || typeof candidate.kind !== "string" ||
+        typeof candidate.form !== "string" || typeof candidate.syntaxKind !== "string" ||
+        (candidate.ordinal !== null &&
+          (!Number.isSafeInteger(candidate.ordinal) || candidate.ordinal < 0))) {
+      throw new TypeError("Roslyn dialect candidate is invalid");
+    }
+  }
+  return parsed.dialect;
+}
+
+function roslynObservationEnvelope(code, repositoryPath, metadata, dialectPayload) {
+  if (dialectPayload.observedCount > DIALECT_LIMITS.max_observations_per_file) {
+    return statusEnvelope(
+      "truncated",
+      "dialect observation file cap exceeded",
+      dialectPayload.observedCount,
+      dialectPayload.observedCount
+    );
+  }
+  const lineStarts = sourceLineStarts(code);
+  const observations = dialectPayload.candidates.map((candidate) => {
+    if (candidate.endOffset > code.length) {
+      throw new TypeError("Roslyn dialect candidate span exceeds source");
+    }
+    const start = sourcePosition(lineStarts, candidate.startOffset);
+    const end = sourcePosition(lineStarts, candidate.endOffset - 1);
+    const observation = {
+      schema_version: 1,
+      family: metadata.family,
+      syntax_mode: metadata.syntaxMode,
+      parser_backend: metadata.parserBackend,
+      repository_path: repositoryPath,
+      containing_chunk_id: null,
+      start_line: start.line,
+      start_column: start.column,
+      end_line: end.line,
+      end_column: end.column,
+      category: candidate.category,
+      normalized_shape: canonicalDialectNormalizedShape(candidate.category, candidate.kind),
+      language_specific_shape: canonicalDialectLanguageSpecificShape(
+        candidate.form,
+        candidate.syntaxKind
+      ),
+      ordinal: candidate.ordinal,
+      observation_id: ""
+    };
+    observation.observation_id = stableDialectObservationId(observation);
+    return observation;
+  });
+  return statusEnvelope("ok", null, observations.length, 0, observations);
+}
+
+function sourceLineStarts(code) {
+  const starts = [0];
+  for (let index = 0; index < code.length; index += 1) {
+    if (code.charCodeAt(index) === 10) starts.push(index + 1);
+  }
+  return starts;
+}
+
+function sourcePosition(lineStarts, offset) {
+  let low = 0;
+  let high = lineStarts.length;
+  while (low + 1 < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (lineStarts[middle] <= offset) low = middle;
+    else high = middle;
+  }
+  return { line: low + 1, column: offset - lineStarts[low] };
+}
+
+function statusEnvelope(status, message, observedCount = 0, omittedCount = 0, observations = []) {
+  return {
+    schema_version: 1,
+    status,
+    observations: status === "ok" ? canonicalizeDialectObservations(observations) : [],
+    diagnostics: {
+      message: status === "ok" ? null : message,
+      observed_count: observedCount,
+      omitted_count: omittedCount
+    }
+  };
 }
 
 /**
@@ -266,11 +511,53 @@ export function parseCode(code, filePath, language = "csharp") {
  * @returns {Map<string, {chunks: Array, errors: Array}>}
  */
 export function parseProject(files) {
+  const batch = runCSharpProjectBatch(files, false);
+  return new Map([...batch].map(([filePath, entry]) => [filePath, entry.parserResult]));
+}
+
+export function parseProjectWithDialectObservations(files) {
+  const batch = runCSharpProjectBatch(files, true);
+  const transports = new Map();
+  for (const file of files) {
+    const run = batch.get(file.path) ?? {
+      parserResult: { chunks: [], errors: [] },
+      parsed: null,
+      observationFailure: "Roslyn batch parser omitted a source file"
+    };
+    const metadata = prepareDialectInput(file.content, file.path, "csharp");
+    let envelope;
+    if (metadata.oversized) {
+      envelope = statusEnvelope("oversized", "source exceeds dialect observation byte cap");
+    } else if (!run.parsed) {
+      envelope = statusEnvelope("unavailable", run.observationFailure);
+    } else if (run.parserResult.errors.length > 0) {
+      envelope = statusEnvelope("malformed", "native parser reported syntax errors");
+    } else {
+      try {
+        const dialectPayload = validateRoslynPayload(run.parsed);
+        envelope = roslynObservationEnvelope(file.content, file.path, metadata, dialectPayload);
+      } catch {
+        envelope = statusEnvelope(
+          "unavailable",
+          "Roslyn parser returned invalid dialect observation data"
+        );
+      }
+    }
+    transports.set(file.path, createRoslynTransport(run.parserResult, envelope));
+  }
+  return transports;
+}
+
+function runCSharpProjectBatch(files, includeDialect) {
   const runtime = getCSharpParserRuntime();
   if (!runtime.available) {
     const empty = new Map();
     for (const file of files) {
-      empty.set(file.path, { chunks: [], errors: [] });
+      empty.set(file.path, {
+        parserResult: { chunks: [], errors: [] },
+        parsed: null,
+        observationFailure: "selected Roslyn backend is unavailable"
+      });
     }
     return empty;
   }
@@ -280,15 +567,26 @@ export function parseProject(files) {
     const errors = [{ message: `C# parser publish failed: ${published.reason}` }];
     const fallback = new Map();
     for (const file of files) {
-      fallback.set(file.path, { chunks: [], errors });
+      fallback.set(file.path, {
+        parserResult: { chunks: [], errors },
+        parsed: null,
+        observationFailure: "Roslyn parser publish failed"
+      });
     }
     return fallback;
   }
 
   const args = [published.dllPath, "--batch"];
+  if (includeDialect) args.push("--dialect");
 
   const payload = JSON.stringify({
-    files: files.map((f) => ({ path: f.path, source: f.content }))
+    files: files.map((f) => ({
+      path: f.path,
+      source: f.content,
+      ...(includeDialect
+        ? { dialect: !prepareDialectInput(f.content, f.path, "csharp").oversized }
+        : {})
+    }))
   });
 
   const result = spawnSync(runtime.command, args, {
@@ -309,7 +607,11 @@ export function parseProject(files) {
     ];
     const fallback = new Map();
     for (const file of files) {
-      fallback.set(file.path, { chunks: [], errors });
+      fallback.set(file.path, {
+        parserResult: { chunks: [], errors },
+        parsed: null,
+        observationFailure: "Roslyn batch parser subprocess failed"
+      });
     }
     return fallback;
   }
@@ -322,11 +624,19 @@ export function parseProject(files) {
       const entry = perFile[file.path];
       if (entry) {
         out.set(file.path, {
-          chunks: Array.isArray(entry.chunks) ? entry.chunks : [],
-          errors: Array.isArray(entry.errors) ? entry.errors : []
+          parserResult: {
+            chunks: Array.isArray(entry.chunks) ? entry.chunks : [],
+            errors: Array.isArray(entry.errors) ? entry.errors : []
+          },
+          parsed: entry,
+          observationFailure: null
         });
       } else {
-        out.set(file.path, { chunks: [], errors: [] });
+        out.set(file.path, {
+          parserResult: { chunks: [], errors: [] },
+          parsed: null,
+          observationFailure: "Roslyn batch parser omitted a source file"
+        });
       }
     }
     return out;
@@ -338,7 +648,11 @@ export function parseProject(files) {
     ];
     const fallback = new Map();
     for (const file of files) {
-      fallback.set(file.path, { chunks: [], errors });
+      fallback.set(file.path, {
+        parserResult: { chunks: [], errors },
+        parsed: null,
+        observationFailure: "Roslyn batch parser returned invalid JSON"
+      });
     }
     return fallback;
   }

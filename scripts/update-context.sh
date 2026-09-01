@@ -14,5 +14,8 @@ fi
 echo "[update] rebuilding graph"
 "$REPO_ROOT/scripts/load-ryu.sh"
 
+echo "[update] rebuilding affected convention profiles"
+node "$REPO_ROOT/scripts/conventions.mjs"
+
 echo "[update] status"
 "$REPO_ROOT/scripts/status.sh"

@@ -14,18 +14,36 @@ const PREVIOUS_RELEASE_COMMIT = "736becf34d929ea0bef88adbe476a584a1f081e9";
 const PREVIOUS_RELEASE_SHA1 = "995ddb990eedf26f833be5f511a2cf45b9671d6a";
 const PREVIOUS_RELEASE_INTEGRITY =
   "sha512-lRt7yCLMp+yGNOnya60rlZog6qEDjScbz6TTk4k6l6JoWQzm+gV6umTfHaYs5SjoBqYia9EERHcxVLUeYANdlQ==";
-const EXPECTED_ENTRY_COUNT = 420;
-const EXPECTED_MODE_COUNTS = new Map([[0o644, 399], [0o755, 21]]);
-const EXPECTED_INVENTORY_SHA256 = "cebf97a2b13ef48733d79b97b0c7785d3152915e0b5ab6706190a836e38b48bd";
-const EXPECTED_RUNTIME_OWNERSHIP_COUNT = 94;
-const EXPECTED_MANAGED_OWNERSHIP_COUNT = 385;
-const EXPECTED_CHANGED_MANAGED_COUNT = 38;
-const EXPECTED_NEW_MANAGED_COUNT = 5;
+const EXPECTED_ENTRY_COUNT = 465;
+const EXPECTED_MODE_COUNTS = new Map([[0o644, 444], [0o755, 21]]);
+const EXPECTED_INVENTORY_SHA256 = "b57403ef4d5f9e59946eaf130e361f55114e378ab4da3a4918cf1c1207811a1e";
+const EXPECTED_RUNTIME_OWNERSHIP_COUNT = 96;
+const EXPECTED_MANAGED_OWNERSHIP_COUNT = 423;
+const EXPECTED_CHANGED_MANAGED_COUNT = 110;
+const EXPECTED_NEW_MANAGED_COUNT = 43;
+const OWNERSHIP_V1_SHA256 = "b3b97387f541e718ac3b27f677e00cf815cb9bd600b1305391891685f03423ff";
 const BUILD_MARKER = path.join(REPO_ROOT, "scaffold", "mcp", "dist", ".cortex-build-hash");
 const REQUIRED_CONTAINMENT_UPGRADE_PATHS = [
   "scaffold/scripts/dashboard.mjs",
   "scaffold/scripts/ingest-worker.mjs",
   "scaffold/scripts/ingest.mjs",
+  "scaffold/scripts/lib/dialect-observation-contract.mjs",
+  "scaffold/mcp/dist/cli/workflow-analysis.js",
+  "scaffold/mcp/dist/server.js",
+  "scaffold/mcp/dist/core/analysis-state/query-reader.js",
+  "scaffold/mcp/src/cli/workflow-analysis.ts",
+  "scaffold/mcp/src/server.ts",
+  "scaffold/mcp/src/core/analysis-state/query-reader.ts",
+  "scaffold/mcp/tests/analysis-state-cli.test.mjs",
+  "scaffold/mcp/dist/core/analysis-state/trusted-writer.js",
+  "scaffold/mcp/src/core/analysis-state/trusted-writer.ts",
+  "scaffold/mcp/tests/analysis-state-trusted-writer.test.mjs",
+  "scaffold/mcp/dist/core/analysis-state/current-state.js",
+  "scaffold/mcp/src/core/analysis-state/current-state.ts",
+  "scaffold/mcp/tests/analysis-state-current-state.test.mjs",
+  "scaffold/mcp/dist/core/analysis-state/provisioning.js",
+  "scaffold/mcp/src/core/analysis-state/provisioning.ts",
+  "scaffold/mcp/tests/analysis-state-provisioning.test.mjs",
   "scaffold/scripts/lib/ingest/chunks.mjs",
   "scaffold/scripts/lib/ingest/config.mjs",
   "scaffold/scripts/lib/ingest/files.mjs",
@@ -69,9 +87,11 @@ const candidateMetadata = JSON.parse(
 );
 
 function run(command, args, { cwd = REPO_ROOT, env = process.env } = {}) {
+  const childEnv = { ...env };
+  delete childEnv.NODE_TEST_CONTEXT;
   const result = spawnSync(command, args, {
     cwd,
-    env,
+    env: childEnv,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
   });
@@ -103,9 +123,17 @@ function copyTest(packageRoot, name) {
 }
 
 function installedOwnership(packageRoot) {
-  const manifest = JSON.parse(
-    fs.readFileSync(path.join(packageRoot, "scaffold", "ownership", "v1.json"), "utf8"),
+  const pointer = JSON.parse(
+    fs.readFileSync(path.join(packageRoot, "scaffold", "ownership", "current.json"), "utf8"),
   );
+  const manifest = JSON.parse(
+    fs.readFileSync(
+      path.join(packageRoot, "scaffold", "ownership", `v${pointer.manifestVersion}.json`),
+      "utf8",
+    ),
+  );
+  assert.equal(pointer.manifestVersion, 7);
+  assert.equal(manifest.manifestVersion, 7);
   const paths = manifest.managedRoots.flatMap((root) =>
     root.files.map((file) => path.posix.join(
       root.target,
@@ -116,8 +144,14 @@ function installedOwnership(packageRoot) {
 }
 
 function installedOwnershipEntries(packageRoot) {
+  const pointer = JSON.parse(
+    fs.readFileSync(path.join(packageRoot, "scaffold", "ownership", "current.json"), "utf8"),
+  );
   const manifest = JSON.parse(
-    fs.readFileSync(path.join(packageRoot, "scaffold", "ownership", "v1.json"), "utf8"),
+    fs.readFileSync(
+      path.join(packageRoot, "scaffold", "ownership", `v${pointer.manifestVersion}.json`),
+      "utf8",
+    ),
   );
   return manifest.managedRoots.flatMap((root) =>
     root.files.map((file) => {
@@ -184,6 +218,47 @@ function verifyPackInventory(pack) {
     pack.files.some((entry) => entry.path === "scaffold/mcp/dist/.cortex-build-hash"),
     false,
   );
+  for (const requiredPath of [
+    "scaffold/ownership/current.json",
+    "scaffold/ownership/v1.json",
+    "scaffold/ownership/v2.json",
+    "scaffold/ownership/v5.json",
+    "scaffold/ownership/v6.json",
+    "scaffold/ownership/v7.json",
+    "scaffold/ownership/v3.json",
+    "scaffold/ownership/v4.json",
+    "bin/cli/workflow-command.mjs",
+    "scaffold/mcp/dist/cli/workflow-analysis.js",
+    "scaffold/mcp/dist/core/analysis-state/query-reader.js",
+    "scaffold/mcp/src/cli/workflow-analysis.ts",
+    "scaffold/mcp/src/core/analysis-state/query-reader.ts",
+    "scaffold/mcp/tests/analysis-state-cli.test.mjs",
+    "scaffold/mcp/dist/core/analysis-state/store.js",
+    "scaffold/mcp/src/core/analysis-state/store.ts",
+    "scaffold/mcp/src/core/workflow/analysis-state-adapter.ts",
+    "scaffold/mcp/tests/analysis-state-store.test.mjs",
+    "scaffold/mcp/dist/core/analysis-state/trusted-writer.js",
+    "scaffold/mcp/src/core/analysis-state/trusted-writer.ts",
+    "scaffold/mcp/tests/analysis-state-trusted-writer.test.mjs",
+    "scaffold/mcp/dist/core/analysis-state/current-state.js",
+    "scaffold/mcp/src/core/analysis-state/current-state.ts",
+    "scaffold/mcp/tests/analysis-state-current-state.test.mjs",
+    "scaffold/mcp/dist/core/analysis-state/provisioning.js",
+    "scaffold/mcp/src/core/analysis-state/provisioning.ts",
+    "scaffold/mcp/tests/analysis-state-provisioning.test.mjs",
+    "scaffold/scripts/lib/dialect-observation-contract.mjs",
+  ]) {
+    assert.equal(
+      pack.files.some((entry) => entry.path === requiredPath),
+      true,
+      `missing packed runtime contract path: ${requiredPath}`,
+    );
+  }
+  assert.equal(
+    pack.files.some((entry) => entry.path.startsWith("benchmark/")),
+    false,
+    "the packaged runtime must not depend on benchmark files",
+  );
   const modeCounts = new Map();
   for (const entry of pack.files) {
     modeCounts.set(entry.mode, (modeCounts.get(entry.mode) ?? 0) + 1);
@@ -192,6 +267,15 @@ function verifyPackInventory(pack) {
   const inventory = `${inventoryRows(pack).join("\n")}\n`;
   assert.equal(sha256Buffer(inventory), EXPECTED_INVENTORY_SHA256);
   return inventory;
+}
+
+function reportedModeCounts() {
+  return Object.fromEntries(
+    [...EXPECTED_MODE_COUNTS].map(([mode, count]) => [
+      Number(mode).toString(8).padStart(4, "0"),
+      count,
+    ]),
+  );
 }
 
 function packCandidate(destination, npmCache) {
@@ -328,7 +412,7 @@ function verifyForcedUpgrade(packageRoot, sandbox, npmCache) {
     fs.readFileSync(path.join(project, ".context", "scaffold-state.json"), "utf8"),
   );
   assert.equal(state.schemaVersion, 1);
-  assert.equal(state.manifestVersion, 1);
+  assert.equal(state.manifestVersion, 7);
   for (const entry of changedFiles) {
     const targetPath = path.join(project, ...entry.targetIdentity.split("/"));
     const candidatePath = path.join(packageRoot, ...entry.sourcePath.split("/"));
@@ -403,6 +487,15 @@ try {
     JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "utf8")).version,
     candidateMetadata.version,
   );
+  assert.equal(
+    sha256File(path.join(packageRoot, "scaffold", "ownership", "v1.json")),
+    OWNERSHIP_V1_SHA256,
+  );
+  const packedRuntimeSource = fs.readFileSync(
+    path.join(packageRoot, "scaffold", "scripts", "lib", "dialect-observation-contract.mjs"),
+    "utf8",
+  );
+  assert.doesNotMatch(packedRuntimeSource, /benchmark/);
   const ownership = verifyPackedRuntimeOwnership(cleanPack, packageRoot);
 
   run("npm", [
@@ -419,7 +512,7 @@ try {
     "--test",
     path.join(packageRoot, "tests", "ingest-filesystem-boundary.test.mjs"),
   ]);
-  assertNodeTestSummary(boundary.stdout, 41);
+  assertNodeTestSummary(boundary.stdout, 42);
 
   const characterization = run(process.execPath, [
     "--test",
@@ -447,13 +540,13 @@ try {
     package: PACKAGE_NAME,
     version: cleanPack.version,
     entries: cleanPack.files.length,
-    mode_counts: { "0644": 399, "0755": 21 },
+    mode_counts: reportedModeCounts(),
     inventory_sha256: EXPECTED_INVENTORY_SHA256,
     tarball_sha1: cleanPack.shasum,
     tarball_sha256: sha256File(tarball),
     clean_and_prebuilt_inventory_equal: true,
     installed_prefix: true,
-    packed_boundary_cases: 41,
+    packed_boundary_cases: 42,
     packed_characterization_cases: 3,
     development_dashboard_cases: 4,
     packed_dashboard_cases: 4,

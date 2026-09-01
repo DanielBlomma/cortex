@@ -9,8 +9,13 @@ import {
   isCSharpParserAvailable,
   parseCode,
   parseProject,
+  parseProjectWithDialectObservations,
   resetCSharpParserRuntimeCache
 } from "../scaffold/scripts/parsers/csharp.mjs";
+import {
+  DIALECT_LIMITS,
+  validateDialectObservationTransport
+} from "../scaffold/scripts/lib/dialect-observation-contract.mjs";
 
 function withMissingDotnetRuntime(testFn) {
   return async () => {
@@ -217,6 +222,40 @@ liveTest("parseProject resolves cross-file calls to fully-qualified names", () =
     runChunk.calls.includes("Demo.Helper.Compute"),
     `expected fq-name "Demo.Helper.Compute" in calls, got: ${JSON.stringify(runChunk.calls)}`
   );
+});
+
+liveTest("composite project batch preserves semantic calls and returns one validated transport per file", () => {
+  const files = [
+    {
+      path: "src/Helper.cs",
+      content: "namespace Demo; public class Helper { public int Compute(int x) => x * 2; }",
+    },
+    {
+      path: "src/App.cs",
+      content: "namespace Demo; public class App { public int Run(Helper h) => h.Compute(21); }",
+    },
+  ];
+  const oversizedFile = {
+    path: "src/TooLarge.cs",
+    content: `public class TooLarge {}\n//${"x".repeat(DIALECT_LIMITS.max_source_bytes + 1)}`,
+  };
+  const legacy = parseProject(files);
+  const composite = parseProjectWithDialectObservations([...files, oversizedFile]);
+  assert.deepEqual(
+    [...composite.keys()],
+    [...files, oversizedFile].map((file) => file.path),
+  );
+  for (const file of files) {
+    const transport = validateDialectObservationTransport(composite.get(file.path));
+    assert.deepEqual(transport.parser_result, legacy.get(file.path));
+    assert.equal(transport.observation_envelope.schema_version, 1);
+  }
+  const runChunk = composite.get("src/App.cs").parser_result.chunks.find((entry) => entry.name === "App.Run");
+  assert.ok(runChunk.calls.includes("Demo.Helper.Compute"));
+  const oversized = validateDialectObservationTransport(composite.get(oversizedFile.path));
+  assert.equal(oversized.observation_envelope.status, "oversized");
+  assert.deepEqual(oversized.observation_envelope.observations, []);
+  assert.ok(oversized.parser_result.chunks.length > 0);
 });
 
 liveTest("parseProject resolves BCL calls via loaded reference assemblies", () => {

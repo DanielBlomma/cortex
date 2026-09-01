@@ -28,9 +28,14 @@ import {
   loadGrammar,
   bodyOf,
   collectErrors,
+  commonTreeSitterDialectFacts,
   parseSource,
-  runQuery
+  prepareDialectAdapterInput,
+  runQuery,
+  treeSitterDialectObservationEnvelope,
+  treeSitterUnavailableTransport
 } from "./tree-sitter/base.mjs";
+import { createDialectObservationTransport } from "../lib/dialect-observation-contract.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -224,9 +229,13 @@ function buildTypeChunk(node, nameNode, language) {
 }
 
 export async function parseCode(code, filePath, language = "go") {
+  return (await parseInternal(code, filePath, language)).parserResult;
+}
+
+async function parseInternal(code, filePath, language) {
   await ensureLanguage();
   const { tree, reason } = parseSource(GO_LANG, code);
-  if (!tree) return { chunks: [], errors: [{ message: reason }] };
+  if (!tree) return { tree: null, parserResult: { chunks: [], errors: [{ message: reason }] } };
   const root = tree.rootNode;
   const imports = collectImports(root);
 
@@ -271,7 +280,103 @@ export async function parseCode(code, filePath, language = "go") {
     return true;
   });
 
-  return { chunks: deduped, errors: collectErrors(tree) };
+  return { tree, parserResult: { chunks: deduped, errors: collectErrors(tree) } };
+}
+
+export async function parseCodeWithDialectObservations(code, repositoryPath, language = "go") {
+  const metadata = prepareDialectAdapterInput(code, repositoryPath, language, ["go"]);
+  let parsed;
+  try {
+    parsed = await parseInternal(code, repositoryPath, language);
+  } catch {
+    return treeSitterUnavailableTransport(metadata.oversized ? "oversized" : "unavailable");
+  }
+  const { tree, parserResult } = parsed;
+  const classifyNode = createDialectClassifier(tree?.rootNode ?? null, repositoryPath);
+  const observationEnvelope = treeSitterDialectObservationEnvelope({
+    code,
+    repositoryPath,
+    family: metadata.family,
+    syntaxMode: metadata.syntaxMode,
+    rootNode: tree?.rootNode ?? null,
+    parserResult,
+    classifyNode
+  });
+  return createDialectObservationTransport(parserResult, observationEnvelope);
+}
+
+function createDialectClassifier(rootNode, repositoryPath) {
+  const testingQualifier = resolvedTestingQualifier(rootNode);
+  const testFile = /(?:^|\/)[^/]+_test\.go$/.test(repositoryPath);
+  return (node) => classifyDialectNode(node, {
+    testingQualifier,
+    testFile
+  });
+}
+
+function classifyDialectNode(node, context) {
+  const facts = commonTreeSitterDialectFacts(node);
+  if (["type_spec", "type_alias"].includes(node.type)) facts.push({ category: "declaration_structure", kind: "type", form: "declaration" });
+  if (node.type === "method_declaration") facts.push({ category: "declaration_structure", kind: "method", form: "declaration" });
+  if (node.type === "function_declaration" && context.testFile && context.testingQualifier && isGoTestFunction(node, context.testingQualifier)) {
+    facts.push({ category: "test_shape", kind: "test_declaration", form: "declaration" });
+  }
+  return facts;
+}
+
+function isGoTestFunction(node, testingQualifier) {
+  const name = node.childForFieldName("name")?.text ?? "";
+  if (!/^Test[^a-z]/.test(name)) return false;
+  const parameters = node.childForFieldName("parameters");
+  if (!parameters || parameters.namedChildCount !== 1) return false;
+  const parameter = parameters.namedChild(0);
+  const type = parameter?.childForFieldName("type");
+  const qualified = type?.type === "pointer_type" ? type.namedChild(0) : null;
+  return qualified?.type === "qualified_type" &&
+    qualified.childForFieldName("package")?.text === testingQualifier &&
+    qualified.childForFieldName("name")?.text === "T";
+}
+
+function resolvedTestingQualifier(rootNode) {
+  const testingQualifiers = [];
+  const competingQualifiers = new Set();
+  visitTree(rootNode, (node) => {
+    if (node.type !== "import_spec") return;
+    const importPath = goImportPath(node);
+    const qualifier = goImportQualifier(node, importPath);
+    if (!qualifier) return;
+    if (importPath === "testing") testingQualifiers.push(qualifier);
+    else competingQualifiers.add(qualifier);
+  });
+  if (testingQualifiers.length !== 1) return null;
+  const [testingQualifier] = testingQualifiers;
+  return competingQualifiers.has(testingQualifier) ? null : testingQualifier;
+}
+
+function goImportQualifier(node, importPath) {
+  const name = node.childForFieldName("name");
+  if (name) {
+    return name.type === "package_identifier" && name.text !== "_" && name.text !== "."
+      ? name.text
+      : null;
+  }
+  const pathTail = importPath?.split("/").at(-1) ?? "";
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(pathTail) ? pathTail : null;
+}
+
+function goImportPath(node) {
+  const pathNode = node.childForFieldName("path");
+  return pathNode ? unquoteStringLiteral(pathNode.text) : null;
+}
+
+function visitTree(rootNode, visit) {
+  if (!rootNode) return;
+  const stack = [rootNode];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    visit(node);
+    for (let index = 0; index < node.namedChildCount; index += 1) stack.push(node.namedChild(index));
+  }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

@@ -856,12 +856,11 @@ export function installManagedScaffold(
         }
       } else {
         const targetHash = sha256File(target.path);
-        const matchesCurrentSource = targetHash === sha256File(source.path);
         const matchesBaseline =
           preStateOwnership.managedHashes
             .get(entry.target)
             ?.has(targetHash) === true;
-        if (!matchesCurrentSource && !matchesBaseline) {
+        if (!matchesBaseline) {
           throw new Error(
             `Refusing to overwrite unowned scaffold collision: ${entry.target}`,
           );

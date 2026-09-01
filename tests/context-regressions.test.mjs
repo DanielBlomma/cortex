@@ -10,6 +10,13 @@ const REPO_ROOT = path.join(__dirname, "..");
 const WATCH_PATH = path.join(REPO_ROOT, "scripts", "watch.sh");
 const INGEST_PATH = path.join(REPO_ROOT, "scaffold", "scripts", "ingest.mjs");
 const INGEST_LIB_PATH = path.join(REPO_ROOT, "scaffold", "scripts", "lib", "ingest");
+const DIALECT_CONTRACT_PATH = path.join(
+  REPO_ROOT,
+  "scaffold",
+  "scripts",
+  "lib",
+  "dialect-observation-contract.mjs"
+);
 const INGEST_PARSERS_PATH = path.join(REPO_ROOT, "scaffold", "scripts", "ingest-parsers.mjs");
 const INGEST_PARSER_REGISTRY_PATH = path.join(
   INGEST_LIB_PATH,
@@ -22,6 +29,10 @@ function copyIngestEntry(scriptsDir) {
   fs.cpSync(INGEST_LIB_PATH, path.join(scriptsDir, "lib", "ingest"), {
     recursive: true
   });
+  fs.copyFileSync(
+    DIALECT_CONTRACT_PATH,
+    path.join(scriptsDir, "lib", "dialect-observation-contract.mjs")
+  );
 }
 
 // Fixtures that run a copied ingest entry must also ship the canonical library,
@@ -42,8 +53,8 @@ function writeIngestScripts(scriptsDir, { mockJsParser = false } = {}) {
     const registrySource = fs
       .readFileSync(INGEST_PARSER_REGISTRY_PATH, "utf8")
       .replace(
-        'import { parseCode } from "../../parsers/javascript.mjs";',
-        'import { parseCode } from "../../parsers/mock-parser.mjs";'
+        'import * as javascriptParser from "../../parsers/javascript.mjs";',
+        'import * as javascriptParser from "../../parsers/mock-parser.mjs";'
       );
     fs.writeFileSync(
       registryPath,

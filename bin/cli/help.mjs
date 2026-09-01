@@ -48,6 +48,9 @@ export function printHelp() {
   console.log(helpRow("rules [--json]", "List active context rules"));
   console.log(helpRow("explain <query|entity-id> [--json]", "Show search score evidence"));
   console.log(helpRow("pattern-evidence <file|entity-id> [--query <text>] [--top-k <n>] [--json]", "Collect cited repo-local pattern evidence"));
+  console.log(helpRow("conventions <file|entity-id> [--json]", "Inspect bounded active repo-local conventions"));
+  console.log(helpRow("guidance <file|entity-id> --task <text> [--json]", "Get bounded cited pre-coding guidance"));
+  console.log(helpRow("review --diff [--json]", "Review the current Git candidate against HEAD"));
   console.log(helpRow("dashboard [--interval <sec>]", "Live local dashboard"));
   console.log(helpRow("memory-compile [--dry-run] [--verbose]", "Compile memory artifacts"));
   console.log(helpRow("memory-lint [--verbose] [--json]", "Lint compiled memory"));
@@ -71,6 +74,10 @@ export function printHelp() {
   console.log(helpRow("stage envelope --task-id <id> [--stage <name>]", "Compose stage prompt envelope"));
   console.log(helpRow("stage advance --task-id <id> --stage <name> --body-file <path>", "Write artifact, advance run"));
   console.log(helpRow("stage run --task-id <id> -- <command>", "Exec a command with CORTEX_ACTIVE_TASK_ID set"));
+  console.log(helpRow("workflow state <task-id> [--json]", "Read opt-in maintained analysis state"));
+  console.log(helpRow("workflow why <task-id> <fact-id> [--json]", "Explain one active analysis fact"));
+  console.log(helpRow("workflow why-not <task-id> <predicate> [--json]", "Explain a missing fact for the bound subject"));
+  console.log(helpRow("workflow changes <task-id> --since <epoch> [--json]", "Show maintained-state changes"));
 
   console.log(helpSection("MISC"));
   console.log(helpRow("mcp", "Run the MCP stdio server for the current project"));

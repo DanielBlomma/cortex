@@ -8,6 +8,8 @@ When answering questions about this codebase, you MUST use Cortex context instea
 
 Preferred CLI commands:
 
+- `cortex guidance <target> --task <task> --json` - Run before implementing a code task. Treat it as cited additive context, not policy authority; use normal search/related/impact as needed and never skip explicit active rules or conflicts.
+- `cortex review --diff --json` - Run after coding and before finalization. Treat deterministic findings and heuristic warnings as cited additive review evidence, not policy authority.
 - `cortex search "<query>" --json` - Search before answering any code question. Never guess at implementations.
 - `cortex related <entity-id> --json` - Use when exploring dependencies or relationships between entities.
 - `cortex rules --json` - Check architectural rules before suggesting changes.

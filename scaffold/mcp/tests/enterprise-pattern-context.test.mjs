@@ -4,15 +4,23 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import {
+import { fileURLToPath } from "node:url";
+
+const PROJECT_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../..",
+);
+process.env.CORTEX_PROJECT_ROOT = PROJECT_ROOT;
+
+const {
   buildPatternReviewContext,
   createLocalPatternRunner,
   PATTERN_REVIEW_QUESTION,
-} from "../dist/enterprise/reviews/pattern-context.js";
-import {
+} = await import("../dist/enterprise/reviews/pattern-context.js");
+const {
   buildContextReviewAuditInput,
   registerEnterpriseTools,
-} from "../dist/enterprise/tools/enterprise.js";
+} = await import("../dist/enterprise/tools/enterprise.js");
 
 function evidence(overrides = {}) {
   return {

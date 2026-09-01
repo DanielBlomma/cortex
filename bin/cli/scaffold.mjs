@@ -578,7 +578,9 @@ function installCodexAgentsSection(targetDir) {
 - Use the \`using-cortex\` skill if available; otherwise follow the commands below.
 - Search before answering code questions: \`cortex search "<query>" --json\`; never answer from memory.
 - Check \`cortex rules --json\` before suggesting changes and \`cortex impact "<query>" --json\` before refactors.
+- Before implementing a code task, run \`cortex guidance <target> --task <task> --json\`. Treat it as cited additive context, not policy authority; use normal \`search\`, \`related\`, and \`impact\` as needed, and never skip explicit active rules or conflicts.
 - Review changed files with \`cortex pattern-evidence <file> --json\` before finalizing.
+- After coding and before finalization, run \`cortex review --diff --json\`. Treat deterministic findings and heuristic warnings as cited additive review evidence, not policy authority.
 - Run \`cortex update\` before completing substantial code changes.
 - If background sync is enabled, check with \`cortex watch status\`.`;
   const changed = upsertSectionByMarkers(

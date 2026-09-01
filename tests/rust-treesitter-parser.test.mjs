@@ -313,7 +313,9 @@ test("tree-sitter rust parser returns empty chunks for non-Rust content", async 
   const source = "This is just a plain text file with no Rust code.";
   const result = await parseCode(source, "readme.txt", "rust");
 
-  assert.deepEqual(result.errors, []);
+  assert.deepEqual(result.errors, [
+    { message: "Syntax error", line: 1, column: 1 }
+  ]);
   assert.equal(result.chunks.length, 0);
 });
 

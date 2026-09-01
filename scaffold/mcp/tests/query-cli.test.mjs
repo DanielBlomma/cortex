@@ -1,10 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const QUERY_MODULE = fileURLToPath(new URL("../dist/cli/query.js", import.meta.url));
-const PROJECT_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const PROJECT_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 
 function runQuery(args) {
   const script = [
@@ -113,7 +115,7 @@ test("explain --json enables scores and matched rules", () => {
 test("pattern-evidence --json emits ordered cited evidence tiers", () => {
   const parsed = runJson([
     "pattern-evidence",
-    "mcp/src/cli/query.ts",
+    "bin/cli/query-command.mjs",
     "--query",
     "CLI argument parsing error handling",
     "--top-k",
@@ -123,7 +125,7 @@ test("pattern-evidence --json emits ordered cited evidence tiers", () => {
 
   assert.equal(parsed.ok, true);
   assert.equal(parsed.command, "pattern-evidence");
-  assert.equal(parsed.input.target, "mcp/src/cli/query.ts");
+  assert.equal(parsed.input.target, "bin/cli/query-command.mjs");
   assert.equal(parsed.input.top_k, 2);
   assert.deepEqual(parsed.data.evidence_order, [
     "same_file",
@@ -155,7 +157,7 @@ test("pattern-evidence --json rejects targets that are not file-backed", () => {
 });
 
 test("pattern-evidence derives a query from the target when --query is omitted", () => {
-  const parsed = runJson(["pattern-evidence", "mcp/src/cli/query.ts", "--top-k", "1", "--json"]);
+  const parsed = runJson(["pattern-evidence", "bin/cli/query-command.mjs", "--top-k", "1", "--json"]);
 
   assert.equal(parsed.ok, true);
   assert.equal(parsed.data.query_source, "derived_from_target");
@@ -166,7 +168,7 @@ test("pattern-evidence derives a query from the target when --query is omitted",
 test("pattern-evidence rejects malformed --top-k values", () => {
   const parsed = runJson([
     "pattern-evidence",
-    "mcp/src/cli/query.ts",
+    "bin/cli/query-command.mjs",
     "--top-k",
     "2junk",
     "--json",
@@ -175,6 +177,181 @@ test("pattern-evidence rejects malformed --top-k values", () => {
   assert.equal(parsed.ok, false);
   assert.equal(parsed.command, "pattern-evidence");
   assert.match(parsed.error.message, /must be an integer/);
+});
+
+test("conventions --json emits versioned deterministic profiles", () => {
+  const parsed = runJson(["conventions", "bin/cli/query-command.mjs", "--json"]);
+
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.command, "conventions");
+  assert.equal(parsed.input.target, "bin/cli/query-command.mjs");
+  assert.equal(parsed.data.schema_version, 1);
+  assert.ok(parsed.data.profile_count >= 1);
+  assert.equal(parsed.data.profiles.length, parsed.data.profile_count);
+  for (const profile of parsed.data.profiles) {
+    assert.equal(typeof profile.profile_hash, "string");
+    assert.equal(typeof profile.source_hash, "string");
+    assert.ok(Array.isArray(profile.reusable_symbols));
+    assert.ok(profile.structural_facts.every((fact) => fact.normative === false));
+  }
+});
+
+test("guidance --json emits deterministic hashed additive context without persistence", () => {
+  const manifestPath = path.join(PROJECT_ROOT, ".context", "cache", "conventions", "v1", "manifest.json");
+  const before = fs.statSync(manifestPath);
+  const beforeBytes = fs.readFileSync(manifestPath);
+  const args = ["guidance", "bin/cli/query-command.mjs", "--task", "add strict guidance argument validation", "--json"];
+  const firstResult = runQuery(args);
+  const secondResult = runQuery(args);
+  assert.equal(firstResult.status, 0, firstResult.stderr);
+  assert.equal(secondResult.status, 0, secondResult.stderr);
+  assert.equal(firstResult.stdout, secondResult.stdout);
+  const parsed = JSON.parse(firstResult.stdout);
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.command, "guidance");
+  assert.equal(parsed.schema_version, 1);
+  assert.equal(parsed.generator_version, "repo-guidance-v1");
+  assert.match(parsed.input.task_hash, /^[a-f0-9]{64}$/u);
+  assert.equal(firstResult.stdout.includes("add strict guidance argument validation"), false);
+  assert.ok(parsed.data.active_governing_rules.items.length <= 8);
+  assert.ok(parsed.data.reusable_symbols.items.length <= 12);
+  assert.ok(parsed.data.concrete_examples.items.length <= 6);
+  assert.equal(Object.hasOwn(parsed.data, "retrieval_evidence"), false);
+  assert.equal(Object.hasOwn(parsed.data.limits, "max_retrieval_evidence"), false);
+  assert.ok(parsed.data.conflicts.items.length <= 10);
+  assert.deepEqual(fs.readFileSync(manifestPath), beforeBytes);
+  assert.equal(fs.statSync(manifestPath).mtimeMs, before.mtimeMs);
+});
+
+test("guidance rejects missing, repeated, unknown, surplus, and unsafe arguments without task leakage", () => {
+  const secret = "guidance-secret-do-not-echo";
+  for (const args of [
+    ["guidance", "bin/cli/query-command.mjs", "--json"],
+    ["guidance", "bin/cli/query-command.mjs", "--task", secret, "--task", "again", "--json"],
+    ["guidance", "bin/cli/query-command.mjs", "--task", secret, "--unknown", "x", "--json"],
+    ["guidance", "bin/cli/query-command.mjs", "extra.ts", "--task", secret, "--json"],
+    ["guidance", "bin/cli/query-command.mjs", "--task", `${secret}\nline`, "--json"],
+    ["guidance", "--target", "bin/cli/query-command.mjs", "--task", secret, "--json"],
+    ["guidance", "bin/cli/query-command.mjs", "--target", "README.md", "--task", secret, "--json"],
+    ["guidance", "bin/cli/query-command.mjs", "--task", "", "--json"],
+    ["guidance", "bin/cli/query-command.mjs", "--task", secret, "--json", "--json"],
+    ["guidance", "file:/private/secret.ts", "--task", secret, "--json"],
+    ["guidance", "chunk:../secret.ts:name:1-2", "--task", secret, "--json"],
+  ]) {
+    const result = runQuery(args);
+    assert.equal(result.status, 1, result.stderr || result.stdout);
+    assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.ok, false);
+    assert.equal(parsed.command, "guidance");
+    assert.equal(parsed.schema_version, 1);
+    assert.equal(result.stdout.includes(secret), false);
+    assert.ok(Buffer.byteLength(result.stdout) < 1_024);
+  }
+});
+
+test("review --diff emits deterministic bounded local output without state mutation", () => {
+  const state = [
+    path.join(PROJECT_ROOT, ".context", "config.yaml"),
+    path.join(PROJECT_ROOT, ".context", "cache", "documents.jsonl"),
+    path.join(PROJECT_ROOT, ".context", "cache", "conventions", "v1", "manifest.json"),
+  ];
+  const before = state.map((file) => ({ file, bytes: fs.readFileSync(file), mtimeMs: fs.statSync(file).mtimeMs }));
+  const first = runQuery(["review", "--diff", "--json"]);
+  const second = runQuery(["review", "--json", "--diff"]);
+  assert.equal(first.status, 0, first.stderr);
+  assert.equal(second.status, 0, second.stderr);
+  const parsed = JSON.parse(first.stdout);
+  const reversed = JSON.parse(second.stdout);
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.command, "review");
+  assert.equal(parsed.generator_version, "repo-diff-review-v1");
+  assert.deepEqual(parsed.data, reversed.data);
+  assert.ok(parsed.data.changed_files.observed_count > 0);
+  assert.ok(Buffer.byteLength(first.stdout, "utf8") <= 1_000_000);
+  assert.doesNotMatch(first.stdout, new RegExp(PROJECT_ROOT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "u"));
+  for (const item of before) { assert.deepEqual(fs.readFileSync(item.file), item.bytes); assert.equal(fs.statSync(item.file).mtimeMs, item.mtimeMs); }
+});
+
+test("review runtime rejects missing, positional, duplicate, mixed, and unknown forms", () => {
+  for (const args of [["review", "--json"], ["review", "target", "--json"], ["review", "--diff", "target", "--json"], ["review", "--diff", "--diff", "--json"], ["review", "--diff", "--unknown", "--json"]]) {
+    const result = runQuery(args); assert.equal(result.status, 1); assert.equal(result.stderr, "");
+    const parsed = JSON.parse(result.stdout); assert.equal(parsed.ok, false); assert.equal(parsed.command, "review"); assert.ok(Buffer.byteLength(result.stdout) < 1024);
+  }
+});
+
+test("conventions --json rejects malformed and non-code-backed targets", () => {
+  const malformed = runJson(["conventions", "../outside.ts", "--json"], 1);
+  assert.equal(malformed.ok, false);
+  assert.equal(malformed.command, "conventions");
+  assert.match(malformed.error.message, /Invalid repository-relative/);
+
+  const rule = runJson(["conventions", "rule.source_of_truth", "--json"], 1);
+  assert.equal(rule.ok, false);
+  assert.match(rule.error.message, /not code-backed/);
+});
+
+test("conventions bounds and sanitizes near/over-limit JSON and text errors before persistence", () => {
+  const manifestPath = path.join(PROJECT_ROOT, ".context", "cache", "conventions", "v1", "manifest.json");
+  const before = fs.existsSync(manifestPath) ? fs.readFileSync(manifestPath) : null;
+  const nearTarget = "x".repeat(1024);
+  const near = runQuery(["conventions", nearTarget, "--json"]);
+  assert.equal(near.status, 1, near.stderr || near.stdout);
+  const nearParsed = JSON.parse(near.stdout);
+  assert.deepEqual(nearParsed.input, { target: nearTarget });
+  assert.equal(near.stdout, `${JSON.stringify(nearParsed, null, 2)}\n`);
+  assert.ok(Buffer.byteLength(near.stdout) < 4096);
+
+  const overTarget = `external-secret-${"x".repeat(1025)}`;
+  const overJson = runQuery(["conventions", overTarget, "--json"]);
+  assert.equal(overJson.status, 1, overJson.stderr || overJson.stdout);
+  const overParsed = JSON.parse(overJson.stdout);
+  assert.deepEqual(overParsed.input, { target: "[rejected]" });
+  assert.equal(overJson.stdout, `${JSON.stringify(overParsed, null, 2)}\n`);
+  assert.equal(overJson.stdout.includes("external-secret"), false);
+  assert.ok(Buffer.byteLength(overJson.stdout) < 1024);
+
+  const overText = runQuery(["conventions", overTarget]);
+  assert.notEqual(overText.status, 0);
+  assert.equal(overText.stdout.includes("external-secret"), false);
+  assert.equal(overText.stderr.includes("external-secret"), false);
+  assert.ok(Buffer.byteLength(overText.stderr) < 4096);
+
+  const after = fs.existsSync(manifestPath) ? fs.readFileSync(manifestPath) : null;
+  assert.deepEqual(after, before);
+});
+
+test("conventions applies the entity limit to dot and colon rule and ADR IDs in JSON and text", () => {
+  const manifestPath = path.join(PROJECT_ROOT, ".context", "cache", "conventions", "v1", "manifest.json");
+  const before = fs.existsSync(manifestPath) ? fs.readFileSync(manifestPath) : null;
+  for (const prefix of ["rule.", "rule:", "adr.", "adr:"]) {
+    for (const length of [999, 1000]) {
+      const target = `${prefix}${"x".repeat(length - prefix.length)}`;
+      const json = runQuery(["conventions", target, "--json"]);
+      assert.equal(json.status, 1, json.stderr || json.stdout);
+      const parsed = JSON.parse(json.stdout);
+      assert.deepEqual(parsed.input, { target });
+      assert.match(parsed.error.message, /not code-backed/);
+
+      const text = runQuery(["conventions", target]);
+      assert.notEqual(text.status, 0);
+      assert.equal(text.stdout.includes(target), false);
+      assert.equal(text.stderr.includes(target), false);
+    }
+    const target = `${prefix}${"x".repeat(1001 - prefix.length)}`;
+    const json = runQuery(["conventions", target, "--json"]);
+    assert.equal(json.status, 1, json.stderr || json.stdout);
+    const parsed = JSON.parse(json.stdout);
+    assert.deepEqual(parsed.input, { target: "[rejected]" });
+    assert.equal(json.stdout.includes(target), false);
+
+    const text = runQuery(["conventions", target]);
+    assert.notEqual(text.status, 0);
+    assert.equal(text.stdout.includes(target), false);
+    assert.equal(text.stderr.includes(target), false);
+  }
+  const after = fs.existsSync(manifestPath) ? fs.readFileSync(manifestPath) : null;
+  assert.deepEqual(after, before);
 });
 
 test("json validation errors emit an error envelope", () => {

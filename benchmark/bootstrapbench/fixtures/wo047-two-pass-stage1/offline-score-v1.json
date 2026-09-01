@@ -1,0 +1,336 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wo047_two_pass_stage1_offline_score",
+  "fixture_file_sha256": "af51a243ec396869f3348645de1faea59310e5eaac2547817480b769dac3148d",
+  "aggregate": {
+    "primary_runtime_files_found": 7,
+    "primary_runtime_files_total": 10,
+    "primary_runtime_recall": 0.7,
+    "exact_named_symbol_definitions_found": 1,
+    "exact_named_symbol_definitions_total": 1,
+    "exact_named_symbol_definition_recall": 1,
+    "regression_test_surfaces_found": 2,
+    "regression_test_surfaces_total": 6,
+    "regression_test_surface_recall": 0.333333,
+    "all_original_query_prefixes_retained": true,
+    "zero_owner_issue_count": 0,
+    "primary_7_of_10_gate": true,
+    "no_zero_owner_gate": true,
+    "offline_primary_gates_passed": true
+  },
+  "tasks": [
+    {
+      "task_id": "Multi-SWE-Bench__rust__maintenance__bugfix__37f525d2",
+      "primary_runtime": [
+        {
+          "path": "src/parse/arg_matcher.rs",
+          "found": true,
+          "first_rank": 14
+        },
+        {
+          "path": "src/parse/validator.rs",
+          "found": true,
+          "first_rank": 6
+        }
+      ],
+      "primary_found": 2,
+      "primary_total": 2,
+      "first_primary_rank": 6,
+      "no_zero_owner_gate": true,
+      "exact_named_definitions": [],
+      "regression_test_surfaces": [
+        {
+          "surface": "tests/builder/app_settings.rs::arg_required_else_help_with_default",
+          "path": "tests/builder/app_settings.rs",
+          "found": false,
+          "first_rank": null
+        }
+      ],
+      "caller_recall": {
+        "found": null,
+        "total": 0,
+        "reason": "fixture freezes no exhaustive accepted-caller denominator"
+      },
+      "barrel_reexport_recall": {
+        "found": null,
+        "total": 0,
+        "reason": "fixture freezes no exhaustive barrel/re-export denominator"
+      },
+      "lifecycle_owner_recall": {
+        "found": null,
+        "total": 0,
+        "reason": "fixture freezes no exhaustive lifecycle-owner denominator"
+      },
+      "prefix_retained_exact_order": true,
+      "additions_by_pass": {
+        "pass1": 0,
+        "pass2": 13
+      },
+      "additions_by_lane": {
+        "runtime": 13,
+        "test": 0
+      },
+      "unresolved_needs": [
+        "no additive test surface selected"
+      ],
+      "duplicates_prevented": 5,
+      "false_positives": null,
+      "unjudged_selected_paths": 14,
+      "false_positive_limitation": "the frozen fixture is positive/mechanism-grounded but not an exhaustive path-relevance negative judgment set"
+    },
+    {
+      "task_id": "SWE-Bench-Pro__python__maintenance__bugfix__512d556b",
+      "primary_runtime": [
+        {
+          "path": "lib/ansible/cli/__init__.py",
+          "found": true,
+          "first_rank": 11
+        },
+        {
+          "path": "lib/ansible/cli/doc.py",
+          "found": true,
+          "first_rank": 5
+        }
+      ],
+      "primary_found": 2,
+      "primary_total": 2,
+      "first_primary_rank": 5,
+      "no_zero_owner_gate": true,
+      "exact_named_definitions": [],
+      "regression_test_surfaces": [
+        {
+          "surface": "test/units/cli/test_doc.py",
+          "path": "test/units/cli/test_doc.py",
+          "found": false,
+          "first_rank": null
+        }
+      ],
+      "caller_recall": {
+        "found": null,
+        "total": 0,
+        "reason": "fixture freezes no exhaustive accepted-caller denominator"
+      },
+      "barrel_reexport_recall": {
+        "found": null,
+        "total": 0,
+        "reason": "fixture freezes no exhaustive barrel/re-export denominator"
+      },
+      "lifecycle_owner_recall": {
+        "found": null,
+        "total": 0,
+        "reason": "fixture freezes no exhaustive lifecycle-owner denominator"
+      },
+      "prefix_retained_exact_order": true,
+      "additions_by_pass": {
+        "pass1": 0,
+        "pass2": 15
+      },
+      "additions_by_lane": {
+        "runtime": 15,
+        "test": 0
+      },
+      "unresolved_needs": [
+        "no additive test surface selected"
+      ],
+      "duplicates_prevented": 26,
+      "false_positives": null,
+      "unjudged_selected_paths": 38,
+      "false_positive_limitation": "the frozen fixture is positive/mechanism-grounded but not an exhaustive path-relevance negative judgment set"
+    },
+    {
+      "task_id": "SWE-Bench-Pro__javascript__maintenance__bugfix__09eb0d6d",
+      "primary_runtime": [
+        {
+          "path": "public/src/client/account/settings.js",
+          "found": false,
+          "first_rank": null
+        },
+        {
+          "path": "src/controllers/accounts/settings.js",
+          "found": false,
+          "first_rank": null
+        },
+        {
+          "path": "src/messaging/index.js",
+          "found": true,
+          "first_rank": 31
+        },
+        {
+          "path": "src/user/settings.js",
+          "found": false,
+          "first_rank": null
+        }
+      ],
+      "primary_found": 1,
+      "primary_total": 4,
+      "first_primary_rank": 31,
+      "no_zero_owner_gate": true,
+      "exact_named_definitions": [],
+      "regression_test_surfaces": [
+        {
+          "surface": "test/messaging.js",
+          "path": "test/messaging.js",
+          "found": true,
+          "first_rank": 20
+        },
+        {
+          "surface": "test/upgrades/4.3.0/chat_allow_list.js",
+          "path": "test/upgrades/4.3.0/chat_allow_list.js",
+          "found": false,
+          "first_rank": null
+        }
+      ],
+      "caller_recall": {
+        "found": null,
+        "total": 0,
+        "reason": "fixture freezes no exhaustive accepted-caller denominator"
+      },
+      "barrel_reexport_recall": {
+        "found": null,
+        "total": 0,
+        "reason": "fixture freezes no exhaustive barrel/re-export denominator"
+      },
+      "lifecycle_owner_recall": {
+        "found": null,
+        "total": 0,
+        "reason": "fixture freezes no exhaustive lifecycle-owner denominator"
+      },
+      "prefix_retained_exact_order": true,
+      "additions_by_pass": {
+        "pass1": 4,
+        "pass2": 15
+      },
+      "additions_by_lane": {
+        "runtime": 15,
+        "test": 0
+      },
+      "unresolved_needs": [
+        "no additive test surface selected"
+      ],
+      "duplicates_prevented": 8,
+      "false_positives": null,
+      "unjudged_selected_paths": 43,
+      "false_positive_limitation": "the frozen fixture is positive/mechanism-grounded but not an exhaustive path-relevance negative judgment set"
+    },
+    {
+      "task_id": "SWE-PolyBench__python__maintenance__bugfix__8c189fda",
+      "primary_runtime": [
+        {
+          "path": "keras/ops/nn.py",
+          "found": true,
+          "first_rank": 18
+        }
+      ],
+      "primary_found": 1,
+      "primary_total": 1,
+      "first_primary_rank": 18,
+      "no_zero_owner_gate": true,
+      "exact_named_definitions": [
+        {
+          "path": "keras/ops/nn.py",
+          "symbol": "depthwise_conv",
+          "found": true
+        }
+      ],
+      "regression_test_surfaces": [
+        {
+          "surface": "keras/ops/nn_test.py",
+          "path": "keras/ops/nn_test.py",
+          "found": true,
+          "first_rank": 9
+        }
+      ],
+      "caller_recall": {
+        "found": null,
+        "total": 0,
+        "reason": "fixture freezes no exhaustive accepted-caller denominator"
+      },
+      "barrel_reexport_recall": {
+        "found": null,
+        "total": 0,
+        "reason": "fixture freezes no exhaustive barrel/re-export denominator"
+      },
+      "lifecycle_owner_recall": {
+        "found": null,
+        "total": 0,
+        "reason": "fixture freezes no exhaustive lifecycle-owner denominator"
+      },
+      "prefix_retained_exact_order": true,
+      "additions_by_pass": {
+        "pass1": 0,
+        "pass2": 7
+      },
+      "additions_by_lane": {
+        "runtime": 7,
+        "test": 0
+      },
+      "unresolved_needs": [
+        "no additive test surface selected"
+      ],
+      "duplicates_prevented": 43,
+      "false_positives": null,
+      "unjudged_selected_paths": 31,
+      "false_positive_limitation": "the frozen fixture is positive/mechanism-grounded but not an exhaustive path-relevance negative judgment set"
+    },
+    {
+      "task_id": "SWE-Bench-Verified__python__maintenance__bugfix__e09a2d75",
+      "primary_runtime": [
+        {
+          "path": "sympy/concrete/products.py",
+          "found": true,
+          "first_rank": 25
+        }
+      ],
+      "primary_found": 1,
+      "primary_total": 1,
+      "first_primary_rank": 25,
+      "no_zero_owner_gate": true,
+      "exact_named_definitions": [],
+      "regression_test_surfaces": [
+        {
+          "surface": "sympy/concrete/tests/test_products.py::test_issue_13546",
+          "path": "sympy/concrete/tests/test_products.py",
+          "found": false,
+          "first_rank": null
+        }
+      ],
+      "caller_recall": {
+        "found": null,
+        "total": 0,
+        "reason": "fixture freezes no exhaustive accepted-caller denominator"
+      },
+      "barrel_reexport_recall": {
+        "found": null,
+        "total": 0,
+        "reason": "fixture freezes no exhaustive barrel/re-export denominator"
+      },
+      "lifecycle_owner_recall": {
+        "found": null,
+        "total": 0,
+        "reason": "fixture freezes no exhaustive lifecycle-owner denominator"
+      },
+      "prefix_retained_exact_order": true,
+      "additions_by_pass": {
+        "pass1": 0,
+        "pass2": 19
+      },
+      "additions_by_lane": {
+        "runtime": 15,
+        "test": 4
+      },
+      "unresolved_needs": [],
+      "duplicates_prevented": 33,
+      "false_positives": null,
+      "unjudged_selected_paths": 43,
+      "false_positive_limitation": "the frozen fixture is positive/mechanism-grounded but not an exhaustive path-relevance negative judgment set"
+    }
+  ],
+  "provider_boundary": {
+    "planner_calls": 0,
+    "solution_model_calls": 0,
+    "provider_calls": 0
+  },
+  "stage2_prepared_or_launched": false,
+  "retrieval_payload_sha256": "aed97409dac3049e33d4bb03129c2d0d27b7113f7a28a3c96ee166b15e8b01ac",
+  "score_payload_sha256": "7963d340a07c817c1d41fcd0b860ebdb0afe97a1271fb6e2ea7e0f46eed50abf"
+}

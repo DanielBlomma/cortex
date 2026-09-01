@@ -31,9 +31,14 @@ import {
   loadGrammar,
   bodyOf,
   collectErrors,
+  commonTreeSitterDialectFacts,
   parseSource,
-  runQuery
+  prepareDialectAdapterInput,
+  runQuery,
+  treeSitterDialectObservationEnvelope,
+  treeSitterUnavailableTransport
 } from "./tree-sitter/base.mjs";
+import { createDialectObservationTransport } from "../lib/dialect-observation-contract.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -328,9 +333,13 @@ function buildNamespaceChunk(node, language) {
 }
 
 export async function parseCode(code, filePath, language = "cpp") {
+  return (await parseInternal(code, filePath, language)).parserResult;
+}
+
+async function parseInternal(code, filePath, language) {
   await ensureLanguage();
   const { tree, reason } = parseSource(CPP_LANG, code);
-  if (!tree) return { chunks: [], errors: [{ message: reason }] };
+  if (!tree) return { tree: null, parserResult: { chunks: [], errors: [{ message: reason }] } };
   const root = tree.rootNode;
   const imports = collectImports(root);
 
@@ -358,7 +367,81 @@ export async function parseCode(code, filePath, language = "cpp") {
     return true;
   });
 
-  return { chunks: deduped, errors: collectErrors(tree) };
+  return { tree, parserResult: { chunks: deduped, errors: collectErrors(tree) } };
+}
+
+export async function parseCodeWithDialectObservations(code, repositoryPath, language = "cpp") {
+  const metadata = prepareDialectAdapterInput(code, repositoryPath, language, ["c", "cpp"]);
+  let parsed;
+  try {
+    parsed = await parseInternal(code, repositoryPath, language);
+  } catch {
+    return treeSitterUnavailableTransport(metadata.oversized ? "oversized" : "unavailable");
+  }
+  const { tree, parserResult } = parsed;
+  const classifyNode = createDialectClassifier(tree?.rootNode ?? null);
+  const observationEnvelope = treeSitterDialectObservationEnvelope({
+    code,
+    repositoryPath,
+    family: metadata.family,
+    syntaxMode: metadata.syntaxMode,
+    rootNode: tree?.rootNode ?? null,
+    parserResult,
+    classifyNode
+  });
+  return createDialectObservationTransport(parserResult, observationEnvelope);
+}
+
+function createDialectClassifier(rootNode) {
+  const hasSetjmpHeader = treeContains(rootNode, (node) =>
+    node.type === "preproc_include" && node.namedChildren.some((child) => child.text === "<setjmp.h>")
+  );
+  const shadowsLongjmp = treeContains(rootNode, (node) =>
+    node.type === "identifier" && node.text === "longjmp" && !isDirectLongjmpCallee(node)
+  );
+  const context = { standardLongjmp: hasSetjmpHeader && !shadowsLongjmp };
+  return (node) => classifyDialectNode(node, context);
+}
+
+function isDirectLongjmpCallee(node) {
+  const parent = node.parent;
+  return parent?.type === "call_expression" && parent.childForFieldName("function")?.id === node.id;
+}
+
+function classifyDialectNode(node, context) {
+  const facts = commonTreeSitterDialectFacts(node);
+  if (node.type === "function_definition" && enclosingCppType(node)) {
+    facts.push({ category: "declaration_structure", kind: "method", form: "declaration" });
+  }
+  if (node.type === "declaration") facts.push({ category: "data_representation", kind: "state", form: "declaration" });
+  if (node.type === "throw_expression") facts.push({ category: "error_flow", kind: "raise", form: "expression" });
+  if (node.type === "call_expression" && context.standardLongjmp) {
+    const callee = node.childForFieldName("function");
+    if (callee?.type === "identifier" && callee.text === "longjmp") {
+      facts.push({ category: "error_flow", kind: "propagate", form: "expression" });
+    }
+  }
+  return facts;
+}
+
+function treeContains(rootNode, predicate) {
+  if (!rootNode) return false;
+  const stack = [rootNode];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (predicate(node)) return true;
+    for (let index = 0; index < node.namedChildCount; index += 1) stack.push(node.namedChild(index));
+  }
+  return false;
+}
+
+function enclosingCppType(node) {
+  let current = node.parent;
+  while (current && current.type !== "translation_unit") {
+    if (["class_specifier", "struct_specifier", "union_specifier"].includes(current.type)) return true;
+    current = current.parent;
+  }
+  return false;
 }
 
 export async function isAvailable() {
