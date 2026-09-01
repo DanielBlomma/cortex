@@ -62,33 +62,47 @@ jobs:
           node scripts/sync-release-version.mjs --check
           echo "value=${TAG_VERSION}" >> "${GITHUB_OUTPUT}"
 
-      - name: Prove the locked root integrity from the tagged artifact
+      - name: Prove locked root and bundle integrity from the tagged artifacts
         id: seed
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.value }}
         run: |
           SEED_DIR="${RUNNER_TEMP}/cortex-publish-seed"
-          mkdir -p "${SEED_DIR}"
-          npm pack --json --ignore-scripts --pack-destination "${SEED_DIR}" > "${SEED_DIR}/pack.json"
-          ROOT_FILENAME="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))[0].filename' "${SEED_DIR}/pack.json")"
-          ROOT_TARBALL="${SEED_DIR}/${ROOT_FILENAME}"
-          ROOT_INTEGRITY="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))[0].integrity' "${SEED_DIR}/pack.json")"
+          REPORT="${SEED_DIR}/report.json"
+          node scripts/release-artifacts.mjs pack \
+            --output-dir "${SEED_DIR}/artifacts" \
+            --expected-version "${RELEASE_VERSION}" \
+            --report "${REPORT}"
+          ROOT_TARBALL="$(node -p 'require(process.argv[1]).packages.root.first.tarball' "${REPORT}")"
+          ROOT_INTEGRITY="$(node -p 'require(process.argv[1]).packages.root.first.integrity' "${REPORT}")"
+          BUNDLE_TARBALL="$(node -p 'require(process.argv[1]).packages.bundle.first.tarball' "${REPORT}")"
+          BUNDLE_INTEGRITY="$(node -p 'require(process.argv[1]).packages.bundle.first.integrity' "${REPORT}")"
           node scripts/sync-release-version.mjs --check --root-tarball "${ROOT_TARBALL}"
           echo "root_tarball=${ROOT_TARBALL}" >> "${GITHUB_OUTPUT}"
           echo "root_integrity=${ROOT_INTEGRITY}" >> "${GITHUB_OUTPUT}"
+          echo "bundle_tarball=${BUNDLE_TARBALL}" >> "${GITHUB_OUTPUT}"
+          echo "bundle_integrity=${BUNDLE_INTEGRITY}" >> "${GITHUB_OUTPUT}"
 
-      - name: Inspect exact root registry state for safe immutable resume
+      - name: Inspect exact registry state for safe immutable resume
         id: registry
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.value }}
           ROOT_INTEGRITY: ${{ steps.seed.outputs.root_integrity }}
+          BUNDLE_INTEGRITY: ${{ steps.seed.outputs.bundle_integrity }}
         run: |
           ROOT_JSON="$(node scripts/release-artifacts.mjs registry-state \
             --package-name @danielblomma/cortex-mcp \
             --version "${RELEASE_VERSION}" \
             --integrity "${ROOT_INTEGRITY}")"
+          BUNDLE_JSON="$(node scripts/release-artifacts.mjs registry-state \
+            --package-name @danielblomma/dsh-cortex \
+            --version "${RELEASE_VERSION}" \
+            --integrity "${BUNDLE_INTEGRITY}" \
+            --root-dependency "${RELEASE_VERSION}")"
           ROOT_STATE="$(node -p 'JSON.parse(process.argv[1]).state' "${ROOT_JSON}")"
+          BUNDLE_STATE="$(node -p 'JSON.parse(process.argv[1]).state' "${BUNDLE_JSON}")"
           echo "root_state=${ROOT_STATE}" >> "${GITHUB_OUTPUT}"
+          echo "bundle_state=${BUNDLE_STATE}" >> "${GITHUB_OUTPUT}"
 
       - name: Publish exact reviewed root artifact
         if: steps.registry.outputs.root_state == 'missing'
@@ -112,16 +126,39 @@ jobs:
           echo "Exact root artifact was not visible within the bounded verification window"
           exit 1
 
+      - name: Publish exact reviewed DeepSeek Harness bundle
+        if: steps.registry.outputs.bundle_state == 'missing'
+        run: npm publish "${{ steps.seed.outputs.bundle_tarball }}" --access public --provenance
+
+      - name: Verify exact DeepSeek Harness bundle registry artifact
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+          BUNDLE_INTEGRITY: ${{ steps.seed.outputs.bundle_integrity }}
+        run: |
+          for attempt in $(seq 1 12); do
+            STATE_JSON="$(node scripts/release-artifacts.mjs registry-state \
+              --package-name @danielblomma/dsh-cortex \
+              --version "${RELEASE_VERSION}" \
+              --integrity "${BUNDLE_INTEGRITY}" \
+              --root-dependency "${RELEASE_VERSION}")"
+            if [ "$(node -p 'JSON.parse(process.argv[1]).state' "${STATE_JSON}")" = "exact" ]; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Exact DeepSeek Harness bundle was not visible within the bounded verification window"
+          exit 1
+
       - name: Record immutable release evidence
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.value }}
         run: |
           {
-            echo "## Cortex ${RELEASE_VERSION} root package publication"
+            echo "## Cortex ${RELEASE_VERSION} npm publication"
             echo "- run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             echo "- tag: ${GITHUB_REF_NAME}"
             echo "- commit: $(git rev-parse HEAD)"
             echo "- tree: $(git rev-parse HEAD^{tree})"
             echo "- published npm artifact: @danielblomma/cortex-mcp@${RELEASE_VERSION}"
-            echo "- DeepSeek Harness bundle: separate npm distribution deferred"
+            echo "- published npm artifact: @danielblomma/dsh-cortex@${RELEASE_VERSION}"
           } >> "${GITHUB_STEP_SUMMARY}"
