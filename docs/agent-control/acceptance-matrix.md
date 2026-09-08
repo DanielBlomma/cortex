@@ -68,6 +68,7 @@ is not mapped here.
 
 | PR | Work Order | Feature Issues | Scope |
 |---|---|---|---|
+| [#129](https://github.com/DanielBlomma/cortex/pull/129) | WO-RV-001 | REQ-RV-1, REQ-RV-2, REQ-RV-3 | Docs-only reliability plan, baseline reconciliation, historical evidence and next packets; five main controls preserved additively. No runtime readiness or live-evaluation acceptance. |
 | #96 | WO-001, WO-004, WO-007 through WO-014 | R6, R8, R10 | Angular parser/ingest coverage, bootstrapbench coverage/RSS diagnostics, graph/embed/ingest memory first pass, ingest memory trace, worker-result streaming. |
 | #97 | Follow-up optional parser tooling fix | R5 | C# and VB.NET parser bridge publish uses `/p:UseAppHost=false` to avoid macOS apphost signing failures. |
 | #106 | WO-020 | REQ-10, REQ-2, REQ-6, R12 | Embedding quality gates, opt-in compact file-level embedding text, retrieval ranking fixes, repo-root indexing defaults, and agent-control docs. |

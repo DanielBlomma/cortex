@@ -2,6 +2,10 @@
 
 ## 2026-09-08 — WO-RV-001 documentation PR integration
 
+- PR [#129](https://github.com/DanielBlomma/cortex/pull/129) opened against main;
+  user subsequently authorized merge. GitHub reports mergeable with no reported
+  PR checks; absence of CI is disclosed, not counted as a passing runtime suite.
+  Merge is limited to the reviewed docs plus this administrative traceability.
 - User authorized pushing the existing reliability plan/reconciliation as a PR.
   This is publication of the accepted docs milestone, not a new runtime work order.
 - Base: main `b7d466fa474dfa97fb77a931a674080801e6fa77`; branch
@@ -24,8 +28,8 @@
 - Validation scope: active links, 93-entry provenance JSON, byte-exact recovered
   archives, additive control preservation, docs-only diff and original-checkout
   preservation. Known pinned-main audit/release-test failures remain open.
-- No merge, release, provider calls, index rebuild, or expansion to the six
-  subsequently discussed candidate topics is authorized by this PR task.
+- No release, provider calls, index rebuild, or expansion to the six subsequently
+  discussed candidate topics is authorized. Merge permission is recorded above.
 
 Durable chronological log for scope, decisions, approvals, blockers, and
 staging status. Do not rely on chat memory for acceptance or merge decisions.
