@@ -1,5 +1,23 @@
 # Agent Work Orders
 
+## Reliability and Agent Value Program — 2026-09-08
+
+Plan: [reliability and agent value](2026-09-08-reliability-and-agent-value-plan.md).
+WO-RV-001 is the current docs-only reconciliation; later rows remain planned.
+No runtime or live evaluation is launched. Use pinned main and the qualified IDs;
+WO-049's pause describes only the original old branch lineage.
+
+| ID | Agent Team | Work Order | Primary Outputs | Validation Evidence | Depends On | Status |
+|---|---|---|---|---|---|---|
+| WO-RV-001 | Control Manager + Validation | Reconcile versions, dirty-worktree provenance, missing handoffs, and outstanding containment acceptance. | Packet rv-001; [baseline](wo-rv-001-baseline-reconciliation.md), all-path inventory, recovered evidence and next packets. | Active-reference checks, source-backed identities, independent docs/control review. | REQ-RV-1 | Accepted locally; documentation only, runtime gates open |
+| WO-RV-002 | CLI and Runtime | Make freshness content/generation-aware and consistent across health and query surfaces. | Shared freshness contract and meaningful regression cases. | Dirty/clean/commit/branch/generation/error matrix; root/runtime gates. | WO-RV-001; REQ-RV-1 | Planned |
+| WO-RV-003 | Security and Privacy + Release | Remediate current dependency findings with compatible updates. | Manifests/lockfiles and dated audit evidence. | All-tree audit, clean installs, native smoke, frontend build, package/tests. | WO-RV-001; REQ-RV-1 | Planned |
+| WO-RV-004 | Release and Distribution + Validation | Add PR checks and complete, explicit test-lane coverage. | Workflows, scripts, test inventory gate. | PR failure propagation; no-secret fork behavior; all test files assigned; branch-protection state disclosed. | WO-RV-001; final acceptance after WO-RV-003; REQ-RV-1 | Planned |
+| WO-RV-005 | Parsers and Ingest + Core Runtime | Expose graph provenance, ambiguity, and rule-inference limits. | Additive graph/related/impact evidence contract; coordinate WO-002. | Ambiguity, missing-resolution, rule-keyword and legacy compatibility fixtures. | WO-RV-002; REQ-RV-2 | Planned |
+| WO-RV-006 | CLI and Runtime + Validation | Make default-model indexing resource behavior bounded and recoverable. | Numeric resource contract, foreground/background policy and measurements; reuse WO-046. | Jina cold/incremental/resume, native RSS, partial quality, limits and containment gates. | WO-RV-002; REQ-RV-2; coordinate WO-034/035 | Planned |
+| WO-RV-007 | Frontend and Benchmarks + Validation | Freeze a held-out native/lexical-graph/full comparison and validate the harness offline. | Task/arm/oracle/metrics contract and exact live-run cost proposal. | Offline parity/leakage/accounting checks; isolated artifact and baseline readiness. | WO-RV-001 for design; WO-RV-002 through WO-RV-006 for freeze; REQ-RV-3 | Planned; no provider calls |
+| WO-RV-008 | Validation + Control Manager | Execute the frozen comparison and record the product decision. | Paired results, costs, uncertainty and scope recommendation. | Every invocation accounted for; predeclared quality/efficiency decision rules. | WO-RV-007 accepted and explicit live-run authorization; REQ-RV-3 | Planned; live run not authorized |
+
 These work orders are the manager backlog. Each work order should receive a
 fresh context packet before implementation starts.
 

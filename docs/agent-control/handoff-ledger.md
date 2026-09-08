@@ -1,5 +1,32 @@
 # Handoff Ledger
 
+## 2026-09-08 — WO-RV-001 documentation PR integration
+
+- User authorized pushing the existing reliability plan/reconciliation as a PR.
+  This is publication of the accepted docs milestone, not a new runtime work order.
+- Base: main `b7d466fa474dfa97fb77a931a674080801e6fa77`; branch
+  `plan/rv-reliability-main`. Ten new artifacts and five additive control sections;
+  no old runtime edits or wholesale old control tables are carried over.
+- Original baseline review: `/root/wo050_review` GO. PR integration reviewer
+  `/root/rv_pr_review` assigned before porting for docs, security and integration.
+  Main-port review GO after correcting old-branch R17/R20 risk-ID collisions.
+  Validation: 58 active links resolve; five main controls retain prior bytes;
+  three archives match Git; all 770 original-checkout file hashes unchanged.
+  Cortex patterns: five controls found; ten new targets returned
+  `INVALID_ARGS: Pattern target was not found in indexed context` and received
+  direct review. No new runtime test or live evaluation acceptance.
+- Packet uses `rv-001-baseline-reconciliation.md` to avoid numbered-packet
+  namespace confusion. Local paths in the report are dated evidence only.
+- Next fresh session reads [rv-002](context-packets/rv-002-freshness.md) from
+  the reviewed branch (or main after merge), verifies its baseline and creates an
+  isolated implementation worktree. No dependency on an author's temporary path.
+  Main's newer historical work-order/risk/release dispositions remain authoritative.
+- Validation scope: active links, 93-entry provenance JSON, byte-exact recovered
+  archives, additive control preservation, docs-only diff and original-checkout
+  preservation. Known pinned-main audit/release-test failures remain open.
+- No merge, release, provider calls, index rebuild, or expansion to the six
+  subsequently discussed candidate topics is authorized by this PR task.
+
 Every agent assignment and return must be logged here. Keep entries short and factual.
 
 Rotation rule: when a row's manager decision is closed (Accepted / Superseded /

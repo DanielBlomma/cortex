@@ -1,5 +1,17 @@
 # Acceptance Matrix
 
+## Reliability and Agent Value Requirements — 2026-09-08
+
+Specification: [program plan](2026-09-08-reliability-and-agent-value-plan.md).
+The dated audit/test observations in the plan are baseline evidence, not acceptance
+of the following new requirements.
+
+| Issue | Goal | Required work | Acceptance | Status |
+|---|---|---|---|---|
+| REQ-RV-1 | Trustworthy operational and development baseline. | WO-RV-001 through WO-RV-004: provenance, references, freshness, dependency remediation, PR checks and test inventory. | WO-RV-001 docs-only baseline independently reviewed and accepted; all freshness, dependency and PR gates remain required. | Partial; runtime gates open |
+| REQ-RV-2 | Graph uncertainty and indexing resource behavior are explicit and dependable. | WO-RV-005/006, coordinated with WO-002 and WO-034/035. | Provenance/ambiguity compatibility tests; frozen default-model resource/recovery/quality matrix; open containment gates resolved before affected release/live use. | Planned |
+| REQ-RV-3 | Measure Cortex's incremental agent value with native tools available in every arm. | WO-RV-007 offline protocol and WO-RV-008 separately authorized execution. | Held-out paired resolution/cost evidence, uncertainty and predeclared product decision; no selective retries or hidden failures. | Planned; no live runs authorized |
+
 This matrix maps the project's requirement issues to implementation surfaces
 and validation gates.
 

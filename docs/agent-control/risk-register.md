@@ -1,5 +1,25 @@
 # Risk Register
 
+## 2026-09-08 current reassessment
+
+Historical mitigations below retain their dated meaning. Current pinned-main dependency
+findings reopen R3 for WO-RV-003: frontend 1 high and runtime 2 high/1 moderate;
+root, both parser trees and Harness passed (2026-09-08 lockfile-only audits). R8 needs default-Jina resource evidence under WO-RV-006;
+the MiniLM prototype does not establish that bound. The original old candidate lacks reviewed containment fixes and packed acceptance.
+Main's accepted R16 mitigation remains unchanged; no new closure is asserted.
+R-RV-4 covers the held-out comparison. Main's existing R17 (release integration)
+and R20 (runtime contract packaging) dispositions are unchanged; old-branch
+reuse of those IDs does not reopen them.
+
+| ID | Risk | Impact | Mitigation / owner | Status |
+|---|---|---|---|---|
+| R-RV-1 | Freshness derived from Git dirtiness and incorrect root matching; mixed index generations. | Agents trust stale or inconsistent context. | WO-RV-002 content/generation-aware shared contract; CLI and Runtime. | Open |
+| R-RV-2 | Missing handoffs, version drift, absent PR core checks and test-file omissions. | Fresh sessions cannot reproduce acceptance; regressions escape until release. | WO-RV-001 provenance/reference reconciliation and WO-RV-004 explicit CI lanes; Control Manager + Validation. | Open |
+| R-RV-3 | Name/keyword graph heuristics appear as precise calls or verified compliance. | Agents overstate impact or rule conformance. | WO-RV-005 provenance/ambiguity contract with negative fixtures; Parsers + Core Runtime. | Open |
+| R-RV-4 | Small or contaminated evaluation, unmatched tools, hidden indexing costs, or reused holdouts. | Product investment follows misleading uplift. | WO-RV-007/008 paired three-arm frozen protocol, accounting and uncertainty; Validation. | Open; planning only |
+
+Plan: [reliability and agent value](2026-09-08-reliability-and-agent-value-plan.md).
+
 Every unresolved security, privacy, data, delivery, or context risk gets a row.
 A risk stays here until it is mitigated with evidence or explicitly accepted by
 the manager; the Status column carries the current truth, not the original fear.
