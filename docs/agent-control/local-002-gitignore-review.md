@@ -10,7 +10,11 @@ merge requires the outstanding gates. No release is authorized.
 Independent code/security and package reviews pass on the final candidate.
 Earlier candidate results are superseded by the Unicode review fixes. Full merge
 acceptance is blocked by ten existing root release-contract failures; no waiver
-is granted. The reviewed PR is to remain blocked for merge.
+is granted. [PR #130](https://github.com/DanielBlomma/cortex/pull/130) is published as a draft with
+`class:infra-sensitive` and remains blocked for merge. Runtime/source commit:
+`37718f4287f80845663adcd3eea5d2db52188f46`. GitHub reports `MERGEABLE/CLEAN`,
+with no status checks or Actions runs; this is conflict status, not gate
+acceptance. No merge or release was performed.
 
 ## Reviewed behavior and iteration
 

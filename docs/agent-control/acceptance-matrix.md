@@ -7,8 +7,9 @@ discovery, explicit overrides and retained-cache pruning. Both Unicode review
 findings are fixed. [Final report](local-002-gitignore-review.md): focused 103/103,
 context 81/81, Harness 6/6, ownership 17/17 and the exact packed gate pass.
 Full acceptance and merge remain blocked: root 427/437 with the same ten baseline
-release-contract failures. PR publication is authorized; add traceability below
-once created. No gate waiver or unrelated program acceptance.
+release-contract failures. [PR #130](https://github.com/DanielBlomma/cortex/pull/130) is published as a draft,
+`class:infra-sensitive`. No reported checks/Actions runs; conflict-free status
+does not satisfy the failing full gate. No waiver or unrelated program acceptance.
 
 ## Reliability and Agent Value Requirements — 2026-09-08
 

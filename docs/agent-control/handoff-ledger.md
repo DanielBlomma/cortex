@@ -1,5 +1,18 @@
 # Handoff Ledger
 
+## 2026-09-10 — WO-LOCAL-002 publication handoff
+
+- [Draft PR #130](https://github.com/DanielBlomma/cortex/pull/130),
+  `fix/root-gitignore-discovery` → main; source commit `37718f4` plus subsequent
+  administrative traceability. Profile: infra-sensitive. All Git-ignore review
+  findings are closed; [final report](local-002-gitignore-review.md) binds hashes,
+  reviewers and final validation/package results.
+- OPEN/draft and conflict-free, with no reported checks/Actions runs. Full root
+  suite remains 427/437 with ten baseline failures. Do not merge or treat absent
+  CI as success. A fresh session must resolve separately authorized baseline
+  gates and recheck exact PR head before reconsidering merge. No release.
+
+
 ## 2026-09-10 — WO-LOCAL-002 final reviewed candidate
 
 - [Report](local-002-gitignore-review.md) is the current authority for final

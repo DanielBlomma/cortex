@@ -1,5 +1,25 @@
 # Manager Log
 
+## 2026-09-10 — WO-LOCAL-002 draft PR published; no merge
+
+- Committed the reviewed 12-file change as `37718f4287f80845663adcd3eea5d2db52188f46`
+  and pushed only `fix/root-gitignore-discovery`. Repository hooks were disabled
+  for explicit Git mutations to avoid out-of-scope background indexing.
+- Opened [draft PR #130](https://github.com/DanielBlomma/cortex/pull/130),
+  `class:infra-sensitive`, against unchanged main `37a511f`. PR body and
+  acceptance matrix map WO-LOCAL-001/002 and disclose all ten baseline failures.
+- GitHub reports OPEN/draft, `MERGEABLE/CLEAN`, empty status checks and no Actions
+  runs. Local `git merge-tree --write-tree origin/main HEAD` returned source
+  tree `8db55037b2057368e5686564aaf631143118dae8` without conflicts. Conflict
+  ledger checked. Empty CI is not a passed gate; merge remains blocked.
+- No merge, release, version bump, tag, provider/embedding call or original-tree
+  mutation. The remaining baseline remediation requires separately scoped
+  WO-RV-003/004 authority and a fresh session; no automatic expansion or waiver.
+- Fresh continuation: start with [final report](local-002-gitignore-review.md),
+  PR #130's current head/checks and these control entries, not the superseded
+  frozen packet hashes. The source hashes and all review findings are durable.
+
+
 ## 2026-09-10 — WO-LOCAL-002 reviewed; merge blocked
 
 - Final Code/Contract/Security review GO; both major Unicode findings closed,
