@@ -414,7 +414,7 @@ function validateRootTotals(output) {
   const summaries = nodeTapSummaries(output, "#");
   return validateExpectedTotals([
     { suite: "context", tests: 81, pass: 81, fail: 0, actual: context ? { tests: Number(context[1]) + Number(context[2]), pass: Number(context[1]), fail: Number(context[2]) } : null },
-    { suite: "root", tests: 417, pass: 417, fail: 0, actual: summaries[0] ?? null },
+    { suite: "root", tests: 437, pass: 437, fail: 0, actual: summaries[0] ?? null },
     { suite: "deepseekHarnessBundle", tests: 6, pass: 6, fail: 0, actual: summaries[1] ?? null },
   ], context !== null || summaries.length > 0);
 }
@@ -422,7 +422,7 @@ function validateRootTotals(output) {
 function validateMcpTotals(output) {
   const summaries = nodeTapSummaries(output, "ℹ");
   return validateExpectedTotals([
-    { suite: "mcp", tests: 426, pass: 426, fail: 0, actual: summaries[0] ?? null },
+    { suite: "mcp", tests: 651, pass: 651, fail: 0, actual: summaries[0] ?? null },
   ], summaries.length > 0);
 }
 
@@ -512,9 +512,9 @@ export async function runFreshCheckout({
   emit(stdout, `${JSON.stringify({
     ok: true,
     context: "81/81",
-    root: "417/417",
+    root: "437/437",
     deepseekHarnessBundle: "6/6",
-    mcp: "426/426",
+    mcp: "651/651",
   })}\n`);
   return { ok: true, emittedBytes };
 }

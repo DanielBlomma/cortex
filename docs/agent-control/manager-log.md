@@ -1925,3 +1925,6 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - `archive/manager-log-2026-07-29.md` — foundation through WO-030 acceptance.
 - `archive/manager-log-2026-07-30.md` — WO-031 acceptance and v2.4.2 release
   recovery.
+
+## WO-LOCAL-003 start — 2026-09-10
+Fresh manager packet local-003-release-readiness; source3c5d4da on main37a511f. Original and reviewed candidate preserved; manager owns isolated clone. Both reviewers assigned before edits. Cortex scoped ingest+graph succeeds on13 direct files; search identifies validateBumpWorkflow/validatePublishWorkflow and release-artifacts; six rules active, related/impact remain confined to release tests/helpers. No embeddings or background hooks. History477f17e removed real release gates;27af175 superseded root-only publication with dual exact publication. Restore gates, retain dual OIDC publication, update stale assertions, advance workflow2.7→2.8. Fresh audits reveal unresolved dependency blockers; no waiver or acceptance.

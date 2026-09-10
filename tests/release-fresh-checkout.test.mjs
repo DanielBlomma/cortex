@@ -41,7 +41,7 @@ function result(overrides = {}) {
   };
 }
 
-function rootSuccess({ context = 81, root = 417, bundle = 6 } = {}) {
+function rootSuccess({ context = 81, root = 437, bundle = 6 } = {}) {
   return [
     `${context} passed, 0 failed`,
     `# tests ${root}`,
@@ -61,7 +61,7 @@ function rootSuccess({ context = 81, root = 417, bundle = 6 } = {}) {
   ].join("\n");
 }
 
-function mcpSuccess(tests = 426) {
+function mcpSuccess(tests = 651) {
   return `ℹ tests ${tests}\nℹ suites 0\nℹ pass ${tests}\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\n`;
 }
 
@@ -115,15 +115,15 @@ test("large late TAP failure retains exact subtest, assertion, status, totals, a
   const passing = Array.from({ length: 12000 }, (_, index) => `ok ${index + 1} - passing chatter ${"x".repeat(32)}`).join("\n");
   const failure = [
     "# Subtest: late named release failure",
-    "not ok 417 - late named release failure",
+    "not ok 437 - late named release failure",
     "  ---",
     "  error: 'expected exact release evidence'",
     "  code: 'ERR_ASSERTION'",
-    "  expected: 417",
+    "  expected: 437",
     "  actual: 416",
     "  ...",
-    "1..417",
-    "# tests 417",
+    "1..437",
+    "# tests 437",
     "# pass 416",
     "# fail 1",
   ].join("\n");
@@ -142,9 +142,9 @@ test("large late TAP failure retains exact subtest, assertion, status, totals, a
   assert.equal(envelope.kind, "nonzero_exit");
   assert.equal(envelope.status, 1);
   assert.equal(envelope.signal, "unavailable");
-  assert.match(envelope.evidence.failingSubtests[0].detail, /not ok 417 - late named release failure/);
+  assert.match(envelope.evidence.failingSubtests[0].detail, /not ok 437 - late named release failure/);
   assert.match(envelope.evidence.failingSubtests[0].detail, /expected exact release evidence/);
-  assert.ok(envelope.evidence.totals.some(({ line }) => line === "# tests 417"));
+  assert.ok(envelope.evidence.totals.some(({ line }) => line === "# tests 437"));
   assert.ok(envelope.evidence.totals.some(({ line }) => line === "# fail 1"));
   assert.equal(envelope.evidence.stdout.truncated, true);
   assert.equal(envelope.evidence.stderr.truncated, true);
@@ -315,7 +315,7 @@ test("collector failures have their own bounded diagnostic outcome", async () =>
 });
 
 test("missing or malformed TAP summaries fail closed with bounded tails and no success JSON", async () => {
-  for (const stdout of ["TAP version 13\nok 1 - incomplete\n", "# tests nope\n# pass 417\n# fail 0\n"]) {
+  for (const stdout of ["TAP version 13\nok 1 - incomplete\n", "# tests nope\n# pass 437\n# fail 0\n"]) {
     const observed = await invoke(async (command, args) => command === "npm" && args.length === 1
       ? result({ stdout })
       : successFor(command, args));
@@ -323,7 +323,7 @@ test("missing or malformed TAP summaries fail closed with bounded tails and no s
     const envelope = lastEnvelope(observed.stderr);
     assert.equal(envelope.kind, "missing_tap_summary");
     assert.match(envelope.evidence.stdout.excerpt, /TAP version|# tests nope/);
-    assert.doesNotMatch(observed.stdout, /"mcp":"426\/426"/);
+    assert.doesNotMatch(observed.stdout, /"mcp":"651\/651"/);
     assert.ok(Buffer.byteLength(observed.stderr) < CHILD_DIAGNOSTIC_CAP_BYTES);
   }
 });
@@ -353,18 +353,18 @@ test("generated-context precondition evidence is bounded and prevents every chil
   assert.equal(calls.length, 0);
 });
 
-test("exact 81/417/6/426 totals pass and every total mutation fails closed", async (t) => {
+test("exact 81/437/6/651 totals pass and every total mutation fails closed", async (t) => {
   const passing = await invoke(successFor);
   assert.equal(passing.error, null);
   assert.match(passing.stdout, /"context":"81\/81"/);
-  assert.match(passing.stdout, /"root":"417\/417"/);
+  assert.match(passing.stdout, /"root":"437\/437"/);
   assert.match(passing.stdout, /"deepseekHarnessBundle":"6\/6"/);
-  assert.match(passing.stdout, /"mcp":"426\/426"/);
+  assert.match(passing.stdout, /"mcp":"651\/651"/);
 
   for (const [name, rootOptions, mcp] of [
-    ["context", { context: 80 }, 426],
-    ["root", { root: 416 }, 426],
-    ["bundle", { bundle: 5 }, 426],
+    ["context", { context: 80 }, 651],
+    ["root", { root: 416 }, 651],
+    ["bundle", { bundle: 5 }, 651],
     ["mcp", {}, 425],
   ]) {
     await t.test(name, async () => {
@@ -377,7 +377,7 @@ test("exact 81/417/6/426 totals pass and every total mutation fails closed", asy
       });
       assert.equal(observed.error.kind, "totals_drift");
       assert.equal(lastEnvelope(observed.stderr).kind, "totals_drift");
-      assert.doesNotMatch(observed.stdout, /"mcp":"426\/426"/);
+      assert.doesNotMatch(observed.stdout, /"mcp":"651\/651"/);
       assert.equal(calls.some((call) => /npm version|npm publish|git (?:tag|push|commit)/.test(call)), false);
     });
   }

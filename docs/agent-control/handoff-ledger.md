@@ -219,3 +219,9 @@ next day rollover. This file keeps the template and open rows only.
 <!-- list rotated archive files here, e.g.
 - `archive/handoff-ledger-2026-01-01--02.md` — N closed entries, WO-001 through WO-00X.
 -->
+
+## WO-LOCAL-003 assignment — 2026-09-10
+Manager `/root/release_manager` owns code/workflows. Reviewers `/root/release_manager/security_contract` and `/root/release_manager/ops_validation` are independent, each isolated. First-pass not yet ready for review. Source Git-ignore hashes from local-002 remain unchanged. Release authorization supersedes earlier no-release limit only for bounded necessary readiness.
+
+## WO-LOCAL-003 first-pass review intake
+Changed release-bump/publish workflows restore runtime/root/MCP/fresh-checkout/audit/packed/Harness gates from477f17e parent, add frontend build, retain current dual immutable OIDC artifact publication, advance next bump2.7→2.8. Workflow tests reconcile root-only policy and stale version assertions, validate actual gate commands, failure propagation, whole-step ordering, dual integrity/resume and artifact identities. Metadata negative tests no longer silently return after2.5.2. Fresh-checkout totals updated from417/426 to observed437/651; completeness assertions retained. Narrow MCP/front-end security updates use compatible versions only. Focused42total/41pass/1Linux-onlyskip; core24/24. Frontend buildpass. Remaining audit3moderate nodes alladm-zipchain; no merge or release acceptance. Security reviewer identified missing executable pack/install and Harness binding mutation coverage; fixed and rerunfocusedpasses, re-reviewpending. Ops identified metadata earlyreturn and stale totals; fixed, fullruntime/root rerunpending.

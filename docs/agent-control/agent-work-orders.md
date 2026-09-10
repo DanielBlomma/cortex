@@ -120,3 +120,6 @@ historical packets, reports, and commits retain their original branch-local IDs.
 - Record the PR / work order / feature issue mapping in the
   `acceptance-matrix.md` traceability table and in the PR body before merge;
   mirror to issue-tracker items when needed.
+
+## WO-LOCAL-003 — In progress (2026-09-10)
+Owner: fresh `/root/release_manager`, Release/Distribution + Control. Infra/deploy/security-sensitive. Independent reviewers assigned before implementation: `security_contract` (Security/Privacy, Code Quality, Contract) and `ops_validation` (Ops/Release, Validation, Integration). Scope: restore necessary release gates, reconcile obsolete contracts, prepare next minor2.8.0, compatible audit remediation only. User release authority recorded in context packet. PR130 scope extension is lower-risk than stacking over its blocked Git-ignore candidate.

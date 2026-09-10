@@ -90,3 +90,6 @@ is not mapped here.
 | #114 | WO-048 | REQ-4, REQ-16, R16 | Linux release-CI recovery: same-inode staging identity, warm dashboard-cache path revalidation, and the reviewed rerun gate before `v2.5.0` tag/publication. |
 | #115 | WO-049 | REQ-4, R18 | Node 22/24 packed-harness reporter compatibility, immutable unpublished `v2.5.0` preservation, and reviewed `v2.5.1` patch-release recovery. |
 | #120 | WO-DSH-056 through WO-DSH-058 | REQ-19, R20-HARNESS | Pinned DeepSeek Harness compatibility baseline, native Agent-scoped Cortex V1 provider, and independent six-role acceptance; merged as `350829c` and released with Cortex 2.6.0 plus the separate V1 bundle; V2 remains separately gated. |
+
+## WO-LOCAL-003 release readiness
+PR130: ten baseline release-contract failures must be closed with meaningful negative tests; runtime/root/bundle/build/audit/packed/Harness/fresh-checkout gates must pass; independent security/ops/validation approval required; immutable2.8.0 tag and both actual npm artifacts verified after authorized dispatch. Status: in progress, no merge/release acceptance.
