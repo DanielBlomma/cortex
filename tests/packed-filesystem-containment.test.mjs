@@ -512,7 +512,7 @@ try {
     "--test",
     path.join(packageRoot, "tests", "ingest-filesystem-boundary.test.mjs"),
   ]);
-  assertNodeTestSummary(boundary.stdout, 42);
+  assertNodeTestSummary(boundary.stdout, 48);
 
   const characterization = run(process.execPath, [
     "--test",
@@ -546,7 +546,7 @@ try {
     tarball_sha256: sha256File(tarball),
     clean_and_prebuilt_inventory_equal: true,
     installed_prefix: true,
-    packed_boundary_cases: 42,
+    packed_boundary_cases: 48,
     packed_characterization_cases: 3,
     development_dashboard_cases: 4,
     packed_dashboard_cases: 4,

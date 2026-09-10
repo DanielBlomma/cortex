@@ -1,5 +1,18 @@
 # Risk Register
 
+## Selective local-code risk — 2026-09-10
+
+| ID | Risk | Mitigation | Status |
+|---|---|---|---|
+| R-LOCAL-001 | Root discovery indexes ignored untracked artifacts, silently widens scope after Git failure, or retains newly ignored cached records. | WO-LOCAL-001 bounded shell-free Git, explicit errors/non-Git behavior, same filtering in discovery and hydration, negative and containment tests. | Reviewed mitigation; merge blocked by baseline gates |
+
+Current WO-LOCAL-002 disposition: both independently found Unicode privacy
+failures are fixed and re-reviewed; final source and cache-pruning/package
+regressions pass. Ten existing release-test failures, absent PR CI and incoming
+runtime dependency findings remain open (WO-RV-003/004); none is waived. The
+normalization-sensitive filesystem subcase is present but cannot execute on
+this APFS host. See [final report](local-002-gitignore-review.md).
+
 ## 2026-09-08 current reassessment
 
 Historical mitigations below retain their dated meaning. Current pinned-main dependency

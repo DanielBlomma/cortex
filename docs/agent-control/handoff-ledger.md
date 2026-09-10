@@ -1,5 +1,53 @@
 # Handoff Ledger
 
+## 2026-09-10 — WO-LOCAL-002 final reviewed candidate
+
+- [Report](local-002-gitignore-review.md) is the current authority for final
+  hashes, reviewer triage, test/package outcomes and residual limitations.
+  The incoming packet's frozen source hashes describe the pre-review version.
+- Independent Security/Code/Contract and Ops/Integration sign off. Validation
+  confirms no new regression but cannot accept the full gate: 427/437 root
+  tests pass; the same ten release-contract tests fail. Focused 103/103,
+  context 81/81, Harness 6/6, ownership 17/17 and exact packed gate pass.
+- Status: reviewed, PR publication authorized, merge blocked. No further runtime
+  iteration is needed for identified Git-ignore findings. Resolve separate
+  baseline gates under their own authority before revisiting merge; no release.
+
+
+## 2026-09-10 — WO-LOCAL-002 review assignment
+
+- Packet: [fresh acceptance](context-packets/local-002-gitignore-acceptance.md).
+- Frozen base/files verified by fresh manager. Independent reviewers assigned:
+  `/root/gitignore_security_review`, `/root/gitignore_package_review`, and
+  `/root/gitignore_validation`, with separate source-review/package/validation
+  working directories. Candidate edits remain manager-owned.
+- Review and package/full-suite outcomes pending. No acceptance, commit, PR or
+  merge is asserted by this assignment entry.
+
+
+## 2026-09-10 — frozen Git-ignore candidate, not accepted
+
+- WO-LOCAL-001 owner returned implementation plus 96/96 focused tests, no skips.
+  Manager diff check passed; original checkout's 770 captured hashes unchanged.
+- No independent final review or candidate-wide/packed acceptance yet. No
+  staging, commit, runtime PR or merge. Searched experiments remain excluded.
+- Fresh-session remainder: [WO-LOCAL-002 acceptance packet](context-packets/local-002-gitignore-acceptance.md).
+  It records source hashes, baseline failures, pending exact packed test counts,
+  validation worktree and Cortex-tool limitations. Context compaction triggered
+  this handoff; do not use an abbreviated chat summary as acceptance evidence.
+
+## 2026-09-10 — WO-LOCAL-001 Git-ignore port
+
+- Owner `/root/local_runtime_assess` continues the same assessed integration WO
+  from [the bounded packet](context-packets/local-001-gitignore-port.md).
+  Independent combined final review `/root` is assigned before implementation.
+- Implementation tree: `/private/tmp/cortex-gitignore.vRkBH9/repo`.
+  Separate validation tree: `/private/tmp/cortex-local-assess.zTBH2P/repo`.
+  Both start at main `37a511f`; the original mixed checkout stays untouched.
+- Root/non-root scope, explicit overrides, bounded Git failures, path identity,
+  and removal of newly ignored cached records are acceptance requirements.
+  No code acceptance, commit, PR or merge yet; see manager log for baseline.
+
 ## 2026-09-08 — WO-RV-001 documentation PR integration
 
 - PR [#129](https://github.com/DanielBlomma/cortex/pull/129) opened against main;

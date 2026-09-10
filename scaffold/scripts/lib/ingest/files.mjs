@@ -1,8 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { execSync } from "node:child_process";
-import { isFilesystemPolicyError } from "./filesystem-boundary.mjs";
+import { spawnSync } from "node:child_process";
 import {
   CODE_FILE_EXTENSIONS,
   CPP_IMPORT_RESOLUTION_EXTENSIONS,
@@ -60,20 +59,21 @@ export function uniqueSorted(values) {
   return [...new Set(values)].sort();
 }
 
-export function walkDirectory(boundary, directoryIdentity, files) {
+export function walkDirectory(boundary, directoryIdentity, files, isIgnored = () => false) {
   const { entries } = boundary.readRepositoryDirectory(directoryIdentity, "discovery");
   for (const entry of entries) {
     const identity = boundary.childIdentity(directoryIdentity, entry.name);
     if (entry.isSymbolicLink()) {
       continue;
     }
+    if (isIgnored(identity)) continue;
     if (entry.isDirectory() && shouldSkipDirectory(identity, entry.name)) {
       continue;
     }
 
     if (entry.isDirectory()) {
       boundary.inspectRepositoryPath(identity, { phase: "discovery", expected: "directory" });
-      walkDirectory(boundary, identity, files);
+      walkDirectory(boundary, identity, files, isIgnored);
       continue;
     }
 
@@ -181,24 +181,34 @@ export function resolveRelativeImportTargetId(filePath, importPath, indexedFileI
   return null;
 }
 
-export function parseGitStatusPorcelain(output, boundary) {
+export function parseGitStatusPorcelain(output, boundary, prefix = "") {
   const changed = new Set();
   const deleted = new Set();
   const records = output.split("\0");
+  if (output && !output.endsWith("\0")) throw gitDiscoveryError("malformed_output");
+  const relativePath = (value) => {
+    if (prefix && !validGitPath(value)) throw gitDiscoveryError("malformed_output");
+    if (!value.startsWith(prefix)) return null;
+    return value.slice(prefix.length);
+  };
+  const inspect = (value) => {
+    const relative = relativePath(value);
+    return relative === null ? null : boundary.inspectRepositoryPath(relative, {
+      phase: "discovery", allowMissing: true, expected: "any"
+    }).identity;
+  };
 
   for (let index = 0; index < records.length; index += 1) {
     const record = records[index];
-    if (!record) continue;
-    if (record.length < 4 || record[2] !== " ") {
+    if (!record) {
+      if (index === records.length - 1) continue;
+      throw gitDiscoveryError("malformed_output");
+    }
+    if (record.length < 4 || record[2] !== " " || !/^[ MADRCUT?!]{2}$/.test(record.slice(0, 2)) || record.startsWith("  ")) {
       boundary.inspectRepositoryPath("", { phase: "discovery" });
     }
     const status = record.slice(0, 2);
-    const firstPath = record.slice(3);
-    const first = boundary.inspectRepositoryPath(firstPath, {
-      phase: "discovery",
-      allowMissing: true,
-      expected: "any"
-    }).identity;
+    const first = inspect(record.slice(3));
     const isRename = status.includes("R") || status.includes("C");
     if (isRename) {
       const secondPath = records[index + 1];
@@ -206,53 +216,150 @@ export function parseGitStatusPorcelain(output, boundary) {
         boundary.inspectRepositoryPath("", { phase: "discovery" });
       }
       index += 1;
-      const second = boundary.inspectRepositoryPath(secondPath, {
-        phase: "discovery",
-        allowMissing: true,
-        expected: "any"
-      }).identity;
-      changed.add(first);
-      if (status.includes("R")) deleted.add(second);
+      const second = inspect(secondPath);
+      if (first !== null) changed.add(first);
+      if (second !== null && status.includes("R")) deleted.add(second);
       continue;
     }
 
+    if (first === null) continue;
     if (status.includes("D")) deleted.add(first);
     else changed.add(first);
   }
   return { changed: [...changed], deleted: [...deleted] };
 }
 
-export function getGitChanges(boundary) {
-  let output;
-  try {
-    boundary.assertProjectAnchor({
+function gitDiscoveryError(reason) {
+  const error = new Error(`Git source discovery failed (${reason}); previous index was not replaced.`);
+  error.code = "CORTEX_GIT_DISCOVERY";
+  error.reason = reason;
+  return error;
+}
+
+function runDiscoveryGit(boundary, args) {
+  const assertAnchor = () => boundary.assertProjectAnchor({
       code: "CORTEX_FS_SOURCE",
       phase: "discovery",
       subject_kind: "repository_path",
       subject: ".",
       reason: "path_replaced"
     });
-    output = execSync("git status --porcelain=v1 -z --untracked-files=all", {
-      cwd: boundary.root,
-      stdio: ["ignore", "pipe", "ignore"],
-      encoding: "utf8"
-    });
-  } catch (error) {
-    if (isFilesystemPolicyError(error)) throw error;
-    return {
-      changed: [],
-      deleted: []
-    };
+  // Ambient Git repository/index/config overrides must not redirect discovery.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_/i.test(key)));
+  Object.assign(env, { LC_ALL: "C", GIT_OPTIONAL_LOCKS: "0", GIT_TERMINAL_PROMPT: "0" });
+  assertAnchor();
+  const result = spawnSync("git", ["-c", "core.fsmonitor=false", ...args], {
+    cwd: boundary.root,
+    stdio: ["ignore", "pipe", "pipe"],
+    env,
+    timeout: 30_000,
+    maxBuffer: 32 * 1024 * 1024,
+    killSignal: "SIGKILL"
+  });
+  assertAnchor();
+  if (result.error || result.signal) {
+    const reason = result.error?.code === "ETIMEDOUT" ? "timeout"
+      : result.error?.code === "ENOBUFS" ? "output_limit" : "process_failure";
+    throw gitDiscoveryError(reason);
   }
-  return parseGitStatusPorcelain(output, boundary);
+  return result;
+}
+
+function gitOutput(result) {
+  if (result.status !== 0) throw gitDiscoveryError("command_failure");
+  try {
+    // Git emits path bytes, so a leading BOM is part of the filename.
+    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(result.stdout);
+  } catch {
+    throw gitDiscoveryError("malformed_output");
+  }
+}
+
+function gitPrefix(boundary) {
+  const result = runDiscoveryGit(boundary, ["rev-parse", "--show-prefix", "--is-inside-work-tree"]);
+  if (result.status === 128 && /^fatal: not a git repository(?: \(or any of the parent directories\))?:/m.test(String(result.stderr))) {
+    // A broken repository marker is a failure, not permission to ignore Git policy.
+    for (let directory = boundary.root; ; directory = path.dirname(directory)) {
+      try {
+        fs.lstatSync(path.join(directory, ".git"));
+        throw gitDiscoveryError("command_failure");
+      } catch (error) {
+        if (error.code !== "ENOENT") throw gitDiscoveryError("command_failure");
+      }
+      if (directory === path.dirname(directory)) return null;
+    }
+  }
+  const output = gitOutput(result);
+  if (!output.endsWith("\ntrue\n")) throw gitDiscoveryError("malformed_output");
+  const prefix = output.slice(0, -6);
+  if (prefix && (!prefix.endsWith("/") || !validGitPath(prefix.slice(0, -1)))) {
+    throw gitDiscoveryError("malformed_output");
+  }
+  return prefix;
+}
+
+function validGitPath(identity) {
+  return identity.length > 0 && !path.isAbsolute(identity) && !identity.includes("\0") &&
+    !(process.platform === "win32" && (identity.includes("\\") || /^[A-Za-z]:/.test(identity))) &&
+    identity.split("/").every((part) => part !== "" && part !== "." && part !== "..");
+}
+
+export function getGitChanges(boundary, prefix = gitPrefix(boundary)) {
+  if (prefix === null) return { changed: [], deleted: [] };
+  const output = gitOutput(runDiscoveryGit(boundary, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", "."]));
+  return parseGitStatusPorcelain(output, boundary, prefix);
+}
+
+function collectGitIgnoredPaths(boundary, prefix) {
+  const ignored = new Set();
+  if (prefix === null) return ignored;
+  const output = gitOutput(runDiscoveryGit(boundary, [
+    "ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z", "--", "."
+  ]));
+  if (output && !output.endsWith("\0")) throw gitDiscoveryError("malformed_output");
+  for (const record of output ? output.slice(0, -1).split("\0") : []) {
+    const identity = record.endsWith("/") ? record.slice(0, -1) : record;
+    if (!validGitPath(identity)) throw gitDiscoveryError("malformed_output");
+    ignored.add(identity);
+    // Git can precompose Unicode names on macOS. Keep both Git's spelling
+    // (which may be in retained cache records) and the physical spelling
+    // without changing Git's tracked-file or ignore-rule interpretation.
+    const inspected = boundary.inspectRepositoryPath(identity, {
+      phase: "discovery", allowMissing: true, allowFinalSymlink: true, expected: "any"
+    });
+    if (!inspected.exists || inspected.kind === "symlink") continue;
+    let physicalPath;
+    try {
+      physicalPath = fs.realpathSync.native(inspected.absolutePath);
+    } catch {
+      throw gitDiscoveryError("path_replaced");
+    }
+    const physicalIdentity = path.relative(boundary.root, physicalPath).split(path.sep).join("/");
+    ignored.add(boundary.inspectRepositoryPath(physicalIdentity, {
+      phase: "discovery", expected: inspected.kind
+    }).identity);
+  }
+  return ignored;
 }
 
 export function collectCandidateFiles(boundary, sourcePaths, sourceRecords, mode) {
   const candidates = new Set();
   const deletedRelPaths = new Set();
+  const rootScope = sourceRecords.some((source) => source.normalized === "");
+  const prefix = rootScope || mode === "changed" ? gitPrefix(boundary) : null;
+  const ignored = rootScope || mode === "changed" ? collectGitIgnoredPaths(boundary, prefix) : new Set();
+  const explicitSources = sourcePaths.filter((source) => normalizeSourcePrefix(source) !== "");
+  const matchesIgnored = (identity) => {
+    for (let end = identity.length; end > 0; end = identity.lastIndexOf("/", end - 1)) {
+      if (ignored.has(identity.slice(0, end))) return true;
+    }
+    return false;
+  };
+  const isIgnored = (identity) => rootScope && matchesIgnored(identity) &&
+    !(explicitSources.length > 0 && hasSourcePrefix(identity, explicitSources));
 
   if (mode === "changed") {
-    const gitChanges = getGitChanges(boundary);
+    const gitChanges = getGitChanges(boundary, prefix);
     if (gitChanges.changed.length > 0 || gitChanges.deleted.length > 0) {
       for (const identity of gitChanges.changed) {
         const inspected = boundary.inspectRepositoryPath(identity, {
@@ -262,7 +369,7 @@ export function collectCandidateFiles(boundary, sourcePaths, sourceRecords, mode
         });
         if (!inspected.exists) continue;
         if (inspected.kind === "file") {
-          if (hasSourcePrefix(inspected.identity, sourcePaths)) {
+          if (hasSourcePrefix(inspected.identity, sourcePaths) && !isIgnored(inspected.identity)) {
             candidates.add(inspected.identity);
           }
           continue;
@@ -270,7 +377,7 @@ export function collectCandidateFiles(boundary, sourcePaths, sourceRecords, mode
 
         if (inspected.kind === "directory") {
           const nestedFiles = new Set();
-          walkDirectory(boundary, inspected.identity, nestedFiles);
+          walkDirectory(boundary, inspected.identity, nestedFiles, isIgnored);
           for (const nestedIdentity of nestedFiles) {
             if (hasSourcePrefix(nestedIdentity, sourcePaths)) {
               candidates.add(nestedIdentity);
@@ -290,8 +397,24 @@ export function collectCandidateFiles(boundary, sourcePaths, sourceRecords, mode
         }
       }
 
+      // Git status omits ignored files even when explicitly selected by the caller.
+      const explicitIgnored = new Set([...ignored].filter((identity) => hasSourcePrefix(identity, explicitSources)));
+      for (const source of sourceRecords) {
+        if (source.normalized && matchesIgnored(source.identity) && hasSourcePrefix(source.identity, explicitSources)) {
+          explicitIgnored.add(source.identity);
+        }
+      }
+      for (const identity of explicitIgnored) {
+        const inspected = boundary.inspectRepositoryPath(identity, {
+          phase: "discovery", allowMissing: true, allowFinalSymlink: true, expected: "any"
+        });
+        if (inspected.kind === "file") candidates.add(inspected.identity);
+        else if (inspected.kind === "directory") walkDirectory(boundary, inspected.identity, candidates);
+      }
+
       return {
         candidates,
+        isIgnored,
         incrementalMode: true,
         deletedRelPaths: [...deletedRelPaths]
       };
@@ -309,12 +432,13 @@ export function collectCandidateFiles(boundary, sourcePaths, sourceRecords, mode
     }
 
     if (source.kind === "directory") {
-      walkDirectory(boundary, source.identity, candidates);
+      walkDirectory(boundary, source.identity, candidates, source.normalized === "" ? isIgnored : undefined);
     }
   }
 
   return {
     candidates,
+    isIgnored,
     incrementalMode: false,
     deletedRelPaths: []
   };

@@ -1,5 +1,95 @@
 # Manager Log
 
+## 2026-09-10 — WO-LOCAL-002 reviewed; merge blocked
+
+- Final Code/Contract/Security review GO; both major Unicode findings closed,
+  including an intermediate NFC cache-alias leak. Final runtime `9ad1a674`,
+  boundary tests `c31dff36`; full hashes and evidence in the
+  [acceptance report](local-002-gitignore-review.md).
+- Independent validation: focused 103/103; context 81/81; root Node 427/437,
+  the same ten baseline release-contract failures; applicable Harness 6/6.
+  Final packed gate passes 48 boundary/3 characterization/4+4 dashboard cases,
+  465 entries, unchanged mode/ownership/upgrade assertions; ownership 17/17.
+- Fresh scoped Cortex pattern evidence succeeds for all 12 changed/new files;
+  final diff review covers 4/4 code files with zero conflicts. Its one heuristic
+  about shared configuration helpers is inapplicable to Git environment
+  sanitization; Security independently agrees. Initial tool errors are retained
+  in the report as superseded diagnostics, not claimed successes.
+- Manager decision: candidate is independently reviewed and ready for an
+  explicitly blocked PR. Full acceptance/merge remains blocked by ten root
+  failures. No gate waiver, dependency remediation, release or unrelated work.
+- Original checkout Git status matches the start of this session; all 770
+  nonignored file hashes are preserved at final verification. No operation
+  staged, reset, merged, or wrote source/config there.
+
+
+## 2026-09-10 — WO-LOCAL-002 Unicode findings fixed for re-review
+
+- Independent Code/Contract/Security review found two major fix-now defects in
+  Git path matching: `TextDecoder` stripped a leading U+FEFF filename character,
+  and macOS Git Unicode precomposition differed from directory-entry spelling.
+  Both could include ignored source in root discovery.
+- Manager iteration preserves BOM bytes and resolves ignored paths to native
+  physical spelling through filesystem-boundary checks. Git's Unicode setting
+  remains unchanged so tracked decomposed names retain Git's tracked status.
+  Missing paths/final symlinks are not resolved; resolution errors are scrubbed.
+- Expanded the existing unusual-identity group with BOM file/project-prefix,
+  decomposed ignored file/directory, tracked-file retention and explicit-source
+  regressions. Count remains 48. Applied reviewer-provided exact gate count
+  correction 42 to 48; no inventory/ownership/integrity assertion changed.
+- Security independently reproduced both fixes. Intermediate frozen source begins
+  `16603ccf`, boundary test `10bc61db`, packed test `a3f10fca`; all independent
+  validation and packed gates are rerunning before sign-off. Original results
+  remain dated evidence, not acceptance of the iterated bytes.
+
+
+## 2026-09-10 — WO-LOCAL-002 fresh-session acceptance started
+
+- Read the frozen packet and direct workflow/review/source references in a new
+  session. Base `37a511fa76ce04804f6cf4497202966dd78ff1f0` and all three frozen
+  SHA-256 values match. Original checkout remains outside the write scope.
+- Assigned independent `/root/gitignore_security_review` (Code/Contract/Security),
+  `/root/gitignore_package_review` (Ops/Integration and packed-gate count), and
+  `/root/gitignore_validation` (Validation) before iteration. Reviewers use
+  separate checkouts; only manager integrates reviewed results into candidate.
+- Installed CLI 2.4.1 initially fails search/rules/impact with missing local
+  query runtime; watch refuses obsolete/missing scaffold. Preparing an ignored,
+  narrowly scoped candidate lexical/graph context from the already built locked
+  runtime. Ordinary `cortex update` calls embedding unconditionally, so execute
+  ingest and graph-load separately; no provider or embedding run is authorized.
+- No merge gate waiver. Existing full-suite failures must remain explicit.
+
+
+## 2026-09-10 — WO-LOCAL-001 frozen; fresh acceptance handoff
+
+- Owner returned three frozen source/test files and 96/96 focused passing tests.
+  Independent final code review, candidate-wide tests and packed acceptance are
+  incomplete; no commit, PR or merge. Main's ten release-test failures remain
+  a baseline observation, not a waiver.
+- Manager session compacted. Per Context Window Rules, stop at this safe point;
+  [WO-LOCAL-002](context-packets/local-002-gitignore-acceptance.md) carries exact
+  hashes, locations, evidence, authority and the bounded remaining review work.
+- Concrete follow-up: packed containment still expects 42 boundary cases after
+  six new groups; establish and update the exact count before its acceptance run.
+- Original checkout preservation independently rechecked: 770 hashes, no changes.
+
+## 2026-09-10 — WO-LOCAL-001 selective Git-ignore implementation
+
+- User approved finishing only Git-ignore discovery after the local-code merge
+  assessment. Base main `37a511f`; branch `fix/root-gitignore-discovery`.
+- Owner `/root/local_runtime_assess`; independent combined Code/Contract/Security,
+  Validation and Integration/Ops reviewer `/root`, assigned in the
+  [packet](context-packets/local-001-gitignore-port.md) before implementation.
+- Scope: source discovery, retained-cache filtering and focused existing test
+  lanes. Preserve current containment and package metadata; no search/benchmark
+  experiment, dependency update, default promotion or runtime release.
+- Untouched-main baseline: focused 97/97; context regressions 81/81; root Node
+  421/431 with 10 existing release-contract failures; Harness 6/6 separately
+  because root's failing stage prevents its chained invocation.
+- Runtime install audit reports 5 high/5 moderate on 2026-09-10; manifests/locks
+  unchanged. These and release-test drift remain WO-RV-003/004 work, not new
+  regressions or a green release claim. Candidate validation/review pending.
+
 ## 2026-09-08 — WO-RV-001 documentation PR integration
 
 - PR [#129](https://github.com/DanielBlomma/cortex/pull/129) opened against main;

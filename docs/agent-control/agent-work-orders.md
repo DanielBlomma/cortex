@@ -1,5 +1,12 @@
 # Agent Work Orders
 
+## Selective local-code integration — 2026-09-10
+
+| ID | Scope | Packet | Status |
+|---|---|---|---|
+| WO-LOCAL-001 | Finish only root Git-ignore discovery, explicit errors and incremental cache filtering; leave old search/benchmark experiments out. | [Git-ignore port](context-packets/local-001-gitignore-port.md) | Reviewed after Unicode fixes; exact final evidence in local-002 report; merge blocked |
+| WO-LOCAL-002 | Independent review, exact packed-test count follow-up, validation and authorized PR/merge of the frozen Git-ignore candidate only. | [Acceptance handoff](context-packets/local-002-gitignore-acceptance.md) | Independent reviews/package gates complete; full root gate blocked; PR publication authorized |
+
 ## Reliability and Agent Value Program — 2026-09-08
 
 Plan: [reliability and agent value](2026-09-08-reliability-and-agent-value-plan.md).

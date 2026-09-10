@@ -1,5 +1,15 @@
 # Acceptance Matrix
 
+## Selective Git-ignore integration — 2026-09-10
+
+WO-LOCAL-001/002 support REQ-2/3 with independently reviewed root Git-ignore
+discovery, explicit overrides and retained-cache pruning. Both Unicode review
+findings are fixed. [Final report](local-002-gitignore-review.md): focused 103/103,
+context 81/81, Harness 6/6, ownership 17/17 and the exact packed gate pass.
+Full acceptance and merge remain blocked: root 427/437 with the same ten baseline
+release-contract failures. PR publication is authorized; add traceability below
+once created. No gate waiver or unrelated program acceptance.
+
 ## Reliability and Agent Value Requirements — 2026-09-08
 
 Specification: [program plan](2026-09-08-reliability-and-agent-value-plan.md).
