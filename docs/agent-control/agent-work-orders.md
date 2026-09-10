@@ -123,3 +123,6 @@ historical packets, reports, and commits retain their original branch-local IDs.
 
 ## WO-LOCAL-003 — In progress (2026-09-10)
 Owner: fresh `/root/release_manager`, Release/Distribution + Control. Infra/deploy/security-sensitive. Independent reviewers assigned before implementation: `security_contract` (Security/Privacy, Code Quality, Contract) and `ops_validation` (Ops/Release, Validation, Integration). Scope: restore necessary release gates, reconcile obsolete contracts, prepare next minor2.8.0, compatible audit remediation only. User release authority recorded in context packet. PR130 scope extension is lower-risk than stacking over its blocked Git-ignore candidate.
+
+## WO-LOCAL-003 disposition — 2026-09-10
+Reviewed readiness patch; blocked draft PR130 update authorized. Implementation31fc32e; independent Security/Contract/Code and Ops/Validation/Integration sign off for review only. Fullroot81/437/6 andMCP651 pass; narrow audits leave only unpatchedadm-zipchain3moderate. No manager merge/release acceptance. Next release continuation starts fresh from local-003-release-readiness-review.md and its reports; user localCLI update authority is recorded, contingent on verified publication.

@@ -93,3 +93,6 @@ is not mapped here.
 
 ## WO-LOCAL-003 release readiness
 PR130: ten baseline release-contract failures must be closed with meaningful negative tests; runtime/root/bundle/build/audit/packed/Harness/fresh-checkout gates must pass; independent security/ops/validation approval required; immutable2.8.0 tag and both actual npm artifacts verified after authorized dispatch. Status: in progress, no merge/release acceptance.
+
+## WO-LOCAL-003 final coverage
+PR130 release-readiness source repairs independently reviewed: all ten baseline failures resolved; real gate/identity negative cases and narrow dependency fixes pass focused/fullroot/MCP/build/packed checks. Merge/publication acceptance NOT met: unpatchedadm-zipchain fails required low-or-higher audit. Fullpristine2.8 releasefixture/Harness/Linux andregistry publication are unclaimed. Exact requirements/evidence/unblock sequence in local-003-release-readiness-review.md.

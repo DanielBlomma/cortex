@@ -65,3 +65,6 @@ the manager; the Status column carries the current truth, not the original fear.
 
 ## WO-LOCAL-003 active risks
 Release gates were removed in477f17e; restore before next publication. Fresh dependency audits: frontend1high/1moderate, MCP5high/6moderate; blockers until concrete compatible fixes pass all gates. No audit waiver. Stale fresh-checkout totals must be reconciled from observed complete suites, never relaxed. Existing PR has no CI checks; absence does not count as a pass.
+
+## WO-LOCAL-003 residual blocker — 2026-09-10
+Compatible fixes removed allhigh findings andfrontend findings. OnlyMCP3moderate nodes remain, oneadm-zip/ONNX/Transformers chain. GHSA-vwc7-r8mq-g2x9 has no patchednpmversion; upstreamadm-zipPR575 open. No breakingdowngrade, override disguise, or auditwaiver accepted. Hold merge/publication until a reviewed supported resolution passes all6audits and remaining releaseacceptance gates. Separate6benchmark failures are missing external frozenpacket, outside this bounded release patch. Finalreport recordsLinux/freshfixture/Harness/tooling limitations without labelingthem passes.
