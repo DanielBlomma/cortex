@@ -301,6 +301,18 @@ function validatePublishWorkflow(workflow) {
   assert.match(registrySmoke, /\/bin\/cortex" --version/);
   assert.doesNotMatch(registrySmoke, /dsh-cortex|install-registry|harness-registry/);
   assertBefore(workflow, "- name: Verify exact DeepSeek Harness bundle registry artifact", "- name: Record immutable release evidence");
+  for (const [name, command] of [
+    ["Install both registry artifacts with an empty cache", "install-registry"],
+    ["Run registry Harness headless and Web lifecycle", "harness-registry"],
+  ]) {
+    const gate = stepBlock(workflow, name);
+    assert.ok(gate.includes(`node scripts/release-artifacts.mjs ${command}`));
+    assert.match(gate, /RELEASE_VERSION: \$\{\{ steps\.version\.outputs\.value \}\}/);
+    assert.match(gate, /--expected-version "\$\{RELEASE_VERSION\}"/);
+    assert.doesNotMatch(gate, /continue-on-error:|\|\|\s*true|set \+e|if:/);
+    assertBefore(workflow, "- name: Verify exact DeepSeek Harness bundle registry artifact", `- name: ${name}`);
+    assertBefore(workflow, `- name: ${name}`, "- name: Record immutable release evidence");
+  }
   const summary = stepBlock(workflow, "Record immutable release evidence");
   assert.match(summary, /published npm artifact: @danielblomma\/dsh-cortex@\$\{RELEASE_VERSION\}/);
   assert.doesNotMatch(workflow, /@latest/);
@@ -519,6 +531,13 @@ test("release workflows reject unreviewed bundle publication and unsafe resume m
       `npm publish ${bundlePackageName} --access public --provenance`,
     ]);
     assert.throws(() => validator(invalid));
+  }
+  for (const name of ["Install both registry artifacts with an empty cache", "Run registry Harness headless and Web lifecycle"]) {
+    const gate = stepBlock(workflow, name);
+    const omitted = workflow.replace(gate, `      - name: ${name}\n        run: echo gate omitted\n`);
+    assert.throws(() => validatePublishWorkflow(omitted));
+    const premature = swapSteps(workflow, name, "Verify exact DeepSeek Harness bundle registry artifact");
+    assert.throws(() => validatePublishWorkflow(premature));
   }
   const mutations = [
     workflow.replace("if: steps.registry.outputs.bundle_state == 'missing'", "if: always()"),

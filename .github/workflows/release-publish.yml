@@ -277,6 +277,23 @@ jobs:
             "@danielblomma/cortex-mcp@${RELEASE_VERSION}"
           "${GLOBAL_PREFIX}/bin/cortex" --version | grep -F "${RELEASE_VERSION}"
 
+      - name: Install both registry artifacts with an empty cache
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          node scripts/release-artifacts.mjs install-registry \
+            --output-dir "${RUNNER_TEMP}/cortex-registry-install" \
+            --expected-version "${RELEASE_VERSION}"
+
+      - name: Run registry Harness headless and Web lifecycle
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          node scripts/release-artifacts.mjs harness-registry \
+            --harness-checkout "${RUNNER_TEMP}/deepseek-harness" \
+            --output-dir "${RUNNER_TEMP}/cortex-registry-harness" \
+            --expected-version "${RELEASE_VERSION}"
+
       - name: Record immutable release evidence
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.value }}
