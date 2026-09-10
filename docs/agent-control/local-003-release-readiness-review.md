@@ -11,7 +11,7 @@ reports only. PR: https://github.com/DanielBlomma/cortex/pull/130.
 User authorized the next minor release and its necessary readiness repairs, and
 subsequently chose “Ja, uppdatera lokal CLI också”. This supersedes the earlier
 local-002 no-release scope. Publication must pass the restored gates; no gate
-waiver was requested or applied. Root owns the optional existing global CLI
+waiver was requested or applied. Root owns the authorized existing global CLI
 installation under /opt/homebrew after successful publication. Package metadata
 remains2.7.0; Release Bump now prepares2.8.0. No merge, tag, dispatch, npm
 publication, or local installation was performed by this work order.
