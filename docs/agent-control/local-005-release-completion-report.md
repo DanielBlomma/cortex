@@ -78,3 +78,40 @@ against the actual pinned Harness: HTTP 200, 14,555 bytes, DSH handler exit 130
 in 29ms, pnpm outcome 1, closed port and no observed Harness descendants.
 Manager's final focused results agree. This accepts the narrow source repair for
 draft push; exact final HEAD still requires native hosted preflight before merge.
+
+## Final native preflight outcome and new fixture work order
+
+Root coordinated exact remote identities before the fast-forward to54af809.
+PR130 head54af80981782ad03a22eb9c9421c1ac8664d6ae5, base37a511fa76ce04804f6cf4497202966dd78ff1f0.
+GitHub merge aed7ad4f7962c9bccaea6bc5add2025f272950b6 has tree
+2023c5d99bbc9eda826d139c155ea0df41501b63, equal to local merge-tree.
+[Native preflight34597272860](https://github.com/DanielBlomma/cortex/actions/runs/34597272860)
+passed focused47/47, full81/437/6, and first full MCP651/651. Pristine full
+root81/437/6 also passed, then pristine MCP failed650/651 at the unchanged
+`analysis-state-trusted-writer.test.mjs:513` two-writer assertion: expected
+`/stale writer/`, observed `maintained analysis state changed during read`.
+No later audits/artifact/Web gate ran. Final native Web acceptance remains unproved.
+
+Both reviewers independently reproduce a valid winner committing while the loser
+is in its optimistic trusted read before coordinator acquisition. The reader
+correctly rejects the changed directory identity as STATE_UNTRUSTED before the
+stale-generation check. Exactly one commit remains, generation2/count2 and winner
+hashes valid. Ops cross-process proof verifies loser leaves the winner's complete
+byte/inode/time/mode/link/directory identity tree unchanged. Security also runs
+existing concurrent-authority replacement rejection and unrelated-root acceptance
+reader regressions2/2. No production defect or reason to weaken guards was found.
+
+Proposed new fixture work order synchronizes two successfully prepared contenders
+immediately before their first coordinator mkdir, then releases real acquisition
+and commit. Keep exact stale error, one success/one rejection, and strengthen exact
+winner/result/state bindings. No broad regex alternative, production retry,
+identity-check bypass or blind CI retry is accepted. Historical report's broad
+'required stale-CAS loser' claim applies only after successful optimistic prepare;
+an overlapping trusted read can correctly fail earlier.
+
+Before new implementation, scope moves to fresh WO-LOCAL-006 because it is a
+separate concurrency fixture and this manager context is long. Root immediately
+starts the next bounded manager; existing authority remains unchanged through
+reviewed merge, Bump/Publish and root CLI update. No user restart/reapproval.
+Exact new packet: context-packets/local-006-writer-fixture-release-completion.md.
+All current source remains reviewed54af809; subsequent local commits are docs only.

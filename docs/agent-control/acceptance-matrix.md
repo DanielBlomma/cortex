@@ -129,3 +129,17 @@ Ops Linux x64 identity/lifecycle7/7 and actual pinned candidate Web shutdown pas
 No open source finding. Root/pristine totals remain81/437/6/651 unchanged.
 PR130 remains draft pending exact-head native preflight; no merge/tag/release yet.
 Full evidence/reviews: local-005-release-completion-report.md and linked reports.
+
+
+## WO-LOCAL-005 final native outcome / WO-LOCAL-006 handoff
+
+Preflight34597272860 on54af809 passed focused47, full81/437/6 andMCP651;
+pristine root passed then pristineMCP650/651 failed writer race assertion at
+analysis-state-trusted-writer.test.mjs513/520. Expected stale writer, actual
+maintained analysis state changed during read. Two independent controlled
+diagnostics prove legitimate fail-closed optimistic-reader interleaving and
+exact unchanged winner state. No production edit, regex relaxation or retry.
+Fresh WO-LOCAL-006 receives synchronized prepared-contender test design and
+complete evidence before implementation; root auto-starts it. PR130 remains
+draft54af809, main37a511f; no merge/tag/release/CLI update. Packet:
+context-packets/local-006-writer-fixture-release-completion.md.
