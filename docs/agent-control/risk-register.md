@@ -1,5 +1,18 @@
 # Risk Register
 
+## Selective local-code risk — 2026-09-10
+
+| ID | Risk | Mitigation | Status |
+|---|---|---|---|
+| R-LOCAL-001 | Root discovery indexes ignored untracked artifacts, silently widens scope after Git failure, or retains newly ignored cached records. | WO-LOCAL-001 bounded shell-free Git, explicit errors/non-Git behavior, same filtering in discovery and hydration, negative and containment tests. | Reviewed mitigation; merge blocked by baseline gates |
+
+Current WO-LOCAL-002 disposition: both independently found Unicode privacy
+failures are fixed and re-reviewed; final source and cache-pruning/package
+regressions pass. Ten existing release-test failures, absent PR CI and incoming
+runtime dependency findings remain open (WO-RV-003/004); none is waived. The
+normalization-sensitive filesystem subcase is present but cannot execute on
+this APFS host. See [final report](local-002-gitignore-review.md).
+
 ## 2026-09-08 current reassessment
 
 Historical mitigations below retain their dated meaning. Current pinned-main dependency
@@ -49,3 +62,110 @@ the manager; the Status column carries the current truth, not the original fear.
 | R20 | Runtime contract packaging | Parser adapters could import a benchmark-only contract, copy validators into separate branches, retain caller-controlled raw syntax, add a managed runtime file without safe upgrade ownership, or be unable to represent an existing parser result without changing it. | Packaged parsers may fail after install, independent language families may emit incompatible order/transport, raw trees may escape bounded transport, forced upgrades may overwrite an unknown user path, or composite APIs may throw on bounded malformed input. | Accepted WO-051B promotes one neutral runtime authority and safe ownership v2; WO-051E closes the legacy Acorn error boundary. Accepted WO-052 and WO-053 prove all 14 adapters use the packaged authority, retain no raw syntax, preserve ordinary parser results, bound transport failures, and keep the 432-entry package plus 396/96 ownership exact. The published-predecessor upgrade now verifies 75 changed/16 new managed files. | CLI and Scaffold + Parsers and Ingest + Security and Privacy | Mitigated locally through WO-053 |
 | R21 | Agent truth maintenance | Append-only packets, receipts, and manager prose preserve history but require every fresh agent to reconstruct current truth; stale or contradicted conclusions can survive and repeated review loops can grow faster than the implementation. | Agents waste context, resurrect invalid assumptions, overclaim work-order readiness, or add more self-attesting evidence instead of closing the actual product question. | WO-056-061 prove semantics, persistence, trusted reads/appends, and canonical projection. Packet 076 assigns initial provisioning only from a closed exact-HEAD Git seed/evidence set with private complete staging and atomic publication; caller prose/policy, self-rehashed untracked state, and existing snapshots cannot bootstrap trust. | Control Manager + CLI and Scaffold + Core MCP + Security and Privacy + Validation | Partially mitigated; Git-anchored bootstrap assigned while production document mutation, dogfood, and WO-055 remain blocked |
 | R22 | Shared agent namespace compatibility | A real repository may already track safe content below a physical mode-`0755` `.agents` directory, while WO-062 requires the parent itself to be exactly `0700`. | Initial provisioning fails on repositories such as `microsoft/vscode`, or an unsafe quick fix could chmod/replace a shared namespace, weaken task privacy, or clobber sibling agent assets. | WO-063 Packet 077 allows only a stable physical owner-controlled parent with no group/world write bits, preserves existing sibling bytes/modes/identities and Git state, keeps stage/task directories `0700` and files `0600`, and reruns race/no-clobber/full package gates. | Core MCP + Security and Privacy + Validation | Mitigated by WO-063 `32d1f7d`, merged as `ed399e1`, and released in `v2.7.0` |
+
+## WO-LOCAL-003 active risks
+Release gates were removed in477f17e; restore before next publication. Fresh dependency audits: frontend1high/1moderate, MCP5high/6moderate; blockers until concrete compatible fixes pass all gates. No audit waiver. Stale fresh-checkout totals must be reconciled from observed complete suites, never relaxed. Existing PR has no CI checks; absence does not count as a pass.
+
+## WO-LOCAL-003 residual blocker — 2026-09-10
+Compatible fixes removed allhigh findings andfrontend findings. OnlyMCP3moderate nodes remain, oneadm-zip/ONNX/Transformers chain. GHSA-vwc7-r8mq-g2x9 has no patchednpmversion; upstreamadm-zipPR575 open. No breakingdowngrade, override disguise, or auditwaiver accepted. Hold merge/publication until a reviewed supported resolution passes all6audits and remaining releaseacceptance gates. Separate6benchmark failures are missing external frozenpacket, outside this bounded release patch. Finalreport recordsLinux/freshfixture/Harness/tooling limitations without labelingthem passes.
+
+
+## WO-LOCAL-004 active risks — 2026-09-11
+
+adm-zip 0.6.1 is newly published while advisory metadata still names no patched release; version and audit silence alone do not establish safety. Independent source/provenance and exploit checks are required before locked update acceptance. Deferred pristine/artifact/Harness/Linux gates remain mandatory. No PR CI checks currently exist; local ARM64 Linux evidence does not imply GitHub x64 success. The six absent external benchmark-fixture tests remain an explicit historical limitation, with no fixture fabrication or benchmark execution.
+
+Security review of 52bd675 approves the narrow adm-zip patch after exact source and npm-signature verification. Upstream suite passes 122 tests. Baseline ONNX installer uses a predictable temporary directory and extraction-root trust; adm-zip retains a pre-check/write race. This is a minor residual for this unchanged caller and is not introduced or worsened by the patch; it is not a claim of complete filesystem-race hardening. Manager isolated temporary-fixture checks verify rejection in all four extraction API modes plus normal extraction. Six lock audits are clean. Actual Linux ARM64 inspection found ryugraph 25.9.1 ships an x86_64 binary under its ARM64 filename; both reviewers confirmed ELF machine 62. This is an existing upstream platform defect, not npm lifecycle policy. The release target is Linux x64; validation moved to that platform without source changes. A first x64 no-init container left a child zombie, so the validation environment is being restarted with proper orphan reaping. No assertion, isolation rule or release gate was weakened.
+
+
+## 2026-09-11 — WO-LOCAL-004 native result / WO-LOCAL-005 handoff
+
+Hosted preflight 34595569328 on 0b1d53c passed all preceding full/pristine/audit/
+artifact gates but failed native Harness Web SIGINT shutdown at ten seconds.
+This is an unresolved actual gate, not an emulator waiver. Clean-tag test 7699afb
+is independently approved and local; remote PR #130 remains draft at 0b1d53c / main 37a511f.
+No merge/tag/Bump/Publish/CLI update. Fresh WO-LOCAL-005 must diagnose helper versus
+pinned lifecycle, repair with independent reviewers, validate final HEAD and then
+complete authorized release/CLI steps. Exact packet:
+context-packets/local-005-hosted-release-completion.md. User authority persists.
+
+
+## WO-LOCAL-005 lifecycle risk disposition
+
+Native Web failure cause is proved PID-only signal delivery, corrected at
+cd7668b with independently tested owned process-group signalling. No deadline
+change or gate waiver. Observed pinned Harness tree and owned fixture children
+terminate; existing close/port contract does not universally enumerate hypothetical
+ignored-stdio descendants. Actual final-head hosted gates remain required; prior
+artifact identities are historical. Existing ONNX race and benchmark fixture
+limitations are unchanged. No new source blocker remains after independent review.
+
+
+## WO-LOCAL-005 final native outcome / WO-LOCAL-006 handoff
+
+Preflight34597272860 on54af809 passed focused47, full81/437/6 andMCP651;
+pristine root passed then pristineMCP650/651 failed writer race assertion at
+analysis-state-trusted-writer.test.mjs513/520. Expected stale writer, actual
+maintained analysis state changed during read. Two independent controlled
+diagnostics prove legitimate fail-closed optimistic-reader interleaving and
+exact unchanged winner state. No production edit, regex relaxation or retry.
+Fresh WO-LOCAL-006 receives synchronized prepared-contender test design and
+complete evidence before implementation; root auto-starts it. PR130 remains
+draft54af809, main37a511f; no merge/tag/release/CLI update. Packet:
+context-packets/local-006-writer-fixture-release-completion.md.
+
+## WO-LOCAL-006 assignment — 2026-09-11
+
+Fresh manager at5428818; isolated clone, sole branch writer. Fresh independent reviewers
+`writer_fixture_release_manager/security` (Security/Contract/Code Quality) and
+`writer_fixture_release_manager/ops` (Ops/Validation/Integration) assigned before implementation.
+Scope: deterministic prepared-contender rendezvous in the existing writer test,
+no production changes or weakened assertions/deadlines. Release gates remain blocking.
+Risk: rendezvous must live outside strict state, bound wait and reap owned workers.
+Acceptance requires focused/negative tests, independent exact-source review, native
+full preflight, guarded PR130 merge, actual Bump/Publish and registry byte verification.
+Packet: context-packets/local-006-writer-fixture-release-completion.md.
+
+### WO-LOCAL-006 source acceptance
+
+Both fresh reviewers approve exact writer SHAe40ba6d5668db08fd51b41ccaf2482292a717d33f22c057a2b106579ccc7f8f4;
+no open findings. Independently8/8 writer and2/2 reader; early-exit, ENOENT,
+missing-readiness/release and assertion-failure diagnostics reject and clean
+owned children/temp trees. Manager same focused evidence; scoped Cortex rules
+and patterns succeed, combined doc-heavy review fail-safe remains documented.
+Accept source correction for draftPR130; auto-advance actual final-head native
+preflight, then guarded merge/Bump/Publish only after true green gates.
+Details and fresh-manager continuation: local-006-release-completion-report.md
+and context-packets/local-006-writer-fixture-release-completion.md.
+
+## WO-LOCAL-006 native outcome / WO-LOCAL-007 handoff
+
+Both fresh reviewers formally approve62750391fc1a8b5d306d8e44ab6168a45b4b16b6.
+Root coordinated remote54af809/main37a511f and manager fast-forwarded draftPR130
+to6275039. Synthetic merge a2e56db7ea0b7b4bb7408e86b412f29ba8aa0871 tree
+19825fad8892d083c1ce4c6ed2ef1ee58fd1a1e9 equals local merge-tree.
+Native preflight34598916068 passed focused47,context81,root437 but failed bundle5/6:
+provider timeout with settled leader, local-subprocess-integration.test.mjs220,
+immediate expectedESRCH missing after TIMEOUT correctly rejected. No native
+process-state snapshot exists; delayed zombie reaping remains a hypothesis from
+historical independent004 evidence, not a classified native result. No MCP,
+pristine/audit/artifact/Harness or final boundary gates ran in this attempt.
+No blind rerun, source change, merge/tag/Bump/Publish/global install follows.
+Manager stops at this bounded acceptance boundary, preserves all evidence, and
+root immediately starts fresh007 manager/reviewers from
+context-packets/local-007-subprocess-reaping-release-completion.md. Existing user
+authority persists through the complete release chain. This is not a pause for
+permission or user restart. Latest remote remains6275039/main37a511f.
+
+## WO-LOCAL-007 active process-state risk
+
+Native34598916068 proves immediate ESRCH assertion failure only; no evidence
+classifies its process. Do not infer its state from historical emulation. A
+deterministic Linux subreaper witness may establish the general assertion race.
+Any test correction must reject executing/unknown/reused records immediately,
+wait only for the same confirmed-dead identity, require bounded eventual ESRCH,
+and avoid signaling a reused PID during cleanup. No release gate waiver.
+
+WO-LOCAL-007 source risks closed by deterministic same-identity death/reap proof,
+strict negative probes and owned setup-failure cleanup. Historical native process
+state remains unknown; no claim of retrospective classification. Native final-head
+gate remains open, with no timeout/production/publication exception.

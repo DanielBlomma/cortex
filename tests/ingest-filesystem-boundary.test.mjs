@@ -5,6 +5,8 @@ import os from "node:os";
 import net from "node:net";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import childProcess from "node:child_process";
+import { syncBuiltinESMExports } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { Worker } from "node:worker_threads";
 
@@ -599,7 +601,7 @@ test("explicit source links deny, missing contained sources skip, and walked lin
     assert.deepEqual(
       [...collectCandidateFiles(boundary, ["src"], sources, "changed").candidates],
       ["src/safe.js"],
-      "Git failure or an empty diff falls back to the full source set"
+      "A non-Git directory or an empty diff falls back to the full source set"
     );
 
     assert.throws(
@@ -612,6 +614,268 @@ test("explicit source links deny, missing contained sources skip, and walked lin
     fs.symlinkSync(src, linkedDirectory, "dir");
     assert.throws(() => boundary.validateConfiguredSources(["linked-dir/safe.js"]), CortexFilesystemPolicyError);
   } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("Git-ignore root discovery retains tracked files, supports negation, and honors explicit mixed scopes", () => {
+  const { parent, project } = makeParent("git-ignore-scopes");
+  try {
+    fs.mkdirSync(path.join(project, "private", "nested"), { recursive: true });
+    fs.writeFileSync(path.join(project, "private", "tracked.js"), "tracked");
+    initializeGit(project);
+    fs.writeFileSync(path.join(project, ".gitignore"), "private/\n*.log\n!keep.log\n");
+    fs.writeFileSync(path.join(project, "private", "nested", "secret.js"), "secret");
+    fs.writeFileSync(path.join(project, "drop.log"), "ignored");
+    fs.writeFileSync(path.join(project, "keep.log"), "kept");
+    fs.writeFileSync(path.join(project, "normal.js"), "normal");
+    const boundary = createFilesystemBoundary(project);
+    const collect = (scopes, mode) => collectCandidateFiles(boundary, scopes, boundary.validateConfiguredSources(scopes), mode);
+    for (const mode of ["full", "changed"]) {
+      const root = collect(["."], mode);
+      assert.equal(root.candidates.has("private/nested/secret.js"), false);
+      assert.equal(root.candidates.has("drop.log"), false);
+      assert.equal(root.candidates.has("keep.log"), true);
+      assert.equal(root.candidates.has("normal.js"), true);
+      assert.equal(root.isIgnored("private/tracked.js"), false);
+      if (mode === "full") assert.equal(root.candidates.has("private/tracked.js"), true);
+      const forward = collect([".", "private/nested", "drop.log"], mode);
+      const reverse = collect(["drop.log", "private/nested", "."], mode);
+      assert.deepEqual([...forward.candidates].sort(), [...reverse.candidates].sort());
+      assert.equal(forward.candidates.has("private/nested/secret.js"), true);
+      assert.equal(forward.candidates.has("drop.log"), true);
+      assert.equal(forward.isIgnored("private/nested/secret.js"), false);
+      assert.equal(collect(["private/nested"], mode).candidates.has("private/nested/secret.js"), true);
+    }
+  } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("Git-ignore discovery handles nested project roots and exact unusual identities", { skip: process.platform === "win32" }, () => {
+  const { parent, project } = makeParent("git-ignore-identities");
+  try {
+    initializeGit(project);
+    const nested = path.join(project, "\ufeffsub root\n雪");
+    fs.mkdirSync(nested);
+    const names = ["space name", '"quote"', "line\nbreak", "雪", "a\\b"];
+    for (const name of names) {
+      fs.mkdirSync(path.join(nested, name));
+      fs.writeFileSync(path.join(nested, name, "hidden.js"), "hidden");
+      fs.writeFileSync(path.join(nested, name, "visible.js"), "visible");
+    }
+    fs.writeFileSync(path.join(nested, ".gitignore"), "hidden.js\n");
+    const boundary = createFilesystemBoundary(nested);
+    for (const mode of ["full", "changed"]) {
+      const result = collectCandidateFiles(boundary, ["."], boundary.validateConfiguredSources(["."]), mode);
+      for (const name of names) {
+        assert.equal(result.candidates.has(`${name}/hidden.js`), false, name);
+        assert.equal(result.candidates.has(`${name}/visible.js`), true, name);
+      }
+    }
+    const unicodeProject = path.join(parent, "unicode-project");
+    fs.mkdirSync(unicodeProject);
+    runGit(unicodeProject, ["init"]);
+    runGit(unicodeProject, ["config", "core.precomposeunicode", "true"]);
+    const trackedName = "cafe\u0301-tracked.js";
+    const privateName = "cafe\u0301-private.js";
+    const privateDirectory = "cafe\u0301-private";
+    fs.writeFileSync(path.join(unicodeProject, trackedName), "tracked");
+    runGit(unicodeProject, ["add", "."]);
+    fs.writeFileSync(path.join(unicodeProject, privateName), "private");
+    fs.mkdirSync(path.join(unicodeProject, privateDirectory));
+    fs.writeFileSync(path.join(unicodeProject, privateDirectory, "secret.js"), "private");
+    fs.writeFileSync(path.join(unicodeProject, ".gitignore"), "*.js\n*-private/\n");
+    const unicodeBoundary = createFilesystemBoundary(unicodeProject);
+    for (const mode of ["full", "changed"]) {
+      const result = collectCandidateFiles(unicodeBoundary, ["."], unicodeBoundary.validateConfiguredSources(["."]), mode);
+      assert.equal(result.isIgnored(trackedName), false);
+      if (mode === "full") assert.equal(result.candidates.has(trackedName), true);
+      assert.equal(result.isIgnored(privateName), true);
+      assert.equal(result.isIgnored(`${privateDirectory}/secret.js`), true);
+      assert.equal(result.candidates.has(privateName), false);
+      assert.equal(result.candidates.has(`${privateDirectory}/secret.js`), false);
+      const explicit = [".", privateName, privateDirectory];
+      const selected = collectCandidateFiles(unicodeBoundary, explicit, unicodeBoundary.validateConfiguredSources(explicit), mode);
+      assert.equal(selected.candidates.has(privateName), true);
+      assert.equal(selected.candidates.has(`${privateDirectory}/secret.js`), true);
+    }
+
+    // Some filesystems treat composed/decomposed spellings as distinct files.
+    const distinctProject = path.join(parent, "distinct-unicode-project");
+    fs.mkdirSync(distinctProject);
+    const composedName = "caf\u00e9.js";
+    const decomposedName = "cafe\u0301.js";
+    fs.writeFileSync(path.join(distinctProject, composedName), "ignored", { flag: "wx" });
+    let distinctNames = true;
+    try {
+      fs.writeFileSync(path.join(distinctProject, decomposedName), "visible", { flag: "wx" });
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+      distinctNames = false;
+    }
+    if (distinctNames) {
+      runGit(distinctProject, ["init"]);
+      fs.writeFileSync(path.join(distinctProject, ".gitignore"), `${composedName}\n`);
+      const distinctBoundary = createFilesystemBoundary(distinctProject);
+      for (const mode of ["full", "changed"]) {
+        const result = collectCandidateFiles(distinctBoundary, ["."], distinctBoundary.validateConfiguredSources(["."]), mode);
+        assert.equal(result.candidates.has(composedName), false);
+        assert.equal(result.candidates.has(decomposedName), true);
+        assert.equal(result.isIgnored(decomposedName), false);
+      }
+    }
+
+    // Put U+FEFF at the first byte of Git's ignored-path output.
+    const bomProject = path.join(parent, "bom-project");
+    fs.mkdirSync(bomProject);
+    runGit(bomProject, ["init"]);
+    fs.writeFileSync(path.join(bomProject, ".gitignore"), "*.js\n");
+    const ignoredName = "\ufeffprivate.js";
+    fs.writeFileSync(path.join(bomProject, ignoredName), "private");
+    const bomBoundary = createFilesystemBoundary(bomProject);
+    for (const mode of ["full", "changed"]) {
+      const result = collectCandidateFiles(bomBoundary, ["."], bomBoundary.validateConfiguredSources(["."]), mode);
+      assert.equal(result.candidates.has(ignoredName), false);
+      assert.equal(result.isIgnored(ignoredName), true);
+    }
+  } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("changed ingest removes newly ignored cached file, chunk, and ADR records even after committing rules", () => {
+  const { parent, project } = makeParent("git-ignore-hydration");
+  try {
+    writeControls(project, ["."]);
+    fs.writeFileSync(path.join(project, "tracked.js"), "export const tracked = 1;\n");
+    initializeGit(project);
+    fs.mkdirSync(path.join(project, "private", "adr"), { recursive: true });
+    fs.writeFileSync(path.join(project, "private", "value.js"), "export function privateValue() { return 2; }\n");
+    fs.writeFileSync(path.join(project, "private", "adr", "001.md"), "# Private decision\nStatus: accepted\n");
+    const inventory = (name) => readJsonl(path.join(project, ".context", "cache", name));
+    let result = runIngest(project);
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(inventory("entities.file.jsonl").some((row) => row.path.startsWith("private/")));
+    assert.ok(inventory("entities.adr.jsonl").some((row) => row.path.startsWith("private/")));
+    for (const dirty of [true, false]) {
+      fs.appendFileSync(path.join(project, ".gitignore"), "private/\n");
+      runGit(project, ["add", ".gitignore"]);
+      runGit(project, ["commit", "-m", "ignore private source"]);
+      if (dirty) fs.appendFileSync(path.join(project, "tracked.js"), "// trigger incremental hydration\n");
+      result = runIngest(project, ["--changed"]);
+      assert.equal(result.status, 0, result.stderr);
+      for (const name of ["entities.file.jsonl", "entities.adr.jsonl"]) {
+        assert.equal(inventory(name).some((row) => row.path.startsWith("private/")), false);
+      }
+      assert.equal(inventory("entities.chunk.jsonl").some((row) => String(row.file_id).startsWith("file:private/")), false);
+      if (dirty) {
+        const manifest = JSON.parse(fs.readFileSync(path.join(project, ".context", "cache", "manifest.json")));
+        assert.equal(manifest.incremental_mode, true);
+        runGit(project, ["add", "tracked.js"]);
+        runGit(project, ["commit", "-m", "tracked edit"]);
+        fs.writeFileSync(path.join(project, ".gitignore"), ".context/cache/\n.context/db/\n");
+        runGit(project, ["add", ".gitignore"]);
+        runGit(project, ["commit", "-m", "restore discovery before clean-state test"]);
+        assert.equal(runIngest(project).status, 0);
+      }
+    }
+    runGit(project, ["config", "core.precomposeunicode", "true"]);
+    const secretNames = ["cafe\u0301.js", "\ufeffprivate.js"];
+    for (const name of secretNames) {
+      fs.writeFileSync(path.join(project, name), "export function privateValue() { return 3; }\n");
+    }
+    assert.equal(runIngest(project).status, 0);
+    assert.equal(runIngest(project, ["--changed"]).status, 0);
+    for (const name of secretNames) {
+      assert.ok(inventory("entities.file.jsonl").some((row) => row.path === name));
+    }
+    fs.appendFileSync(path.join(project, ".gitignore"), "*.js\n");
+    fs.appendFileSync(path.join(project, "tracked.js"), "// hydrate prior Git path spellings\n");
+    const ignored = runIngest(project, ["--changed"]);
+    assert.equal(ignored.status, 0, ignored.stderr);
+    for (const name of secretNames) {
+      assert.equal(inventory("entities.file.jsonl").some((row) => row.path.normalize("NFC") === name.normalize("NFC")), false);
+      assert.equal(inventory("entities.chunk.jsonl").some((row) => String(row.file_id).normalize("NFC") === `file:${name.normalize("NFC")}`), false);
+    }
+    assert.ok(inventory("entities.file.jsonl").some((row) => row.path === "tracked.js"));
+  } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("Git discovery failures are bounded and sanitized and retain the prior published outputs", (t) => {
+  const { parent, project } = makeParent("git-ignore-errors");
+  try {
+    writeControls(project, ["."]);
+    fs.writeFileSync(path.join(project, "source.md"), "# Previously published\n");
+    assert.equal(runIngest(project).status, 0);
+    const before = normalizedOutputs(project);
+    const boundary = createFilesystemBoundary(project);
+    for (const [failure, reason] of [
+      [{ status: 128, stdout: Buffer.alloc(0), stderr: Buffer.from("SECRET failure") }, "command_failure"],
+      [{ error: { code: "ETIMEDOUT" } }, "timeout"],
+      [{ error: { code: "ENOBUFS" } }, "output_limit"],
+      [{ error: { code: "ENOENT" } }, "process_failure"],
+      [{ status: 0, stdout: Buffer.from("unterminated"), stderr: Buffer.alloc(0) }, "malformed_output"],
+      [{ status: 0, stdout: Buffer.from("\0"), stderr: Buffer.alloc(0) }, "malformed_output"],
+      [{ status: 0, stdout: Buffer.from([0xff, 0]), stderr: Buffer.alloc(0) }, "malformed_output"],
+      [{ status: 0, stdout: Buffer.from("../outside\0"), stderr: Buffer.alloc(0) }, "malformed_output"]
+    ]) {
+      t.mock.method(childProcess, "spawnSync", (_command, args, options) => {
+        assert.equal(options.shell, undefined);
+        assert.equal(options.timeout, 30_000);
+        assert.equal(options.maxBuffer, 32 * 1024 * 1024);
+        assert.equal(options.killSignal, "SIGKILL");
+        return args.includes("rev-parse")
+          ? { status: 0, stdout: Buffer.from("\ntrue\n"), stderr: Buffer.alloc(0) }
+          : failure;
+      });
+      syncBuiltinESMExports();
+      assert.throws(() => collectCandidateFiles(boundary, ["."], boundary.validateConfiguredSources(["."]), "full"), (error) => {
+        assert.equal(error.code, "CORTEX_GIT_DISCOVERY");
+        assert.equal(error.reason, reason);
+        assert.equal(error.message.includes("SECRET"), false);
+        return true;
+      });
+      t.mock.restoreAll();
+      syncBuiltinESMExports();
+      assert.deepEqual(normalizedOutputs(project), before);
+    }
+    fs.mkdirSync(path.join(project, ".git"));
+    const failed = runIngest(project);
+    assert.notEqual(failed.status, 0);
+    assert.match(failed.stderr, /Git source discovery failed/);
+    assert.deepEqual(normalizedOutputs(project), before);
+  } finally {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("Git discovery sanitizes ambient repository overrides and checks the root after the subprocess", (t) => {
+  const { parent, project } = makeParent("git-ignore-anchor");
+  const saved = process.env.GIT_DIR;
+  try {
+    const boundary = createFilesystemBoundary(project);
+    process.env.GIT_DIR = path.join(parent, "outside.git");
+    t.mock.method(childProcess, "spawnSync", (_command, _args, options) => {
+      assert.equal(options.env.GIT_DIR, undefined);
+      assert.equal(options.env.GIT_WORK_TREE, undefined);
+      assert.equal(options.env.GIT_INDEX_FILE, undefined);
+      assert.equal(options.env.GIT_CONFIG_COUNT, undefined);
+      assert.equal(options.env.GIT_OPTIONAL_LOCKS, "0");
+      replaceProjectRoot(project);
+      return { status: 0, stdout: Buffer.from("\ntrue\n"), stderr: Buffer.alloc(0) };
+    });
+    syncBuiltinESMExports();
+    assert.throws(() => collectCandidateFiles(boundary, ["."], boundary.validateConfiguredSources(["."]), "full"), CortexFilesystemPolicyError);
+  } finally {
+    if (saved === undefined) delete process.env.GIT_DIR;
+    else process.env.GIT_DIR = saved;
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
     fs.rmSync(parent, { recursive: true, force: true });
   }
 });
@@ -669,6 +933,25 @@ test("NUL-delimited Git parsing preserves quoted-looking, newline, arrow, rename
     const parsed = parseGitStatusPorcelain(output, boundary);
     assert.deepEqual(parsed.changed, ['"quoted".js', "line\nbreak.js", "new -> name.js"]);
     assert.deepEqual(parsed.deleted, ["old -> name.js", "deleted.js"]);
+  } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("Git status rejects malformed records and scopes cross-boundary renames without external reads", () => {
+  const { parent, project } = makeParent("git-status-prefix");
+  try {
+    fs.writeFileSync(path.join(project, "inside.js"), "inside");
+    const boundary = createFilesystemBoundary(project);
+    for (const output of [" M inside.js", " M inside.js\0\0", "ZZ inside.js\0"]) {
+      assert.throws(() => parseGitStatusPorcelain(output, boundary));
+    }
+    assert.deepEqual(parseGitStatusPorcelain("R  nested/inside.js\0outside.js\0", boundary, "nested/"), {
+      changed: ["inside.js"], deleted: []
+    });
+    assert.deepEqual(parseGitStatusPorcelain("R  outside.js\0nested/inside.js\0", boundary, "nested/"), {
+      changed: [], deleted: ["inside.js"]
+    });
   } finally {
     fs.rmSync(parent, { recursive: true, force: true });
   }

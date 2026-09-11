@@ -1,5 +1,12 @@
 # Agent Work Orders
 
+## Selective local-code integration — 2026-09-10
+
+| ID | Scope | Packet | Status |
+|---|---|---|---|
+| WO-LOCAL-001 | Finish only root Git-ignore discovery, explicit errors and incremental cache filtering; leave old search/benchmark experiments out. | [Git-ignore port](context-packets/local-001-gitignore-port.md) | Reviewed after Unicode fixes; exact final evidence in local-002 report; merge blocked |
+| WO-LOCAL-002 | Independent review, exact packed-test count follow-up, validation and authorized PR/merge of the frozen Git-ignore candidate only. | [Acceptance handoff](context-packets/local-002-gitignore-acceptance.md) | Independent reviews/package gates complete; [draft PR #130](https://github.com/DanielBlomma/cortex/pull/130); merge blocked by full root gate |
+
 ## Reliability and Agent Value Program — 2026-09-08
 
 Plan: [reliability and agent value](2026-09-08-reliability-and-agent-value-plan.md).
@@ -113,3 +120,92 @@ historical packets, reports, and commits retain their original branch-local IDs.
 - Record the PR / work order / feature issue mapping in the
   `acceptance-matrix.md` traceability table and in the PR body before merge;
   mirror to issue-tracker items when needed.
+
+## WO-LOCAL-003 — In progress (2026-09-10)
+Owner: fresh `/root/release_manager`, Release/Distribution + Control. Infra/deploy/security-sensitive. Independent reviewers assigned before implementation: `security_contract` (Security/Privacy, Code Quality, Contract) and `ops_validation` (Ops/Release, Validation, Integration). Scope: restore necessary release gates, reconcile obsolete contracts, prepare next minor2.8.0, compatible audit remediation only. User release authority recorded in context packet. PR130 scope extension is lower-risk than stacking over its blocked Git-ignore candidate.
+
+## WO-LOCAL-003 disposition — 2026-09-10
+Reviewed readiness patch; blocked draft PR130 update authorized. Implementation31fc32e; independent Security/Contract/Code and Ops/Validation/Integration sign off for review only. Fullroot81/437/6 andMCP651 pass; narrow audits leave only unpatchedadm-zipchain3moderate. No manager merge/release acceptance. Next release continuation starts fresh from local-003-release-readiness-review.md and its reports; user localCLI update authority is recorded, contingent on verified publication.
+
+
+## WO-LOCAL-004 — In progress (2026-09-11)
+
+Resolve the newly published adm-zip 0.6.1 security patch, complete deferred release gates, independently review PR #130, and merge/publish 2.8.0 under existing user authority if all required gates pass. Root owns the later /opt/homebrew CLI update. [Context packet](context-packets/local-004-release-completion.md).
+
+
+## 2026-09-11 — WO-LOCAL-004 native result / WO-LOCAL-005 handoff
+
+Hosted preflight 34595569328 on 0b1d53c passed all preceding full/pristine/audit/
+artifact gates but failed native Harness Web SIGINT shutdown at ten seconds.
+This is an unresolved actual gate, not an emulator waiver. Clean-tag test 7699afb
+is independently approved and local; remote PR #130 remains draft at 0b1d53c / main 37a511f.
+No merge/tag/Bump/Publish/CLI update. Fresh WO-LOCAL-005 must diagnose helper versus
+pinned lifecycle, repair with independent reviewers, validate final HEAD and then
+complete authorized release/CLI steps. Exact packet:
+context-packets/local-005-hosted-release-completion.md. User authority persists.
+
+## WO-LOCAL-006 assignment — 2026-09-11
+
+Fresh manager at5428818; isolated clone, sole branch writer. Fresh independent reviewers
+`writer_fixture_release_manager/security` (Security/Contract/Code Quality) and
+`writer_fixture_release_manager/ops` (Ops/Validation/Integration) assigned before implementation.
+Scope: deterministic prepared-contender rendezvous in the existing writer test,
+no production changes or weakened assertions/deadlines. Release gates remain blocking.
+Risk: rendezvous must live outside strict state, bound wait and reap owned workers.
+Acceptance requires focused/negative tests, independent exact-source review, native
+full preflight, guarded PR130 merge, actual Bump/Publish and registry byte verification.
+Packet: context-packets/local-006-writer-fixture-release-completion.md.
+
+### WO-LOCAL-006 source acceptance
+
+Both fresh reviewers approve exact writer SHAe40ba6d5668db08fd51b41ccaf2482292a717d33f22c057a2b106579ccc7f8f4;
+no open findings. Independently8/8 writer and2/2 reader; early-exit, ENOENT,
+missing-readiness/release and assertion-failure diagnostics reject and clean
+owned children/temp trees. Manager same focused evidence; scoped Cortex rules
+and patterns succeed, combined doc-heavy review fail-safe remains documented.
+Accept source correction for draftPR130; auto-advance actual final-head native
+preflight, then guarded merge/Bump/Publish only after true green gates.
+Details and fresh-manager continuation: local-006-release-completion-report.md
+and context-packets/local-006-writer-fixture-release-completion.md.
+
+## WO-LOCAL-006 native outcome / WO-LOCAL-007 handoff
+
+Both fresh reviewers formally approve62750391fc1a8b5d306d8e44ab6168a45b4b16b6.
+Root coordinated remote54af809/main37a511f and manager fast-forwarded draftPR130
+to6275039. Synthetic merge a2e56db7ea0b7b4bb7408e86b412f29ba8aa0871 tree
+19825fad8892d083c1ce4c6ed2ef1ee58fd1a1e9 equals local merge-tree.
+Native preflight34598916068 passed focused47,context81,root437 but failed bundle5/6:
+provider timeout with settled leader, local-subprocess-integration.test.mjs220,
+immediate expectedESRCH missing after TIMEOUT correctly rejected. No native
+process-state snapshot exists; delayed zombie reaping remains a hypothesis from
+historical independent004 evidence, not a classified native result. No MCP,
+pristine/audit/artifact/Harness or final boundary gates ran in this attempt.
+No blind rerun, source change, merge/tag/Bump/Publish/global install follows.
+Manager stops at this bounded acceptance boundary, preserves all evidence, and
+root immediately starts fresh007 manager/reviewers from
+context-packets/local-007-subprocess-reaping-release-completion.md. Existing user
+authority persists through the complete release chain. This is not a pause for
+permission or user restart. Latest remote remains6275039/main37a511f.
+
+## WO-LOCAL-007 — active
+
+Owner: Release/Distribution manager. Infra/deploy/security-sensitive. Diagnose
+settled-leader subprocess death versus reaping; independently review any bounded
+repair; complete unchanged preflight, guarded PR130 merge, Bump/Publish2.8.0 and
+registry byte verification; root performs existing global CLI update. Packet:
+context-packets/local-007-subprocess-reaping-release-completion.md.
+
+## WO-LOCAL-007 source acceptance
+
+Accept bounded subprocess-test correction for coordinated draft/native preflight,
+not merge/release approval. Exact test SHA256:
+6d337c598caef11c5b9d3cdf2665379e04c91629a7ce3232d9cf35612041fac1.
+Security closes baseline-failure cleanup finding;36 adversarial helper probes and
+both real setup-failure paths reject/clean as required. Ops independently proves
+controlled reap success and held-zombie bounded failure with actual pinned runtime.
+Independent Linux/macOS settled2/2 and manager bundle6/6 pass. Manager scoped
+Cortex review7paths returns zero findings/conflicts; six rules and all per-file
+patterns succeed. Full native final-head release gates remain mandatory.
+See local-007-release-completion-report.md and the two independent review reports.
+Auto-advance under existing authority to coordinated draft PR130 update, native
+preflight, then guarded merge/Bump/Publish only after actual green gates.

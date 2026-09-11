@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -68,6 +69,10 @@ function observingSubprocess(subprocess) {
       handle = subprocess.spawn(spec)
       return handle
     },
+    get pid() {
+      assert.notEqual(handle, undefined)
+      return handle.pid
+    },
     async directDone() {
       assert.notEqual(handle, undefined)
       return handle.done
@@ -75,17 +80,92 @@ function observingSubprocess(subprocess) {
   }
 }
 
-async function readLivePid(pidFile) {
-  const pid = Number(await fs.readFile(pidFile, 'utf8'))
-  assert.equal(Number.isSafeInteger(pid), true)
-  process.kill(pid, 0)
-  return pid
+function readLinuxProcess(pid) {
+  const stat = readFileSync(`/proc/${pid}/stat`, 'utf8')
+  const open = stat.indexOf('(')
+  const close = stat.lastIndexOf(')')
+  assert.ok(open > 0 && close > open, `malformed process stat: ${stat}`)
+  const fields = stat.slice(close + 1).trim().split(/\s+/u)
+  const identity = {
+    pid: Number(stat.slice(0, open).trim()),
+    pgrp: Number(fields[2]),
+    session: Number(fields[3]),
+    starttime: fields[19],
+  }
+  assert.equal(identity.pid, pid)
+  assert.ok([identity.pid, identity.pgrp, identity.session].every(
+    (value) => Number.isSafeInteger(value) && value > 0,
+  ), `invalid process identity: ${stat}`)
+  assert.match(identity.starttime ?? '', /^\d+$/u)
+  assert.equal(fields[0]?.length, 1)
+  return { ...identity, state: fields[0] }
 }
 
-function killIfAlive(pid) {
-  if (!Number.isSafeInteger(pid)) return
+function assertSameProcess(actual, expected) {
+  for (const field of ['pid', 'pgrp', 'session', 'starttime']) {
+    assert.equal(actual[field], expected[field], `changed process identity: ${JSON.stringify(actual)}`)
+  }
+}
+
+function processIsAbsent(pid) {
   try {
-    process.kill(pid, 'SIGKILL')
+    process.kill(pid, 0)
+    return false
+  } catch (error) {
+    if (error?.code === 'ESRCH') return true
+    throw error
+  }
+}
+
+function readPresentProcess(descendant) {
+  try {
+    const current = readLinuxProcess(descendant.pid)
+    assertSameProcess(current, descendant)
+    return current
+  } catch (error) {
+    // /proc may disappear between the existence probe and the identity read.
+    if (error?.code === 'ENOENT' && processIsAbsent(descendant.pid)) return undefined
+    throw error
+  }
+}
+
+async function readLiveProcess(pidFile, leaderPid) {
+  const pid = Number(await fs.readFile(pidFile, 'utf8'))
+  assert.ok(Number.isSafeInteger(pid) && pid > 0)
+  process.kill(pid, 0)
+  if (process.platform !== 'linux') return { pid }
+  const descendant = readLinuxProcess(pid)
+  assert.equal(descendant.pgrp, leaderPid)
+  assert.equal(descendant.session, leaderPid)
+  assert.match(descendant.state, /^[RSDTtIWKP]$/u)
+  return descendant
+}
+
+async function assertProcessExited(descendant) {
+  if (process.platform !== 'linux') {
+    assert.throws(() => process.kill(descendant.pid, 0), /ESRCH/)
+    return
+  }
+  const reapDeadline = performance.now() + 1_000
+  while (!processIsAbsent(descendant.pid)) {
+    const current = readPresentProcess(descendant)
+    if (current === undefined) return
+    // The runtime proves no executing members; Linux may reap their records later.
+    assert.match(current.state, /^[ZXx]$/u, `executing or unknown descendant: ${JSON.stringify(current)}`)
+    assert.ok(performance.now() < reapDeadline, `dead descendant was not reaped: ${JSON.stringify(current)}`)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+}
+
+function killIfAlive(descendant) {
+  if (descendant === undefined || processIsAbsent(descendant.pid)) return
+  if (process.platform === 'linux') {
+    const current = readPresentProcess(descendant)
+    if (current === undefined || /^[ZXx]$/u.test(current.state)) return
+    assert.match(current.state, /^[RSDTtIWKP]$/u)
+  }
+  try {
+    process.kill(descendant.pid, 'SIGKILL')
   } catch (error) {
     if (error?.code !== 'ESRCH') throw error
   }
@@ -181,41 +261,56 @@ test('caller cancellation kills the real Harness descendant process tree', async
 test('caller cancellation kills a TERM-trapping descendant after the leader exits zero', async (t) => {
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'cortex-dsh-settled-cancel-'))
   const { entry, pidFile, readyFile } = await writeSettledLeaderFixture(temporary)
-  let descendantPid
+  let descendant
+  let pending
+  const cancellation = new AbortController()
   t.after(async () => {
-    killIfAlive(descendantPid)
-    await fs.rm(temporary, { recursive: true, force: true })
+    cancellation.abort(new Error('fixture cleanup'))
+    try {
+      await pending?.catch(() => {})
+      killIfAlive(descendant)
+    } finally {
+      await fs.rm(temporary, { recursive: true, force: true })
+    }
   })
   const observed = observingSubprocess(await localRuntime())
   const runner = new CortexCliRunner(observed, {}, entry)
-  const cancellation = new AbortController()
-  const pending = runner.rules(agent(temporary), {}, cancellation.signal)
+  pending = runner.rules(agent(temporary), {}, cancellation.signal)
+  pending.catch(() => {})
 
   await waitForFile(readyFile)
   assert.deepEqual(await observed.directDone(), { exitCode: 0, signal: null })
-  descendantPid = await readLivePid(pidFile)
+  descendant = await readLiveProcess(pidFile, observed.pid)
   cancellation.abort(new Error('caller canceled after leader exit'))
 
   await assert.rejects(pending, (error) => error.code === 'CANCELED')
-  assert.throws(() => process.kill(descendantPid, 0), /ESRCH/)
+  await assertProcessExited(descendant)
 })
 
 test('provider timeout kills a TERM-trapping descendant after the leader exits zero', async (t) => {
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'cortex-dsh-settled-timeout-'))
   const { entry, pidFile, readyFile } = await writeSettledLeaderFixture(temporary)
-  let descendantPid
+  let descendant
+  let pending
+  const cancellation = new AbortController()
   t.after(async () => {
-    killIfAlive(descendantPid)
-    await fs.rm(temporary, { recursive: true, force: true })
+    cancellation.abort(new Error('fixture cleanup'))
+    try {
+      await pending?.catch(() => {})
+      killIfAlive(descendant)
+    } finally {
+      await fs.rm(temporary, { recursive: true, force: true })
+    }
   })
   const observed = observingSubprocess(await localRuntime())
   const runner = new CortexCliRunner(observed, { timeoutMs: 2_000 }, entry)
-  const pending = runner.rules(agent(temporary), {}, new AbortController().signal)
+  pending = runner.rules(agent(temporary), {}, cancellation.signal)
+  pending.catch(() => {})
 
   await waitForFile(readyFile)
   assert.deepEqual(await observed.directDone(), { exitCode: 0, signal: null })
-  descendantPid = await readLivePid(pidFile)
+  descendant = await readLiveProcess(pidFile, observed.pid)
 
   await assert.rejects(pending, (error) => error.code === 'TIMEOUT')
-  assert.throws(() => process.kill(descendantPid, 0), /ESRCH/)
+  await assertProcessExited(descendant)
 })

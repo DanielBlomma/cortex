@@ -1,5 +1,115 @@
 # Manager Log
 
+## 2026-09-10 — WO-LOCAL-002 draft PR published; no merge
+
+- Committed the reviewed 12-file change as `37718f4287f80845663adcd3eea5d2db52188f46`
+  and pushed only `fix/root-gitignore-discovery`. Repository hooks were disabled
+  for explicit Git mutations to avoid out-of-scope background indexing.
+- Opened [draft PR #130](https://github.com/DanielBlomma/cortex/pull/130),
+  `class:infra-sensitive`, against unchanged main `37a511f`. PR body and
+  acceptance matrix map WO-LOCAL-001/002 and disclose all ten baseline failures.
+- GitHub reports OPEN/draft, `MERGEABLE/CLEAN`, empty status checks and no Actions
+  runs. Local `git merge-tree --write-tree origin/main HEAD` returned source
+  tree `8db55037b2057368e5686564aaf631143118dae8` without conflicts. Conflict
+  ledger checked. Empty CI is not a passed gate; merge remains blocked.
+- No merge, release, version bump, tag, provider/embedding call or original-tree
+  mutation. The remaining baseline remediation requires separately scoped
+  WO-RV-003/004 authority and a fresh session; no automatic expansion or waiver.
+- Fresh continuation: start with [final report](local-002-gitignore-review.md),
+  PR #130's current head/checks and these control entries, not the superseded
+  frozen packet hashes. The source hashes and all review findings are durable.
+
+
+## 2026-09-10 — WO-LOCAL-002 reviewed; merge blocked
+
+- Final Code/Contract/Security review GO; both major Unicode findings closed,
+  including an intermediate NFC cache-alias leak. Final runtime `9ad1a674`,
+  boundary tests `c31dff36`; full hashes and evidence in the
+  [acceptance report](local-002-gitignore-review.md).
+- Independent validation: focused 103/103; context 81/81; root Node 427/437,
+  the same ten baseline release-contract failures; applicable Harness 6/6.
+  Final packed gate passes 48 boundary/3 characterization/4+4 dashboard cases,
+  465 entries, unchanged mode/ownership/upgrade assertions; ownership 17/17.
+- Fresh scoped Cortex pattern evidence succeeds for all 12 changed/new files;
+  final diff review covers 4/4 code files with zero conflicts. Its one heuristic
+  about shared configuration helpers is inapplicable to Git environment
+  sanitization; Security independently agrees. Initial tool errors are retained
+  in the report as superseded diagnostics, not claimed successes.
+- Manager decision: candidate is independently reviewed and ready for an
+  explicitly blocked PR. Full acceptance/merge remains blocked by ten root
+  failures. No gate waiver, dependency remediation, release or unrelated work.
+- Original checkout Git status matches the start of this session; all 770
+  nonignored file hashes are preserved at final verification. No operation
+  staged, reset, merged, or wrote source/config there.
+
+
+## 2026-09-10 — WO-LOCAL-002 Unicode findings fixed for re-review
+
+- Independent Code/Contract/Security review found two major fix-now defects in
+  Git path matching: `TextDecoder` stripped a leading U+FEFF filename character,
+  and macOS Git Unicode precomposition differed from directory-entry spelling.
+  Both could include ignored source in root discovery.
+- Manager iteration preserves BOM bytes and resolves ignored paths to native
+  physical spelling through filesystem-boundary checks. Git's Unicode setting
+  remains unchanged so tracked decomposed names retain Git's tracked status.
+  Missing paths/final symlinks are not resolved; resolution errors are scrubbed.
+- Expanded the existing unusual-identity group with BOM file/project-prefix,
+  decomposed ignored file/directory, tracked-file retention and explicit-source
+  regressions. Count remains 48. Applied reviewer-provided exact gate count
+  correction 42 to 48; no inventory/ownership/integrity assertion changed.
+- Security independently reproduced both fixes. Intermediate frozen source begins
+  `16603ccf`, boundary test `10bc61db`, packed test `a3f10fca`; all independent
+  validation and packed gates are rerunning before sign-off. Original results
+  remain dated evidence, not acceptance of the iterated bytes.
+
+
+## 2026-09-10 — WO-LOCAL-002 fresh-session acceptance started
+
+- Read the frozen packet and direct workflow/review/source references in a new
+  session. Base `37a511fa76ce04804f6cf4497202966dd78ff1f0` and all three frozen
+  SHA-256 values match. Original checkout remains outside the write scope.
+- Assigned independent `/root/gitignore_security_review` (Code/Contract/Security),
+  `/root/gitignore_package_review` (Ops/Integration and packed-gate count), and
+  `/root/gitignore_validation` (Validation) before iteration. Reviewers use
+  separate checkouts; only manager integrates reviewed results into candidate.
+- Installed CLI 2.4.1 initially fails search/rules/impact with missing local
+  query runtime; watch refuses obsolete/missing scaffold. Preparing an ignored,
+  narrowly scoped candidate lexical/graph context from the already built locked
+  runtime. Ordinary `cortex update` calls embedding unconditionally, so execute
+  ingest and graph-load separately; no provider or embedding run is authorized.
+- No merge gate waiver. Existing full-suite failures must remain explicit.
+
+
+## 2026-09-10 — WO-LOCAL-001 frozen; fresh acceptance handoff
+
+- Owner returned three frozen source/test files and 96/96 focused passing tests.
+  Independent final code review, candidate-wide tests and packed acceptance are
+  incomplete; no commit, PR or merge. Main's ten release-test failures remain
+  a baseline observation, not a waiver.
+- Manager session compacted. Per Context Window Rules, stop at this safe point;
+  [WO-LOCAL-002](context-packets/local-002-gitignore-acceptance.md) carries exact
+  hashes, locations, evidence, authority and the bounded remaining review work.
+- Concrete follow-up: packed containment still expects 42 boundary cases after
+  six new groups; establish and update the exact count before its acceptance run.
+- Original checkout preservation independently rechecked: 770 hashes, no changes.
+
+## 2026-09-10 — WO-LOCAL-001 selective Git-ignore implementation
+
+- User approved finishing only Git-ignore discovery after the local-code merge
+  assessment. Base main `37a511f`; branch `fix/root-gitignore-discovery`.
+- Owner `/root/local_runtime_assess`; independent combined Code/Contract/Security,
+  Validation and Integration/Ops reviewer `/root`, assigned in the
+  [packet](context-packets/local-001-gitignore-port.md) before implementation.
+- Scope: source discovery, retained-cache filtering and focused existing test
+  lanes. Preserve current containment and package metadata; no search/benchmark
+  experiment, dependency update, default promotion or runtime release.
+- Untouched-main baseline: focused 97/97; context regressions 81/81; root Node
+  421/431 with 10 existing release-contract failures; Harness 6/6 separately
+  because root's failing stage prevents its chained invocation.
+- Runtime install audit reports 5 high/5 moderate on 2026-09-10; manifests/locks
+  unchanged. These and release-test drift remain WO-RV-003/004 work, not new
+  regressions or a green release claim. Candidate validation/review pending.
+
 ## 2026-09-08 — WO-RV-001 documentation PR integration
 
 - PR [#129](https://github.com/DanielBlomma/cortex/pull/129) opened against main;
@@ -1815,3 +1925,138 @@ day's entries to `archive/manager-log-YYYY-MM-DD.md` and refresh Current State.
 - `archive/manager-log-2026-07-29.md` — foundation through WO-030 acceptance.
 - `archive/manager-log-2026-07-30.md` — WO-031 acceptance and v2.4.2 release
   recovery.
+
+## WO-LOCAL-003 start — 2026-09-10
+Fresh manager packet local-003-release-readiness; source3c5d4da on main37a511f. Original and reviewed candidate preserved; manager owns isolated clone. Both reviewers assigned before edits. Cortex scoped ingest+graph succeeds on13 direct files; search identifies validateBumpWorkflow/validatePublishWorkflow and release-artifacts; six rules active, related/impact remain confined to release tests/helpers. No embeddings or background hooks. History477f17e removed real release gates;27af175 superseded root-only publication with dual exact publication. Restore gates, retain dual OIDC publication, update stale assertions, advance workflow2.7→2.8. Fresh audits reveal unresolved dependency blockers; no waiver or acceptance.
+
+## WO-LOCAL-003 final review disposition — 2026-09-10
+Both reviewers close source findings on31fc32e. Fullroot81/81+437/437+6/6, independentMCP651/651, focused41pass1Linuxskip, frontendbuild and packed465/48 pass. Fiveauditszero; MCP3moderateadm-zipchain blocks acceptance. Security report earlier full-validation-pending statement is superseded for root/MCP/build/packed by final manager report; pristine releasefixture/fullHarness andLinux acceptance remain unclaimed. Preserve draftPR, no automatic advance/merge/tag/dispatch/globalinstall. Root to verify original remotehead3c5d4da before exclusive manager fast-forward. Complete evidence and exact unblock condition: local-003-release-readiness-review.md.
+
+
+## WO-LOCAL-004 start — 2026-09-11
+
+Fresh isolated manager clone starts at 51a276723999cd48ca082fba7f66ae29148b653a; main remains 37a511fa76ce04804f6cf4497202966dd78ff1f0. Reviewers assigned before implementation: /root/release_completion_manager/security_contract (Security/Privacy, Contract, Code Quality) and /root/release_completion_manager/ops_validation (Ops/Release, Validation, Integration), each in separate clones. Manager is sole branch writer. No gate waiver or new permission requirement; user authorized completion through publication and global CLI. Actual Linux validation will run in an isolated non-root ARM64 container before merge; GitHub release x64 execution remains authoritative for publication. No provider, embeddings, broad repository indexing, background hooks, or original-checkout mutations.
+
+
+## 2026-09-11 — Hosted preflight checkpoint
+
+WO-LOCAL-004 coordinated draft push: both reviewers approve 0b1d53c after preflight iteration closure. Remote PR #130 advanced from 51a2767; hosted run 34595569328 is in progress. Current merge tree a83316c8930f4f7044cc11aff70fbf545b7f9243 matches GitHub synthetic merge f6b2db9. All final local evidence and explicit environment failures are in local-004-release-completion-report.md. No merge or publication acceptance until actual hosted gates pass.
+
+
+## 2026-09-11 — WO-LOCAL-004 native result / WO-LOCAL-005 handoff
+
+Hosted preflight 34595569328 on 0b1d53c passed all preceding full/pristine/audit/
+artifact gates but failed native Harness Web SIGINT shutdown at ten seconds.
+This is an unresolved actual gate, not an emulator waiver. Clean-tag test 7699afb
+is independently approved and local; remote PR #130 remains draft at 0b1d53c / main 37a511f.
+No merge/tag/Bump/Publish/CLI update. Fresh WO-LOCAL-005 must diagnose helper versus
+pinned lifecycle, repair with independent reviewers, validate final HEAD and then
+complete authorized release/CLI steps. Exact packet:
+context-packets/local-005-hosted-release-completion.md. User authority persists.
+
+
+## WO-LOCAL-005 start — 2026-09-11
+
+Fresh manager clone `/private/tmp/cortex-local-005-manager` begins at f4dea6c.
+Security/Contract/Code Quality reviewer `security_contract` and
+Ops/Release/Validation/Integration reviewer `ops_validation` are assigned before
+implementation, each in separate isolated clones. Manager alone writes branch.
+Scope is diagnosed native Web lifecycle repair, exact-head hosted acceptance,
+authorized merge and Bump/Publish 2.8.0, then root-owned global CLI update.
+No deadline, gate, isolation or publication guard waiver. Original tree preserved.
+Packet: `context-packets/local-005-hosted-release-completion.md`.
+
+
+## WO-LOCAL-005 source acceptance — 2026-09-11
+
+Both independent reviewers approve cd7668b after closing the wrapper-status
+finding; final helper preserves actual pnpm/DSH shutdown semantics and all
+existing deadlines/gates. Manager and Security focused47 (46pass/1platformskip);
+Ops Linux x64 identity/lifecycle7/7 and actual pinned candidate Web shutdown pass.
+No open source finding. Root/pristine totals remain81/437/6/651 unchanged.
+PR130 remains draft pending exact-head native preflight; no merge/tag/release yet.
+Full evidence/reviews: local-005-release-completion-report.md and linked reports.
+
+
+## WO-LOCAL-005 final native outcome / WO-LOCAL-006 handoff
+
+Preflight34597272860 on54af809 passed focused47, full81/437/6 andMCP651;
+pristine root passed then pristineMCP650/651 failed writer race assertion at
+analysis-state-trusted-writer.test.mjs513/520. Expected stale writer, actual
+maintained analysis state changed during read. Two independent controlled
+diagnostics prove legitimate fail-closed optimistic-reader interleaving and
+exact unchanged winner state. No production edit, regex relaxation or retry.
+Fresh WO-LOCAL-006 receives synchronized prepared-contender test design and
+complete evidence before implementation; root auto-starts it. PR130 remains
+draft54af809, main37a511f; no merge/tag/release/CLI update. Packet:
+context-packets/local-006-writer-fixture-release-completion.md.
+
+## WO-LOCAL-006 assignment — 2026-09-11
+
+Fresh manager at5428818; isolated clone, sole branch writer. Fresh independent reviewers
+`writer_fixture_release_manager/security` (Security/Contract/Code Quality) and
+`writer_fixture_release_manager/ops` (Ops/Validation/Integration) assigned before implementation.
+Scope: deterministic prepared-contender rendezvous in the existing writer test,
+no production changes or weakened assertions/deadlines. Release gates remain blocking.
+Risk: rendezvous must live outside strict state, bound wait and reap owned workers.
+Acceptance requires focused/negative tests, independent exact-source review, native
+full preflight, guarded PR130 merge, actual Bump/Publish and registry byte verification.
+Packet: context-packets/local-006-writer-fixture-release-completion.md.
+
+### WO-LOCAL-006 source acceptance
+
+Both fresh reviewers approve exact writer SHAe40ba6d5668db08fd51b41ccaf2482292a717d33f22c057a2b106579ccc7f8f4;
+no open findings. Independently8/8 writer and2/2 reader; early-exit, ENOENT,
+missing-readiness/release and assertion-failure diagnostics reject and clean
+owned children/temp trees. Manager same focused evidence; scoped Cortex rules
+and patterns succeed, combined doc-heavy review fail-safe remains documented.
+Accept source correction for draftPR130; auto-advance actual final-head native
+preflight, then guarded merge/Bump/Publish only after true green gates.
+Details and fresh-manager continuation: local-006-release-completion-report.md
+and context-packets/local-006-writer-fixture-release-completion.md.
+
+## WO-LOCAL-006 native outcome / WO-LOCAL-007 handoff
+
+Both fresh reviewers formally approve62750391fc1a8b5d306d8e44ab6168a45b4b16b6.
+Root coordinated remote54af809/main37a511f and manager fast-forwarded draftPR130
+to6275039. Synthetic merge a2e56db7ea0b7b4bb7408e86b412f29ba8aa0871 tree
+19825fad8892d083c1ce4c6ed2ef1ee58fd1a1e9 equals local merge-tree.
+Native preflight34598916068 passed focused47,context81,root437 but failed bundle5/6:
+provider timeout with settled leader, local-subprocess-integration.test.mjs220,
+immediate expectedESRCH missing after TIMEOUT correctly rejected. No native
+process-state snapshot exists; delayed zombie reaping remains a hypothesis from
+historical independent004 evidence, not a classified native result. No MCP,
+pristine/audit/artifact/Harness or final boundary gates ran in this attempt.
+No blind rerun, source change, merge/tag/Bump/Publish/global install follows.
+Manager stops at this bounded acceptance boundary, preserves all evidence, and
+root immediately starts fresh007 manager/reviewers from
+context-packets/local-007-subprocess-reaping-release-completion.md. Existing user
+authority persists through the complete release chain. This is not a pause for
+permission or user restart. Latest remote remains6275039/main37a511f.
+
+## WO-LOCAL-007 assignment and diagnostic contract
+
+Fresh isolated manager at c7ce1a9; new independent Security/Contract/Code Quality
+and Ops/Validation/Integration reviewers assigned before implementation, each
+in an isolated clone. Apply the local-007 packet and Cortex skills. The historical
+native timeout failure lacks process state and remains unclassified. Root
+clarifies that deterministic Linux evidence may prove the general reaping race;
+retrospective classification is not required. Ops will hold orphan reaping with
+a subreaper, run the actual pinned runtime and original assertion, bind live/dead
+PID identity, then reap and require ESRCH. No runtime/test correction before
+that evidence. Final unchanged native release gates remain mandatory.
+
+## WO-LOCAL-007 source acceptance
+
+Accept bounded subprocess-test correction for coordinated draft/native preflight,
+not merge/release approval. Exact test SHA256:
+6d337c598caef11c5b9d3cdf2665379e04c91629a7ce3232d9cf35612041fac1.
+Security closes baseline-failure cleanup finding;36 adversarial helper probes and
+both real setup-failure paths reject/clean as required. Ops independently proves
+controlled reap success and held-zombie bounded failure with actual pinned runtime.
+Independent Linux/macOS settled2/2 and manager bundle6/6 pass. Manager scoped
+Cortex review7paths returns zero findings/conflicts; six rules and all per-file
+patterns succeed. Full native final-head release gates remain mandatory.
+See local-007-release-completion-report.md and the two independent review reports.
+Auto-advance under existing authority to coordinated draft PR130 update, native
+preflight, then guarded merge/Bump/Publish only after actual green gates.

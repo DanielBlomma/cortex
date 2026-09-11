@@ -25,7 +25,7 @@ function assertBefore(source, earlier, later, message) {
 const supportedNpmVersion = "11.19.1";
 const npmSetupStepName = "Install and verify supported npm CLI";
 const rootPublishStepName = "Publish exact reviewed root artifact";
-const rootRegistryStepName = "Inspect exact root registry state for safe immutable resume";
+const rootRegistryStepName = "Inspect exact registry state for safe immutable resume";
 const bundlePackageName = "@danielblomma/dsh-cortex";
 
 function stepBlock(source, name) {
@@ -36,12 +36,11 @@ function stepBlock(source, name) {
   return source.slice(start, next < 0 ? source.length : next);
 }
 
-function swapStepNames(source, first, second) {
+function swapSteps(source, first, second) {
+  const firstBlock = stepBlock(source, first);
+  const secondBlock = stepBlock(source, second);
   const placeholder = "__CORTEX_RELEASE_STEP_SWAP__";
-  return source
-    .replace(`- name: ${first}`, `- name: ${placeholder}`)
-    .replace(`- name: ${second}`, `- name: ${first}`)
-    .replace(`- name: ${placeholder}`, `- name: ${second}`);
+  return source.replace(firstBlock, placeholder).replace(secondBlock, firstBlock).replace(placeholder, secondBlock);
 }
 
 function replaceInStep(source, name, from, to) {
@@ -78,26 +77,62 @@ function validateNoNpmCredentials(workflow) {
   );
 }
 
-function validateNoBundleRegistryActions(workflow) {
-  const bundleIdentity = /@danielblomma\/dsh-cortex|\bBUNDLE_(?:PACKAGE|TARBALL|INTEGRITY|STATE)\b|bundle[_-]tarball/i;
-  for (const block of workflow.split(/(?=^      - name: )/m)) {
-    if (!bundleIdentity.test(block)) continue;
-    assert.doesNotMatch(
-      block,
-      /\bnpm(?:\s|$)/i,
-      "release workflows must not run npm registry or package operations for the bundle",
-    );
-    assert.doesNotMatch(
-      block,
-      /release-artifacts\.mjs\s+(?:registry-state|install-registry|harness-registry)\b/i,
-      "release workflows must not run bundle registry helpers",
-    );
+function validatePublicationCommands(workflow) {
+  // Publication is allowed only for the two artifacts already validated locally.
+  const commands = workflow.split("\n").filter((line) => /\bnpm (?:publish|view)\b/.test(line));
+  assert.deepEqual(commands.map((line) => line.trim()), [
+    'run: npm publish "${{ steps.artifacts.outputs.root_tarball }}" --access public --provenance',
+    'run: npm publish "${{ steps.artifacts.outputs.bundle_tarball }}" --access public --provenance',
+  ]);
+}
+
+const requiredGateCommands = [
+  ["Build trusted context runtime", "npm --prefix scaffold/mcp run build"],
+  ["Run focused release contract tests", "npm run release:test"],
+  ["Prepare isolated repository test context", "npm run release:prepare-root-test-context"],
+  ["Run full root and bundle tests", "run: npm test"],
+  ["Prepare isolated MCP test context", "npm run release:prepare-mcp-test-context"],
+  ["Run context runtime and MCP compatibility tests", "npm --prefix scaffold/mcp run test:ci"],
+  ["Audit all six committed dependency trees", "npm run audit:dependencies"],
+  ["Audit all six committed dependency trees", "npm audit --package-lock-only --audit-level=low --prefix plugins/dsh-cortex"],
+  ["Validate packed filesystem containment", "npm run release:packed-containment"],
+  ["Build frontend", "npm --prefix frontend run build"],
+  ["Verify pinned DeepSeek Harness contract", 'node scripts/check-deepseek-harness-compatibility.mjs --checkout "${HARNESS_CHECKOUT}"'],
+  ["Run packed Harness headless and Web lifecycle", "node scripts/release-artifacts.mjs harness"],
+];
+
+function validateRequiredGateCommands(workflow) {
+  for (const [name, command] of requiredGateCommands) {
+    const gate = stepBlock(workflow, name);
+    assert.ok(gate.includes(command), `missing executable gate command: ${command}`);
+    assert.doesNotMatch(gate, /continue-on-error:|\|\|\s*true|set \+e|if:/, `gate ${name} must fail closed`);
   }
-  assert.doesNotMatch(
-    workflow,
-    /release-artifacts\.mjs\s+(?:install-registry|harness-registry)\b/i,
-    "release workflows must not restore bundle registry installation or Harness paths",
-  );
+}
+
+function validateArtifactGates(workflow, publish) {
+  const packName = publish ? "Recreate and verify the reviewed local artifacts" : "Create and verify duplicate local root and bundle artifacts";
+  const installName = publish ? "Install both reviewed local artifacts with an empty cache" : "Install both local artifacts with an empty cache";
+  const pack = stepBlock(workflow, packName);
+  assert.match(pack, /node scripts\/release-artifacts\.mjs pack/);
+  assert.match(pack, /--expected-version "\$\{RELEASE_VERSION\}"/);
+  assert.match(pack, /--report "\$\{ARTIFACT_DIR\}\/report\.json"/);
+  for (const [name, command] of [[installName, "install"], ["Run packed Harness headless and Web lifecycle", "harness"]]) {
+    const gate = stepBlock(workflow, name);
+    assert.ok(gate.includes(`node scripts/release-artifacts.mjs ${command}`));
+    for (const artifact of ["root", "bundle"]) {
+      assert.ok(gate.includes(`${artifact.toUpperCase()}_TARBALL: \${{ steps.artifacts.outputs.${artifact}_tarball }}`));
+      assert.ok(gate.includes(`--${artifact}-tarball "\${${artifact.toUpperCase()}_TARBALL}"`));
+    }
+    assert.match(gate, /--expected-version "\$\{RELEASE_VERSION\}"/);
+    assert.doesNotMatch(gate, /continue-on-error:|\|\|\s*true|set \+e|if:/);
+    assertBefore(workflow, `- name: ${packName}`, `- name: ${name}`);
+  }
+  assert.doesNotMatch(pack, /continue-on-error:|\|\|\s*true|set \+e|if:/);
+  if (publish) {
+    for (const artifact of ["root", "bundle"]) {
+      assert.ok(pack.includes(`test "\${${artifact.toUpperCase()}_INTEGRITY}" = "\${{ steps.seed.outputs.${artifact}_integrity }}"`));
+    }
+  }
 }
 
 function validateFreshCheckoutGate(workflow, expectedVersionMapping) {
@@ -134,8 +169,11 @@ function validatePublishAuthentication(workflow) {
   assert.match(rootPublish, /if: steps\.registry\.outputs\.root_state == 'missing'/);
   assert.match(rootPublish, /--access public --provenance/);
   assert.doesNotMatch(rootPublish, /env:|secrets\./);
-  assert.equal((workflow.match(/\bnpm publish\b/g) ?? []).length, 1);
-  assert.doesNotMatch(workflow, /npm publish[^\n]*bundle_tarball/i);
+  const bundlePublish = stepBlock(workflow, "Publish exact reviewed DeepSeek Harness bundle");
+  assert.match(bundlePublish, /if: steps\.registry\.outputs\.bundle_state == 'missing'/);
+  assert.match(bundlePublish, /--access public --provenance/);
+  assert.doesNotMatch(bundlePublish, /env:|secrets\./);
+  validatePublicationCommands(workflow);
   validateNoNpmCredentials(workflow);
 }
 
@@ -151,11 +189,12 @@ const synchronizedFiles = [
 ];
 
 function validateBumpWorkflow(workflow) {
-  validateNoBundleRegistryActions(workflow);
+  validateRequiredGateCommands(workflow);
+  validateArtifactGates(workflow, false);
   validateFreshCheckoutGate(workflow, "${{ env.RELEASE_VERSION }}");
   assertBefore(workflow, "- name: Reject non-main dispatch", "- name: Checkout current main");
-  assert.match(workflow, /BASE_VERSION: "2\.5\.2"/);
-  assert.match(workflow, /RELEASE_VERSION: "2\.6\.0"/);
+  assert.match(workflow, /BASE_VERSION: "2\.7\.0"/);
+  assert.match(workflow, /RELEASE_VERSION: "2\.8\.0"/);
   assert.match(workflow, /test "\$\{RELEASE_TYPE\}" = "minor"/);
   assert.match(workflow, /test "\$\(git rev-parse HEAD\)" = "\$\(git rev-parse origin\/main\)"/);
   assert.match(workflow, /sync-release-version\.mjs --root-tarball/);
@@ -174,6 +213,8 @@ function validateBumpWorkflow(workflow) {
     "Prepare isolated MCP test context",
     "Run context runtime and MCP compatibility tests",
     "Audit all six committed dependency trees",
+    "Validate packed filesystem containment",
+    "Build frontend",
     "Verify pinned DeepSeek Harness contract",
     "Create and verify duplicate local root and bundle artifacts",
     "Install both local artifacts with an empty cache",
@@ -190,14 +231,56 @@ function validateBumpWorkflow(workflow) {
   assertBefore(workflow, "- name: Prepare isolated MCP test context", "- name: Run context runtime and MCP compatibility tests");
   assert.match(workflow, /release:prepare-mcp-test-context/);
   assert.match(workflow, /git push --atomic origin "HEAD:main" "refs\/tags\/\$\{RELEASE_TAG\}"/);
-  validateSupportedNpmSetup(workflow, "Create exact 2.6.0 metadata and root artifact lock");
+  validateSupportedNpmSetup(workflow, "Create exact release metadata and root artifact lock");
   validateNoNpmCredentials(workflow);
   assert.doesNotMatch(workflow, /\bnpm publish\b/i, "release bump must not publish any artifact");
   assert.doesNotMatch(workflow, /release-artifacts\.mjs registry-state/);
 }
 
+function validatePreflightWorkflow(workflow) {
+  validateRequiredGateCommands(workflow);
+  validateArtifactGates(workflow, false);
+  validateFreshCheckoutGate(workflow, "${{ env.RELEASE_VERSION }}");
+  validateNoNpmCredentials(workflow);
+  assert.equal(workflow.slice(workflow.indexOf("on:\n"), workflow.indexOf("permissions:\n")).trim(), "on:\n  pull_request:\n    branches:\n      - main");
+  assert.match(workflow, /permissions:\n  contents: read\n/);
+  assert.equal(workflow.match(/permissions:/g)?.length, 1);
+  assert.deepEqual([...workflow.matchAll(/^  ([a-z][\w-]*):$/gm)].map((match) => match[1]), ["pull_request", "validate"]);
+  assert.match(workflow, /runs-on: ubuntu-latest/);
+  assert.match(workflow, /timeout-minutes: 45/);
+  assert.doesNotMatch(workflow, /^    (?:if|continue-on-error):/m);
+  assert.doesNotMatch(workflow, /secrets\.|github\.token|id-token:|\bwrite\b|\bgit\s+(?:add|commit|push|tag)\b|\bnpm\s+publish\b|\bgh\s+workflow\b/);
+  const checkout = stepBlock(workflow, "Checkout PR merge candidate");
+  assert.match(checkout, /uses: actions\/checkout@v6/);
+  assert.match(checkout, /fetch-depth: 0/);
+  assert.match(checkout, /persist-credentials: false/);
+  assert.doesNotMatch(checkout, /\bref:|\btoken:|\brun:/);
+
+  const bump = readText(".github/workflows/release-bump.yml");
+  const firstGate = bump.indexOf("      - name: Setup Node");
+  const lastGate = bump.indexOf("      - name: Stage only the complete release metadata set");
+  const gateNames = [...bump.slice(firstGate, lastGate).matchAll(/^      - name: (.+)$/gm)]
+    .map((match) => match[1]).filter((name) => name !== "Configure git author");
+  const targetName = "Determine next minor preflight version";
+  const expectedSteps = gateNames.flatMap((name) => name === "Setup .NET" ? [name, targetName] : [name]);
+  assert.deepEqual([...workflow.matchAll(/^      - name: (.+)$/gm)].map((match) => match[1]), ["Checkout PR merge candidate", ...expectedSteps]);
+  const target = stepBlock(workflow, targetName);
+  assert.match(target, /require\("\.\/package\.json"\)\.version\.split\("\."\)\.map\(Number\)/);
+  assert.ok(target.includes("`${major}.${minor + 1}.0`"));
+  assert.ok(target.includes('echo "RELEASE_VERSION=${RELEASE_VERSION}" >> "${GITHUB_ENV}"'));
+  assert.doesNotMatch(target, /if:|continue-on-error:|\|\|\s*true/);
+  for (const name of gateNames) {
+    assert.equal(stepBlock(workflow, name).trim(), stepBlock(bump, name).trim(), `preflight gate ${name} must match Release Bump`);
+  }
+  for (const variable of ["HARNESS_COMMIT"]) {
+    const pattern = new RegExp(`^      ${variable}: .+$`, "m");
+    assert.equal(workflow.match(pattern)?.[0], bump.match(pattern)?.[0]);
+  }
+}
+
 function validatePublishWorkflow(workflow) {
-  validateNoBundleRegistryActions(workflow);
+  validateRequiredGateCommands(workflow);
+  validateArtifactGates(workflow, true);
   validateFreshCheckoutGate(workflow, "${{ steps.version.outputs.value }}");
   assertBefore(workflow, "- name: Reject branch dispatches and non-strict tags", "- name: Checkout immutable tag");
   assert.match(workflow, /test "\$\{GITHUB_REF_TYPE\}" = "tag"/);
@@ -214,6 +297,8 @@ function validatePublishWorkflow(workflow) {
     "Prepare isolated MCP test context",
     "Run context runtime and MCP compatibility tests",
     "Audit all six committed dependency trees",
+    "Validate packed filesystem containment",
+    "Build frontend",
     "Verify pinned DeepSeek Harness contract",
     "Recreate and verify the reviewed local artifacts",
     "Install both reviewed local artifacts with an empty cache",
@@ -230,7 +315,15 @@ function validatePublishWorkflow(workflow) {
   const registry = stepBlock(workflow, rootRegistryStepName);
   assert.match(registry, /--package-name @danielblomma\/cortex-mcp[\s\S]*?--integrity "\$\{ROOT_INTEGRITY\}"/);
   assert.match(registry, /root_state=\$\{ROOT_STATE\}/);
-  assert.doesNotMatch(registry, /dsh-cortex|BUNDLE|root-dependency/);
+  assert.match(registry, /--package-name @danielblomma\/dsh-cortex[\s\S]*?--integrity "\$\{BUNDLE_INTEGRITY\}"[\s\S]*?--root-dependency "\$\{RELEASE_VERSION\}"/);
+  assert.match(registry, /bundle_state=\$\{BUNDLE_STATE\}/);
+  assertBefore(workflow, "- name: Verify exact root registry artifact", "- name: Publish exact reviewed DeepSeek Harness bundle");
+  assertBefore(workflow, "- name: Publish exact reviewed DeepSeek Harness bundle", "- name: Verify exact DeepSeek Harness bundle registry artifact");
+  const bundleVerification = stepBlock(workflow, "Verify exact DeepSeek Harness bundle registry artifact");
+  assert.match(bundleVerification, /--integrity "\$\{BUNDLE_INTEGRITY\}"/);
+  assert.match(bundleVerification, /--root-dependency "\$\{RELEASE_VERSION\}"/);
+  assert.match(bundleVerification, /for attempt in \$\(seq 1 12\)/);
+  assert.match(bundleVerification, /\)" = "exact"/);
   assert.match(workflow, /Run full root and bundle tests[\s\S]*?CORTEX_EXPECTED_RELEASE_VERSION: \$\{\{ steps\.version\.outputs\.value \}\}[\s\S]*?run: npm test/);
   assertBefore(workflow, "- name: Prepare isolated repository test context", "- name: Run full root and bundle tests");
   assert.match(workflow, /release:prepare-root-test-context/);
@@ -248,10 +341,21 @@ function validatePublishWorkflow(workflow) {
   assert.match(registrySmoke, /@danielblomma\/cortex-mcp@\$\{RELEASE_VERSION\}/);
   assert.match(registrySmoke, /\/bin\/cortex" --version/);
   assert.doesNotMatch(registrySmoke, /dsh-cortex|install-registry|harness-registry/);
-  const registryTail = workflow.slice(workflow.indexOf(`- name: ${rootRegistryStepName}`));
-  assert.doesNotMatch(registryTail, /@danielblomma\/dsh-cortex|bundle_tarball|bundle_integrity|install-registry|harness-registry/i);
-  assert.doesNotMatch(workflow, /dual-package publication|dual publication|bundle registry/i);
-  assert.match(workflow, /DeepSeek Harness bundle: locally validated; separate npm distribution deferred/);
+  assertBefore(workflow, "- name: Verify exact DeepSeek Harness bundle registry artifact", "- name: Record immutable release evidence");
+  for (const [name, command] of [
+    ["Install both registry artifacts with an empty cache", "install-registry"],
+    ["Run registry Harness headless and Web lifecycle", "harness-registry"],
+  ]) {
+    const gate = stepBlock(workflow, name);
+    assert.ok(gate.includes(`node scripts/release-artifacts.mjs ${command}`));
+    assert.match(gate, /RELEASE_VERSION: \$\{\{ steps\.version\.outputs\.value \}\}/);
+    assert.match(gate, /--expected-version "\$\{RELEASE_VERSION\}"/);
+    assert.doesNotMatch(gate, /continue-on-error:|\|\|\s*true|set \+e|if:/);
+    assertBefore(workflow, "- name: Verify exact DeepSeek Harness bundle registry artifact", `- name: ${name}`);
+    assertBefore(workflow, `- name: ${name}`, "- name: Record immutable release evidence");
+  }
+  const summary = stepBlock(workflow, "Record immutable release evidence");
+  assert.match(summary, /published npm artifact: @danielblomma\/dsh-cortex@\$\{RELEASE_VERSION\}/);
   assert.doesNotMatch(workflow, /@latest/);
   validatePublishAuthentication(workflow);
 }
@@ -274,8 +378,8 @@ function validateReleaseDocumentation(readme, changelog) {
   );
 }
 
-test("committed candidate keeps every root and bundle version at 2.5.2", () => {
-  const expectedVersion = process.env.CORTEX_EXPECTED_RELEASE_VERSION ?? "2.5.2";
+test("committed candidate keeps every root and bundle version synchronized", () => {
+  const expectedVersion = process.env.CORTEX_EXPECTED_RELEASE_VERSION ?? readJson("package.json").version;
   const rootPackage = readJson("package.json");
   const rootLock = readJson("package-lock.json");
   const bundlePackage = readJson("plugins/dsh-cortex/package.json");
@@ -319,20 +423,64 @@ test("bundle lock synchronization requires and records the exact new root artifa
   assert.doesNotMatch(installed.resolved, /file:|workspace:|latest/);
 });
 
-test("release bump encodes exact synchronized staging and all pre-tag gates", () => {
+test("release bump and read-only PR preflight preserve all release gates", () => {
   const bump = readText(".github/workflows/release-bump.yml");
   validateBumpWorkflow(bump);
+  const preflight = readText(".github/workflows/release-preflight.yml");
+  validatePreflightWorkflow(preflight);
+  for (const [from, to] of [
+    ["pull_request:", "pull_request_target:"],
+    ["    runs-on:", "    if: false\n    runs-on:"],
+    ["    runs-on:", "    continue-on-error: true\n    runs-on:"],
+    ["minor + 1", "minor + 2"],
+    ["contents: read", "contents: write"],
+    ["persist-credentials: false", "persist-credentials: true"],
+    ["runs-on: ubuntu-latest", "runs-on: self-hosted"],
+    ["npm run release:test", "npm run release:test\n          npm publish"],
+    ["fetch-depth: 0", "fetch-depth: 0\n          token: ${{ secrets.GITHUB_TOKEN }}"],
+  ]) {
+    assert.ok(preflight.includes(from));
+    assert.throws(() => validatePreflightWorkflow(preflight.replace(from, to)));
+  }
   for (const [workflow, validator, mapping] of [
     [bump, validateBumpWorkflow, "${{ env.RELEASE_VERSION }}"],
+    [preflight, validatePreflightWorkflow, "${{ env.RELEASE_VERSION }}"],
     [readText(".github/workflows/release-publish.yml"), validatePublishWorkflow, "${{ steps.version.outputs.value }}"],
   ]) {
+    validator(workflow);
+    for (const [name, command] of requiredGateCommands) {
+      const missing = replaceInStep(workflow, name, command, "echo gate omitted");
+      assert.throws(() => validator(missing), /missing executable gate command/);
+      const bypass = replaceInStep(workflow, name, command, `${command} || true`);
+      assert.throws(() => validator(bypass), /must fail closed/);
+    }
+    const artifactNames = validator !== validatePublishWorkflow
+      ? ["Create and verify duplicate local root and bundle artifacts", "Install both local artifacts with an empty cache"]
+      : ["Recreate and verify the reviewed local artifacts", "Install both reviewed local artifacts with an empty cache"];
+    for (const name of [...artifactNames, "Run packed Harness headless and Web lifecycle"]) {
+      const gate = stepBlock(workflow, name);
+      const omitted = workflow.replace(gate, `      - name: ${name}\n        run: echo gate omitted\n`);
+      assert.throws(() => validator(omitted));
+    }
+    for (const name of [artifactNames[1], "Run packed Harness headless and Web lifecycle"]) {
+      for (const artifact of ["root", "bundle"]) {
+        const invalid = replaceInStep(workflow, name, `\${{ steps.artifacts.outputs.${artifact}_tarball }}`, "unreviewed.tgz");
+        assert.throws(() => validator(invalid));
+      }
+    }
+    if (validator === validatePublishWorkflow) {
+      for (const artifact of ["root", "bundle"]) {
+        const invalid = replaceInStep(workflow, artifactNames[0], `\${{ steps.seed.outputs.${artifact}_integrity }}`, "unchecked");
+        assert.throws(() => validator(invalid));
+      }
+    }
     const mappingBlock = `        env:\n          CORTEX_EXPECTED_RELEASE_VERSION: ${mapping}\n`;
     const freshCheckoutStep = "Run executable fresh-checkout regression";
     const mutations = [
       ["removed helper", workflow.replace("- name: Run executable fresh-checkout regression", "- name: Removed fresh-checkout regression")],
       ["unbounded replacement", workflow.replace("npm run release:test-fresh-checkout", "npm test")],
       ["fail-open bypass", workflow.replace("npm run release:test-fresh-checkout", "npm run release:test-fresh-checkout || true")],
-      ["late helper", swapStepNames(workflow, "Run executable fresh-checkout regression", "Audit all six committed dependency trees")],
+      ["late helper", swapSteps(workflow, "Run executable fresh-checkout regression", "Audit all six committed dependency trees")],
       ["missing mapping", replaceInStep(workflow, freshCheckoutStep, mappingBlock, "")],
       ["drifted mapping", replaceInStep(workflow, freshCheckoutStep, mapping, "${{ env.BASE_VERSION }}")],
       ["inline mapping bypass", replaceInStep(
@@ -367,10 +515,10 @@ test("release workflows reject absent, unsupported, or late npm setup", () => {
   for (const [candidate, validator] of [
     [bump.replace(setupMarker, "- name: omitted npm setup"), validateBumpWorkflow],
     [bump.replaceAll(supportedNpmVersion, "11.5.0"), validateBumpWorkflow],
-    [swapStepNames(bump, npmSetupStepName, "Create exact 2.6.0 metadata and root artifact lock"), validateBumpWorkflow],
+    [swapSteps(bump, npmSetupStepName, "Create exact release metadata and root artifact lock"), validateBumpWorkflow],
     [publish.replace(setupMarker, "- name: omitted npm setup"), validatePublishWorkflow],
     [publish.replaceAll(supportedNpmVersion, "10.9.8"), validatePublishWorkflow],
-    [swapStepNames(publish, npmSetupStepName, "Verify annotated tag and all metadata versions"), validatePublishWorkflow],
+    [swapSteps(publish, npmSetupStepName, "Verify annotated tag and all metadata versions"), validatePublishWorkflow],
   ]) {
     assert.throws(() => validator(candidate));
   }
@@ -404,7 +552,7 @@ test("release publish is tag-only, root-first, exact-artifact, and resumable", (
 
 test("release publish rejects publication before local artifact and Harness gates", () => {
   const workflow = readText(".github/workflows/release-publish.yml");
-  const invalid = swapStepNames(
+  const invalid = swapSteps(
     workflow,
     rootPublishStepName,
     "Run packed Harness headless and Web lifecycle",
@@ -431,50 +579,37 @@ test("release publish rejects OIDC, provenance, runner, tag, version, and resume
   }
 });
 
-test("release workflows reject bundle registry, publication, install, Harness, and summary mutations", () => {
+test("release workflows reject unreviewed bundle publication and unsafe resume mutations", () => {
   const bump = readText(".github/workflows/release-bump.yml");
   const workflow = readText(".github/workflows/release-publish.yml");
-  const directCommands = [
-    [`npm view ${bundlePackageName}@2.6.0 version`],
-    [`npm publish ${bundlePackageName} --access public --provenance`],
-    [
-      `npm view ${bundlePackageName}@2.6.0 version`,
+  validateBumpWorkflow(bump);
+  validatePublishWorkflow(workflow);
+  for (const [source, validator] of [[bump, validateBumpWorkflow], [workflow, validatePublishWorkflow]]) {
+    const invalid = insertWorkflowStep(source, "Setup .NET", "Unreviewed bundle mutation", [
       `npm publish ${bundlePackageName} --access public --provenance`,
-    ],
-  ];
-  for (const [source, validator] of [
-    [bump, validateBumpWorkflow],
-    [workflow, validatePublishWorkflow],
-  ]) {
-    for (const commands of directCommands) {
-      const invalid = insertWorkflowStep(
-        source,
-        "Setup .NET",
-        "Illicit package operation mutation",
-        commands,
-      );
-      assert.throws(
-        () => validator(invalid),
-        /must not (?:run npm registry or package operations for the bundle|publish any artifact)/,
-      );
-    }
+    ]);
+    assert.throws(() => validator(invalid));
   }
-  const registryCommand = "          ROOT_JSON=\"$(node scripts/release-artifacts.mjs registry-state";
-  const publishCommand = '        run: npm publish "${{ steps.artifacts.outputs.root_tarball }}" --access public --provenance';
-  const smokeCommand = '          npm install --global --prefix "${GLOBAL_PREFIX}" --cache "${GLOBAL_CACHE}" \\';
-  const summary = '            echo "## Cortex ${RELEASE_VERSION} root package publication"';
+  for (const name of ["Install both registry artifacts with an empty cache", "Run registry Harness headless and Web lifecycle"]) {
+    const gate = stepBlock(workflow, name);
+    const omitted = workflow.replace(gate, `      - name: ${name}\n        run: echo gate omitted\n`);
+    assert.throws(() => validatePublishWorkflow(omitted));
+    const premature = swapSteps(workflow, name, "Verify exact DeepSeek Harness bundle registry artifact");
+    assert.throws(() => validatePublishWorkflow(premature));
+  }
   const mutations = [
-    workflow.replace(
-      publishCommand,
-      `${publishCommand}\n` + '          npm publish "${{ steps.artifacts.outputs.bundle_tarball }}" --access public --provenance',
-    ),
-    workflow.replace(registryCommand, '          node scripts/release-artifacts.mjs registry-state --package-name @danielblomma/dsh-cortex --version "${RELEASE_VERSION}" --integrity unchecked\n' + registryCommand),
-    workflow.replace(smokeCommand, '          node scripts/release-artifacts.mjs install-registry --output-dir registry --expected-version "${RELEASE_VERSION}"\n' + smokeCommand),
-    workflow.replace(smokeCommand, '          node scripts/release-artifacts.mjs harness-registry --harness-checkout harness --output-dir registry-harness --expected-version "${RELEASE_VERSION}"\n' + smokeCommand),
-    workflow.replace(summary, '            echo "## Cortex ${RELEASE_VERSION} dual-package publication"'),
-    workflow.replace("      - name: Verify exact root registry artifact\n", "      - name: Verify exact bundle registry artifact\n"),
+    workflow.replace("if: steps.registry.outputs.bundle_state == 'missing'", "if: always()"),
+    replaceInStep(workflow, "Publish exact reviewed DeepSeek Harness bundle", " --provenance", ""),
+    replaceInStep(workflow, rootRegistryStepName, '--integrity "${BUNDLE_INTEGRITY}"', '--integrity "unchecked"'),
+    replaceInStep(workflow, rootRegistryStepName, '--root-dependency "${RELEASE_VERSION}"', '--root-dependency "latest"'),
+    replaceInStep(workflow, "Verify exact DeepSeek Harness bundle registry artifact", '--integrity "${BUNDLE_INTEGRITY}"', '--integrity "unchecked"'),
+    swapSteps(workflow, "Publish exact reviewed DeepSeek Harness bundle", "Verify exact root registry artifact"),
+    workflow.replace('published npm artifact: @danielblomma/dsh-cortex@${RELEASE_VERSION}', 'bundle publication omitted'),
   ];
-  for (const invalid of mutations) assert.throws(() => validatePublishWorkflow(invalid));
+  for (const invalid of mutations) {
+    assert.notEqual(invalid, workflow, "mutation must change the valid workflow");
+    assert.throws(() => validatePublishWorkflow(invalid));
+  }
 });
 
 test("artifact helper fixes the bundle inventory and exact root registry checks", () => {

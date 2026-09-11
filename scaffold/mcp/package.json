@@ -16,7 +16,7 @@
     "@huggingface/transformers": "^4.1.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@types/js-yaml": "^4.0.9",
-    "js-yaml": "4.3.1",
+    "js-yaml": "4.3.2",
     "minimatch": "^10.2.6",
     "ryugraph": "^25.9.1",
     "zod": "^3.24.1"
@@ -28,11 +28,11 @@
     "brace-expansion": "5.0.9",
     "cmake-js": "^8.0.0",
     "express-rate-limit": "^8.5.1",
-    "fast-uri": "3.1.5",
-    "hono": "4.12.34",
+    "fast-uri": "3.1.6",
+    "hono": "4.13.5",
     "ip-address": "10.4.0",
     "protobufjs": "^7.6.5",
-    "sharp": "^0.35.3",
+    "sharp": "^0.35.4",
     "tar": "^7.5.22"
   },
   "devDependencies": {

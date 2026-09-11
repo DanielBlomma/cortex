@@ -1,62 +1,32 @@
-name: Release Bump
+name: Release Preflight
 
 on:
-  workflow_dispatch:
-    inputs:
-      release_type:
-        description: "Semver bump type"
-        required: true
-        default: minor
-        type: choice
-        options:
-          - minor
+  pull_request:
+    branches:
+      - main
 
 permissions:
-  contents: write
-  actions: write
+  contents: read
+
+concurrency:
+  group: release-preflight-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
-  bump:
+  validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
-      BASE_VERSION: "2.7.0"
-      RELEASE_VERSION: "2.8.0"
-      RELEASE_TAG: "v2.8.0"
       HARNESS_COMMIT: "b150a551b8d465e31e418e1b2eaf5e79bbb7d28e"
 
     steps:
-      - name: Reject non-main dispatch
-        env:
-          GITHUB_REF_TYPE: ${{ github.ref_type }}
-          GITHUB_REF_NAME: ${{ github.ref_name }}
-          RELEASE_TYPE: ${{ inputs.release_type }}
-        run: |
-          test "${GITHUB_REF_TYPE}" = "branch"
-          test "${GITHUB_REF_NAME}" = "main"
-          test "${RELEASE_TYPE}" = "minor"
-
-      - name: Checkout current main
+      - name: Checkout PR merge candidate
         uses: actions/checkout@v6
         with:
-          ref: main
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Verify clean current main and unused tag
-        run: |
-          git fetch --no-tags origin main
-          test "$(git branch --show-current)" = "main"
-          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
-          test -z "$(git status --porcelain)"
-          test "$(node -p 'require("./package.json").version')" = "${BASE_VERSION}"
-          if git rev-parse --verify --quiet "refs/tags/${RELEASE_TAG}"; then
-            echo "Local release tag already exists: ${RELEASE_TAG}"
-            exit 1
-          fi
-          if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
-            echo "Remote release tag already exists: ${RELEASE_TAG}"
-            exit 1
-          fi
-
+      # Contract tests keep these executable gates aligned with Release Bump.
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
@@ -74,10 +44,10 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      - name: Configure git author
+      - name: Determine next minor preflight version
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          RELEASE_VERSION="$(node -p 'const [major, minor] = require("./package.json").version.split(".").map(Number); `${major}.${minor + 1}.0`')"
+          echo "RELEASE_VERSION=${RELEASE_VERSION}" >> "${GITHUB_ENV}"
 
       - name: Install all committed dependency trees
         run: |
@@ -218,42 +188,3 @@ jobs:
             exit 1
           fi
           test -z "$(git diff --name-only -- plugins/dsh-cortex/provider.mjs plugins/dsh-cortex/protocol.mjs plugins/dsh-cortex/tools.mjs plugins/dsh-cortex/skills.mjs plugins/dsh-cortex/skills)"
-
-      - name: Stage only the complete release metadata set
-        run: |
-          git add \
-            package.json \
-            package-lock.json \
-            server.json \
-            plugins/cortex/.claude-plugin/plugin.json \
-            plugins/cortex/.codex-plugin/plugin.json \
-            plugins/dsh-cortex/package.json \
-            plugins/dsh-cortex/package-lock.json \
-            .claude-plugin/marketplace.json
-          test -z "$(git diff --name-only)"
-          ACTUAL="${RUNNER_TEMP}/release-staged.actual"
-          EXPECTED="${RUNNER_TEMP}/release-staged.expected"
-          git diff --cached --name-only | LC_ALL=C sort > "${ACTUAL}"
-          printf '%s\n' \
-            .claude-plugin/marketplace.json \
-            package-lock.json \
-            package.json \
-            plugins/cortex/.claude-plugin/plugin.json \
-            plugins/cortex/.codex-plugin/plugin.json \
-            plugins/dsh-cortex/package-lock.json \
-            plugins/dsh-cortex/package.json \
-            server.json | LC_ALL=C sort > "${EXPECTED}"
-          diff -u "${EXPECTED}" "${ACTUAL}"
-
-      - name: Commit and create immutable release tag
-        run: |
-          git commit -m "release: ${RELEASE_TAG}"
-          git tag -a "${RELEASE_TAG}" -m "release: ${RELEASE_TAG}"
-
-      - name: Atomically push release commit and tag
-        run: git push --atomic origin "HEAD:main" "refs/tags/${RELEASE_TAG}"
-
-      - name: Trigger publish from the immutable tag
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run release-publish.yml --ref "${RELEASE_TAG}"

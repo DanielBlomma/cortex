@@ -399,7 +399,7 @@ function createIngestPipelineState() {
     source_paths: sourcePaths.length,
     rules: rules.length
   });
-  const { candidates, incrementalMode, deletedRelPaths } = collectCandidateFiles(
+  const { candidates, incrementalMode, deletedRelPaths, isIgnored } = collectCandidateFiles(
     boundary,
     sourcePaths,
     sourceRecords,
@@ -436,6 +436,7 @@ function createIngestPipelineState() {
     candidates,
     incrementalMode,
     deletedRelPaths,
+    isIgnored,
     chunkWindowLines,
     chunkOverlapLines,
     chunkSplitMinLines,
@@ -474,7 +475,7 @@ function runScanHydrationStage(state) {
         expected: "file"
       });
       const filePath = inspected.identity;
-      if (!hasSourcePrefix(filePath, sourcePaths)) {
+      if (!hasSourcePrefix(filePath, sourcePaths) || state.isIgnored?.(filePath)) {
         continue;
       }
       if (!inspected.exists) continue;
@@ -499,7 +500,7 @@ function runScanHydrationStage(state) {
         expected: "file"
       });
       const adrPath = inspected.identity;
-      if (!hasSourcePrefix(adrPath, sourcePaths)) {
+      if (!hasSourcePrefix(adrPath, sourcePaths) || state.isIgnored?.(adrPath)) {
         continue;
       }
       if (!inspected.exists) continue;

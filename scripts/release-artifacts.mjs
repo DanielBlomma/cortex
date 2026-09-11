@@ -553,59 +553,81 @@ async function inspectPackedBundle(outputDirectory, profileName) {
   return { tools, skills, byteIdenticalSkills: manifest.skills.length };
 }
 
-async function webSmoke(command, baseArgs, env, cwd) {
+export async function webSmoke(command, baseArgs, env, cwd) {
+  if (process.platform === "win32") fail("Web lifecycle requires POSIX process-group signalling");
   const child = spawn(command, [...baseArgs, "--profile", "web", "--no-open", "--host", "127.0.0.1", "--port", "0"], {
     cwd,
     env,
     stdio: ["ignore", "pipe", "pipe"],
     shell: false,
+    // pnpm starts a shell and the Harness Node process; terminal SIGINT reaches all three.
+    detached: true,
   });
+  const signalGroup = (signal) => {
+    if (!Number.isInteger(child.pid) || child.pid <= 0) return;
+    try {
+      process.kill(-child.pid, signal);
+    } catch (error) {
+      if (error.code !== "ESRCH") throw error;
+    }
+  };
   let output = "";
   let settled = false;
-  let timeout;
-  const closed = new Promise((resolve) => child.once("close", (code, signal) => resolve({ code, signal })));
-  const url = await new Promise((resolve, reject) => {
-    const inspect = (chunk) => {
-      output += chunk.toString("utf8");
-      const match = output.match(/https?:\/\/127\.0\.0\.1:[0-9]+/);
-      if (match && !settled) {
-        settled = true;
-        clearTimeout(timeout);
-        resolve(match[0]);
-      }
-    };
-    child.stdout.on("data", inspect);
-    child.stderr.on("data", inspect);
-    child.once("error", reject);
-    child.once("close", (code, signal) => {
-      if (!settled) reject(new Error(`Web profile exited before binding (${code}/${signal}): ${output}`));
-    });
-    timeout = setTimeout(() => {
-      if (!settled) reject(new Error(`Web profile did not bind within 30 seconds: ${output}`));
-    }, 30_000);
-  });
-  const response = await fetch(url);
-  const body = await response.text();
-  if (response.status !== 200 || body.length === 0) {
-    child.kill("SIGKILL");
-    fail(`Web profile returned HTTP ${response.status} with ${body.length} bytes`);
-  }
-  child.kill("SIGINT");
-  const outcome = await Promise.race([
-    closed,
-    new Promise((resolve) => setTimeout(() => resolve(null), 10_000)),
-  ]);
-  if (outcome === null) {
-    child.kill("SIGKILL");
-    fail("Web profile did not stop within 10 seconds after SIGINT");
-  }
+  let closedOutcome;
+  let bindTimeout;
+  let stopTimeout;
+  let succeeded = false;
+  const closed = new Promise((resolve) => child.once("close", (code, signal) => {
+    closedOutcome = { code, signal };
+    resolve(closedOutcome);
+  }));
   try {
-    await fetch(url, { signal: AbortSignal.timeout(1_000) });
-    fail("Web profile port remained open after controlled shutdown");
-  } catch (error) {
-    if (String(error?.message ?? error).includes("port remained open")) throw error;
+    const url = await new Promise((resolve, reject) => {
+      const inspect = (chunk) => {
+        output += chunk.toString("utf8");
+        const match = output.match(/https?:\/\/127\.0\.0\.1:[0-9]+/);
+        if (match && !settled) {
+          settled = true;
+          clearTimeout(bindTimeout);
+          resolve(match[0]);
+        }
+      };
+      child.stdout.on("data", inspect);
+      child.stderr.on("data", inspect);
+      child.once("error", reject);
+      child.once("close", (code, signal) => {
+        if (!settled) reject(new Error(`Web profile exited before binding (${code}/${signal}): ${output}`));
+      });
+      bindTimeout = setTimeout(() => {
+        if (!settled) reject(new Error(`Web profile did not bind within 30 seconds: ${output}`));
+      }, 30_000);
+    });
+    const response = await fetch(url);
+    const body = await response.text();
+    if (response.status !== 200 || body.length === 0) {
+      fail(`Web profile returned HTTP ${response.status} with ${body.length} bytes`);
+    }
+    if (closedOutcome) fail("Web profile exited before controlled shutdown");
+    signalGroup("SIGINT");
+    const outcome = await Promise.race([
+      closed,
+      new Promise((resolve) => { stopTimeout = setTimeout(() => resolve(null), 10_000); }),
+    ]);
+    if (outcome === null) fail("Web profile did not stop within 10 seconds after SIGINT");
+    try {
+      await fetch(url, { signal: AbortSignal.timeout(1_000) });
+      fail("Web profile port remained open after controlled shutdown");
+    } catch (error) {
+      if (String(error?.message ?? error).includes("port remained open")) throw error;
+    }
+    succeeded = true;
+    return { url, status: response.status, bytes: Buffer.byteLength(body), outcome };
+  } finally {
+    clearTimeout(bindTimeout);
+    clearTimeout(stopTimeout);
+    // Failed startup, HTTP probes and shutdown must not leave task-owned descendants.
+    if (!succeeded) signalGroup("SIGKILL");
   }
-  return { url, status: response.status, bytes: Buffer.byteLength(body), outcome };
 }
 
 async function harnessCommand(options, registryOnly = false) {

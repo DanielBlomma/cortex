@@ -18,6 +18,8 @@ AGENTS.md
 scaffold/.context/db/
 scaffold/.context/embeddings/
 scaffold/.context/cache/
+scaffold/.context/mcp/
+scaffold/.context/scripts/
 scaffold/.context/plan/
 scaffold/.context/hooks/
 scaffold/.context/telemetry/

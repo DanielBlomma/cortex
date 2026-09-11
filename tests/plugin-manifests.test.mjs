@@ -20,8 +20,8 @@ const packageJson = readJson("package.json");
 const version = packageJson.version;
 const rootPackageName = "@danielblomma/cortex-mcp";
 const bundleRepositoryUrl = "https://github.com/DanielBlomma/cortex.git";
-const publicRoot252Integrity =
-  "sha512-S7gfyBiTcGretAPp+S8oQBg3JW1nuADfR337YTdgDq/Qe6ssN6CEBe2jRkLAFc12tdlHdAviKmMJxqlPHpqcOw==";
+const committedRootIntegrity = readJson("plugins/dsh-cortex/package-lock.json")
+  .packages[`node_modules/${rootPackageName}`].integrity;
 
 function validateBundleReleaseMetadata(bundle, bundleLock, rootPackage) {
   assert.equal(rootPackage.name, rootPackageName);
@@ -48,11 +48,9 @@ function validateBundleReleaseMetadata(bundle, bundleLock, rootPackage) {
     lockedRoot.resolved,
     `https://registry.npmjs.org/${rootPackageName}/-/cortex-mcp-${rootPackage.version}.tgz`,
   );
-  if (rootPackage.version === "2.5.2") {
-    assert.equal(lockedRoot.integrity, publicRoot252Integrity);
-  } else {
-    assert.match(lockedRoot.integrity, /^sha512-[A-Za-z0-9+/]+={0,2}$/);
-  }
+  assert.match(lockedRoot.integrity, /^sha512-[A-Za-z0-9+/]+={0,2}$/);
+  // Byte-level lock binding is separately enforced by the packed release gate.
+  assert.equal(lockedRoot.integrity, committedRootIntegrity);
 }
 
 test("claude and codex plugin manifests exist and share the release version", () => {
@@ -99,7 +97,7 @@ test("DeepSeek Harness bundle pins the reviewed session-scoped runtime", () => {
 test("bundle release metadata rejects public lock and repository identity mutations", () => {
   const bundle = readJson("plugins/dsh-cortex/package.json");
   const bundleLock = readJson("plugins/dsh-cortex/package-lock.json");
-  if (version !== "2.5.2") return;
+  validateBundleReleaseMetadata(bundle, bundleLock, packageJson);
 
   const mutations = [
     (candidateBundle, candidateLock) => {
