@@ -297,3 +297,51 @@ No merge/tag/Bump/Publish/CLI update. Fresh WO-LOCAL-005 must diagnose helper ve
 pinned lifecycle, repair with independent reviewers, validate final HEAD and then
 complete authorized release/CLI steps. Exact packet:
 context-packets/local-005-hosted-release-completion.md. User authority persists.
+
+
+## WO-LOCAL-005 start — 2026-09-11
+
+Fresh manager clone `/private/tmp/cortex-local-005-manager` begins at f4dea6c.
+Security/Contract/Code Quality reviewer `security_contract` and
+Ops/Release/Validation/Integration reviewer `ops_validation` are assigned before
+implementation, each in separate isolated clones. Manager alone writes branch.
+Scope is diagnosed native Web lifecycle repair, exact-head hosted acceptance,
+authorized merge and Bump/Publish 2.8.0, then root-owned global CLI update.
+No deadline, gate, isolation or publication guard waiver. Original tree preserved.
+Packet: `context-packets/local-005-hosted-release-completion.md`.
+
+## WO-LOCAL-005 lifecycle first-pass review intake
+
+Changed implementation: `scripts/release-artifacts.mjs` exported webSmoke owns a
+POSIX detached process group, delivers terminal-equivalent SIGINT to that group,
+retains 30-second bind, 10-second close and closed-port checks, rejects premature
+exit, clears timers, and SIGKILL-cleans only failed task-owned groups.
+Changed tests: five nested wrapper/server fixtures in
+`tests/release-harness-identity.test.mjs` exercise graceful disposal, pre-bind
+exit, invalid HTTP, failed fetch, and stubborn shutdown rejection.
+The stubborn fixture must still fail at the original deadline and be cleaned up.
+No upstream Harness, package, workflow, gate or security boundary change.
+Residual scope: close plus port evidence does not independently enumerate every
+hypothetical ignored-stdio descendant; no broader process-containment claim.
+Both assigned reviewers receive exact files for independent validation.
+
+Ops dynamic diagnostic proves the old single-PID signal does not reach the
+actual pinned Harness handler: nested processes and HTTP 200 persist beyond
+ten seconds. Group SIGINT reaches that handler, DSH exits 130 within 31ms,
+and the group/port disappear within 123ms. pnpm maps its child status to exit 1;
+therefore the first-pass new wrapper exit-code assertion and associated fixture
+are removed before acceptance. The original gate never used pnpm exit status
+as a proxy for DSH disposal. Existing close, deadline and closed-port assertions
+remain mandatory. Source is unchanged upstream. Diagnostic trace is retained
+in `/private/tmp/cortex-local-005-ops-evidence/diagnosis-v4.log`.
+
+
+## WO-LOCAL-005 source acceptance — 2026-09-11
+
+Both independent reviewers approve cd7668b after closing the wrapper-status
+finding; final helper preserves actual pnpm/DSH shutdown semantics and all
+existing deadlines/gates. Manager and Security focused47 (46pass/1platformskip);
+Ops Linux x64 identity/lifecycle7/7 and actual pinned candidate Web shutdown pass.
+No open source finding. Root/pristine totals remain81/437/6/651 unchanged.
+PR130 remains draft pending exact-head native preflight; no merge/tag/release yet.
+Full evidence/reviews: local-005-release-completion-report.md and linked reports.

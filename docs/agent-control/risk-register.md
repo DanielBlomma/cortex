@@ -87,3 +87,14 @@ No merge/tag/Bump/Publish/CLI update. Fresh WO-LOCAL-005 must diagnose helper ve
 pinned lifecycle, repair with independent reviewers, validate final HEAD and then
 complete authorized release/CLI steps. Exact packet:
 context-packets/local-005-hosted-release-completion.md. User authority persists.
+
+
+## WO-LOCAL-005 lifecycle risk disposition
+
+Native Web failure cause is proved PID-only signal delivery, corrected at
+cd7668b with independently tested owned process-group signalling. No deadline
+change or gate waiver. Observed pinned Harness tree and owned fixture children
+terminate; existing close/port contract does not universally enumerate hypothetical
+ignored-stdio descendants. Actual final-head hosted gates remain required; prior
+artifact identities are historical. Existing ONNX race and benchmark fixture
+limitations are unchanged. No new source blocker remains after independent review.

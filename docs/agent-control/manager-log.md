@@ -1953,3 +1953,26 @@ No merge/tag/Bump/Publish/CLI update. Fresh WO-LOCAL-005 must diagnose helper ve
 pinned lifecycle, repair with independent reviewers, validate final HEAD and then
 complete authorized release/CLI steps. Exact packet:
 context-packets/local-005-hosted-release-completion.md. User authority persists.
+
+
+## WO-LOCAL-005 start — 2026-09-11
+
+Fresh manager clone `/private/tmp/cortex-local-005-manager` begins at f4dea6c.
+Security/Contract/Code Quality reviewer `security_contract` and
+Ops/Release/Validation/Integration reviewer `ops_validation` are assigned before
+implementation, each in separate isolated clones. Manager alone writes branch.
+Scope is diagnosed native Web lifecycle repair, exact-head hosted acceptance,
+authorized merge and Bump/Publish 2.8.0, then root-owned global CLI update.
+No deadline, gate, isolation or publication guard waiver. Original tree preserved.
+Packet: `context-packets/local-005-hosted-release-completion.md`.
+
+
+## WO-LOCAL-005 source acceptance — 2026-09-11
+
+Both independent reviewers approve cd7668b after closing the wrapper-status
+finding; final helper preserves actual pnpm/DSH shutdown semantics and all
+existing deadlines/gates. Manager and Security focused47 (46pass/1platformskip);
+Ops Linux x64 identity/lifecycle7/7 and actual pinned candidate Web shutdown pass.
+No open source finding. Root/pristine totals remain81/437/6/651 unchanged.
+PR130 remains draft pending exact-head native preflight; no merge/tag/release yet.
+Full evidence/reviews: local-005-release-completion-report.md and linked reports.

@@ -118,3 +118,14 @@ No merge/tag/Bump/Publish/CLI update. Fresh WO-LOCAL-005 must diagnose helper ve
 pinned lifecycle, repair with independent reviewers, validate final HEAD and then
 complete authorized release/CLI steps. Exact packet:
 context-packets/local-005-hosted-release-completion.md. User authority persists.
+
+
+## WO-LOCAL-005 source acceptance — 2026-09-11
+
+Both independent reviewers approve cd7668b after closing the wrapper-status
+finding; final helper preserves actual pnpm/DSH shutdown semantics and all
+existing deadlines/gates. Manager and Security focused47 (46pass/1platformskip);
+Ops Linux x64 identity/lifecycle7/7 and actual pinned candidate Web shutdown pass.
+No open source finding. Root/pristine totals remain81/437/6/651 unchanged.
+PR130 remains draft pending exact-head native preflight; no merge/tag/release yet.
+Full evidence/reviews: local-005-release-completion-report.md and linked reports.
