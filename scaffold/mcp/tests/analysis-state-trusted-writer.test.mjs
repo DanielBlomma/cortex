@@ -491,9 +491,27 @@ test("ancestor redirection and task-directory mode changes fail before mutation"
   }
 });
 
-function runWorker(options) {
+function runWorker(options, barrier, index) {
+  const readyPath = path.join(barrier, `ready-${index}`);
+  const releasePath = path.join(barrier, "release");
   const source = [
+    `import fs from "node:fs";`,
     `import { appendTrustedAnalysisObservation } from ${JSON.stringify(WRITER_URL)};`,
+    `const mkdir = fs.mkdirSync;`,
+    `let prepared = false;`,
+    `fs.mkdirSync = function (target, ...args) {`,
+    `  if (!prepared && target === ${JSON.stringify(taskPath(options.cwd, ANALYSIS_TRANSACTION_LOCK_DIRECTORY))}) {`,
+    `    prepared = true;`,
+    `    fs.writeFileSync(${JSON.stringify(readyPath)}, "ready", { flag: "wx" });`,
+    `    const deadline = Date.now() + 5000;`,
+    `    const pause = new Int32Array(new SharedArrayBuffer(4));`,
+    `    while (!fs.existsSync(${JSON.stringify(releasePath)})) {`,
+    `      if (Date.now() >= deadline) throw new Error("writer rendezvous timed out");`,
+    `      Atomics.wait(pause, 0, 0, 10);`,
+    `    }`,
+    `  }`,
+    `  return mkdir.call(this, target, ...args);`,
+    `};`,
     `try { const value = appendTrustedAnalysisObservation(${JSON.stringify(options)}); process.stdout.write(JSON.stringify({ ok: true, value })); }`,
     `catch (error) { process.stdout.write(JSON.stringify({ ok: false, message: error.message })); process.exitCode = 1; }`,
   ].join("\n");
@@ -501,27 +519,73 @@ function runWorker(options) {
     cwd: options.cwd,
     stdio: ["ignore", "pipe", "pipe"],
   });
-  return new Promise((resolve) => {
+  const worker = { child, readyPath, closed: false, result: null };
+  worker.result = new Promise((resolve) => {
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (data) => { stdout += data; });
     child.stderr.on("data", (data) => { stderr += data; });
-    child.on("close", (status) => resolve({ status, stdout, stderr }));
+    child.on("error", (error) => { stderr += error.message; });
+    child.on("close", (status) => {
+      worker.closed = true;
+      resolve({ status, stdout, stderr });
+    });
   });
+  return worker;
 }
 
 test("two writers with one expected generation produce one commit and one stale loser", async () => {
   const { root, authority } = fixture();
+  const workers = [];
+  let barrier;
+  let timer;
   try {
+    barrier = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-writer-rendezvous-"));
     const options = appendOptions(root, authority);
-    const results = await Promise.all([runWorker(options), runWorker(options)]);
+    workers.push(runWorker(options, barrier, 0));
+    workers.push(runWorker(options, barrier, 1));
+    const results = await Promise.race([
+      (async () => {
+        // Both optimistic reads must finish before either real coordinator mkdir.
+        // Otherwise a valid commit can make the overlapping reader fail closed.
+        while (!workers.every((worker) => fs.existsSync(worker.readyPath))) {
+          const exited = workers.find((worker) => worker.closed);
+          if (exited) throw new Error(`writer exited before rendezvous: ${JSON.stringify(await exited.result)}`);
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        fs.writeFileSync(path.join(barrier, "release"), "release", { flag: "wx" });
+        return Promise.all(workers.map((worker) => worker.result));
+      })(),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("writer rendezvous or append timed out")), 5000);
+      }),
+    ]);
     assert.deepEqual(results.map((item) => item.status).sort(), [0, 1]);
-    const failures = results.filter((item) => item.status === 1).map((item) => JSON.parse(item.stdout));
-    assert.match(failures[0].message, /stale writer/u);
+    assert.deepEqual(results.map((item) => item.stderr), ["", ""]);
+    const winner = JSON.parse(results.find((item) => item.status === 0).stdout);
+    const loser = JSON.parse(results.find((item) => item.status === 1).stdout);
+    assert.equal(winner.ok, true);
+    assert.equal(loser.ok, false);
+    assert.match(loser.message, /stale writer/u);
     const fresh = readTrustedAnalysisState({ cwd: root, taskId: TASK_ID });
     assert.equal(fresh.persisted.manifest.generation, 2);
     assert.equal(fresh.persisted.manifest.observation_count, 2);
+    assert.equal(winner.value.generation, fresh.persisted.manifest.generation);
+    assert.equal(winner.value.observation_count, fresh.persisted.manifest.observation_count);
+    assert.equal(winner.value.snapshot_sha256, fresh.persisted.manifest.snapshot_sha256);
+    assert.equal(winner.value.observation_head_sha256, fresh.persisted.manifest.observation_head_sha256);
+    assert.equal(winner.value.authority_bundle_sha256, fresh.authority.bundle_sha256);
+    assert.equal(winner.value.authority_manifest_sha256, fresh.authority.authority_manifest.manifest_sha256);
+    assert.equal(winner.value.source_authority_registry_sha256, sha256Canonical(fresh.authority.source_authorities));
+    assert.equal(winner.value.appended_observation_id, fresh.persisted.observations.at(-1).id);
+    assert.equal(winner.value.appended_observation_id, createObservation(options.observation).id);
   } finally {
+    clearTimeout(timer);
+    for (const worker of workers) {
+      if (!worker.closed) worker.child.kill("SIGKILL");
+    }
+    await Promise.all(workers.map((worker) => worker.result));
+    if (barrier) fs.rmSync(barrier, { recursive: true, force: true });
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

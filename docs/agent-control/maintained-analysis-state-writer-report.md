@@ -102,8 +102,11 @@ package contents, and every Packet 074 non-goal.
 During the pass, directory identity was strengthened from intent-only binding
 to repeated root/`.agents`/task inode verification before every mutation and
 recovery commit. A transient lock-owner close race was also normalized to the
-required stale-CAS loser; ten consecutive two-process races then produced one
-commit and one stale loser each. No finding remains accepted or waived.
+stale-CAS loser for successfully prepared contenders; ten sampled two-process
+races then produced one commit and one stale loser each. This does not classify
+an optimistic trusted read that overlaps a commit: that reader correctly fails
+closed before stale-generation comparison. WO-LOCAL-006 makes the prepared
+contender schedule deterministic in the test. No production guard is relaxed.
 
 The remaining bootstrap risk is intentional: WO-060 cannot create the first
 authority bundle or source registry. A trusted initial state must still be
