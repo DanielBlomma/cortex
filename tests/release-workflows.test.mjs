@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import { assertFinalHarnessEvidence, registryTarballUrl } from "../scripts/release-artifacts.mjs";
@@ -188,7 +191,19 @@ const synchronizedFiles = [
   ".claude-plugin/marketplace.json",
 ];
 
+function validateLockedBundleSeed(workflow) {
+  const install = stepBlock(workflow, "Bind bundle tests to the reviewed local root artifact");
+  assert.ok(install.includes('npm cache add "${ROOT_TARBALL}"'));
+  assert.ok(install.includes('npm ci --prefix plugins/dsh-cortex --prefer-offline'));
+  assertBefore(install, 'npm cache add', 'npm ci --prefix plugins/dsh-cortex');
+  assertBefore(install, 'npm ci --prefix plugins/dsh-cortex', 'npm --prefix plugins/dsh-cortex install');
+  assertBefore(workflow, '- name: Create exact release metadata and root artifact lock', '- name: Bind bundle tests to the reviewed local root artifact');
+  assertBefore(workflow, '- name: Bind bundle tests to the reviewed local root artifact', '- name: Run focused release contract tests');
+  assert.doesNotMatch(install, /continue-on-error:|\|\|\s*true|set \+e|if:/);
+}
+
 function validateBumpWorkflow(workflow) {
+  validateLockedBundleSeed(workflow);
   validateRequiredGateCommands(workflow);
   validateArtifactGates(workflow, false);
   validateFreshCheckoutGate(workflow, "${{ env.RELEASE_VERSION }}");
@@ -238,6 +253,7 @@ function validateBumpWorkflow(workflow) {
 }
 
 function validatePreflightWorkflow(workflow) {
+  validateLockedBundleSeed(workflow);
   validateRequiredGateCommands(workflow);
   validateArtifactGates(workflow, false);
   validateFreshCheckoutGate(workflow, "${{ env.RELEASE_VERSION }}");
@@ -278,7 +294,33 @@ function validatePreflightWorkflow(workflow) {
   }
 }
 
+function validateRecoveryContract(workflow) {
+  assert.match(workflow, /recover_2_8:[\s\S]*?type: boolean[\s\S]*?default: false/);
+  const select = stepBlock(workflow, "Reject branch dispatches and non-strict tags");
+  for (const command of ['test "${GITHUB_EVENT_NAME}" = "workflow_dispatch"', 'test "${GITHUB_REF}" = "refs/heads/main"', 'TAG_NAME="v2.8.0"', 'test "${GITHUB_REF_TYPE}" = "tag"']) {
+    assert.ok(select.includes(command), `missing recovery source guard: ${command}`);
+  }
+  assert.ok(stepBlock(workflow, "Checkout immutable tag").includes('ref: refs/tags/${{ steps.source.outputs.tag }}'));
+  const identity = stepBlock(workflow, "Verify recovery source identity");
+  for (const value of ['e07de9de09e57ddf6375df72c241ba7c5b7ae8f5', '00258d7fe40c58fa54e0723236e452630feb7009', '72c8ef3565a8b1b102da738de41c821cab6cb997']) assert.ok(identity.includes(value));
+  assertBefore(workflow, '- name: Checkout immutable tag', '- name: Verify recovery source identity');
+  assertBefore(workflow, '- name: Verify recovery source identity', '- name: Setup Node');
+  const bytes = stepBlock(workflow, "Verify original immutable release artifact bytes");
+  for (const value of ['834585c01bafc60e9d9a7551a51b3815d577ba3e1329cdcc614151b5f78d723e', '6f00ac246fd77630bcb8f173e63a1c06205dcbf6b1b7617ac4cc4cad0b78d59c', 'sha512-QOiP27vDAVo7982ZFpf/cbb6KpT4dwbyW3r+h7AQR6AuATEjsVLPhau4SYS4mNruj+43lfgr5GhU2usTXDMkRA==', 'sha512-+vARd84pIBwxaa7kY0eA5FDV8fhgaE1ltZa55W0Y4w6ofriI5nf4gsebl7gtDxvw5Icbq/a8k2OehGEdCCNfPA==', 'sha256sum --check --strict']) assert.ok(bytes.includes(value));
+  for (const gate of [identity, bytes]) {
+    assert.match(gate, /if: inputs\.recover_2_8 == true/);
+    assert.doesNotMatch(gate, /continue-on-error:|\|\|\s*true|set \+e/);
+  }
+  assertBefore(workflow, '- name: Recreate and verify the reviewed local artifacts', '- name: Verify original immutable release artifact bytes');
+  assertBefore(workflow, '- name: Verify original immutable release artifact bytes', `- name: ${rootRegistryStepName}`);
+  const evidence = stepBlock(workflow, "Record immutable release evidence");
+  assert.ok(evidence.includes('WORKFLOW_SHA: ${{ github.workflow_sha }}'));
+  assert.ok(evidence.includes('WORKFLOW_REF: ${{ github.workflow_ref }}'));
+  assert.ok(evidence.includes('RELEASE_TAG: ${{ steps.source.outputs.tag }}'));
+}
+
 function validatePublishWorkflow(workflow) {
+  validateRecoveryContract(workflow);
   validateRequiredGateCommands(workflow);
   validateArtifactGates(workflow, true);
   validateFreshCheckoutGate(workflow, "${{ steps.version.outputs.value }}");
@@ -426,6 +468,9 @@ test("bundle lock synchronization requires and records the exact new root artifa
 test("release bump and read-only PR preflight preserve all release gates", () => {
   const bump = readText(".github/workflows/release-bump.yml");
   validateBumpWorkflow(bump);
+  for (const command of ['npm cache add "${ROOT_TARBALL}"', 'npm ci --prefix plugins/dsh-cortex --prefer-offline']) {
+    assert.throws(() => validateBumpWorkflow(bump.replace(command, 'echo omitted')));
+  }
   const preflight = readText(".github/workflows/release-preflight.yml");
   validatePreflightWorkflow(preflight);
   for (const [from, to] of [
@@ -546,8 +591,55 @@ test("release workflows reject every npm credential and login path", () => {
   }
 });
 
-test("release publish is tag-only, root-first, exact-artifact, and resumable", () => {
-  validatePublishWorkflow(readText(".github/workflows/release-publish.yml"));
+test("release publish binds immutable tag recovery, root-first exact artifacts, and safe resume", async () => {
+  const workflow = readText(".github/workflows/release-publish.yml");
+  validatePublishWorkflow(workflow);
+  const select = stepBlock(workflow, "Reject branch dispatches and non-strict tags").split("        run: |\n")[1]
+    .split("\n").map((line) => line.replace(/^ {10}/, "")).join("\n");
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-publish-source-"));
+  try {
+    const output = path.join(temporary, "output");
+    for (const [recovery, event, ref, type, tag, expected] of [
+      ["true", "workflow_dispatch", "refs/heads/main", "branch", "main", "v2.8.0"],
+      ["true", "push", "refs/heads/main", "branch", "main", null],
+      ["true", "workflow_dispatch", "refs/heads/feature", "branch", "feature", null],
+      ["true", "workflow_dispatch", "refs/tags/v2.8.0", "tag", "v2.8.0", null],
+      ["false", "workflow_dispatch", "refs/heads/main", "branch", "main", null],
+      ["false", "push", "refs/tags/v2.8.0", "tag", "v2.8.0", "v2.8.0"],
+      ["false", "push", "refs/tags/v02.8.0", "tag", "v02.8.0", null],
+      ["false", "push", "refs/tags/v2.8.0-beta", "tag", "v2.8.0-beta", null],
+    ]) {
+      fs.writeFileSync(output, "");
+      const result = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", select], {
+        encoding: "utf8", env: { ...process.env, RECOVER_2_8: recovery, GITHUB_EVENT_NAME: event, GITHUB_REF: ref, GITHUB_REF_TYPE: type, TAG_NAME: tag, GITHUB_OUTPUT: output },
+      });
+      assert.equal(result.status === 0, expected !== null, JSON.stringify({ recovery, event, ref, tag, result }));
+      assert.equal(fs.readFileSync(output, "utf8"), expected ? `tag=${expected}\n` : "");
+    }
+  } finally {
+    fs.rmSync(temporary, { recursive: true, force: true });
+  }
+  const gate = stepBlock(workflow, "Run executable fresh-checkout regression");
+  const wrapper = gate.match(/import \{ runFreshCheckout, executeChild \} from '[^']+';\n([\s\S]*?)\n {10}NODE/)[1];
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  const execute = new AsyncFunction("runFreshCheckout", "executeChild", "process", wrapper);
+  const parent = { CORTEX_EXPECTED_RELEASE_VERSION: "2.8.0", PRESERVED: "yes" };
+  const options = { cwd: process.cwd(), env: parent };
+  const calls = [];
+  const commands = [["npm", ["test"]], ["npm", ["--prefix", "scaffold/mcp", "run", "test:ci"]], [process.execPath, ["scripts/release-artifacts.mjs", "root-context"]], ["npm", ["test", "--extra"]], ["other", ["test"]]];
+  const result = { status: 7, stdout: "unaltered output", stderr: "unaltered error" };
+  await execute(async ({ executor }) => {
+    for (const [command, args] of commands) assert.equal(await executor(command, args, options), result);
+    assert.equal(await executor("npm", ["test"], { ...options, cwd: path.join(process.cwd(), "elsewhere") }), result);
+  }, (command, args, childOptions) => { calls.push({ command, args, childOptions }); return result; }, { env: parent, cwd: () => process.cwd() });
+  assert.deepEqual(calls.slice(0, commands.length).map(({ command, args }) => [command, args]), commands);
+  assert.deepEqual(calls[0].childOptions, { ...options, env: { ...parent, NODE_OPTIONS: "--test-reporter=tap" } });
+  for (const call of calls.slice(1, commands.length)) assert.equal(call.childOptions, options);
+  assert.equal(calls.at(-1).childOptions.env, parent);
+  assert.equal(parent.NODE_OPTIONS, undefined);
+  let entered = false;
+  await assert.rejects(execute(() => { entered = true; }, () => {}, { env: { NODE_OPTIONS: "--test-reporter=spec" } }), /unmodified parent NODE_OPTIONS/);
+  assert.equal(entered, false);
 });
 
 test("release publish rejects publication before local artifact and Harness gates", () => {
@@ -563,6 +655,14 @@ test("release publish rejects publication before local artifact and Harness gate
 test("release publish rejects OIDC, provenance, runner, tag, version, and resume mutations", () => {
   const workflow = readText(".github/workflows/release-publish.yml");
   const mutations = [
+    workflow.replace('test "${GITHUB_REF}" = "refs/heads/main"', 'true'),
+    workflow.replace('test "${GITHUB_EVENT_NAME}" = "workflow_dispatch"', 'true'),
+    workflow.replace('e07de9de09e57ddf6375df72c241ba7c5b7ae8f5', 'unreviewed'),
+    workflow.replace('00258d7fe40c58fa54e0723236e452630feb7009', 'unreviewed'),
+    workflow.replace('72c8ef3565a8b1b102da738de41c821cab6cb997', 'unreviewed'),
+    workflow.replace('834585c01bafc60e9d9a7551a51b3815d577ba3e1329cdcc614151b5f78d723e', 'unreviewed'),
+    workflow.replace('6f00ac246fd77630bcb8f173e63a1c06205dcbf6b1b7617ac4cc4cad0b78d59c', 'unreviewed'),
+    workflow.replace('sha256sum --check --strict', 'true'),
     workflow.replace("id-token: write", "id-token: none"),
     workflow.replace("runs-on: ubuntu-latest", "runs-on: self-hosted"),
     workflow.replace('npm publish "${{ steps.artifacts.outputs.root_tarball }}" --access public --provenance', 'npm publish "${{ steps.artifacts.outputs.root_tarball }}" --access public'),

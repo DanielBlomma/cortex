@@ -83,3 +83,75 @@ An additional optional pattern lookup for unchanged provider.mjs fails verbatim
 file evidence and direct provider source review remain separate. Reviewer Ops's
 combined-review fail-safe limitation is recorded in its report. Raw final review
 and all pattern outputs remain in the manager evidence directory.
+
+## WO-LOCAL-007 actual native acceptance and guarded merge
+
+Both reviewers formally bind exact6672c3259478034b079fd0cd9564f58ab020a351.
+Coordinated fast-forward PR130 from6275039 to6672c32. Actual native Ubuntu
+preflight34600081411 completedSUCCESS,29/29 steps success. Full focused47,
+context81/root437/bundle6/MCP651 and pristine81/437/6/651 pass with zero skips;
+six audits report zero vulnerabilities. Containment/frontend, pinned Harness,
+identical duplicate artifacts, empty-cache install, real headless/Web/disposal/
+profile-removal and final diff/secrets/version/runtime boundary all pass.
+Raw log: local-007-evidence/preflight-34600081411.log; structured reports and
+step JSON retained alongside it. Historical native failure remains unclassified.
+
+Rechecked PR130 OPEN/DRAFT, head6672c32, main37a511f, no comments/reviews/pause,
+MERGEABLE/CLEAN, required validateSUCCESS. Synthetic merge
+9ead1dd9955f1ac89ad033b55434c02b9ebaf99c has tree
+f9975b49f75061dbb9247c5b172461e429c3a058, exactly local merge-tree. No conflict
+or dependent stack. Root independently confirms nativeSUCCESS. Manager accepts
+final source/native gates and auto-advances existing authorized ready+guarded
+merge, then existing minor Bump/Publish chain. No release gate waiver.
+
+PR130 guarded merge completed2026-09-11T13:00:22Z; merge/main commit
+6a42922b933f5869ae188b8d9cc56afccbbd2554, tree identical to native preflight.
+Dispatched existing minor Release Bump34601925375 on that main commit; full and
+pristine gates continue unchanged. No tag or Publish success has been claimed.
+
+## Release Bump completed / immutable Publish in progress
+
+Bump34601925375 completedSUCCESS, every step passed including the second actual
+full/pristine/audit/artifact/Harness/final-boundary sequence and atomic tag+main.
+Annotated v2.8.0 objecte07de9de09e57ddf6375df72c241ba7c5b7ae8f5 peels to
+00258d7fe40c58fa54e0723236e452630feb7009, exact remote main, tree
+72c8ef3565a8b1b102da738de41c821cab6cb997. Parent is reviewed merge6a42922.
+Exactly the expected eight metadata paths differ from merge; production/test
+source remains reviewed. Bump root/bundle SHA256 and SRI match native preflight
+bytes exactly. Full Bump log and extracted reports are in local-007-evidence.
+
+Existing Bump workflow automatically started Publish34603037854 at that immutable
+release commit. Actual publication, final registryHarness, downloaded bytes, fresh
+registry dual-install and root globalCLI proof remain pending. No tag is rewritten.
+
+## WO-LOCAL-007 Publish outcome / WO-LOCAL-008 bounded handoff
+
+Actual Publish34603037854 FAILED before any npm publication: pristine npm test
+exits0 with81/437/6 pass, but original root summary parser requiresTAP '#' and
+Node24.20.0 defaults to spec 'ℹ'. First full tagged MCP651 passed; pristine MCP
+was never reached. All later audits/artifacts/Harness/publication steps skipped.
+Both2.8.0 registry endpoints rechecked404. Immutable v2.8.0 object/commit remain
+e07de9de09e57ddf6375df72c241ba7c5b7ae8f5 /
+00258d7fe40c58fa54e0723236e452630feb7009; actual main is same releasecommit.
+
+Exact Node24.20.0 diagnostic proves globalNODE_OPTIONS TAP would break explicit
+MCPspec via duplicate reporters, so no global flag/rerun is attempted. A scoped
+original-executor wrapper is conditional pending fresh independent review and
+exact clean-tag full gates. Existing tag workflow has no recovery inputs and
+branch-ref rejection; safe main-workflow orchestration needs new reviewed work.
+Root authorizes that bounded recovery under existing2.8 publication scope. No
+tag rewrite, Bump rerun, version substitution, auth mutation or gate waiver.
+
+Fresh packet context-packets/local-008-immutable-publish-reporter-recovery.md
+contains completed source/native/Bump identities, all artifact bytes, actual
+failed Publish evidence, no-publication state and conditional recovery design.
+Root automatically starts a fresh manager and two fresh reviewers. This is a
+context/work-order boundary, not a user stop/reapproval request.
+
+Handoff docs use a final scoped lexical+graph refresh of direct reporter/helper/
+workflow references and control docs, with tracked config restored. Required
+eight changed-file pattern calls and rules succeed; combined doc-only review
+fails verbatim `Review failed safely`. No automated pass is claimed; prescribed
+rules/pattern fallback and independent closure review remain separate. Cortex
+search identifies file:scripts/release-fresh-checkout.mjs and
+chunk:scripts/release-fresh-checkout.mjs:validateExpectedTotals:400-410.

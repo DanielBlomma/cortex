@@ -2060,3 +2060,94 @@ patterns succeed. Full native final-head release gates remain mandatory.
 See local-007-release-completion-report.md and the two independent review reports.
 Auto-advance under existing authority to coordinated draft PR130 update, native
 preflight, then guarded merge/Bump/Publish only after actual green gates.
+
+## WO-LOCAL-007 actual native acceptance and guarded merge
+
+Both reviewers formally bind exact6672c3259478034b079fd0cd9564f58ab020a351.
+Coordinated fast-forward PR130 from6275039 to6672c32. Actual native Ubuntu
+preflight34600081411 completedSUCCESS,29/29 steps success. Full focused47,
+context81/root437/bundle6/MCP651 and pristine81/437/6/651 pass with zero skips;
+six audits report zero vulnerabilities. Containment/frontend, pinned Harness,
+identical duplicate artifacts, empty-cache install, real headless/Web/disposal/
+profile-removal and final diff/secrets/version/runtime boundary all pass.
+Raw log: local-007-evidence/preflight-34600081411.log; structured reports and
+step JSON retained alongside it. Historical native failure remains unclassified.
+
+Rechecked PR130 OPEN/DRAFT, head6672c32, main37a511f, no comments/reviews/pause,
+MERGEABLE/CLEAN, required validateSUCCESS. Synthetic merge
+9ead1dd9955f1ac89ad033b55434c02b9ebaf99c has tree
+f9975b49f75061dbb9247c5b172461e429c3a058, exactly local merge-tree. No conflict
+or dependent stack. Root independently confirms nativeSUCCESS. Manager accepts
+final source/native gates and auto-advances existing authorized ready+guarded
+merge, then existing minor Bump/Publish chain. No release gate waiver.
+
+PR130 guarded merge completed2026-09-11T13:00:22Z; merge/main commit
+6a42922b933f5869ae188b8d9cc56afccbbd2554, tree identical to native preflight.
+Dispatched existing minor Release Bump34601925375 on that main commit; full and
+pristine gates continue unchanged. No tag or Publish success has been claimed.
+
+## Release Bump completed / immutable Publish in progress
+
+Bump34601925375 completedSUCCESS, every step passed including the second actual
+full/pristine/audit/artifact/Harness/final-boundary sequence and atomic tag+main.
+Annotated v2.8.0 objecte07de9de09e57ddf6375df72c241ba7c5b7ae8f5 peels to
+00258d7fe40c58fa54e0723236e452630feb7009, exact remote main, tree
+72c8ef3565a8b1b102da738de41c821cab6cb997. Parent is reviewed merge6a42922.
+Exactly the expected eight metadata paths differ from merge; production/test
+source remains reviewed. Bump root/bundle SHA256 and SRI match native preflight
+bytes exactly. Full Bump log and extracted reports are in local-007-evidence.
+
+Existing Bump workflow automatically started Publish34603037854 at that immutable
+release commit. Actual publication, final registryHarness, downloaded bytes, fresh
+registry dual-install and root globalCLI proof remain pending. No tag is rewritten.
+
+## WO-LOCAL-007 Publish outcome / WO-LOCAL-008 bounded handoff
+
+Actual Publish34603037854 FAILED before any npm publication: pristine npm test
+exits0 with81/437/6 pass, but original root summary parser requiresTAP '#' and
+Node24.20.0 defaults to spec 'ℹ'. First full tagged MCP651 passed; pristine MCP
+was never reached. All later audits/artifacts/Harness/publication steps skipped.
+Both2.8.0 registry endpoints rechecked404. Immutable v2.8.0 object/commit remain
+e07de9de09e57ddf6375df72c241ba7c5b7ae8f5 /
+00258d7fe40c58fa54e0723236e452630feb7009; actual main is same releasecommit.
+
+Exact Node24.20.0 diagnostic proves globalNODE_OPTIONS TAP would break explicit
+MCPspec via duplicate reporters, so no global flag/rerun is attempted. A scoped
+original-executor wrapper is conditional pending fresh independent review and
+exact clean-tag full gates. Existing tag workflow has no recovery inputs and
+branch-ref rejection; safe main-workflow orchestration needs new reviewed work.
+Root authorizes that bounded recovery under existing2.8 publication scope. No
+tag rewrite, Bump rerun, version substitution, auth mutation or gate waiver.
+
+Fresh packet context-packets/local-008-immutable-publish-reporter-recovery.md
+contains completed source/native/Bump identities, all artifact bytes, actual
+failed Publish evidence, no-publication state and conditional recovery design.
+Root automatically starts a fresh manager and two fresh reviewers. This is a
+context/work-order boundary, not a user stop/reapproval request.
+
+## WO-LOCAL-008 recovery design / review assignment
+
+Fresh008 manager owns implementation; fresh008 Security and Ops reviewers were
+assigned before edits in separate clones. Infra/deploy/security-sensitive scope,
+source/workflow trust contract, preserved gates, installation-order issue and
+required acceptance evidence are in local-008-publish-recovery-report.md.
+Original immutable v2.8.0 and all package bytes remain fixed. No release GO yet.
+
+## WO-LOCAL-008 source and local validation acceptance
+
+Both fresh independent reviewers approve the four source hashes with no remaining
+blocker/major finding. Both original clean-tag full helpers independently pass
+81/437/6/651 on exact Node24.20.0/npm11.19.1, with zero fail/skip/cancel/todo.
+The host-only socket correction uses short task-owned TMPDIR and changes no source,
+helper, command or guard. First long-path failures and Ops's intermediate11.19.0
+diagnostic remain explicitly scoped; only final11.19.1 runs establish acceptance.
+Ops proves wrong locked root SRI rejects offline while restoring only exact SRI
+passes against the same cache. Both independent reports are committed alongside
+local-008-publish-recovery-report.md; raw final bindings remain in008 evidence dirs.
+
+Accept for coordinated draft PR and complete hosted native preflight, not merge
+or publication ahead of native gates. Auto-advance existing authorization to
+exact-head push, PR validation, guarded merge and explicit main recover_2_8
+Publish only after required green gates. Never rerun Bump or mutate v2.8.0.
+Root alone installs existing globalCLI after actual complete Publish/registry
+byte/SRI/SHA256/empty-cache/Harness evidence. Class:infra-sensitive, no PR stack.
