@@ -75,3 +75,15 @@ Compatible fixes removed allhigh findings andfrontend findings. OnlyMCP3moderate
 adm-zip 0.6.1 is newly published while advisory metadata still names no patched release; version and audit silence alone do not establish safety. Independent source/provenance and exploit checks are required before locked update acceptance. Deferred pristine/artifact/Harness/Linux gates remain mandatory. No PR CI checks currently exist; local ARM64 Linux evidence does not imply GitHub x64 success. The six absent external benchmark-fixture tests remain an explicit historical limitation, with no fixture fabrication or benchmark execution.
 
 Security review of 52bd675 approves the narrow adm-zip patch after exact source and npm-signature verification. Upstream suite passes 122 tests. Baseline ONNX installer uses a predictable temporary directory and extraction-root trust; adm-zip retains a pre-check/write race. This is a minor residual for this unchanged caller and is not introduced or worsened by the patch; it is not a claim of complete filesystem-race hardening. Manager isolated temporary-fixture checks verify rejection in all four extraction API modes plus normal extraction. Six lock audits are clean. Actual Linux ARM64 inspection found ryugraph 25.9.1 ships an x86_64 binary under its ARM64 filename; both reviewers confirmed ELF machine 62. This is an existing upstream platform defect, not npm lifecycle policy. The release target is Linux x64; validation moved to that platform without source changes. A first x64 no-init container left a child zombie, so the validation environment is being restarted with proper orphan reaping. No assertion, isolation rule or release gate was weakened.
+
+
+## 2026-09-11 — WO-LOCAL-004 native result / WO-LOCAL-005 handoff
+
+Hosted preflight 34595569328 on 0b1d53c passed all preceding full/pristine/audit/
+artifact gates but failed native Harness Web SIGINT shutdown at ten seconds.
+This is an unresolved actual gate, not an emulator waiver. Clean-tag test 7699afb
+is independently approved and local; remote PR #130 remains draft at 0b1d53c / main 37a511f.
+No merge/tag/Bump/Publish/CLI update. Fresh WO-LOCAL-005 must diagnose helper versus
+pinned lifecycle, repair with independent reviewers, validate final HEAD and then
+complete authorized release/CLI steps. Exact packet:
+context-packets/local-005-hosted-release-completion.md. User authority persists.

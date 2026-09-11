@@ -101,3 +101,20 @@ PR130 release-readiness source repairs independently reviewed: all ten baseline 
 ## WO-LOCAL-004 required coverage
 
 Published adm-zip fix provenance and meaningful negative extraction checks; minimal compatible locked resolution; six clean audits; native compatibility; full root/MCP/focused/packed/frontend validation; pristine fresh checkout and simulated 2.8 duplicate artifacts, empty-cache dual install, pinned Harness lifecycle and Linux identity; independent exact-head review; merge identity; real Bump/Publish success; exact root/bundle registry artifacts and clean install; root-owned global CLI update. All are pending for this work order until measured evidence is recorded.
+
+
+## 2026-09-11 — Hosted preflight checkpoint
+
+WO-LOCAL-004 measured progress: all six audits zero; native/build/root/MCP/packed/frontend/focused gates pass locally; independent simulated 2.8 artifact, empty-cache install and four negative gates pass. Security/Contract and Ops approve preflight source 0b1d53c for draft push. Actual hosted full/pristine/Harness run 34595569328 remains the merge gate; release publication and root-owned global CLI update remain pending.
+
+
+## 2026-09-11 — WO-LOCAL-004 native result / WO-LOCAL-005 handoff
+
+Hosted preflight 34595569328 on 0b1d53c passed all preceding full/pristine/audit/
+artifact gates but failed native Harness Web SIGINT shutdown at ten seconds.
+This is an unresolved actual gate, not an emulator waiver. Clean-tag test 7699afb
+is independently approved and local; remote PR #130 remains draft at 0b1d53c / main 37a511f.
+No merge/tag/Bump/Publish/CLI update. Fresh WO-LOCAL-005 must diagnose helper versus
+pinned lifecycle, repair with independent reviewers, validate final HEAD and then
+complete authorized release/CLI steps. Exact packet:
+context-packets/local-005-hosted-release-completion.md. User authority persists.

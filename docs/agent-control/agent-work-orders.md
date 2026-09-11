@@ -131,3 +131,15 @@ Reviewed readiness patch; blocked draft PR130 update authorized. Implementation3
 ## WO-LOCAL-004 — In progress (2026-09-11)
 
 Resolve the newly published adm-zip 0.6.1 security patch, complete deferred release gates, independently review PR #130, and merge/publish 2.8.0 under existing user authority if all required gates pass. Root owns the later /opt/homebrew CLI update. [Context packet](context-packets/local-004-release-completion.md).
+
+
+## 2026-09-11 — WO-LOCAL-004 native result / WO-LOCAL-005 handoff
+
+Hosted preflight 34595569328 on 0b1d53c passed all preceding full/pristine/audit/
+artifact gates but failed native Harness Web SIGINT shutdown at ten seconds.
+This is an unresolved actual gate, not an emulator waiver. Clean-tag test 7699afb
+is independently approved and local; remote PR #130 remains draft at 0b1d53c / main 37a511f.
+No merge/tag/Bump/Publish/CLI update. Fresh WO-LOCAL-005 must diagnose helper versus
+pinned lifecycle, repair with independent reviewers, validate final HEAD and then
+complete authorized release/CLI steps. Exact packet:
+context-packets/local-005-hosted-release-completion.md. User authority persists.

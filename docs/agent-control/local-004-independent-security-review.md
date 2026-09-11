@@ -151,3 +151,36 @@ lock patch. It must remain explicit in platform compatibility evidence; it does
 not establish a failure on the workflow's Linux x64 runner. Ops is moving the
 actual release validation to Linux x64. No source change was reviewed or made
 for this diagnostic iteration.
+
+## Cancellation diagnostic iteration — observed zombie reaping race
+
+Ops's Linux x64 emulation with docker-init passed 81 context and 437 root tests,
+then one bundle test failed immediate ESRCH after cancellation of a TERM-trapping
+descendant whose leader had exited zero. Reviewer used a separate
+`/tmp/security-cancel-fixture` in the same container, copying only provider,
+protocol and existing integration test; dependencies were read from the existing
+locked tree. No Ops source/context/dependency mutation occurred.
+
+An instrumented copy preserved the original assert.throws(process.kill(pid, 0),
+/ESRCH/) condition, adding only a read-only /proc stat capture when kill(pid, 0)
+succeeded. Eleven targeted invocations produced 10 passes and one reproduction.
+At the failing assertion the descendant was a zombie: PID 5688, state Z,
+PPID 1, process group 5681. A later independent check confirmed /proc/5688 absent.
+This demonstrates an immediate reaping race, not an executing descendant leak
+in that reproduction. It does not relabel the original failing gate as passed.
+
+The pinned `@deepseek-ai/dsh-subprocess-local@0.1.1-rc.2` implementation
+`lib/index.js:315-338,823-847,915-937` deliberately considers Linux process groups
+with only Z/X/x entries exited. Cortex provider correctly awaits handle.waitForExit
+before returning CANCELED. The test at local-subprocess-integration.test.mjs:200
+additionally requires OS reaping immediately, a stronger timing condition.
+No runtime or test assertion was changed. Actual hosted Ubuntu x64 preflight is
+pending. If a test-only repair is needed, preserve eventual ESRCH and immediate
+rejection of executing descendants, with a bounded wait only for already-dead
+process records; do not accept live survivors or unbounded cleanup.
+
+Reproduction command in the reviewer fixture:
+`node --test --test-name-pattern="caller cancellation kills a TERM-trapping" tests/cancel-diagnostic.test.mjs`.
+Raw logs: `cancel-diagnostic-run1.log`, `cancel-diagnostic-repeats.log` in the
+review clone's parent directory. Scoped Cortex index was refreshed for exactly
+provider, protocol and the subprocess test; no providers or embeddings.

@@ -266,3 +266,34 @@ next minor from the checked-out package so this PR check remains usable after
 body remain unchanged. Added target-drift rejection. Focused tests still pass
 41 with one Linux-only macOS skip; diff-check from 98ad614 is clean. Exact
 iteration awaits Security/Ops closure before the coordinated draft-PR push.
+
+
+## 2026-09-11 — Hosted preflight checkpoint
+
+WO-LOCAL-004 preflight iteration closure: both fresh reviewers independently approve exact 0b1d53c for draft push only. Security job bypass findings fixed and mutation-tested; Ops EOF/future-target concerns closed. Draft PR #130 push succeeded and hosted run 34595569328 is running. Reviewer reports are local-004-independent-security-review.md and local-004-preflight-security-review.md; Ops final report follows lifecycle completion.
+
+
+## WO-LOCAL-004 clean-tag query test intake
+
+Both independent reviewers classified the ambient nonempty-diff assertion in
+scaffold/mcp/tests/query-cli.test.mjs as a major test-contract defect before any
+immutable tag. Publish leaves a clean tree; review's supported empty result is
+already covered by dedicated review.test.mjs fixtures, alongside exact positive
+staged/unstaged/untracked/deletion/rename/binary changes. The bounded repair
+replaces only ambient positivity with exact observed/items/omitted accounting,
+retaining schema, determinism, byte limits and no-state-mutation checks. No
+runtime, test count, gate, assertion deadline or release guard changes. Clean
+and dirty integration modes and dedicated positive/empty review fixtures require
+independent execution before sign-off; updated head must pass hosted preflight.
+
+
+## 2026-09-11 — WO-LOCAL-004 native result / WO-LOCAL-005 handoff
+
+Hosted preflight 34595569328 on 0b1d53c passed all preceding full/pristine/audit/
+artifact gates but failed native Harness Web SIGINT shutdown at ten seconds.
+This is an unresolved actual gate, not an emulator waiver. Clean-tag test 7699afb
+is independently approved and local; remote PR #130 remains draft at 0b1d53c / main 37a511f.
+No merge/tag/Bump/Publish/CLI update. Fresh WO-LOCAL-005 must diagnose helper versus
+pinned lifecycle, repair with independent reviewers, validate final HEAD and then
+complete authorized release/CLI steps. Exact packet:
+context-packets/local-005-hosted-release-completion.md. User authority persists.
