@@ -208,3 +208,47 @@ patterns succeed. Full native final-head release gates remain mandatory.
 See local-007-release-completion-report.md and the two independent review reports.
 Auto-advance under existing authority to coordinated draft PR130 update, native
 preflight, then guarded merge/Bump/Publish only after actual green gates.
+
+## WO-LOCAL-007 actual native acceptance and guarded merge
+
+Both reviewers formally bind exact6672c3259478034b079fd0cd9564f58ab020a351.
+Coordinated fast-forward PR130 from6275039 to6672c32. Actual native Ubuntu
+preflight34600081411 completedSUCCESS,29/29 steps success. Full focused47,
+context81/root437/bundle6/MCP651 and pristine81/437/6/651 pass with zero skips;
+six audits report zero vulnerabilities. Containment/frontend, pinned Harness,
+identical duplicate artifacts, empty-cache install, real headless/Web/disposal/
+profile-removal and final diff/secrets/version/runtime boundary all pass.
+Raw log: local-007-evidence/preflight-34600081411.log; structured reports and
+step JSON retained alongside it. Historical native failure remains unclassified.
+
+Rechecked PR130 OPEN/DRAFT, head6672c32, main37a511f, no comments/reviews/pause,
+MERGEABLE/CLEAN, required validateSUCCESS. Synthetic merge
+9ead1dd9955f1ac89ad033b55434c02b9ebaf99c has tree
+f9975b49f75061dbb9247c5b172461e429c3a058, exactly local merge-tree. No conflict
+or dependent stack. Root independently confirms nativeSUCCESS. Manager accepts
+final source/native gates and auto-advances existing authorized ready+guarded
+merge, then existing minor Bump/Publish chain. No release gate waiver.
+
+## WO-LOCAL-007 Publish outcome / WO-LOCAL-008 bounded handoff
+
+Actual Publish34603037854 FAILED before any npm publication: pristine npm test
+exits0 with81/437/6 pass, but original root summary parser requiresTAP '#' and
+Node24.20.0 defaults to spec 'ℹ'. First full tagged MCP651 passed; pristine MCP
+was never reached. All later audits/artifacts/Harness/publication steps skipped.
+Both2.8.0 registry endpoints rechecked404. Immutable v2.8.0 object/commit remain
+e07de9de09e57ddf6375df72c241ba7c5b7ae8f5 /
+00258d7fe40c58fa54e0723236e452630feb7009; actual main is same releasecommit.
+
+Exact Node24.20.0 diagnostic proves globalNODE_OPTIONS TAP would break explicit
+MCPspec via duplicate reporters, so no global flag/rerun is attempted. A scoped
+original-executor wrapper is conditional pending fresh independent review and
+exact clean-tag full gates. Existing tag workflow has no recovery inputs and
+branch-ref rejection; safe main-workflow orchestration needs new reviewed work.
+Root authorizes that bounded recovery under existing2.8 publication scope. No
+tag rewrite, Bump rerun, version substitution, auth mutation or gate waiver.
+
+Fresh packet context-packets/local-008-immutable-publish-reporter-recovery.md
+contains completed source/native/Bump identities, all artifact bytes, actual
+failed Publish evidence, no-publication state and conditional recovery design.
+Root automatically starts a fresh manager and two fresh reviewers. This is a
+context/work-order boundary, not a user stop/reapproval request.

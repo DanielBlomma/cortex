@@ -169,3 +169,27 @@ WO-LOCAL-007 source risks closed by deterministic same-identity death/reap proof
 strict negative probes and owned setup-failure cleanup. Historical native process
 state remains unknown; no claim of retrospective classification. Native final-head
 gate remains open, with no timeout/production/publication exception.
+
+## WO-LOCAL-007 Publish outcome / WO-LOCAL-008 bounded handoff
+
+Actual Publish34603037854 FAILED before any npm publication: pristine npm test
+exits0 with81/437/6 pass, but original root summary parser requiresTAP '#' and
+Node24.20.0 defaults to spec 'ℹ'. First full tagged MCP651 passed; pristine MCP
+was never reached. All later audits/artifacts/Harness/publication steps skipped.
+Both2.8.0 registry endpoints rechecked404. Immutable v2.8.0 object/commit remain
+e07de9de09e57ddf6375df72c241ba7c5b7ae8f5 /
+00258d7fe40c58fa54e0723236e452630feb7009; actual main is same releasecommit.
+
+Exact Node24.20.0 diagnostic proves globalNODE_OPTIONS TAP would break explicit
+MCPspec via duplicate reporters, so no global flag/rerun is attempted. A scoped
+original-executor wrapper is conditional pending fresh independent review and
+exact clean-tag full gates. Existing tag workflow has no recovery inputs and
+branch-ref rejection; safe main-workflow orchestration needs new reviewed work.
+Root authorizes that bounded recovery under existing2.8 publication scope. No
+tag rewrite, Bump rerun, version substitution, auth mutation or gate waiver.
+
+Fresh packet context-packets/local-008-immutable-publish-reporter-recovery.md
+contains completed source/native/Bump identities, all artifact bytes, actual
+failed Publish evidence, no-publication state and conditional recovery design.
+Root automatically starts a fresh manager and two fresh reviewers. This is a
+context/work-order boundary, not a user stop/reapproval request.
