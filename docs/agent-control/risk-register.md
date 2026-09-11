@@ -193,3 +193,30 @@ contains completed source/native/Bump identities, all artifact bytes, actual
 failed Publish evidence, no-publication state and conditional recovery design.
 Root automatically starts a fresh manager and two fresh reviewers. This is a
 context/work-order boundary, not a user stop/reapproval request.
+
+## WO-LOCAL-008 recovery design / review assignment
+
+Fresh008 manager owns implementation; fresh008 Security and Ops reviewers were
+assigned before edits in separate clones. Infra/deploy/security-sensitive scope,
+source/workflow trust contract, preserved gates, installation-order issue and
+required acceptance evidence are in local-008-publish-recovery-report.md.
+Original immutable v2.8.0 and all package bytes remain fixed. No release GO yet.
+
+## WO-LOCAL-008 source and local validation acceptance
+
+Both fresh independent reviewers approve the four source hashes with no remaining
+blocker/major finding. Both original clean-tag full helpers independently pass
+81/437/6/651 on exact Node24.20.0/npm11.19.1, with zero fail/skip/cancel/todo.
+The host-only socket correction uses short task-owned TMPDIR and changes no source,
+helper, command or guard. First long-path failures and Ops's intermediate11.19.0
+diagnostic remain explicitly scoped; only final11.19.1 runs establish acceptance.
+Ops proves wrong locked root SRI rejects offline while restoring only exact SRI
+passes against the same cache. Both independent reports are committed alongside
+local-008-publish-recovery-report.md; raw final bindings remain in008 evidence dirs.
+
+Accept for coordinated draft PR and complete hosted native preflight, not merge
+or publication ahead of native gates. Auto-advance existing authorization to
+exact-head push, PR validation, guarded merge and explicit main recover_2_8
+Publish only after required green gates. Never rerun Bump or mutate v2.8.0.
+Root alone installs existing globalCLI after actual complete Publish/registry
+byte/SRI/SHA256/empty-cache/Harness evidence. Class:infra-sensitive, no PR stack.

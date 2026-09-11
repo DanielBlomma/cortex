@@ -5,6 +5,12 @@ on:
     tags:
       - "v*.*.*"
   workflow_dispatch:
+    inputs:
+      recover_2_8:
+        description: Resume the immutable v2.8.0 release from reviewed main orchestration
+        type: boolean
+        default: false
+        required: false
 
 permissions:
   contents: read
@@ -18,21 +24,40 @@ jobs:
 
     steps:
       - name: Reject branch dispatches and non-strict tags
+        id: source
         env:
           GITHUB_REF_TYPE: ${{ github.ref_type }}
           TAG_NAME: ${{ github.ref_name }}
+          RECOVER_2_8: ${{ inputs.recover_2_8 == true }}
         run: |
-          test "${GITHUB_REF_TYPE}" = "tag"
+          if [ "${RECOVER_2_8}" = "true" ]; then
+            test "${GITHUB_EVENT_NAME}" = "workflow_dispatch"
+            test "${GITHUB_REF}" = "refs/heads/main"
+            TAG_NAME="v2.8.0"
+          else
+            test "${GITHUB_REF_TYPE}" = "tag"
+          fi
           if ! [[ "${TAG_NAME}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
             echo "Release publish requires a strict immutable vX.Y.Z tag"
             exit 1
           fi
+          echo "tag=${TAG_NAME}" >> "${GITHUB_OUTPUT}"
 
       - name: Checkout immutable tag
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.ref }}
+          ref: refs/tags/${{ steps.source.outputs.tag }}
           fetch-depth: 0
+
+      - name: Verify recovery source identity
+        if: inputs.recover_2_8 == true
+        run: |
+          test "$(git cat-file -t v2.8.0)" = "tag"
+          test "$(git rev-parse refs/tags/v2.8.0)" = "e07de9de09e57ddf6375df72c241ba7c5b7ae8f5"
+          test "$(git rev-parse HEAD)" = "00258d7fe40c58fa54e0723236e452630feb7009"
+          test "$(git rev-parse 'v2.8.0^{commit}')" = "$(git rev-parse HEAD)"
+          test "$(git rev-parse 'HEAD^{tree}')" = "72c8ef3565a8b1b102da738de41c821cab6cb997"
+          test -z "$(git status --porcelain)"
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -54,7 +79,7 @@ jobs:
       - name: Verify annotated tag and all metadata versions
         id: version
         env:
-          TAG_NAME: ${{ github.ref_name }}
+          TAG_NAME: ${{ steps.source.outputs.tag }}
         run: |
           test "$(git cat-file -t "${TAG_NAME}")" = "tag"
           test "$(git rev-list -n 1 "${TAG_NAME}")" = "$(git rev-parse HEAD)"
@@ -131,10 +156,24 @@ jobs:
       - name: Run executable fresh-checkout regression
         env:
           CORTEX_EXPECTED_RELEASE_VERSION: ${{ steps.version.outputs.value }}
+          RECOVER_2_8: ${{ inputs.recover_2_8 == true }}
         run: |
           git clean -fdx .context scaffold/.context
           git restore .context scaffold/.context
-          npm run release:test-fresh-checkout
+          if [ "${RECOVER_2_8}" = "true" ]; then
+            node --input-type=module <<'NODE'
+          import { runFreshCheckout, executeChild } from './scripts/release-fresh-checkout.mjs';
+          if (process.env.NODE_OPTIONS) throw new Error('Recovery requires an unmodified parent NODE_OPTIONS');
+          await runFreshCheckout({
+            executor: (command, args, options) => executeChild(command, args,
+              command === 'npm' && args.length === 1 && args[0] === 'test' && options.cwd === process.cwd()
+                ? { ...options, env: { ...options.env, NODE_OPTIONS: '--test-reporter=tap' } }
+                : options),
+          });
+          NODE
+          else
+            npm run release:test-fresh-checkout
+          fi
 
       - name: Audit all six committed dependency trees
         run: |
@@ -175,6 +214,20 @@ jobs:
           echo "root_tarball=${ROOT_TARBALL}" >> "${GITHUB_OUTPUT}"
           echo "bundle_tarball=${BUNDLE_TARBALL}" >> "${GITHUB_OUTPUT}"
           echo "root_integrity=${ROOT_INTEGRITY}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify original immutable release artifact bytes
+        if: inputs.recover_2_8 == true
+        env:
+          ROOT_TARBALL: ${{ steps.artifacts.outputs.root_tarball }}
+          BUNDLE_TARBALL: ${{ steps.artifacts.outputs.bundle_tarball }}
+          ROOT_INTEGRITY: ${{ steps.artifacts.outputs.root_integrity }}
+          BUNDLE_INTEGRITY: ${{ steps.artifacts.outputs.bundle_integrity }}
+        run: |
+          test "${ROOT_INTEGRITY}" = "sha512-QOiP27vDAVo7982ZFpf/cbb6KpT4dwbyW3r+h7AQR6AuATEjsVLPhau4SYS4mNruj+43lfgr5GhU2usTXDMkRA=="
+          test "${BUNDLE_INTEGRITY}" = "sha512-+vARd84pIBwxaa7kY0eA5FDV8fhgaE1ltZa55W0Y4w6ofriI5nf4gsebl7gtDxvw5Icbq/a8k2OehGEdCCNfPA=="
+          printf '%s  %s\n' \
+            834585c01bafc60e9d9a7551a51b3815d577ba3e1329cdcc614151b5f78d723e "${ROOT_TARBALL}" \
+            6f00ac246fd77630bcb8f173e63a1c06205dcbf6b1b7617ac4cc4cad0b78d59c "${BUNDLE_TARBALL}" | sha256sum --check --strict
 
       - name: Install both reviewed local artifacts with an empty cache
         env:
@@ -297,11 +350,16 @@ jobs:
       - name: Record immutable release evidence
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.value }}
+          RELEASE_TAG: ${{ steps.source.outputs.tag }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
         run: |
           {
             echo "## Cortex ${RELEASE_VERSION} npm publication"
             echo "- run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-            echo "- tag: ${GITHUB_REF_NAME}"
+            echo "- tag: ${RELEASE_TAG}"
+            echo "- annotated tag object: $(git rev-parse "refs/tags/${RELEASE_TAG}")"
+            echo "- workflow: ${WORKFLOW_REF} at ${WORKFLOW_SHA}"
             echo "- commit: $(git rev-parse HEAD)"
             echo "- tree: $(git rev-parse HEAD^{tree})"
             echo "- published npm artifact: @danielblomma/cortex-mcp@${RELEASE_VERSION}"

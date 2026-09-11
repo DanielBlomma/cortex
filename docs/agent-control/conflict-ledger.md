@@ -43,3 +43,11 @@ f9975b49f75061dbb9247c5b172461e429c3a058, exactly local merge-tree. No conflict
 or dependent stack. Root independently confirms nativeSUCCESS. Manager accepts
 final source/native gates and auto-advances existing authorized ready+guarded
 merge, then existing minor Bump/Publish chain. No release gate waiver.
+
+## WO-LOCAL-008 isolated recovery branch
+
+Branch recovery/immutable-2.8-publish is based on actual release/main00258d7
+plus docs-only31af0dae handoff. Remote main remains00258d7 and immutable
+v2.8.0 objecte07de9de/peeled00258d7 is unchanged. No existing remote recovery
+branch, stacked PR or conflict. Exact full heads are coordinated with root
+before GitHub push; required native preflight precedes guarded merge.

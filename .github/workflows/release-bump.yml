@@ -86,7 +86,6 @@ jobs:
           npm ci --prefix scaffold/mcp
           npm ci --prefix scaffold/scripts/parsers
           npm ci --prefix scripts/parsers
-          npm ci --prefix plugins/dsh-cortex
 
       - name: Build trusted context runtime
         run: npm --prefix scaffold/mcp run build
@@ -125,6 +124,8 @@ jobs:
         env:
           ROOT_TARBALL: ${{ steps.seed.outputs.root_tarball }}
         run: |
+          npm cache add "${ROOT_TARBALL}"
+          npm ci --prefix plugins/dsh-cortex --prefer-offline
           npm --prefix plugins/dsh-cortex install --no-save --package-lock=false "${ROOT_TARBALL}"
           test "$(node -p 'require("./plugins/dsh-cortex/node_modules/@danielblomma/cortex-mcp/package.json").version')" = "${RELEASE_VERSION}"
 
