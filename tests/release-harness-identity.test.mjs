@@ -6,7 +6,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { runNetworkDenied } from "../scripts/release-artifacts.mjs";
+import { runNetworkDenied, webSmoke } from "../scripts/release-artifacts.mjs";
 
 function readText(relative) {
   return fs.readFileSync(fileURLToPath(new URL(`../${relative}`, import.meta.url)), "utf8");
@@ -100,3 +100,95 @@ test("Linux Harness isolation uses a numeric fail-closed privilege drop without 
   assert.match(source, /uid <= 0 \|\| gid <= 0/);
   assert.doesNotMatch(source, /chmodSync|chownSync|\bchmod\b|\bchown\b/);
 });
+
+
+async function webProcessFixture(t, mode) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cortex-release-web-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const fixture = path.join(root, "web.mjs");
+  fs.writeFileSync(fixture, `
+    import fs from "node:fs";
+    import http from "node:http";
+    import { spawn } from "node:child_process";
+    const root = process.env.WEB_FIXTURE_ROOT;
+    const mode = process.env.WEB_FIXTURE_MODE;
+    if (process.argv[2] !== "worker") {
+      fs.writeFileSync(root + "/parent", String(process.pid));
+      const worker = spawn(process.execPath, [import.meta.filename, "worker"], {
+        stdio: "inherit", env: process.env,
+      });
+      process.on("SIGINT", () => {});
+      worker.on("exit", (code) => process.exit(code ?? 1));
+    } else {
+      fs.writeFileSync(root + "/worker", String(process.pid));
+      if (mode === "before-bind") process.exit(17);
+      const server = http.createServer((request, response) => {
+        if (mode === "broken-http") { request.socket.destroy(); return; }
+        response.statusCode = mode === "bad-http" ? 503 : 200;
+        response.end("fixture Web profile");
+      });
+      server.listen(0, "127.0.0.1", () => {
+        console.log("http://127.0.0.1:" + server.address().port);
+      });
+      process.on("SIGINT", () => {
+        fs.writeFileSync(root + "/interrupted", "SIGINT");
+        if (mode === "stubborn") return;
+        server.close(() => {
+          fs.writeFileSync(root + "/disposed", "server closed");
+          process.exit(130);
+        });
+        server.closeAllConnections();
+      });
+    }
+  `);
+  const run = () => webSmoke(process.execPath, [fixture], {
+    ...process.env, WEB_FIXTURE_ROOT: root, WEB_FIXTURE_MODE: mode,
+  }, root);
+  const assertStopped = async () => {
+    for (const name of ["parent", "worker"]) {
+      const pid = Number(fs.readFileSync(path.join(root, name), "utf8"));
+      let present = true;
+      for (let attempt = 0; attempt < 100 && present; attempt += 1) {
+        try { process.kill(pid, 0); } catch (error) {
+          assert.equal(error.code, "ESRCH");
+          present = false;
+        }
+        if (present) await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      assert.equal(present, false, `${name} process ${pid} survived Web smoke`);
+    }
+  };
+  return { root, run, assertStopped };
+}
+
+test("Web lifecycle signals the owned wrapper and server and observes graceful disposal", {
+  skip: process.platform === "win32",
+}, async (t) => {
+  const fixture = await webProcessFixture(t, "graceful");
+  const result = await fixture.run();
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.outcome, { code: 130, signal: null });
+  assert.equal(fs.readFileSync(path.join(fixture.root, "interrupted"), "utf8"), "SIGINT");
+  assert.equal(fs.readFileSync(path.join(fixture.root, "disposed"), "utf8"), "server closed");
+  await assert.rejects(fetch(result.url, { signal: AbortSignal.timeout(1_000) }));
+  await fixture.assertStopped();
+});
+
+for (const [mode, diagnostic] of [
+  ["before-bind", /exited before binding/],
+  ["bad-http", /returned HTTP 503/],
+  ["broken-http", /fetch failed/],
+  ["stubborn", /did not stop within 10 seconds after SIGINT/],
+]) {
+  test(`Web lifecycle rejects ${mode} and cleans up its process tree`, {
+    skip: process.platform === "win32",
+  }, async (t) => {
+    const fixture = await webProcessFixture(t, mode);
+    await assert.rejects(fixture.run(), diagnostic);
+    await fixture.assertStopped();
+    if (mode === "stubborn") {
+      assert.equal(fs.readFileSync(path.join(fixture.root, "interrupted"), "utf8"), "SIGINT");
+      assert.equal(fs.existsSync(path.join(fixture.root, "disposed")), false);
+    }
+  });
+}
