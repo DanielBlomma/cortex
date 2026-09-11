@@ -267,7 +267,11 @@ test("review --diff emits deterministic bounded local output without state mutat
   assert.equal(parsed.command, "review");
   assert.equal(parsed.generator_version, "repo-diff-review-v1");
   assert.deepEqual(parsed.data, reversed.data);
-  assert.ok(parsed.data.changed_files.observed_count > 0);
+  // Published tags are clean; the CLI must also preserve complete empty-diff results.
+  assert.equal(
+    parsed.data.changed_files.observed_count,
+    parsed.data.changed_files.items.length + parsed.data.changed_files.omitted_count,
+  );
   assert.ok(Buffer.byteLength(first.stdout, "utf8") <= 1_000_000);
   assert.doesNotMatch(first.stdout, new RegExp(PROJECT_ROOT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "u"));
   for (const item of before) { assert.deepEqual(fs.readFileSync(item.file), item.bytes); assert.equal(fs.statSync(item.file).mtimeMs, item.mtimeMs); }
