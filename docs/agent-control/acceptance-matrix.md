@@ -96,3 +96,8 @@ PR130: ten baseline release-contract failures must be closed with meaningful neg
 
 ## WO-LOCAL-003 final coverage
 PR130 release-readiness source repairs independently reviewed: all ten baseline failures resolved; real gate/identity negative cases and narrow dependency fixes pass focused/fullroot/MCP/build/packed checks. Merge/publication acceptance NOT met: unpatchedadm-zipchain fails required low-or-higher audit. Fullpristine2.8 releasefixture/Harness/Linux andregistry publication are unclaimed. Exact requirements/evidence/unblock sequence in local-003-release-readiness-review.md.
+
+
+## WO-LOCAL-004 required coverage
+
+Published adm-zip fix provenance and meaningful negative extraction checks; minimal compatible locked resolution; six clean audits; native compatibility; full root/MCP/focused/packed/frontend validation; pristine fresh checkout and simulated 2.8 duplicate artifacts, empty-cache dual install, pinned Harness lifecycle and Linux identity; independent exact-head review; merge identity; real Bump/Publish success; exact root/bundle registry artifacts and clean install; root-owned global CLI update. All are pending for this work order until measured evidence is recorded.

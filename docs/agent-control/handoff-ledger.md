@@ -231,3 +231,8 @@ Security artifact-gate executable/identity mutations closed on2eb9190: independe
 
 ## WO-LOCAL-003 final review handoff — 2026-09-10
 Security and Ops approve31fc32e for blocked draftPR update only; reports copied into control directory. Implementation findings closed. Fullruntime/root/build/packed evidence now complete as recorded in local-003-release-readiness-review.md; earlier reviewer pending statements do not override later measured evidence. Audit and final release acceptance still blocked. Next manager needs no chat: read review report, both independent reports, current PR/main/tag/npm state, and local-003 packet authority. No original checkout mutation, hooks, embeddings, or publication.
+
+
+## WO-LOCAL-004 review assignment — 2026-09-11
+
+Manager /root/release_completion_manager owns dependency implementation and remote branch writes. Fresh Security/Contract and Ops/Validation reviewers named in manager log were assigned before implementation. Security verifies exact npm 0.6.1 provenance and exploitation behavior; Ops verifies pristine/simulated 2.8 artifact and Harness gates on actual Linux. Intake and sign-offs remain pending.

@@ -68,3 +68,8 @@ Release gates were removed in477f17e; restore before next publication. Fresh dep
 
 ## WO-LOCAL-003 residual blocker — 2026-09-10
 Compatible fixes removed allhigh findings andfrontend findings. OnlyMCP3moderate nodes remain, oneadm-zip/ONNX/Transformers chain. GHSA-vwc7-r8mq-g2x9 has no patchednpmversion; upstreamadm-zipPR575 open. No breakingdowngrade, override disguise, or auditwaiver accepted. Hold merge/publication until a reviewed supported resolution passes all6audits and remaining releaseacceptance gates. Separate6benchmark failures are missing external frozenpacket, outside this bounded release patch. Finalreport recordsLinux/freshfixture/Harness/tooling limitations without labelingthem passes.
+
+
+## WO-LOCAL-004 active risks — 2026-09-11
+
+adm-zip 0.6.1 is newly published while advisory metadata still names no patched release; version and audit silence alone do not establish safety. Independent source/provenance and exploit checks are required before locked update acceptance. Deferred pristine/artifact/Harness/Linux gates remain mandatory. No PR CI checks currently exist; local ARM64 Linux evidence does not imply GitHub x64 success. The six absent external benchmark-fixture tests remain an explicit historical limitation, with no fixture fabrication or benchmark execution.

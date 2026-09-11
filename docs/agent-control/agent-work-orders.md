@@ -126,3 +126,8 @@ Owner: fresh `/root/release_manager`, Release/Distribution + Control. Infra/depl
 
 ## WO-LOCAL-003 disposition — 2026-09-10
 Reviewed readiness patch; blocked draft PR130 update authorized. Implementation31fc32e; independent Security/Contract/Code and Ops/Validation/Integration sign off for review only. Fullroot81/437/6 andMCP651 pass; narrow audits leave only unpatchedadm-zipchain3moderate. No manager merge/release acceptance. Next release continuation starts fresh from local-003-release-readiness-review.md and its reports; user localCLI update authority is recorded, contingent on verified publication.
+
+
+## WO-LOCAL-004 — In progress (2026-09-11)
+
+Resolve the newly published adm-zip 0.6.1 security patch, complete deferred release gates, independently review PR #130, and merge/publish 2.8.0 under existing user authority if all required gates pass. Root owns the later /opt/homebrew CLI update. [Context packet](context-packets/local-004-release-completion.md).
