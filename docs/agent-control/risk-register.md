@@ -155,3 +155,17 @@ root immediately starts fresh007 manager/reviewers from
 context-packets/local-007-subprocess-reaping-release-completion.md. Existing user
 authority persists through the complete release chain. This is not a pause for
 permission or user restart. Latest remote remains6275039/main37a511f.
+
+## WO-LOCAL-007 active process-state risk
+
+Native34598916068 proves immediate ESRCH assertion failure only; no evidence
+classifies its process. Do not infer its state from historical emulation. A
+deterministic Linux subreaper witness may establish the general assertion race.
+Any test correction must reject executing/unknown/reused records immediately,
+wait only for the same confirmed-dead identity, require bounded eventual ESRCH,
+and avoid signaling a reused PID during cleanup. No release gate waiver.
+
+WO-LOCAL-007 source risks closed by deterministic same-identity death/reap proof,
+strict negative probes and owned setup-failure cleanup. Historical native process
+state remains unknown; no claim of retrospective classification. Native final-head
+gate remains open, with no timeout/production/publication exception.

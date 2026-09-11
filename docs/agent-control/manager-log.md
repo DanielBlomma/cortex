@@ -2033,3 +2033,30 @@ root immediately starts fresh007 manager/reviewers from
 context-packets/local-007-subprocess-reaping-release-completion.md. Existing user
 authority persists through the complete release chain. This is not a pause for
 permission or user restart. Latest remote remains6275039/main37a511f.
+
+## WO-LOCAL-007 assignment and diagnostic contract
+
+Fresh isolated manager at c7ce1a9; new independent Security/Contract/Code Quality
+and Ops/Validation/Integration reviewers assigned before implementation, each
+in an isolated clone. Apply the local-007 packet and Cortex skills. The historical
+native timeout failure lacks process state and remains unclassified. Root
+clarifies that deterministic Linux evidence may prove the general reaping race;
+retrospective classification is not required. Ops will hold orphan reaping with
+a subreaper, run the actual pinned runtime and original assertion, bind live/dead
+PID identity, then reap and require ESRCH. No runtime/test correction before
+that evidence. Final unchanged native release gates remain mandatory.
+
+## WO-LOCAL-007 source acceptance
+
+Accept bounded subprocess-test correction for coordinated draft/native preflight,
+not merge/release approval. Exact test SHA256:
+6d337c598caef11c5b9d3cdf2665379e04c91629a7ce3232d9cf35612041fac1.
+Security closes baseline-failure cleanup finding;36 adversarial helper probes and
+both real setup-failure paths reject/clean as required. Ops independently proves
+controlled reap success and held-zombie bounded failure with actual pinned runtime.
+Independent Linux/macOS settled2/2 and manager bundle6/6 pass. Manager scoped
+Cortex review7paths returns zero findings/conflicts; six rules and all per-file
+patterns succeed. Full native final-head release gates remain mandatory.
+See local-007-release-completion-report.md and the two independent review reports.
+Auto-advance under existing authority to coordinated draft PR130 update, native
+preflight, then guarded merge/Bump/Publish only after actual green gates.
