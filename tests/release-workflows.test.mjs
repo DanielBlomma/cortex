@@ -237,6 +237,39 @@ function validateBumpWorkflow(workflow) {
   assert.doesNotMatch(workflow, /release-artifacts\.mjs registry-state/);
 }
 
+function validatePreflightWorkflow(workflow) {
+  validateRequiredGateCommands(workflow);
+  validateArtifactGates(workflow, false);
+  validateFreshCheckoutGate(workflow, "${{ env.RELEASE_VERSION }}");
+  validateNoNpmCredentials(workflow);
+  assert.equal(workflow.slice(workflow.indexOf("on:\n"), workflow.indexOf("permissions:\n")).trim(), "on:\n  pull_request:\n    branches:\n      - main");
+  assert.match(workflow, /permissions:\n  contents: read\n/);
+  assert.equal(workflow.match(/permissions:/g)?.length, 1);
+  assert.deepEqual([...workflow.matchAll(/^  ([a-z][\w-]*):$/gm)].map((match) => match[1]), ["pull_request", "validate"]);
+  assert.match(workflow, /runs-on: ubuntu-latest/);
+  assert.match(workflow, /timeout-minutes: 45/);
+  assert.doesNotMatch(workflow, /secrets\.|github\.token|id-token:|\bwrite\b|\bgit\s+(?:add|commit|push|tag)\b|\bnpm\s+publish\b|\bgh\s+workflow\b/);
+  const checkout = stepBlock(workflow, "Checkout PR merge candidate");
+  assert.match(checkout, /uses: actions\/checkout@v6/);
+  assert.match(checkout, /fetch-depth: 0/);
+  assert.match(checkout, /persist-credentials: false/);
+  assert.doesNotMatch(checkout, /\bref:|\btoken:|\brun:/);
+
+  const bump = readText(".github/workflows/release-bump.yml");
+  const firstGate = bump.indexOf("      - name: Setup Node");
+  const lastGate = bump.indexOf("      - name: Stage only the complete release metadata set");
+  const gateNames = [...bump.slice(firstGate, lastGate).matchAll(/^      - name: (.+)$/gm)]
+    .map((match) => match[1]).filter((name) => name !== "Configure git author");
+  assert.deepEqual([...workflow.matchAll(/^      - name: (.+)$/gm)].map((match) => match[1]), ["Checkout PR merge candidate", ...gateNames]);
+  for (const name of gateNames) {
+    assert.equal(stepBlock(workflow, name).trim(), stepBlock(bump, name).trim(), `preflight gate ${name} must match Release Bump`);
+  }
+  for (const variable of ["RELEASE_VERSION", "HARNESS_COMMIT"]) {
+    const pattern = new RegExp(`^      ${variable}: .+$`, "m");
+    assert.equal(workflow.match(pattern)?.[0], bump.match(pattern)?.[0]);
+  }
+}
+
 function validatePublishWorkflow(workflow) {
   validateRequiredGateCommands(workflow);
   validateArtifactGates(workflow, true);
@@ -382,11 +415,25 @@ test("bundle lock synchronization requires and records the exact new root artifa
   assert.doesNotMatch(installed.resolved, /file:|workspace:|latest/);
 });
 
-test("release bump encodes exact synchronized staging and all pre-tag gates", () => {
+test("release bump and read-only PR preflight preserve all release gates", () => {
   const bump = readText(".github/workflows/release-bump.yml");
   validateBumpWorkflow(bump);
+  const preflight = readText(".github/workflows/release-preflight.yml");
+  validatePreflightWorkflow(preflight);
+  for (const [from, to] of [
+    ["pull_request:", "pull_request_target:"],
+    ["contents: read", "contents: write"],
+    ["persist-credentials: false", "persist-credentials: true"],
+    ["runs-on: ubuntu-latest", "runs-on: self-hosted"],
+    ["npm run release:test", "npm run release:test\n          npm publish"],
+    ["fetch-depth: 0", "fetch-depth: 0\n          token: ${{ secrets.GITHUB_TOKEN }}"],
+  ]) {
+    assert.ok(preflight.includes(from));
+    assert.throws(() => validatePreflightWorkflow(preflight.replace(from, to)));
+  }
   for (const [workflow, validator, mapping] of [
     [bump, validateBumpWorkflow, "${{ env.RELEASE_VERSION }}"],
+    [preflight, validatePreflightWorkflow, "${{ env.RELEASE_VERSION }}"],
     [readText(".github/workflows/release-publish.yml"), validatePublishWorkflow, "${{ steps.version.outputs.value }}"],
   ]) {
     validator(workflow);
@@ -396,7 +443,7 @@ test("release bump encodes exact synchronized staging and all pre-tag gates", ()
       const bypass = replaceInStep(workflow, name, command, `${command} || true`);
       assert.throws(() => validator(bypass), /must fail closed/);
     }
-    const artifactNames = validator === validateBumpWorkflow
+    const artifactNames = validator !== validatePublishWorkflow
       ? ["Create and verify duplicate local root and bundle artifacts", "Install both local artifacts with an empty cache"]
       : ["Recreate and verify the reviewed local artifacts", "Install both reviewed local artifacts with an empty cache"];
     for (const name of [...artifactNames, "Run packed Harness headless and Web lifecycle"]) {

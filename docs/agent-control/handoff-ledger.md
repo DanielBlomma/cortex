@@ -236,3 +236,21 @@ Security and Ops approve31fc32e for blocked draftPR update only; reports copied 
 ## WO-LOCAL-004 review assignment — 2026-09-11
 
 Manager /root/release_completion_manager owns dependency implementation and remote branch writes. Fresh Security/Contract and Ops/Validation reviewers named in manager log were assigned before implementation. Security verifies exact npm 0.6.1 provenance and exploitation behavior; Ops verifies pristine/simulated 2.8 artifact and Harness gates on actual Linux. Intake and sign-offs remain pending.
+
+
+## WO-LOCAL-004 hosted preflight intake — 2026-09-11
+
+Root confirmed a minimal read-only PR preflight is necessary release-readiness
+work under existing user authority. Fresh Security and Ops reviewers were
+assigned this iteration before implementation. Changed files are
+.github/workflows/release-preflight.yml and tests/release-workflows.test.mjs.
+The new Ubuntu x64 PR job checks the default merge candidate with read-only
+contents and credentials persistence disabled. It mirrors existing Bump setup
+and pre-tag validation step bodies, excludes author configuration and all
+staging/tag/push/publish operations, and retains every existing release guard.
+Existing release-gate tests now validate the preflight's exact step parity,
+artifact/version/Harness identity and failure behavior, plus negative event,
+permission, credentials, runner and publication mutations. No test-count or
+runtime assertion changed. Focused release tests pass 41 with one macOS-only
+Linux skip (42 total). Remote execution remains pending independent review and
+a coordinated draft-PR push; no merge or release acceptance is implied.
