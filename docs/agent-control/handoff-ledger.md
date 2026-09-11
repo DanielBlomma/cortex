@@ -254,3 +254,15 @@ permission, credentials, runner and publication mutations. No test-count or
 runtime assertion changed. Focused release tests pass 41 with one macOS-only
 Linux skip (42 total). Remote execution remains pending independent review and
 a coordinated draft-PR push; no merge or release acceptance is implied.
+
+
+## WO-LOCAL-004 preflight review iteration
+
+Security found job-level if/continue-on-error bypasses absent from the validator;
+classified major/fix-now. Added explicit rejection and both negative mutations.
+Ops found one trailing blank line; removed. Preflight now derives its simulated
+next minor from the checked-out package so this PR check remains usable after
+2.8.0, while the existing Bump's explicit release target and every shared step
+body remain unchanged. Added target-drift rejection. Focused tests still pass
+41 with one Linux-only macOS skip; diff-check from 98ad614 is clean. Exact
+iteration awaits Security/Ops closure before the coordinated draft-PR push.

@@ -17,7 +17,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      RELEASE_VERSION: "2.8.0"
       HARNESS_COMMIT: "b150a551b8d465e31e418e1b2eaf5e79bbb7d28e"
 
     steps:
@@ -44,6 +43,11 @@ jobs:
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "8.0.x"
+
+      - name: Determine next minor preflight version
+        run: |
+          RELEASE_VERSION="$(node -p 'const [major, minor] = require("./package.json").version.split(".").map(Number); `${major}.${minor + 1}.0`')"
+          echo "RELEASE_VERSION=${RELEASE_VERSION}" >> "${GITHUB_ENV}"
 
       - name: Install all committed dependency trees
         run: |
@@ -184,4 +188,3 @@ jobs:
             exit 1
           fi
           test -z "$(git diff --name-only -- plugins/dsh-cortex/provider.mjs plugins/dsh-cortex/protocol.mjs plugins/dsh-cortex/tools.mjs plugins/dsh-cortex/skills.mjs plugins/dsh-cortex/skills)"
-

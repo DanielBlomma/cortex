@@ -248,6 +248,7 @@ function validatePreflightWorkflow(workflow) {
   assert.deepEqual([...workflow.matchAll(/^  ([a-z][\w-]*):$/gm)].map((match) => match[1]), ["pull_request", "validate"]);
   assert.match(workflow, /runs-on: ubuntu-latest/);
   assert.match(workflow, /timeout-minutes: 45/);
+  assert.doesNotMatch(workflow, /^    (?:if|continue-on-error):/m);
   assert.doesNotMatch(workflow, /secrets\.|github\.token|id-token:|\bwrite\b|\bgit\s+(?:add|commit|push|tag)\b|\bnpm\s+publish\b|\bgh\s+workflow\b/);
   const checkout = stepBlock(workflow, "Checkout PR merge candidate");
   assert.match(checkout, /uses: actions\/checkout@v6/);
@@ -260,11 +261,18 @@ function validatePreflightWorkflow(workflow) {
   const lastGate = bump.indexOf("      - name: Stage only the complete release metadata set");
   const gateNames = [...bump.slice(firstGate, lastGate).matchAll(/^      - name: (.+)$/gm)]
     .map((match) => match[1]).filter((name) => name !== "Configure git author");
-  assert.deepEqual([...workflow.matchAll(/^      - name: (.+)$/gm)].map((match) => match[1]), ["Checkout PR merge candidate", ...gateNames]);
+  const targetName = "Determine next minor preflight version";
+  const expectedSteps = gateNames.flatMap((name) => name === "Setup .NET" ? [name, targetName] : [name]);
+  assert.deepEqual([...workflow.matchAll(/^      - name: (.+)$/gm)].map((match) => match[1]), ["Checkout PR merge candidate", ...expectedSteps]);
+  const target = stepBlock(workflow, targetName);
+  assert.match(target, /require\("\.\/package\.json"\)\.version\.split\("\."\)\.map\(Number\)/);
+  assert.ok(target.includes("`${major}.${minor + 1}.0`"));
+  assert.ok(target.includes('echo "RELEASE_VERSION=${RELEASE_VERSION}" >> "${GITHUB_ENV}"'));
+  assert.doesNotMatch(target, /if:|continue-on-error:|\|\|\s*true/);
   for (const name of gateNames) {
     assert.equal(stepBlock(workflow, name).trim(), stepBlock(bump, name).trim(), `preflight gate ${name} must match Release Bump`);
   }
-  for (const variable of ["RELEASE_VERSION", "HARNESS_COMMIT"]) {
+  for (const variable of ["HARNESS_COMMIT"]) {
     const pattern = new RegExp(`^      ${variable}: .+$`, "m");
     assert.equal(workflow.match(pattern)?.[0], bump.match(pattern)?.[0]);
   }
@@ -422,6 +430,9 @@ test("release bump and read-only PR preflight preserve all release gates", () =>
   validatePreflightWorkflow(preflight);
   for (const [from, to] of [
     ["pull_request:", "pull_request_target:"],
+    ["    runs-on:", "    if: false\n    runs-on:"],
+    ["    runs-on:", "    continue-on-error: true\n    runs-on:"],
+    ["minor + 1", "minor + 2"],
     ["contents: read", "contents: write"],
     ["persist-credentials: false", "persist-credentials: true"],
     ["runs-on: ubuntu-latest", "runs-on: self-hosted"],
